@@ -412,54 +412,6 @@ def create_client_keypair(name, only_storage=False, keys_dir=None, extra_kwargs:
     return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
 
-def exchange_client_public_keys(client, server_keys_dir, connector_keys_dir):
-    if KEYSTORE_VERSION == 'v1':
-        # Older keystores expect the administrator to manually copy
-        # the following public key files. They are not encrypted or
-        # authenticated in any way.
-        connector_key = '{}.pub'.format(client)
-        server_key = '{}_server.pub'.format(client)
-
-        # Transfer AcraServer public key to AcraConnector
-        shutil.copy(os.path.join(server_keys_dir, server_key),
-                    connector_keys_dir)
-
-        # Transfer AcraConnector public key to AcraServer
-        shutil.copy(os.path.join(connector_keys_dir, connector_key),
-                    server_keys_dir)
-    else:
-        # Newer keystores have a bit more involved key transfer process.
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            bundle = os.path.join(tmp_dir, 'key-bundle')
-            secret = os.path.join(tmp_dir, 'key-bundle-secret')
-
-            # Transfer AcraServer public key to AcraConnector
-            subprocess.call(['./acra-keys', 'export',
-                             '--keys_dir={}'.format(server_keys_dir),
-                             '--key_bundle_file={}'.format(bundle),
-                             '--key_bundle_secret={}'.format(secret),
-                             'client/{}/transport/server'.format(client)],
-                            timeout=PROCESS_CALL_TIMEOUT)
-            subprocess.call(['./acra-keys', 'import',
-                             '--keys_dir={}'.format(connector_keys_dir),
-                             '--key_bundle_file={}'.format(bundle),
-                             '--key_bundle_secret={}'.format(secret)],
-                            timeout=PROCESS_CALL_TIMEOUT)
-
-            # Transfer AcraConnector public key to AcraServer
-            subprocess.call(['./acra-keys', 'export',
-                             '--keys_dir={}'.format(connector_keys_dir),
-                             '--key_bundle_file={}'.format(bundle),
-                             '--key_bundle_secret={}'.format(secret),
-                             'client/{}/transport/connector'.format(client)],
-                            timeout=PROCESS_CALL_TIMEOUT)
-            subprocess.call(['./acra-keys', 'import',
-                             '--keys_dir={}'.format(server_keys_dir),
-                             '--key_bundle_file={}'.format(bundle),
-                             '--key_bundle_secret={}'.format(secret)],
-                            timeout=PROCESS_CALL_TIMEOUT)
-
-
 def wait_connection(port, count=1000, sleep=0.001):
     """try connect to 127.0.0.1:port and close connection
     if can't then sleep on and try again (<count> times)
@@ -556,7 +508,7 @@ def socket_path_from_connection_string(connection_string):
         return connection_string
 
 def acra_api_connection_string(port):
-    return "unix://{}".format("{}/acra_api_unix_socket_{}".format(PG_UNIX_HOST, port+1))
+    return "tcp://localhost:{}".format(port)
 
 
 
@@ -1158,7 +1110,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     acra = ProcessStub()
 
     def checkSkip(self):
-        if TEST_WITH_TLS:
+        if not TEST_WITH_TLS:
             self.skipTest("running tests with TLS")
 
     def fork(self, func):
@@ -1241,7 +1193,9 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
 
     def get_acraserver_api_connection_string(self, port=None):
         if not port:
-            port = self.ACRASERVER_PORT
+            port = self.ACRASERVER_PORT + 1
+        elif port == self.ACRASERVER_PORT:
+            port = port + 1
         return acra_api_connection_string(port)
 
     def get_ocsp_server_connection_string(self, port=None):
@@ -1862,7 +1816,7 @@ class TestCensorVersionChecks(BaseCensorTest, FailedRunProcessMixin):
 class CensorBlacklistTest(BaseCensorTest):
     CENSOR_CONFIG_FILE = abs_path('tests/acra-censor_configs/acra-censor_blacklist.yaml')
     def testBlacklist(self):
-        connection_args = ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
+        connection_args = ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
                            user=DB_USER, password=DB_USER_PASSWORD,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                            ssl_key=TEST_TLS_CLIENT_KEY,
@@ -1900,7 +1854,7 @@ class CensorBlacklistTest(BaseCensorTest):
 class CensorWhitelistTest(BaseCensorTest):
     CENSOR_CONFIG_FILE = abs_path('tests/acra-censor_configs/acra-censor_whitelist.yaml')
     def testWhitelist(self):
-        connection_args = ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
+        connection_args = ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
                            user=DB_USER, password=DB_USER_PASSWORD,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                            ssl_key=TEST_TLS_CLIENT_KEY,
@@ -2063,10 +2017,13 @@ class TestConnectionClosing(BaseTestCase):
     def setUp(self):
         self.checkSkip()
         try:
-            self.connector_1 = self.fork_connector(
-                self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, 'keypair1')
             if not self.EXTERNAL_ACRA:
-                self.acra = self.fork_acra()
+                self.acra = self.fork_acra(
+                    tls_ocsp_from_cert='ignore',
+                    tls_crl_from_cert='ignore',
+                    tls_ocsp_url='',
+                    tls_crl_url='',
+                )
         except:
             self.tearDown()
             raise
@@ -2077,10 +2034,10 @@ class TestConnectionClosing(BaseTestCase):
             try:
                 if TEST_MYSQL:
                     return TestConnectionClosing.mysql_closing(
-                        pymysql.connect(**get_connect_args(port=self.CONNECTOR_PORT_1)))
+                        pymysql.connect(**get_connect_args(port=self.ACRASERVER_PORT)))
                 else:
                     return TestConnectionClosing.mysql_closing(psycopg2.connect(
-                        host=get_db_host(), **get_connect_args(port=self.CONNECTOR_PORT_1)))
+                        host=get_db_host(), **get_connect_args(port=self.ACRASERVER_PORT)))
             except:
                 count -= 1
                 if count == 0:
@@ -2089,13 +2046,10 @@ class TestConnectionClosing(BaseTestCase):
 
     def tearDown(self):
         procs = []
-        if hasattr(self, 'connector_1'):
-            procs.append(self.connector_1)
         if not self.EXTERNAL_ACRA and hasattr(self, 'acra'):
             procs.append(self.acra)
         stop_process(procs)
         send_signal_by_process_name('acra-server', signal.SIGKILL)
-        send_signal_by_process_name('acra-connector', signal.SIGKILL)
 
     def getActiveConnectionCount(self, cursor):
         if TEST_MYSQL:
@@ -2667,22 +2621,23 @@ class TestKeyStorageClearing(BaseTestCase):
         self.checkSkip()
         try:
             self.init_key_stores()
-            self.connector_1 = self.fork_connector(
-                connector_port=self.CONNECTOR_PORT_1,
-                acraserver_port=self.ACRASERVER_PORT,
-                client_id=self.client_id,
-                api_port=self.CONNECTOR_API_PORT_1,
-                zone_mode=True,
-                keys_dir=self.connector_keys_dir)
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra(
                     zonemode_enable='true',
                     http_api_enable='true',
+                    tls_ocsp_from_cert='ignore',
+                    tls_crl_from_cert='ignore',
+                    tls_ocsp_url='',
+                    tls_crl_url='',
                     keys_dir=self.server_keys_dir)
 
+            args = get_connect_args(port=self.ACRASERVER_PORT, sslmode='require')
+            args.update(get_tls_connection_args(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT))
             self.engine1 = sa.create_engine(
-                get_engine_connection_string(self.get_connector_connection_string(self.CONNECTOR_PORT_1), DB_NAME),
-                connect_args=get_connect_args(port=self.CONNECTOR_PORT_1))
+                get_engine_connection_string(
+                    self.get_acraserver_connection_string(),
+                    DB_NAME),
+                connect_args=args)
 
             self.engine_raw = sa.create_engine(
                 '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
@@ -2706,46 +2661,26 @@ class TestKeyStorageClearing(BaseTestCase):
             engine.dispose()
 
         processes = []
-        if hasattr(self, 'connector_1'):
-            processes.append(self.connector_1)
         if not self.EXTERNAL_ACRA and hasattr(self, 'acra'):
             processes.append(self.acra)
 
         stop_process(processes)
         send_signal_by_process_name('acra-server', signal.SIGKILL)
-        send_signal_by_process_name('acra-connector', signal.SIGKILL)
         self.server_keystore.cleanup()
-        self.connector_keystore.cleanup()
 
     def init_key_stores(self):
-        self.client_id = 'clearing_keypair'
+        self.client_id = TLS_CERT_CLIENT_ID_1
         self.server_keystore = tempfile.TemporaryDirectory()
         self.server_keys_dir = os.path.join(self.server_keystore.name, '.acrakeys')
-        self.connector_keystore = tempfile.TemporaryDirectory()
-        self.connector_keys_dir = os.path.join(self.connector_keystore.name, '.acrakeys')
 
-        create_client_keypair(name=self.client_id, keys_dir=self.server_keys_dir,
-                              only_server=True, only_storage=True)
-        create_client_keypair(name=self.client_id, keys_dir=self.connector_keys_dir,
-                              only_connector=True)
-        exchange_client_public_keys(client=self.client_id,
-                                    server_keys_dir=self.server_keys_dir,
-                                    connector_keys_dir=self.connector_keys_dir)
+        create_client_keypair(name=self.client_id, keys_dir=self.server_keys_dir, only_storage=True)
 
     def test_clearing(self):
         # execute any query for loading key by acra
         result = self.engine1.execute(sa.select([1]).limit(1))
         result.fetchone()
-        with urlopen('http://localhost:{}/resetKeyStorage'.format(self.CONNECTOR_API_PORT_1)) as response:
+        with urlopen('http://localhost:{}/resetKeyStorage'.format(self.ACRASERVER_PORT+1)) as response:
             self.assertEqual(response.status, 200)
-        # delete key for excluding reloading from FS
-        destroy_connector_transport(client_id=self.client_id,
-                                    keys_dir=self.server_keys_dir)
-        # close connections in pool and reconnect to reinitiate secure session
-        self.engine1.dispose()
-        # acra-server should close connection when doesn't find key
-        with self.assertRaises(DatabaseError):
-            result = self.engine1.execute(test_table.select().limit(1))
 
 
 class HashiCorpVaultMasterKeyLoaderMixin:
@@ -2769,21 +2704,6 @@ class HashiCorpVaultMasterKeyLoaderMixin:
         args = self.vault_client.get_vault_cli_args(self.DEFAULT_MOUNT_PATH, self.secret_path)
         acra_kwargs.update(args)
         return self._fork_acra(acra_kwargs, popen_kwargs)
-
-    def fork_connector(self, connector_port: int, acraserver_port: int,
-                       client_id: str, api_port: int = None,
-                       zone_mode: bool = False, check_connection: bool = True,
-                       popen_kwargs: dict = None,
-                       **extra_options: dict):
-        args = self.vault_client.get_vault_cli_args(self.DEFAULT_MOUNT_PATH,self.secret_path)
-        return super().fork_connector(connector_port, acraserver_port, client_id, api_port, zone_mode, check_connection,
-                                      popen_kwargs, **args)
-
-    def fork_connector_for_translator(self, connector_port: int, server_port: int,
-                                      client_id: str, check_connection: bool=True, **extra_options: dict):
-
-        args = self.vault_client.get_vault_cli_args(self.DEFAULT_MOUNT_PATH,self.secret_path)
-        return super().fork_connector_for_translator(connector_port, server_port, client_id, check_connection, **args)
 
     def fork_translator(self, translator_kwargs, popen_kwargs=None):
         args = self.vault_client.get_vault_cli_args(self.DEFAULT_MOUNT_PATH,self.secret_path)
@@ -2849,11 +2769,9 @@ class TestKeyStoreMigration(BaseTestCase):
     def create_key_store(self, version):
         """Create new keystore of given version."""
         # Start with service transport keys and client storage keys.
-        self.client_id = 'test-client-please-ignore'
+        self.client_id = TLS_CERT_CLIENT_ID_1
         subprocess.check_call([
                 './acra-keymaker',
-                '--generate_acraconnector_keys',
-                '--generate_acraserver_keys',
                 '--generate_acrawriter_keys',
                 '--client_id={}'.format(self.client_id),
                 '--keys_output_dir={}'.format(self.current_key_store_path()),
@@ -2919,22 +2837,19 @@ class TestKeyStoreMigration(BaseTestCase):
         self.acra_server = self.fork_acra(
             zonemode_enable='true' if zone_mode else 'false',
             keys_dir=self.current_key_store_path(),
+            tls_ocsp_from_cert='ignore',
+            tls_crl_from_cert='ignore',
+            tls_ocsp_url='',
+            tls_crl_url='',
             popen_kwargs={'env': master_key_env})
 
-        self.acra_connector = self.fork_connector(
-            client_id=self.client_id,
-            zone_mode=zone_mode,
-            api_port=self.CONNECTOR_API_PORT_1,
-            connector_port=self.CONNECTOR_PORT_1,
-            acraserver_port=self.ACRASERVER_PORT,
-            keys_dir=self.current_key_store_path(),
-            popen_kwargs={'env': master_key_env})
-
+        args = get_connect_args(port=self.ACRASERVER_PORT, sslmode='require')
+        args.update(get_tls_connection_args(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT))
         self.engine = sa.create_engine(
             get_engine_connection_string(
-                self.get_connector_connection_string(self.CONNECTOR_PORT_1),
+                self.get_acraserver_connection_string(),
                 DB_NAME),
-            connect_args=get_connect_args(port=self.CONNECTOR_PORT_1))
+            connect_args=args)
 
         # Remember whether we're running in zone mode. We need to know this
         # to store and retrieve the data correctly.
@@ -2943,7 +2858,6 @@ class TestKeyStoreMigration(BaseTestCase):
     def stop_services(self):
         """Gracefully stop Acra services being tested."""
         self.engine.dispose()
-        stop_process(self.acra_connector)
         stop_process(self.acra_server)
 
     @contextlib.contextmanager
@@ -2954,7 +2868,7 @@ class TestKeyStoreMigration(BaseTestCase):
         finally:
             self.stop_services()
 
-    def insert_via_connector(self, data):
+    def insert_as_client(self, data):
         """Encrypt and insert data via Acra Connector."""
         # It's too bothersome to thread through the master key setting.
         # Set it here and reset it back after reading the public key.
@@ -2985,7 +2899,7 @@ class TestKeyStoreMigration(BaseTestCase):
         })
         return row_id
 
-    def select_via_connector(self, row_id):
+    def select_as_client(self, row_id):
         """Select decrypted data via Acra Connector."""
         # If we're using zones, zone ID should precede the encrypted data.
         if self.zone_mode:
@@ -3024,10 +2938,10 @@ class TestKeyStoreMigration(BaseTestCase):
 
         # Try saving some data with default zone
         with self.running_services():
-            row_id_1 = self.insert_via_connector(data_1)
+            row_id_1 = self.insert_as_client(data_1)
 
             # Check that we're able to put and get data via Connector.
-            selected = self.select_via_connector(row_id_1)
+            selected = self.select_as_client(row_id_1)
             self.assertEquals(selected['data'], data_1.encode('ascii'))
             self.assertEquals(selected['raw_data'], data_1)
 
@@ -3037,10 +2951,10 @@ class TestKeyStoreMigration(BaseTestCase):
 
         # Now do the same with a specific zone
         with self.running_services(zone_mode=True):
-            row_id_1_zoned = self.insert_via_connector(data_1)
+            row_id_1_zoned = self.insert_as_client(data_1)
 
             # Check that we're able to put and get data via Connector.
-            selected = self.select_via_connector(row_id_1_zoned)
+            selected = self.select_as_client(row_id_1_zoned)
             self.assertEquals(selected['data'], data_1.encode('ascii'))
             self.assertEquals(selected['raw_data'], data_1)
 
@@ -3055,7 +2969,7 @@ class TestKeyStoreMigration(BaseTestCase):
         # After we have migrated the keys, check the setup again.
         with self.running_services():
             # Old data should still be there, accessible via Connector.
-            selected = self.select_via_connector(row_id_1)
+            selected = self.select_as_client(row_id_1)
             self.assertEquals(selected['data'], data_1.encode('ascii'))
             self.assertEquals(selected['raw_data'], data_1)
 
@@ -3065,15 +2979,15 @@ class TestKeyStoreMigration(BaseTestCase):
                               encrypted_1['data'])
 
             # We're able to put some new data into the table and get it back.
-            row_id_2 = self.insert_via_connector(data_2)
-            selected = self.select_via_connector(row_id_2)
+            row_id_2 = self.insert_as_client(data_2)
+            selected = self.select_as_client(row_id_2)
             self.assertEquals(selected['data'], data_2.encode('ascii'))
             self.assertEquals(selected['raw_data'], data_2)
 
         # And again, this time with zones.
         with self.running_services(zone_mode=True):
             # Old data should still be there, accessible via Connector.
-            selected = self.select_via_connector(row_id_1_zoned)
+            selected = self.select_as_client(row_id_1_zoned)
             self.assertEquals(selected['data'], data_1.encode('ascii'))
             self.assertEquals(selected['raw_data'], data_1)
 
@@ -3083,8 +2997,8 @@ class TestKeyStoreMigration(BaseTestCase):
                               encrypted_1_zoned['data'])
 
             # We're able to put some new data into the table and get it back.
-            row_id_2_zoned = self.insert_via_connector(data_2)
-            selected = self.select_via_connector(row_id_2_zoned)
+            row_id_2_zoned = self.insert_as_client(data_2)
+            selected = self.select_as_client(row_id_2_zoned)
             self.assertEquals(selected['data'], data_2.encode('ascii'))
             self.assertEquals(selected['raw_data'], data_2)
 
@@ -3095,8 +3009,8 @@ class TestKeyStoreMigration(BaseTestCase):
         # Save some data, do a sanity check.
         data = get_pregenerated_random_data()
         with self.running_services():
-            row_id = self.insert_via_connector(data)
-            selected = self.select_via_connector(row_id)
+            row_id = self.insert_as_client(data)
+            selected = self.select_as_client(row_id)
             self.assertEquals(selected['data'], data.encode('ascii'))
 
         # Move the keystore to a different (still temporary) location.
@@ -3106,7 +3020,7 @@ class TestKeyStoreMigration(BaseTestCase):
         # We should still be able to access the data with the same keystore
         # but located at different path.
         with self.running_services():
-            selected = self.select_via_connector(row_id)
+            selected = self.select_as_client(row_id)
             self.assertEquals(selected['data'], data.encode('ascii'))
 
 
@@ -3347,8 +3261,6 @@ class TestPostgreSQLParseQueryErrorSkipExit(AcraCatchLogsMixin, BaseTestCase):
     """By default AcraServer skip any errors connected SQL parse queries failures.
         It can be changed by --sql_parse_error_exit=true cmd param."""
 
-    client_id = 'keypair1'
-
     def checkSkip(self):
         if not TEST_POSTGRESQL:
             self.skipTest("Only for postgresql")
@@ -3356,7 +3268,7 @@ class TestPostgreSQLParseQueryErrorSkipExit(AcraCatchLogsMixin, BaseTestCase):
 
     def executePreparedStatement(self, query):
         return AsyncpgExecutor(ConnectionArgs(
-            host=get_db_host(), port=self.CONNECTOR_PORT_1, dbname=DB_NAME,
+            host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
             user=DB_USER, password=DB_USER_PASSWORD,
             format=AsyncpgExecutor.BinaryFormat,
             ssl_ca=TEST_TLS_CA,
@@ -3365,7 +3277,7 @@ class TestPostgreSQLParseQueryErrorSkipExit(AcraCatchLogsMixin, BaseTestCase):
         )).execute_prepared_statement(query=query)
 
     def read_public_key(self,  extra_kwargs: dict = None):
-        return read_storage_public_key(self.client_id, KEYS_FOLDER.name, extra_kwargs=extra_kwargs)
+        return read_storage_public_key(TLS_CERT_CLIENT_ID_1, KEYS_FOLDER.name, extra_kwargs=extra_kwargs)
 
     def insert_random_data(self):
         row_id = get_random_id()
@@ -3405,7 +3317,7 @@ class TestPostgreSQLParseQueryErrorExit(AcraCatchLogsMixin, BaseTestCase):
 
     def executePreparedStatement(self, query):
         return AsyncpgExecutor(ConnectionArgs(
-            host=get_db_host(), port=self.CONNECTOR_PORT_1, dbname=DB_NAME,
+            host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
             user=DB_USER, password=DB_USER_PASSWORD,
             ssl_ca=TEST_TLS_CA,
             ssl_key=TEST_TLS_CLIENT_KEY,
@@ -3553,7 +3465,7 @@ class TestAcraRollback(BaseTestCase):
             raise
 
     def test_without_zone_to_file(self):
-        server_public1 = read_storage_public_key('keypair1', KEYS_FOLDER.name)
+        server_public1 = read_storage_public_key(TLS_CERT_CLIENT_ID_1, KEYS_FOLDER.name)
 
         rows = []
         for _ in range(self.DATA_COUNT):
@@ -3623,7 +3535,7 @@ class TestAcraRollback(BaseTestCase):
             self.assertIn(data[0], source_data)
 
     def test_without_zone_execute(self):
-        server_public1 = read_storage_public_key('keypair1', KEYS_FOLDER.name)
+        server_public1 = read_storage_public_key(TLS_CERT_CLIENT_ID_1, KEYS_FOLDER.name)
 
         rows = []
         for _ in range(self.DATA_COUNT):
@@ -3713,7 +3625,7 @@ class TestAcraRollback(BaseTestCase):
 
         def insert_random_data():
             rows = []
-            public_key = read_storage_public_key('keypair1', KEYS_FOLDER.name)
+            public_key = read_storage_public_key(TLS_CERT_CLIENT_ID_1, KEYS_FOLDER.name)
             for _ in range(self.DATA_COUNT):
                 data = get_pregenerated_random_data()
                 row = {
@@ -3805,6 +3717,7 @@ class SSLPostgresqlMixin(AcraCatchLogsMixin):
                 # connection will be closed on tls handshake
                 self.acra2 = self.fork_acra(
                     client_id=TLS_CERT_CLIENT_ID_1,
+                    incoming_connection_api_string=self.get_acraserver_api_connection_string(port=self.ACRASERVER2_PORT+5),
                     incoming_connection_port=self.ACRASERVER2_PORT,
                     incoming_connection_prometheus_metrics_string=self.get_prometheus_address(self.ACRASERVER2_PROMETHEUS_PORT))
             self.engine1 = sa.create_engine(
@@ -4242,6 +4155,20 @@ class TestZoneIDDecryptionWithVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoader
 class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
     def get_http_schema(self):
         return 'https'
+
+    def get_identifier_extractor_type(self):
+        return "distinguished_name"
+
+    def get_valid_certificate_identifier(self, certificate_file=None):
+        if certificate_file is None:
+            certificate_file = TEST_TLS_CLIENT_CERT
+        # converted data from certificate "CN=Test leaf certificate (acra-writer),OU=IT,O=Global Security,L=London,ST=London,C=GB"
+        with open(certificate_file, 'rb') as f:
+            pem = f.read()
+        cert = x509.load_pem_x509_certificate(pem, default_backend())
+        sha512 = hashlib.sha512()
+        sha512.update(cert.subject.rfc4514_string().encode('utf-8'))
+        return sha512.hexdigest().lower()
 
     def get_http_default_kwargs(self):
         '''setup requests to use client's certificates'''
@@ -5509,7 +5436,7 @@ class TestEncryptionWithIntFields(BaseTestCase):
 
         data_encrypted = create_acrastruct(
             data,
-            read_storage_public_key('keypair1', KEYS_FOLDER.name)
+            read_storage_public_key(TLS_CERT_CLIENT_ID_1, KEYS_FOLDER.name)
         )
 
         # insert some data
@@ -7885,7 +7812,7 @@ class TestEmptyPreparedStatementQueryPostgresql(BaseTestCase):
     def testPassedEmptyQuery(self):
         # no matter which connector to use
         executor = AsyncpgExecutor(ConnectionArgs(
-            host=get_db_host(), port=self.CONNECTOR_PORT_1, dbname=DB_NAME,
+            host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
             user=DB_USER, password=DB_USER_PASSWORD,
             format=AsyncpgExecutor.BinaryFormat,
             ssl_ca=TEST_TLS_CA,
@@ -7899,7 +7826,7 @@ class TestEmptyPreparedStatementQueryPostgresql(BaseTestCase):
 
         # just check that Postgresql deny empty queries for SimpleQuery protocol of queries
         executor = Psycopg2Executor(ConnectionArgs(
-            host=get_db_host(), port=self.CONNECTOR_PORT_1, dbname=DB_NAME,
+            host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
             user=DB_USER, password=DB_USER_PASSWORD,
             ssl_ca=TEST_TLS_CA,
             ssl_key=TEST_TLS_CLIENT_KEY,
@@ -7922,7 +7849,7 @@ class TestEmptyPreparedStatementQueryMysql(BaseTestCase):
     def testNotPassedEmptyQuery(self):
         # no matter which connector to use
         executor = MysqlExecutor(ConnectionArgs(
-            host=get_db_host(), port=self.CONNECTOR_PORT_1, dbname=DB_NAME,
+            host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
             user=DB_USER, password=DB_USER_PASSWORD,
             ssl_ca=TEST_TLS_CA,
             ssl_key=TEST_TLS_CLIENT_KEY,
