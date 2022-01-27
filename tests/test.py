@@ -3835,6 +3835,7 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
                 self.acra2 = self.fork_acra(
                     client_id=TLS_CERT_CLIENT_ID_1,
                     incoming_connection_port=self.ACRASERVER2_PORT,
+                    incoming_connection_api_string=self.get_acraserver_api_connection_string(port=self.ACRASERVER2_PORT+5),
                     incoming_connection_prometheus_metrics_string=self.get_prometheus_address(
                         self.ACRASERVER2_PROMETHEUS_PORT))
             self.driver_to_acraserver_ssl_settings = {
