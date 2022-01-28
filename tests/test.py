@@ -3994,7 +3994,7 @@ class TestMysqlBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
         elif not TEST_WITH_TLS:
             self.skipTest("running tests only with TLS")
 
-def executePreparedStatement(self, query, args=None):
+    def executePreparedStatement(self, query, args=None):
         return MysqlExecutor(
             ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
                            user=DB_USER, password=DB_USER_PASSWORD,
