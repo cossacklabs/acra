@@ -1843,7 +1843,7 @@ class CensorBlacklistTest(BaseCensorTest):
 
 
 class CensorWhitelistTest(BaseCensorTest):
-    CENSOR_CONFIG_FILE = abs_path('./acra-censor_configs/acra-censor_whitelist.yaml')
+    CENSOR_CONFIG_FILE = abs_path('tests/acra-censor_configs/acra-censor_whitelist.yaml')
     def testWhitelist(self):
         connection_args = ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
                            user=DB_USER, password=DB_USER_PASSWORD,
