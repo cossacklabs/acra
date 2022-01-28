@@ -955,15 +955,6 @@ class KeyMakerTest(unittest.TestCase):
                  '--generate_log_key',
                  '--keys_public_output_dir={}'.format(folder)])
 
-        with tempfile.TemporaryDirectory() as folder:
-            with self.assertRaises(subprocess.CalledProcessError) as exc:
-                subprocess.check_output(
-                    ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
-                     '--keys_output_dir={}'.format(folder),
-                     "--client_id=''",
-                     '--generate_acratranslator_keys',
-                     '--keys_public_output_dir={}'.format(folder)])
-
 
 class PrometheusMixin(object):
     _prometheus_addresses_field_name = 'prometheus_addresses'
@@ -1852,7 +1843,7 @@ class CensorBlacklistTest(BaseCensorTest):
 
 
 class CensorWhitelistTest(BaseCensorTest):
-    CENSOR_CONFIG_FILE = abs_path('tests/acra-censor_configs/acra-censor_whitelist.yaml')
+    CENSOR_CONFIG_FILE = abs_path('./acra-censor_configs/acra-censor_whitelist.yaml')
     def testWhitelist(self):
         connection_args = ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
                            user=DB_USER, password=DB_USER_PASSWORD,
@@ -1972,32 +1963,13 @@ class EscapeFormatTest(HexFormatTest):
     def checkSkip(self):
         if TEST_MYSQL:
             self.skipTest("useful only for postgresql")
+        elif not TEST_WITH_TLS:
+            self.skipTest("running tests only with TLS")
 
 
 class ZoneEscapeFormatTest(ZoneHexFormatTest):
     ACRA_BYTEA = 'pgsql_escape_bytea'
     DB_BYTEA = 'escape'
-
-
-class WholeCellMixinTest(object):
-    def testReadAcrastructInAcrastruct(self):
-        return
-
-
-class HexFormatWholeCellTest(WholeCellMixinTest, HexFormatTest):
-    WHOLECELL_MODE = True
-
-
-class ZoneHexFormatWholeCellTest(WholeCellMixinTest, ZoneHexFormatTest):
-    WHOLECELL_MODE = True
-
-
-class EscapeFormatWholeCellTest(WholeCellMixinTest, EscapeFormatTest):
-    WHOLECELL_MODE = True
-
-
-class ZoneEscapeFormatWholeCellTest(WholeCellMixinTest, ZoneEscapeFormatTest):
-    WHOLECELL_MODE = True
 
 
 class TestConnectionClosing(BaseTestCase):
@@ -3032,6 +3004,8 @@ class RedisMixin:
         super().checkSkip()
         if not TEST_WITH_REDIS:
             self.skipTest("test only with Redis")
+        elif not TEST_WITH_TLS:
+            self.skipTest("running tests only with TLS")
 
     def setUp(self):
         self.redis_keys_client = redis.Redis(host='localhost', port=6379, db=self.TEST_REDIS_KEYS_DB)
@@ -3996,6 +3970,8 @@ class TestMysqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
     def checkSkip(self):
         if not TEST_MYSQL:
             self.skipTest("run test only for mysql")
+        elif not TEST_WITH_TLS:
+            self.skipTest("running tests only with TLS")
 
     def executePreparedStatement(self, query):
         return PyMysqlExecutor(
@@ -4015,8 +3991,10 @@ class TestMysqlBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
     def checkSkip(self):
         if not TEST_MYSQL:
             self.skipTest("run test only for mysql")
+        elif not TEST_WITH_TLS:
+            self.skipTest("running tests only with TLS")
 
-    def executePreparedStatement(self, query, args=None):
+def executePreparedStatement(self, query, args=None):
         return MysqlExecutor(
             ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
                            user=DB_USER, password=DB_USER_PASSWORD,
@@ -4034,6 +4012,8 @@ class TestPostgresqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCas
     def checkSkip(self):
         if not TEST_POSTGRESQL:
             self.skipTest("run test only for postgresql")
+        elif not TEST_WITH_TLS:
+            self.skipTest("running tests only with TLS")
 
     def executePreparedStatement(self, query, args=None):
         if not args:
@@ -4368,9 +4348,6 @@ class TestAcraTranslatorClientIDFromTLSBySerialNumberVaultMasterKeyLoader(HashiC
 
 class TestAcraRotateWithZone(BaseTestCase):
     ZONE = True
-
-    def checkSkip(self):
-        return
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         acra_kwargs['keystore_cache_size'] = -1  # no cache
@@ -4912,9 +4889,6 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
     # some small value but greater than 0 to compare with metrics value of time of processing
     MIN_EXECUTION_TIME = 0.0000001
 
-    def checkSkip(self):
-        return
-
     def checkMetrics(self, url, labels=None):
         """
         check that output of prometheus exporter contains all labels
@@ -5073,9 +5047,6 @@ class TestTransparentEncryption(BaseTestCase):
         sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
     )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_config.yaml')
-
-    def checkSkip(self):
-        return
 
     def setUp(self):
         self.prepare_encryptor_config(client_id=TLS_CERT_CLIENT_ID_1)
@@ -5656,6 +5627,8 @@ class TestPgPlaceholders(BaseTestCase):
     def checkSkip(self):
         if TEST_MYSQL or not TEST_POSTGRESQL:
             self.skipTest("test only for postgresql")
+        elif not TEST_WITH_TLS:
+            self.skipTest("running tests only with TLS")
 
     def testPgPlaceholders(self):
         connection_args = ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
@@ -6487,9 +6460,6 @@ class BaseTokenization(BaseTestCase):
     WHOLECELL_MODE = True
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_tokenization_config.yaml')
 
-    def checkSkip(self):
-        pass
-
     def get_specified_client_id(self):
         return TLS_CERT_CLIENT_ID_2
 
@@ -6606,6 +6576,8 @@ class BaseTokenizationWithBinaryMySQL(BaseTokenization):
     def checkSkip(self):
         if not TEST_MYSQL:
             self.skipTest('this test is only for MySQL')
+        elif not TEST_WITH_TLS:
+            self.skipTest("running tests only with TLS")
 
     def fetch_from_1(self, query):
         return self.execute(query, TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
