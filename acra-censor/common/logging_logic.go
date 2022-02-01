@@ -148,8 +148,6 @@ func (queryWriter *QueryWriter) Start() {
 			}
 			queryWriter.reset()
 			return
-		default:
-			//do nothing. This means that channel has no data to read yet
 		}
 	}
 }

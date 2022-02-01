@@ -6,6 +6,12 @@
   - updated `acra-keys` `read`, `generate`, `destroy` commands not to work with transport keys;
 - refactor all integration tests to use TLS by default;
 
+## 0.92.0 - 2022-01-20
+- Improve TLS certificate validation performance with larger CRLs, check is now O(1) ops instead of O(N)
+
+## 0.92.0 - 2022-01-18
+- Improve acra-censor, remove infinite empty loop in `querycapture` handler
+
 ## 0.92.0 - 2021-12-29
 - Improve sqlparser, support `null::text` type casts and avoid panics.
 
