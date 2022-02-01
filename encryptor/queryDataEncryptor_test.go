@@ -22,6 +22,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/cossacklabs/acra/acrastruct"
+	"net"
 	"strings"
 	"testing"
 
@@ -503,7 +504,7 @@ schemas:
 			setting := mysqlParser.querySelectSettings[i]
 
 			if columns[i] != setting.columnName {
-				t.Fatalf("%v. Incorrect querySelectSetting \nTook: %v\nExpected: %v", i, setting.columnName, columns[i])
+				t.Fatalf("%v. Incorrect QueryDataItem \nTook: %v\nExpected: %v", i, setting.columnName, columns[i])
 			}
 		}
 	})
@@ -535,16 +536,62 @@ schemas:
 			setting := mysqlParser.querySelectSettings[i]
 
 			if returningColumns[i] != setting.columnName {
-				t.Fatalf("%v. Incorrect querySelectSetting \nTook: %v\nExpected: %v", i, setting.columnName, columns[i])
+				t.Fatalf("%v. Incorrect QueryDataItem \nTook: %v\nExpected: %v", i, setting.columnName, columns[i])
 			}
 		}
 	})
 }
 
+type sessionStub struct{}
+
+func (s sessionStub) Context() context.Context {
+	panic("implement me")
+}
+
+func (s sessionStub) ClientConnection() net.Conn {
+	panic("implement me")
+}
+
+func (s sessionStub) DatabaseConnection() net.Conn {
+	panic("implement me")
+}
+
+func (s sessionStub) PreparedStatementRegistry() base.PreparedStatementRegistry {
+	panic("implement me")
+}
+
+func (s sessionStub) SetPreparedStatementRegistry(registry base.PreparedStatementRegistry) {
+	panic("implement me")
+}
+
+func (s sessionStub) ProtocolState() interface{} {
+	panic("implement me")
+}
+
+func (s sessionStub) SetProtocolState(state interface{}) {
+	panic("implement me")
+}
+
+func (s sessionStub) GetData(s2 string) (interface{}, bool) {
+	panic("implement me")
+}
+
+func (s sessionStub) SetData(s2 string, i interface{}) {
+	return
+}
+
+func (s sessionStub) DeleteData(s2 string) {
+	panic("implement me")
+}
+
+func (s sessionStub) HasData(s2 string) bool {
+	panic("implement me")
+}
+
 func TestEncryptionSettingCollection(t *testing.T) {
 	type testcase struct {
 		config   string
-		settings []*querySelectSetting
+		settings []*QueryDataItem
 		query    string
 	}
 	testcases := []testcase{
@@ -560,7 +607,7 @@ func TestEncryptionSettingCollection(t *testing.T) {
       - column: data2
         crypto_envelope: acrablock`,
 			query: `select data1, data2, data3 from test_table`,
-			settings: []*querySelectSetting{
+			settings: []*QueryDataItem{
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data1"}, tableName: "test_table", columnName: "data1", columnAlias: "test_table"},
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data2"}, tableName: "test_table", columnName: "data2", columnAlias: "test_table"},
 				nil,
@@ -578,7 +625,7 @@ func TestEncryptionSettingCollection(t *testing.T) {
       - column: data2
         crypto_envelope: acrablock`,
 			query: `select 1 from test_table`,
-			settings: []*querySelectSetting{
+			settings: []*QueryDataItem{
 				nil,
 			},
 		},
@@ -594,7 +641,7 @@ func TestEncryptionSettingCollection(t *testing.T) {
       - column: data2
         crypto_envelope: acrablock`,
 			query: `select * from test_table`,
-			settings: []*querySelectSetting{
+			settings: []*QueryDataItem{
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data1"}, tableName: "test_table", columnName: "data1", columnAlias: ""},
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data2"}, tableName: "test_table", columnName: "data2", columnAlias: ""},
 				nil,
@@ -612,7 +659,7 @@ func TestEncryptionSettingCollection(t *testing.T) {
       - column: data2
         crypto_envelope: acrablock`,
 			query: `select 'some string', * from test_table`,
-			settings: []*querySelectSetting{
+			settings: []*QueryDataItem{
 				nil,
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data1"}, tableName: "test_table", columnName: "data1", columnAlias: ""},
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data2"}, tableName: "test_table", columnName: "data2", columnAlias: ""},
@@ -631,7 +678,7 @@ func TestEncryptionSettingCollection(t *testing.T) {
       - column: data2
         crypto_envelope: acrablock`,
 			query: `select * from test_table t1`,
-			settings: []*querySelectSetting{
+			settings: []*QueryDataItem{
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data1"}, tableName: "test_table", columnName: "data1", columnAlias: ""},
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data2"}, tableName: "test_table", columnName: "data2", columnAlias: ""},
 				nil,
@@ -649,7 +696,7 @@ func TestEncryptionSettingCollection(t *testing.T) {
       - column: data2
         crypto_envelope: acrablock`,
 			query: `select t1.* from test_table t1`,
-			settings: []*querySelectSetting{
+			settings: []*QueryDataItem{
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data1"}, tableName: "test_table", columnName: "data1", columnAlias: ""},
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data2"}, tableName: "test_table", columnName: "data2", columnAlias: ""},
 				nil,
@@ -676,7 +723,7 @@ func TestEncryptionSettingCollection(t *testing.T) {
       - column: data2
         crypto_envelope: acrablock`,
 			query: `select t1.*, t2.* from test_table t1, test_table2 t2`,
-			settings: []*querySelectSetting{
+			settings: []*QueryDataItem{
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data1"}, tableName: "test_table", columnName: "data1", columnAlias: ""},
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data2"}, tableName: "test_table", columnName: "data2", columnAlias: ""},
 				nil,
@@ -706,7 +753,8 @@ func TestEncryptionSettingCollection(t *testing.T) {
 		if !ok {
 			t.Fatalf("[%d] Test query should be SELECT query, took %s\n", i, tcase.query)
 		}
-		_, err = encryptor.onSelect(selectExpr)
+		ctx := base.SetClientSessionToContext(context.Background(), sessionStub{})
+		_, err = encryptor.onSelect(ctx, selectExpr)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -777,7 +825,7 @@ func TestEncryptionSettingCollectionFailures(t *testing.T) {
 		if !ok {
 			t.Fatalf("[%d] Test query should be SELECT query, took %s\n", i, tcase.query)
 		}
-		_, err = encryptor.onSelect(selectExpr)
+		_, err = encryptor.onSelect(context.TODO(), selectExpr)
 		if err != tcase.err {
 			t.Fatalf("Expect error %s, took %s\n", tcase.err, err)
 		}

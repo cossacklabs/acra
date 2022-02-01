@@ -32,15 +32,15 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// QueryDataItem store information about result item in Select queries
-type QueryDataItem interface {
-	Setting() config.ColumnEncryptionSetting
-	TableName() string
-	ColumnName() string
-	ColumnAlias() string
-}
+//// QueryDataItem store information about result item in Select queries
+//type QueryDataItem interface {
+//	Setting() config.ColumnEncryptionSetting
+//	TableName() string
+//	ColumnName() string
+//	ColumnAlias() string
+//}
 
-type querySelectSetting struct {
+type QueryDataItem struct {
 	setting     config.ColumnEncryptionSetting
 	tableName   string
 	columnName  string
@@ -48,21 +48,21 @@ type querySelectSetting struct {
 }
 
 // Setting return associated ColumnEncryptionSetting or nil if not found
-func (q *querySelectSetting) Setting() config.ColumnEncryptionSetting {
+func (q *QueryDataItem) Setting() config.ColumnEncryptionSetting {
 	return q.setting
 }
 
 // TableName return table name associated with item or empty string if it is not related to any table, or not recognized
-func (q *querySelectSetting) TableName() string {
+func (q *QueryDataItem) TableName() string {
 	return q.tableName
 }
 
 // ColumnName return column name if it was matched to any
-func (q *querySelectSetting) ColumnName() string {
+func (q *QueryDataItem) ColumnName() string {
 	return q.columnName
 }
 // ColumnAlias if matched as alias to any data item
-func (q *querySelectSetting) ColumnAlias() string {
+func (q *QueryDataItem) ColumnAlias() string {
 	return q.columnAlias
 }
 
@@ -71,7 +71,7 @@ type QueryDataEncryptor struct {
 	schemaStore         config.TableSchemaStore
 	encryptor           DataEncryptor
 	dataCoder           DBDataCoder
-	querySelectSettings []QueryDataItem
+	querySelectSettings []*QueryDataItem
 	parser              *sqlparser.Parser
 }
 
@@ -325,16 +325,16 @@ func (encryptor *QueryDataEncryptor) onSelect(ctx context.Context, statement *sq
 		logrus.WithError(err).Errorln("Can't extract columns from SELECT statement")
 		return false, err
 	}
-	querySelectSettings := make([]QueryDataItem, 0, len(columns))
+	querySelectSettings := make([]*QueryDataItem, 0, len(columns))
 	for _, data := range columns {
 		if data != nil {
 			if schema := encryptor.schemaStore.GetTableSchema(data.Table); schema != nil {
-				var setting *querySelectSetting = nil
+				var setting *QueryDataItem = nil
 				if data.Name == allColumnsName {
 					for _, name := range schema.Columns() {
 						setting = nil
 						if columnSetting := schema.GetColumnEncryptionSettings(name); columnSetting != nil {
-							setting = &querySelectSetting{
+							setting = &QueryDataItem{
 								setting:     columnSetting,
 								tableName:   data.Table,
 								columnName:  name,
@@ -345,7 +345,7 @@ func (encryptor *QueryDataEncryptor) onSelect(ctx context.Context, statement *sq
 					}
 				} else {
 					if columnSetting := schema.GetColumnEncryptionSettings(data.Name); columnSetting != nil {
-						setting = &querySelectSetting{
+						setting = &QueryDataItem{
 							setting:     columnSetting,
 							tableName:   data.Table,
 							columnName:  data.Name,
@@ -372,12 +372,12 @@ func (encryptor *QueryDataEncryptor) onReturning(returning sqlparser.Returning, 
 	}
 
 	schema := encryptor.schemaStore.GetTableSchema(tableName)
-	querySelectSettings := make([]QueryDataItem, 0, 8)
+	querySelectSettings := make([]*QueryDataItem, 0, 8)
 
 	if _, ok := returning[0].(*sqlparser.StarExpr); ok {
 		for _, name := range schema.Columns() {
 			if columnSetting := schema.GetColumnEncryptionSettings(name); columnSetting != nil {
-				querySelectSettings = append(querySelectSettings, &querySelectSetting{
+				querySelectSettings = append(querySelectSettings, &QueryDataItem{
 					setting:    columnSetting,
 					tableName:  tableName,
 					columnName: name,
@@ -398,7 +398,7 @@ func (encryptor *QueryDataEncryptor) onReturning(returning sqlparser.Returning, 
 
 		rawColName := colName.Name.String()
 		if columnSetting := schema.GetColumnEncryptionSettings(rawColName); columnSetting != nil {
-			querySelectSettings = append(querySelectSettings, &querySelectSetting{
+			querySelectSettings = append(querySelectSettings, &QueryDataItem{
 				setting:    columnSetting,
 				tableName:  tableName,
 				columnName: rawColName,
@@ -683,7 +683,7 @@ func (encryptor *QueryDataEncryptor) encryptWithColumnSettings(ctx context.Conte
 const queryDataItemKey = "query_data_items"
 
 // SaveQueryDataItemsToClientSession save slice of QueryDataItem into ClientSession
-func SaveQueryDataItemsToClientSession(session base.ClientSession, items []QueryDataItem){
+func SaveQueryDataItemsToClientSession(session base.ClientSession, items []*QueryDataItem){
 	session.SetData(queryDataItemKey, items)
 }
 
@@ -693,12 +693,12 @@ func DeleteQueryDataItemsToClientSession(session base.ClientSession){
 }
 
 // QueryDataItemsFromClientSession return QueryDataItems from ClientSession if saved otherwise nil
-func QueryDataItemsFromClientSession(session base.ClientSession) []QueryDataItem{
+func QueryDataItemsFromClientSession(session base.ClientSession) []*QueryDataItem{
 	data, ok := session.GetData(queryDataItemKey)
 	if !ok {
 		return nil
 	}
-	items, ok := data.([]QueryDataItem)
+	items, ok := data.([]*QueryDataItem)
 	if ok {
 		return items
 	}

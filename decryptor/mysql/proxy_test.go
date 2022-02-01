@@ -157,6 +157,22 @@ func (*tableSchemaStore) GetGlobalSettingsMask() config.SettingMask {
 
 type stubSession struct{}
 
+func (s stubSession) GetData(s2 string) (interface{}, bool) {
+	panic("implement me")
+}
+
+func (s stubSession) SetData(s2 string, i interface{}) {
+	panic("implement me")
+}
+
+func (s stubSession) DeleteData(s2 string) {
+	panic("implement me")
+}
+
+func (s stubSession) HasData(s2 string) bool {
+	panic("implement me")
+}
+
 func (stubSession) Context() context.Context {
 	return context.TODO()
 }

@@ -48,9 +48,13 @@ func NewClientSession(ctx context.Context, config *Config, connection net.Conn) 
 	sessionID := atomic.AddUint32(&sessionCounter, 1)
 	logger := logging.GetLoggerFromContext(ctx)
 	logger = logger.WithField("session_id", sessionID)
+	session := &ClientSession{connection: connection, config: config, ctx: ctx, logger: logger,
+		data: make(map[string]interface{}, 8)}
 	ctx = logging.SetLoggerToContext(ctx, logger)
-	return &ClientSession{connection: connection, config: config, ctx: ctx, logger: logger,
-		data: make(map[string]interface{}, 8)}, nil
+	ctx = base.SetClientSessionToContext(ctx, session)
+	session.ctx = ctx
+	return session, nil
+
 }
 
 // SetData save session related data by key
