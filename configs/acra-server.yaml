@@ -144,7 +144,7 @@ tls_client_ca:
 tls_client_cert: 
 
 # Extract clientID from TLS certificate from application connection. Can't be used with --tls_client_auth=0 or --tls_auth=0
-tls_client_id_from_cert: false
+tls_client_id_from_cert: true
 
 # Path to private key of the TLS certificate presented to applications (see "tls_client_cert")
 tls_client_key: 

@@ -64,6 +64,7 @@ schemas:
       - shorter_plaintext
 
     encrypted:
+      # as a specified client_id we use generated client_id from client certificates from ./ssl/acra-writer/ and /ssl/acra-writer-2/
       - column: masked_prefix
         masking: "xxxx"
         plaintext_length: 9
