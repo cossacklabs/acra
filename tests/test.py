@@ -505,12 +505,6 @@ def get_postgresql_unix_connection_string(port, dbname):
 def get_postgresql_tcp_connection_string(port, dbname):
     return '{}://localhost:{}/{}'.format(DB_DRIVER, port, dbname)
 
-def get_acraserver_unix_connection_string(port):
-        return get_tcp_connection_string(port)
-
-def get_acraserver_tcp_connection_string(port):
-    return get_tcp_connection_string(port)
-
 def get_tcp_connection_string(port):
     return 'tcp://localhost:{}'.format(port)
 
@@ -1005,7 +999,7 @@ class TLSAuthenticationByDistinguishedNameMixin(object):
         """unix socket connection string to allow connect directory to acra by db driver"""
         if not port:
             port = self.ACRASERVER_PORT
-        return get_acraserver_unix_connection_string(port)
+        return get_tcp_connection_string(port)
 
     def get_identifier_extractor_type(self):
         return TLS_CLIENT_ID_SOURCE_DN
@@ -1170,7 +1164,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     def get_acraserver_connection_string(self, port=None):
         if not port:
             port = self.ACRASERVER_PORT
-        return get_acraserver_unix_connection_string(port)
+        return get_tcp_connection_string(port)
 
     def get_acraserver_api_connection_string(self, port=None):
         if not port:
