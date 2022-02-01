@@ -638,8 +638,11 @@ func (encryptor *QueryDataEncryptor) encryptValuesWithPlaceholders(ctx context.C
 		}
 		changed = true
 		settings := schema.GetColumnEncryptionSettings(columnName)
-
-		encryptedData, err := encryptor.encryptWithColumnSettings(ctx, settings, values[valueIndex].GetData(settings))
+		valueData, err := values[valueIndex].GetData(settings)
+		if err != nil {
+			return nil, false, err
+		}
+		encryptedData, err := encryptor.encryptWithColumnSettings(ctx, settings, valueData)
 		if err != nil && err != ErrUpdateLeaveDataUnchanged {
 			logrus.WithError(err).WithFields(logrus.Fields{"index": valueIndex, "column": columnName}).
 				Debug("Failed to encrypt column")

@@ -286,7 +286,10 @@ func (encryptor *HashQuery) replaceValuesWithHMACs(ctx context.Context, values [
 	for _, valueIndex := range placeholders {
 		format := values[valueIndex].Format()
 
-		data := values[valueIndex].GetData(nil)
+		data, err := values[valueIndex].GetData(nil)
+		if err != nil {
+			return values, false, err
+		}
 		switch format {
 		case base.BinaryFormat:
 			// If we can't decrypt the data and compute its HMAC, searchable encryption failed to apply.

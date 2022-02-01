@@ -70,7 +70,7 @@ type BoundValue interface {
 	Format() BoundValueFormat
 	Copy() BoundValue
 	SetData(newData []byte, setting config.ColumnEncryptionSetting) error
-	GetData(setting config.ColumnEncryptionSetting) []byte
+	GetData(setting config.ColumnEncryptionSetting) ([]byte, error)
 	Encode() ([]byte, error)
 	GetType() byte
 }
