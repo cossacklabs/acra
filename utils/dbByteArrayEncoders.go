@@ -108,7 +108,8 @@ func (d *DecodedData) Encoded() []byte {
 	return d.encodeFunc(d.data)
 }
 
-func hexEncode(data []byte) []byte {
+// PgEncodeToHex encode binary data to hex SQL literal
+func PgEncodeToHex(data []byte) []byte {
 	output := make([]byte, 2+hex.EncodedLen(len(data)))
 	copy(output[:2], []byte{'\\', 'x'})
 	hex.Encode(output[2:], data)
@@ -124,19 +125,28 @@ func WrapRawDataAsDecoded(data []byte) *DecodedData {
 	return &DecodedData{data: data, encodeFunc: dryEncode}
 }
 
+func rawBinaryDataEncoder(f func([]byte)[]byte)func([]byte)[]byte{
+	return func(data []byte)[]byte{
+		if len(data) > 0 && IsPrintableASCIIArray(data) {
+			return data
+		}
+		return f(data)
+	}
+}
+
 // DecodeEscaped with hex or octal encodings
 func DecodeEscaped(data []byte) (*DecodedData, error) {
 	if len(data) >= 2 && bytes.Equal(data[:2], []byte{'\\', 'x'}) {
 		hexdata := data[2:]
 		output := make([]byte, hex.DecodedLen(len(hexdata)))
 		_, err := hex.Decode(output, hexdata)
-		return &DecodedData{data: output, encodeFunc: hexEncode}, err
+		return &DecodedData{data: output, encodeFunc: rawBinaryDataEncoder(PgEncodeToHex)}, err
 	}
 	result, err := DecodeOctal(data)
 	if err != nil {
 		return &DecodedData{data: data, encodeFunc: dryEncode}, ErrDecodeOctalString
 	}
-	return &DecodedData{data: result, encodeFunc: EncodeToOctal}, nil
+	return &DecodedData{data: result, encodeFunc: rawBinaryDataEncoder(EncodeToOctal)}, nil
 }
 
 // QuoteValue returns name in quotes, if name contains quotes, doubles them
