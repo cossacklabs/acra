@@ -1075,7 +1075,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     ACRASERVER_PORT = int(os.environ.get('TEST_ACRASERVER_PORT', 10003))
     OCSP_SERVER_PORT = int(os.environ.get('TEST_OCSP_SERVER_PORT', 8888))
     CRL_HTTP_SERVER_PORT = int(os.environ.get('TEST_HTTP_SERVER_PORT', 8889))
-    ACRASERVER_PROMETHEUS_PORT = int(os.environ.get('TEST_ACRASERVER_PROMETHEUS_PORT', 10004))
+    ACRASERVER_PROMETHEUS_PORT = int(os.environ.get('TEST_ACRASERVER_PROMETHEUS_PORT', 11004))
     ACRA_BYTEA = 'pgsql_hex_bytea'
     DB_BYTEA = 'hex'
     WHOLECELL_MODE = False
@@ -1145,7 +1145,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
 
         http_server_connection = self.get_crl_http_server_connection_string(port)
 
-        cli_args = ['--bind', 'localhost', '--directory', TEST_TLS_CRL_PATH, str(port)]
+        cli_args = ['--bind', '127.0.0.1', '--directory', TEST_TLS_CRL_PATH, str(port)]
         print('python HTTP server args: {}'.format(' '.join(cli_args)))
 
         process = self.fork(lambda: subprocess.Popen(['python3', '-m', 'http.server'] + cli_args))
@@ -1424,6 +1424,45 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             log_entry['poison_record'] = b64encode(get_poison_record()).decode('ascii')
 
         logging.debug("test log: {}".format(json.dumps(log_entry)))
+
+
+class AcraCatchLogsMixin(object):
+    def __init__(self, *args, **kwargs):
+        self.log_files = {}
+        super(AcraCatchLogsMixin, self).__init__(*args, **kwargs)
+
+    def read_log(self, process):
+        with open(self.log_files[process].name, 'r', errors='replace',
+                  encoding='utf-8') as f:
+            log = f.read()
+            print(log.encode(encoding='utf-8', errors='replace'))
+            return log
+
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        log_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
+        popen_args = {
+            'stderr': subprocess.STDOUT,
+            'stdout': log_file,
+            'close_fds': True,
+            'bufsize': 0,
+        }
+        process = super(AcraCatchLogsMixin, self).fork_acra(
+            popen_args, **acra_kwargs
+        )
+        assert process
+        # register process to not forget close all descriptors
+        self.log_files[process] = log_file
+        return process
+
+    def tearDown(self, *args, **kwargs):
+        super(AcraCatchLogsMixin, self).tearDown(*args, **kwargs)
+        for process, log_file in self.log_files.items():
+            log_file.close()
+            try:
+                os.remove(log_file.name)
+            except:
+                pass
+            stop_process(process)
 
 
 class HexFormatTest(BaseTestCase):
@@ -2146,6 +2185,7 @@ class BasePoisonRecordTest(BaseTestCase):
         args = {
             'poison_shutdown_enable': 'true' if self.SHUTDOWN else 'false',
             'poison_detect_enable': 'true' if self.DETECT_POISON_RECORDS else 'false',
+            'logging_format': 'text',
         }
 
         if hasattr(self, 'poisonscript'):
@@ -2154,7 +2194,7 @@ class BasePoisonRecordTest(BaseTestCase):
         return super(BasePoisonRecordTest, self).fork_acra(popen_kwargs, **args)
 
 
-class TestPoisonRecordShutdown(BasePoisonRecordTest):
+class TestPoisonRecordShutdown(AcraCatchLogsMixin, BasePoisonRecordTest):
     SHUTDOWN = True
 
     def testShutdown(self):
@@ -2170,6 +2210,10 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
             row = result.fetchone()
             if row['data'] == data:
                 self.fail("unexpected response")
+        log = self.read_log(self.acra)
+        self.assertIn('code=101', log)
+        self.assertIn('Detected poison record, exit', log)
+        self.assertNotIn('executed code after os.Exit', log)
 
     def testShutdown2(self):
         """check working poison record callback on full select"""
@@ -2185,6 +2229,10 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
             for row in rows:
                 if row['id'] == row_id and row['data'] == data:
                     self.fail("unexpected response")
+        log = self.read_log(self.acra)
+        self.assertIn('code=101', log)
+        self.assertIn('Detected poison record, exit', log)
+        self.assertNotIn('executed code after os.Exit', log)
 
     def testShutdown3(self):
         """check working poison record callback on full select inside another data"""
@@ -2203,6 +2251,10 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
             for row in rows:
                 if row['id'] == row_id and row['data'] == data:
                     self.fail("unexpected response")
+        log = self.read_log(self.acra)
+        self.assertIn('code=101', log)
+        self.assertIn('Detected poison record, exit', log)
+        self.assertNotIn('executed code after os.Exit', log)
 
 
 class TestPoisonRecordShutdownWithAcraBlock(TestPoisonRecordShutdown):
@@ -2406,109 +2458,6 @@ class TestShutdownPoisonRecordWithZoneOffStatusWithAcraBlock(TestShutdownPoisonR
         return get_poison_record_with_acrablock()
 
 
-class TestPoisonRecordWholeCell(TestPoisonRecordShutdown):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown3(self):
-        return
-
-
-class TestPoisonRecordWholeCellWithAcraBlock(TestPoisonRecordShutdownWithAcraBlock):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown3(self):
-        return
-
-
-class TestPoisonRecordWholeCellStatusOff(TestPoisonRecordOffStatus):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown3(self):
-        return
-
-
-class TestPoisonRecordWholeCellStatusOffWithAcraBlock(TestPoisonRecordOffStatusWithAcraBlock):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown3(self):
-        return
-
-
-class TestShutdownPoisonRecordWithZoneWholeCell(TestShutdownPoisonRecordWithZone):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown4(self):
-        return
-
-
-class TestShutdownPoisonRecordWithZoneWholeCellWithAcraBlock(TestShutdownPoisonRecordWithZoneAcraBlock):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown4(self):
-        return
-
-
-class TestShutdownPoisonRecordWithZoneWholeCellOffStatus(TestShutdownPoisonRecordWithZoneOffStatus):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown4(self):
-        return
-
-
-class TestShutdownPoisonRecordWithZoneWholeCellOffStatusWithAcraBlock(TestShutdownPoisonRecordWithZoneOffStatusWithAcraBlock):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown4(self):
-        return
-
-
-class AcraCatchLogsMixin(object):
-    def __init__(self, *args, **kwargs):
-        self.log_files = {}
-        super(AcraCatchLogsMixin, self).__init__(*args, **kwargs)
-
-    def read_log(self, process):
-        with open(self.log_files[process].name, 'r', errors='replace',
-                  encoding='utf-8') as f:
-            log = f.read()
-            print(log.encode(encoding='utf-8', errors='replace'))
-            return log
-
-    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
-        log_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
-        popen_args = {
-            'stderr': subprocess.STDOUT,
-            'stdout': log_file,
-            'close_fds': True,
-            'bufsize': 0,
-        }
-        process = super(AcraCatchLogsMixin, self).fork_acra(
-            popen_args, **acra_kwargs
-        )
-        assert process
-        # register process to not forget close all descriptors
-        self.log_files[process] = log_file
-        return process
-
-    def tearDown(self, *args, **kwargs):
-        super(AcraCatchLogsMixin, self).tearDown(*args, **kwargs)
-        for process, log_file in self.log_files.items():
-            log_file.close()
-            try:
-                os.remove(log_file.name)
-            except:
-                pass
-            stop_process(process)
-
-
 class TestNoCheckPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
     WHOLECELL_MODE = False
     SHUTDOWN = False
@@ -2525,6 +2474,8 @@ class TestNoCheckPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
         result.fetchall()
         log = self.read_log(self.acra)
         self.assertNotIn('Check poison records', log)
+        self.assertNotIn('Turned on poison record detection', log)
+        self.assertNotIn('code=101', log)
         result = self.engine1.execute(
             sa.select([test_table]))
         for _, data, raw_data, _, _ in result:
@@ -2533,14 +2484,6 @@ class TestNoCheckPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
 
 class TestNoCheckPoisonRecordWithZone(TestNoCheckPoisonRecord):
     ZONE = True
-
-
-class TestNoCheckPoisonRecordWholeCell(TestNoCheckPoisonRecord):
-    WHOLECELL_MODE = True
-
-
-class TestNoCheckPoisonRecordWithZoneWholeCell(TestNoCheckPoisonRecordWithZone):
-    WHOLECELL_MODE = True
 
 
 class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
@@ -2568,7 +2511,10 @@ class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
         with self.assertRaises(DatabaseError):
             self.engine1.execute(test_table.select())
 
-        self.assertIn('Check poison records', self.read_log(self.acra))
+        log = self.read_log(self.acra)
+        self.assertIn('Check poison records', log)
+        self.assertIn('Turned on poison record detection', log)
+        self.assertIn('code=101', log)
 
 
 class TestKeyStorageClearing(BaseTestCase):
