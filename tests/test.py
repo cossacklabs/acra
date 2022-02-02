@@ -166,10 +166,13 @@ POISON_KEY_PATH = '.poison_key/poison_key'
 
 STATEMENT_TIMEOUT = 5 * 1000 # 5 sec
 SETUP_SQL_COMMAND_TIMEOUT = 0.1
-FORK_FAIL_SLEEP = 0.5
+# how long wait forked process to respond
+FORK_TIMEOUT = 2
+# seconds for sleep call after failed polling forked process
+FORK_FAIL_SLEEP = 0.1
 CONNECTION_FAIL_SLEEP = 0.1
 SOCKET_CONNECT_TIMEOUT = 3
-KILL_WAIT_TIMEOUT = 10
+KILL_WAIT_TIMEOUT = 5
 CONNECT_TRY_COUNT = 3
 SQL_EXECUTE_TRY_COUNT = 5
 # http://docs.python-requests.org/en/master/user/advanced/#timeouts
@@ -1091,11 +1094,12 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     def fork(self, func):
         process = func()
         count = 0
-        while count <= 3:
+        step = FORK_TIMEOUT / FORK_FAIL_SLEEP
+        while count <= FORK_TIMEOUT:
             if process.poll() is None:
                 logging.info("forked %s [%s]", process.args[0], process.pid)
                 return process
-            count += 1
+            count += step
             time.sleep(FORK_FAIL_SLEEP)
         stop_process(process)
         raise Exception("Can't fork")
@@ -2086,16 +2090,18 @@ class TestConnectionClosing(BaseTestCase):
         # give a time to close connections via postgresql
         # because performance where tests will run not always constant,
         # we wait try_count times. in best case it will not need to sleep
-        try_count = SQL_EXECUTE_TRY_COUNT
-        for i in range(try_count):
+        timeout = 3
+        step = 0.1
+        iterations = timeout / step
+        for i in range(int(iterations)):
             try:
                 self.assertEqual(self.getActiveConnectionCount(cursor), expected)
                 break
             except AssertionError:
-                if i == (try_count - 1):
+                if i == (iterations - 1):
                     raise
                 # some wait for closing. chosen manually
-                time.sleep(1)
+                time.sleep(step)
 
     def checkConnectionLimit(self, connection_limit):
         connections = []
