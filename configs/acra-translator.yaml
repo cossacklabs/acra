@@ -57,7 +57,7 @@ log_to_file:
 logging_format: plaintext
 
 # Turn on poison record detection, if server shutdown is disabled, AcraTranslator logs the poison record detection and returns error
-poison_detect_enable: true
+poison_detect_enable: false
 
 # On detecting poison record: log about poison record detection, execute script, return decrypted data
 poison_run_script_file: 

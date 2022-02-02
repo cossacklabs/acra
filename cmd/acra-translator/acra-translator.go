@@ -117,7 +117,7 @@ func realMain() error {
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	keysCacheSize := flag.Int("keystore_cache_size", keystore.InfiniteCacheSize, "Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
 
-	detectPoisonRecords := flag.Bool("poison_detect_enable", true, "Turn on poison record detection, if server shutdown is disabled, AcraTranslator logs the poison record detection and returns error")
+	detectPoisonRecords := flag.Bool("poison_detect_enable", false, "Turn on poison record detection, if server shutdown is disabled, AcraTranslator logs the poison record detection and returns error")
 	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "On detecting poison record: log about poison record detection, stop and shutdown")
 	scriptOnPoison := flag.String("poison_run_script_file", "", "On detecting poison record: log about poison record detection, execute script, return decrypted data")
 
@@ -355,14 +355,17 @@ func realMain() error {
 	config.SetTokenizer(tokenizer)
 	poisonCallbacks := poison.NewCallbackStorage()
 	if config.DetectPoisonRecords() {
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodePoisonRecordDetectionMessage).Infoln("Turned on poison record detection")
 		// used to turn off poison record detection which rely on HasCallbacks
 		poisonCallbacks.AddCallback(poison.EmptyCallback{})
 		if config.ScriptOnPoison() != "" {
 			poisonCallbacks.AddCallback(poison.NewExecuteScriptCallback(config.ScriptOnPoison()))
+			log.WithField("poison_run_script_file", *scriptOnPoison).Infoln("Turned on script execution for on detected poison record")
 		}
 		// should setup "stopOnPoison" as last poison record callback"
 		if config.StopOnPoison() {
 			poisonCallbacks.AddCallback(&poison.StopCallback{})
+			log.Infoln("Turned on poison record callback that stops acra-server after poison record detection")
 		}
 	}
 	translatorData := &common.TranslatorData{
