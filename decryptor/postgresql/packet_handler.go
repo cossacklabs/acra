@@ -6,8 +6,10 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/jackc/pgx/pgproto3"
 	"github.com/sirupsen/logrus"
 	"io"
 )
@@ -58,7 +60,7 @@ func (packet *PacketHandler) updatePacketLength(newLength int) {
 }
 
 // updateDataFromColumns check that any column's data was changed and update packet length and data block with new data
-func (packet *PacketHandler) updateDataFromColumns() {
+func (packet *PacketHandler) updateDataFromColumns(queryDataItems []*encryptor.QueryDataItem) {
 	columnsDataChanged := false
 	// check is any column was changed
 	for i := 0; i < packet.columnCount; i++ {
@@ -68,24 +70,22 @@ func (packet *PacketHandler) updateDataFromColumns() {
 		}
 	}
 	if columnsDataChanged {
+		packet.descriptionBuf.Reset()
+		var columnCountBuf [2]byte
+		binary.BigEndian.PutUint16(columnCountBuf[:], uint16(packet.columnCount))
+		packet.descriptionBuf.Write(columnCountBuf[:])
+
+		for i := 0; i < packet.columnCount; i++ {
+			column := packet.Columns[i]
+			data := column.data.Data()
+			packet.descriptionBuf.Write(column.LengthBuf[:])
+			packet.descriptionBuf.Write(data)
+		}
 		// column length buffer wasn't included to column length value and should be accumulated too
 		// + 2 is column count buffer
 		newDataLength := packet.columnCount*4 + 2
 		for i := 0; i < packet.columnCount; i++ {
 			newDataLength += packet.Columns[i].Length()
-		}
-		packet.descriptionBuf.Reset()
-		packet.descriptionBuf.Grow(newDataLength)
-
-		columnCountBuf := make([]byte, 2)
-		binary.BigEndian.PutUint16(columnCountBuf, uint16(packet.columnCount))
-		packet.descriptionBuf.Write(columnCountBuf)
-
-		for i := 0; i < packet.columnCount; i++ {
-			packet.descriptionBuf.Write(packet.Columns[i].LengthBuf[:])
-			if !packet.Columns[i].IsNull() {
-				packet.descriptionBuf.Write(packet.Columns[i].data.Encoded())
-			}
 		}
 		packet.updatePacketLength(newDataLength)
 	}
@@ -186,15 +186,7 @@ func (column *ColumnData) readData(reader io.Reader, format base.BoundValueForma
 	if err != nil {
 		return err
 	}
-	if format == base.TextFormat {
-		column.data, err = utils.DecodeEscaped(data)
-		if err != nil && err != utils.ErrDecodeOctalString {
-			return err
-		}
-	} else {
-		// do nothing with binary data
-		column.data = utils.WrapRawDataAsDecoded(data)
-	}
+	column.data = utils.WrapRawDataAsDecoded(data)
 
 	// ignore utils.ErrDecodeOctalString
 	err = nil
@@ -209,6 +201,10 @@ func (column *ColumnData) SetData(newData []byte) {
 	}
 	column.data.Set(newData)
 	binary.BigEndian.PutUint32(column.LengthBuf[:], uint32(len(column.data.Encoded())))
+}
+// SetDataLength set into LengthBuf
+func (column *ColumnData) SetDataLength(length uint32) {
+	binary.BigEndian.PutUint32(column.LengthBuf[:], length)
 }
 
 // parseColumns split whole data row packet into separate columns data
@@ -256,6 +252,16 @@ func (packet *PacketHandler) descriptionBufferCopy() []byte {
 func (packet *PacketHandler) readMessageType() error {
 	n, err := io.ReadFull(packet.reader, packet.messageType[:])
 	return base.CheckReadWrite(n, 1, err)
+}
+
+// IsRowDescription return true if packet has RowDescription type
+func (packet *PacketHandler) IsRowDescription() bool {
+	return packet.messageType[0] == RowDescriptionType
+}
+
+// IsParameterDescription return true if packet has ParameterDescription type
+func (packet *PacketHandler) IsParameterDescription() bool {
+	return packet.messageType[0] == ParameterDescriptionType
 }
 
 // IsDataRow return true if packet has DataRow type
@@ -332,6 +338,24 @@ func (packet *PacketHandler) GetExecuteData() (*ExecutePacket, error) {
 		return nil, err
 	}
 	return execute, nil
+}
+
+// GetRowDescriptionData return parsed RowDescription packet
+func (packet *PacketHandler) GetRowDescriptionData()(*pgproto3.RowDescription, error){
+	rowDescription := &pgproto3.RowDescription{}
+	if err := rowDescription.Decode(packet.descriptionBufferCopy()); err != nil {
+		return nil, err
+	}
+	return rowDescription, nil
+}
+
+// GetParameterDescriptionData return parsed ParameterDescription packet
+func (packet *PacketHandler) GetParameterDescriptionData()(*pgproto3.ParameterDescription, error){
+	parameterDescription := &pgproto3.ParameterDescription{}
+	if err := parameterDescription.Decode(packet.descriptionBufferCopy()); err != nil {
+		return nil, err
+	}
+	return parameterDescription, nil
 }
 
 // ReplaceQuery query in packet with new query and update packet length

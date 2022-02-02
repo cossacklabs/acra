@@ -20,6 +20,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
+	"github.com/jackc/pgx/pgproto3"
 )
 
 // PgProtocolState keeps track of PostgreSQL protocol state.
@@ -31,6 +32,8 @@ type PgProtocolState struct {
 	pendingParse   *ParsePacket
 	pendingBind    *BindPacket
 	pendingExecute *ExecutePacket
+	pendingRowDescription *pgproto3.RowDescription
+	pendingParameterDescription *pgproto3.ParameterDescription
 }
 
 // PacketType describes how to handle a message packet.
@@ -44,6 +47,8 @@ const (
 	BindStatementPacket
 	BindCompletePacket
 	DataPacket
+	RowDescriptionPacket
+	ParameterDescriptionPacket
 	OtherPacket
 )
 
@@ -77,6 +82,11 @@ func (p *PgProtocolState) PendingExecute() *ExecutePacket {
 	return p.pendingExecute
 }
 
+// PendingRowDescription returns the pending query parameters, if any.
+func (p *PgProtocolState) PendingRowDescription() *pgproto3.RowDescription {
+	return p.pendingRowDescription
+}
+
 // HandleClientPacket observes a packet from client to the database,
 // extracts query information from it, and anticipates future database responses.
 func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) error {
@@ -106,6 +116,8 @@ func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) error {
 		p.lastPacketType = ParseStatementPacket
 		p.pendingQuery = base.NewOnQueryObjectFromQuery(parsePacket.QueryString(), p.parser)
 		p.pendingParse = parsePacket
+		p.pendingParameterDescription = nil
+		p.pendingBind = nil
 		return nil
 	}
 
@@ -147,6 +159,26 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 	// This is data response to the previously issued query.
 	if packet.IsDataRow() {
 		p.lastPacketType = DataPacket
+		return nil
+	}
+
+	if packet.IsRowDescription() {
+		p.lastPacketType = RowDescriptionPacket
+		rowDescription, err := packet.GetRowDescriptionData()
+		if err != nil {
+			return err
+		}
+		p.pendingRowDescription = rowDescription
+		return nil
+	}
+
+	if packet.IsParameterDescription() {
+		p.lastPacketType = ParameterDescriptionPacket
+		parameterDescription, err := packet.GetParameterDescriptionData()
+		if err != nil {
+			return err
+		}
+		p.pendingParameterDescription = parameterDescription
 		return nil
 	}
 

@@ -19,6 +19,8 @@ package postgresql
 import (
 	"encoding/binary"
 	"errors"
+	"github.com/cossacklabs/acra/encryptor"
+	"github.com/cossacklabs/acra/utils"
 	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
@@ -235,15 +237,23 @@ func (p *pgBoundValue) GetType() byte {
 
 // SetData set new value to BoundValue using ColumnEncryptionSetting if provided
 func (p *pgBoundValue) SetData(newData []byte, setting config.ColumnEncryptionSetting) error {
-	p.data = newData
-
 	if setting == nil {
 		return nil
 	}
 
+	if setting.IsTokenized() {
+		return p.setTokenizedData(newData, setting)
+	} else if setting.OnlyEncryption() || setting.IsSearchable() {
+		return p.setEncryptedData(newData, setting)
+	}
+	return nil
+}
+
+func (p *pgBoundValue) setTokenizedData(newData []byte, setting config.ColumnEncryptionSetting) error {
+	p.data = newData
 	switch p.format {
 	case base.BinaryFormat:
-		switch setting.GetTokenType() {
+		switch setting.GetTokenType()  {
 		case tokens.TokenType_Int32:
 			newVal, err := strconv.ParseInt(string(newData), 10, 32)
 			if err != nil {
@@ -265,20 +275,51 @@ func (p *pgBoundValue) SetData(newData []byte, setting config.ColumnEncryptionSe
 	return nil
 }
 
+func (p *pgBoundValue) setEncryptedData(newData []byte, setting config.ColumnEncryptionSetting) error {
+	p.data = newData
+	switch p.format {
+	case base.TextFormat:
+		// here we take encrypted data and encode it to SQL String value that contains binary data in hex format
+		// or pass it as is if it is already valid string (all other SQL literals)
+		p.data = encryptor.PgEncodeToHexString(newData)
+		return nil
+	case base.BinaryFormat:
+		// all our encryption operations applied over text format values to be compatible with text format
+		// and here we work with encrypted TextFormat values that we should pass as is to server
+		break
+	}
+
+	return nil
+}
+
 // GetData return BoundValue using ColumnEncryptionSetting if provided
-func (p *pgBoundValue) GetData(setting config.ColumnEncryptionSetting) []byte {
+func (p *pgBoundValue) GetData(setting config.ColumnEncryptionSetting) ([]byte, error) {
 	if setting == nil {
-		return p.data
+		return p.data, nil
 	}
 
 	decodedData := p.data
 
 	switch p.format {
+	case base.TextFormat:
+		if setting.OnlyEncryption() || setting.IsSearchable(){
+			// binary data in TextFormat received as Hex/Octal encoded values
+			// so we should decode them before processing
+			switch setting.GetTokenType(){
+			case tokens.TokenType_String, tokens.TokenType_Email:
+				// TODO handle error
+				decoded, err := utils.DecodeEscaped(p.data)
+				if err != nil {
+					return p.data, err
+				}
+				return decoded.Data(), nil
+			}
+		}
 	// TODO(ilammy, 2020-10-19): handle non-bytes binary data
 	// Encryptor expects binary data to be passed in raw bytes, but most non-byte-arrays
 	// are expected in text format. If we get binary parameters, we may need to recode them.
 	case base.BinaryFormat:
-		if setting.IsTokenized() {
+		if setting.IsTokenized() || setting.IsSearchable() || setting.OnlyEncryption() {
 			switch setting.GetTokenType() {
 			case tokens.TokenType_Int32:
 				value := binary.BigEndian.Uint32(p.data)
@@ -295,7 +336,7 @@ func (p *pgBoundValue) GetData(setting config.ColumnEncryptionSetting) []byte {
 			}
 		}
 	}
-	return decodedData
+	return decodedData, nil
 }
 
 // Encode format result BoundValue data

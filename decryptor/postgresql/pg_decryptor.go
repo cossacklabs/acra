@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"github.com/cossacklabs/acra/encryptor"
 	"net"
 	"time"
 
@@ -92,6 +93,8 @@ const (
 	ParseCompleteMessageType byte = '1'
 	BindCompleteMessageType  byte = '2'
 	ReadyForQueryMessageType byte = 'Z'
+	RowDescriptionType       byte = 'T'
+	ParameterDescriptionType byte = 't'
 	TLSTimeout                    = time.Second * 2
 )
 
@@ -602,11 +605,108 @@ func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHa
 		// Previously requested cursor has been confirmed by the database, register it.
 		bindPacket := proxy.protocolState.PendingBind()
 		return proxy.registerCursor(bindPacket, logger)
+	case RowDescriptionPacket:
+		return proxy.handleRowDescription(ctx, packet, logger)
+
+	case ParameterDescriptionPacket:
+		return proxy.handleParameterDescription(ctx, packet, logger)
 
 	default:
 		// Forward all other uninteresting packets to the client without processing.
 		return nil
 	}
+}
+
+func (proxy *PgProxy) handleParameterDescription(ctx context.Context, packet *PacketHandler, logger *log.Entry) error {
+	clientSession := base.ClientSessionFromContext(ctx)
+	if clientSession == nil {
+		logger.Warningln("ParameterDescription packet without ClientSession in context")
+		return nil
+	}
+	items := encryptor.QueryDataItemsFromClientSession(clientSession)
+	if items == nil {
+		logger.Debugln("ParameterDescription packet without registered recognized encryption settings")
+		return nil
+	}
+	parameterDescription, err := packet.GetParameterDescriptionData()
+	if err != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDBProtocolError).
+			WithError(err).
+			Errorln("Can't parse ParameterDescription packet")
+		return nil
+	}
+	if len(items) != len(parameterDescription.ParameterOIDs) {
+		log.Errorln("Parameter count in ParameterDescription packet not same as parsed query count of columns")
+		return nil
+	}
+	changed := false
+	for i := 0; i < len(parameterDescription.ParameterOIDs); i++ {
+		setting := items[i]
+		if setting == nil {
+			continue
+		}
+		if setting.Setting().OnlyEncryption() || setting.Setting().IsSearchable() {
+			newOID, ok := mapTokenTypeToOID(setting.Setting().GetTokenType())
+			if ok {
+				parameterDescription.ParameterOIDs[i] = newOID
+				changed = true
+			}
+		}
+	}
+	if changed {
+		// 5 is MessageType[1] + PacketLength[4] + PacketPayload
+		newParameterDescription := make([]byte, 0, 5+packet.descriptionBuf.Len())
+		newParameterDescription = parameterDescription.Encode(newParameterDescription)
+		packet.descriptionBuf.Reset()
+		packet.descriptionBuf.Write(newParameterDescription[5:])
+	}
+	return nil
+}
+
+func (proxy *PgProxy) handleRowDescription(ctx context.Context, packet *PacketHandler, logger *log.Entry) error {
+	clientSession := base.ClientSessionFromContext(ctx)
+	if clientSession == nil {
+		logger.Warningln("RowDescription packet without ClientSession in context")
+		return nil
+	}
+	items := encryptor.QueryDataItemsFromClientSession(clientSession)
+	if items == nil {
+		logger.Debugln("RowDescription packet without registered recognized encryption settings")
+		return nil
+	}
+	rowDescription, err := packet.GetRowDescriptionData()
+	if err != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDBProtocolError).
+			WithError(err).
+			Errorln("Can't parse RowDescription packet")
+		return nil
+	}
+	if len(items) != len(rowDescription.Fields) {
+		log.Errorln("Column count in RowDescription packet not same as parsed query count of columns")
+		return nil
+	}
+	changed := false
+	for i := 0; i < len(rowDescription.Fields); i++ {
+		setting := items[i]
+		if setting == nil {
+			continue
+		}
+		if setting.Setting().OnlyEncryption() || setting.Setting().IsSearchable() {
+			newOID, ok := mapTokenTypeToOID(setting.Setting().GetTokenType())
+			if ok {
+				rowDescription.Fields[i].DataTypeOID = newOID
+				changed = true
+			}
+		}
+	}
+	if changed {
+		// 5 is MessageType[1] + PacketLength[4] + PacketPayload
+		newRowDescription := make([]byte, 0, 5+packet.descriptionBuf.Len())
+		newRowDescription = rowDescription.Encode(newRowDescription)
+		packet.descriptionBuf.Reset()
+		packet.descriptionBuf.Write(newRowDescription[5:])
+	}
+	return nil
 }
 
 func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketHandler, logger *log.Entry) error {
@@ -658,7 +758,12 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 		column.SetData(newData)
 	}
 	// After we're done processing the columns, update the actual packet data from them
-	packet.updateDataFromColumns()
+	queryDataItems := make([]*encryptor.QueryDataItem, packet.columnCount)
+	clientSession := base.ClientSessionFromContext(ctx)
+	if clientSession != nil {
+		queryDataItems = encryptor.QueryDataItemsFromClientSession(clientSession)
+	}
+	packet.updateDataFromColumns(queryDataItems)
 	return nil
 }
 
