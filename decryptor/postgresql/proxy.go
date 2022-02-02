@@ -77,6 +77,18 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 		proxy.SubscribeOnAllColumnsDecryption(queryEncryptor)
 	}
 
+	decoderProcessor, err := pseudonymization.NewPgSQLDataEncoderProcessor(pseudonymization.DataEncoderModeDecode)
+	if err != nil {
+		return nil, err
+	}
+	encoderProcessor, err := pseudonymization.NewPgSQLDataEncoderProcessor(pseudonymization.DataEncoderModeEncode)
+	if err != nil {
+		return nil, err
+	}
+	// register first to decode all data into text/binary formats expected by handlers according to client/database
+	//requested formats and ColumnEncryptionSetting
+	proxy.SubscribeOnAllColumnsDecryption(decoderProcessor)
+
 	// poison record processor should be first
 	if factory.setting.PoisonRecordCallbackStorage() != nil && factory.setting.PoisonRecordCallbackStorage().HasCallbacks() {
 		// setting PoisonRecords callback for CryptoHandlers inside registry
@@ -99,25 +111,11 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 			return nil, err
 		}
 
-		decoderProcessor, err := pseudonymization.NewPgSQLDataEncoderProcessor(pseudonymization.DataEncoderModeDecode)
-		if err != nil {
-			return nil, err
-		}
-		encoderProcessor, err := pseudonymization.NewPgSQLDataEncoderProcessor(pseudonymization.DataEncoderModeEncode)
-		if err != nil {
-			return nil, err
-		}
-		// register before tokenization to decode binary value if need
-		proxy.SubscribeOnAllColumnsDecryption(decoderProcessor)
-
 		tokenProcessor, err := pseudonymization.NewTokenProcessor(tokenizer)
 		if err != nil {
 			return nil, err
 		}
 		proxy.SubscribeOnAllColumnsDecryption(tokenProcessor)
-		// register after tokenization to encode text value to binary if need
-		proxy.SubscribeOnAllColumnsDecryption(encoderProcessor)
-
 		tokenEncryptor, err := pseudonymization.NewTokenEncryptor(tokenizer)
 		if err != nil {
 			return nil, err
@@ -174,6 +172,9 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 	}
 	proxy.AddQueryObserver(queryEncryptor)
 	proxy.SubscribeOnAllColumnsDecryption(queryEncryptor)
+	// register last to encode all data into correct format according to client/database requested formats
+	// and ColumnEncryptionSetting
+	proxy.SubscribeOnAllColumnsDecryption(encoderProcessor)
 
 	return proxy, nil
 }
