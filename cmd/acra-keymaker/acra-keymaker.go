@@ -54,9 +54,6 @@ var (
 
 func main() {
 	clientID := flag.String("client_id", "client", "Client ID")
-	acraConnector := flag.Bool("generate_acraconnector_keys", false, "Create keypair for AcraConnector only (deprecated since 0.91.0, will be ignored soon)")
-	acraServer := flag.Bool("generate_acraserver_keys", false, "Create keypair for AcraServer only (deprecated since 0.91.0, will be ignored soon)")
-	acraTranslator := flag.Bool("generate_acratranslator_keys", false, "Create keypair for AcraTranslator only (deprecated since 0.91.0, will be ignored soon)")
 	dataKeys := flag.Bool("generate_acrawriter_keys", false, "Create keypair for data encryption/decryption")
 	outputDir := flag.String("keys_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved keys")
 	outputPublicKey := flag.String("keys_public_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved public key")
@@ -126,7 +123,7 @@ func main() {
 	}
 
 	// all keys required clientID for generation
-	if *acraConnector || *acraServer || *acraTranslator || *dataKeys || *hmac || *symStorageKey {
+	if *dataKeys || *hmac || *symStorageKey {
 		cmd.ValidateClientID(*clientID)
 	}
 
@@ -197,27 +194,6 @@ func main() {
 		fmt.Println("Generated keypair for poison records")
 	}
 
-	if *acraConnector {
-		err = store.GenerateConnectorKeys([]byte(*clientID))
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println("Generated acra-connector keypair")
-	}
-	if *acraServer {
-		err = store.GenerateServerKeys([]byte(*clientID))
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println("Generated acra-server keypair")
-	}
-	if *acraTranslator {
-		err = store.GenerateTranslatorKeys([]byte(*clientID))
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println("Generated acra-translator keypair")
-	}
 	if *dataKeys {
 		err = store.GenerateDataEncryptionKeys([]byte(*clientID))
 		if err != nil {
@@ -247,26 +223,8 @@ func main() {
 		fmt.Println("Generated HMAC key for secure logging")
 	}
 
-	if !(*acraConnector || *acraServer || *acraTranslator || *dataKeys || *hmac || *poisonRecord || *symStorageKey || *logKey) {
+	if !(*dataKeys || *hmac || *poisonRecord || *symStorageKey || *logKey) {
 		cmd.ValidateClientID(*clientID)
-
-		err = store.GenerateConnectorKeys([]byte(*clientID))
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println("Generated acra-connector keypair")
-
-		err = store.GenerateServerKeys([]byte(*clientID))
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println("Generated acra-server keypair")
-
-		err = store.GenerateTranslatorKeys([]byte(*clientID))
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println("Generated acra-translator keypair")
 
 		err = store.GenerateDataEncryptionKeys([]byte(*clientID))
 		if err != nil {

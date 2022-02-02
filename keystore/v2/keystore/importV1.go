@@ -73,42 +73,6 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			log.WithError(err).Debug("failed to import zone storage key pair")
 			return err
 		}
-	case filesystemV1.PurposeTransportConnectorKeyPair:
-		keypair, err := oldKeyStore.ExportKeyPair(key)
-		if err != nil {
-			log.WithError(err).Debug("failed to export AcraConnector transport key pair")
-			return err
-		}
-		defer utils.ZeroizeKeyPair(keypair)
-		err = s.SaveConnectorKeypair(key.ID, keypair)
-		if err != nil {
-			log.WithError(err).Debug("failed to import AcraConnector transport key pair")
-			return err
-		}
-	case filesystemV1.PurposeTransportTranslatorKeyPair:
-		keypair, err := oldKeyStore.ExportKeyPair(key)
-		if err != nil {
-			log.WithError(err).Debug("failed to export AcraTranslator transport key pair")
-			return err
-		}
-		defer utils.ZeroizeKeyPair(keypair)
-		err = s.SaveTranslatorKeypair(key.ID, keypair)
-		if err != nil {
-			log.WithError(err).Debug("failed to import AcraTranslator transport key pair")
-			return err
-		}
-	case filesystemV1.PurposeTransportServerKeyPair:
-		keypair, err := oldKeyStore.ExportKeyPair(key)
-		if err != nil {
-			log.WithError(err).Debug("failed to export AcraServer transport key pair")
-			return err
-		}
-		defer utils.ZeroizeKeyPair(keypair)
-		err = s.SaveServerKeypair(key.ID, keypair)
-		if err != nil {
-			log.WithError(err).Debug("failed to import AcraServer transport key pair")
-			return err
-		}
 	case filesystemV1.PurposeAuditLog:
 		symkey, err := oldKeyStore.ExportSymmetricKey(key)
 		if err != nil {
@@ -121,7 +85,6 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			log.WithError(err).Debug("Failed to import audit log key")
 			return err
 		}
-
 	case filesystemV1.PurposeSearchHMAC:
 		symkey, err := oldKeyStore.ExportSymmetricKey(key)
 		if err != nil {

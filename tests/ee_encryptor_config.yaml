@@ -19,8 +19,9 @@ schemas:
       - token_email
       - masking
     encrypted:
+      # as a specified client_id we use generated client_id from client certificates from ./ssl/acra-writer/ and /ssl/acra-writer-2/
       - column: specified_client_id
-        client_id: keypair1
+        client_id: 12824c1c541a615f428a740770291374a8504f84a0682ab4015bc8e792b1bc8240022c5c9faa8c2111e0076b3b929148f4b801414413edaa800cb42492c20cf7
 
       - column: default_client_id
 

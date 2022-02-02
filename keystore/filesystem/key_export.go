@@ -68,17 +68,14 @@ type ExportedKey struct {
 
 // Exported key purpose constants:
 const (
-	PurposeSearchHMAC                 = "search_hmac"
-	PurposeAuditLog                   = "audit_log"
-	PurposePoisonRecordSymmetricKey   = "poison_sym_key"
-	PurposeStorageClientSymmetricKey  = "storage_sym_key"
-	PurposeStorageZoneSymmetricKey    = "zone_sym_key"
-	PurposePoisonRecordKeyPair        = "poison_key"
-	PurposeStorageClientKeyPair       = "storage"
-	PurposeStorageZoneKeyPair         = "zone"
-	PurposeTransportConnectorKeyPair  = "connector"
-	PurposeTransportTranslatorKeyPair = "translator"
-	PurposeTransportServerKeyPair     = "server"
+	PurposeSearchHMAC                = "search_hmac"
+	PurposeAuditLog                  = "audit_log"
+	PurposePoisonRecordSymmetricKey  = "poison_sym_key"
+	PurposeStorageClientSymmetricKey = "storage_sym_key"
+	PurposeStorageZoneSymmetricKey   = "zone_sym_key"
+	PurposePoisonRecordKeyPair       = "poison_key"
+	PurposeStorageClientKeyPair      = "storage"
+	PurposeStorageZoneKeyPair        = "zone"
 )
 
 // ExportPublicKey loads a public key for export.
@@ -321,34 +318,8 @@ func (*DefaultKeyFileClassifier) ClassifyExportedKey(path string) *ExportedKey {
 		id := []byte(strings.TrimSuffix(filename, "_zone.pub"))
 		return NewExportedPublicKey(path, id, PurposeStorageZoneKeyPair)
 	}
-	if strings.HasSuffix(filename, "_zone") {
-		id := []byte(strings.TrimSuffix(filename, "_zone"))
-		return NewExportedPrivateKey(path, id, PurposeStorageZoneKeyPair)
-	}
 
-	if strings.HasSuffix(filename, "_server.pub") {
-		id := []byte(strings.TrimSuffix(filename, "_server.pub"))
-		return NewExportedPublicKey(path, id, PurposeTransportServerKeyPair)
-	}
-	if strings.HasSuffix(filename, "_server") {
-		id := []byte(strings.TrimSuffix(filename, "_server"))
-		return NewExportedPrivateKey(path, id, PurposeTransportServerKeyPair)
-	}
+	id := []byte(strings.TrimSuffix(filename, "_zone"))
+	return NewExportedPrivateKey(path, id, PurposeStorageZoneKeyPair)
 
-	if strings.HasSuffix(filename, "_translator.pub") {
-		id := []byte(strings.TrimSuffix(filename, "_translator.pub"))
-		return NewExportedPublicKey(path, id, PurposeTransportTranslatorKeyPair)
-	}
-	if strings.HasSuffix(filename, "_translator") {
-		id := []byte(strings.TrimSuffix(filename, "_translator"))
-		return NewExportedPrivateKey(path, id, PurposeTransportTranslatorKeyPair)
-	}
-
-	// Connector key pairs are an edge case, test for them last.
-	if strings.HasSuffix(filename, ".pub") {
-		id := []byte(strings.TrimSuffix(filename, ".pub"))
-		return NewExportedPublicKey(path, id, PurposeTransportConnectorKeyPair)
-	}
-	id := []byte(filename)
-	return NewExportedPrivateKey(path, id, PurposeTransportConnectorKeyPair)
 }

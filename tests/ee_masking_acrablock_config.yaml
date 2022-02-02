@@ -64,39 +64,40 @@ schemas:
       - shorter_plaintext
 
     encrypted:
+      # as a specified client_id we use generated client_id from client certificates from ./ssl/acra-writer/ and /ssl/acra-writer-2/
       - column: masked_prefix
         masking: "xxxx"
         plaintext_length: 9
         plaintext_side: "right"
-        client_id: keypair2
+        client_id: 5c51c6171837ddc54dc570c823db579831aa1c85203d638c38b90a59b226a788689329a695483dacbd2d4f3ec9515bb029de51e076be36eb43b0894cbbc725d3
         crypto_envelope: acrablock
 
       - column: masked_suffix
         masking: "xxxx"
         plaintext_length: 9
         plaintext_side: "left"
-        client_id: keypair2
+        client_id: 5c51c6171837ddc54dc570c823db579831aa1c85203d638c38b90a59b226a788689329a695483dacbd2d4f3ec9515bb029de51e076be36eb43b0894cbbc725d3
         crypto_envelope: acrablock
 
       - column: masked_without_plaintext
         masking: "xxxx"
         plaintext_length: 0
         plaintext_side: "left"
-        client_id: keypair2
+        client_id: 5c51c6171837ddc54dc570c823db579831aa1c85203d638c38b90a59b226a788689329a695483dacbd2d4f3ec9515bb029de51e076be36eb43b0894cbbc725d3
         crypto_envelope: acrablock
 
       - column: exact_plaintext_length
         masking: "xxxx"
         plaintext_length: 10
         plaintext_side: "left"
-        client_id: keypair2
+        client_id: 5c51c6171837ddc54dc570c823db579831aa1c85203d638c38b90a59b226a788689329a695483dacbd2d4f3ec9515bb029de51e076be36eb43b0894cbbc725d3
         crypto_envelope: acrablock
 
       - column: shorter_plaintext
         masking: "xxxx"
         plaintext_length: 10
         plaintext_side: "left"
-        client_id: keypair2
+        client_id: 5c51c6171837ddc54dc570c823db579831aa1c85203d638c38b90a59b226a788689329a695483dacbd2d4f3ec9515bb029de51e076be36eb43b0894cbbc725d3
         crypto_envelope: acrablock
 
   - table: test_masking_specific_zone_id

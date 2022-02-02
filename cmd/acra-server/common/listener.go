@@ -233,7 +233,7 @@ func (server *SServer) processConnection(parentContext context.Context, connecti
 	wrappedConnection, clientID, err := server.config.ConnectionWrapper.WrapServer(wrapCtx, connection)
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).
-			Errorln("Can't wrap connection from acra-connector")
+			Errorln("Can't wrap connection")
 		if closeErr := connection.Close(); closeErr != nil {
 			logger.WithError(closeErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnection).
 				Errorln("Can't close connection")
@@ -243,20 +243,8 @@ func (server *SServer) processConnection(parentContext context.Context, connecti
 	}
 	logger = logger.WithField("client_id", string(clientID))
 	wrapSpan.End()
-	var span *trace.Span
-	if server.config.WithConnector() {
-		logger.Debugln("Read trace")
-		spanContext, err := network.ReadTrace(wrappedConnection)
-		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTracingCantReadTrace).WithError(err).Errorln("Can't read trace from AcraConnector")
-			return
-		}
-		ctx, span = trace.StartSpanWithRemoteParent(wrapCtx, callback.funcName, spanContext, server.config.GetTraceOptions()...)
-	} else {
-		ctx, span = trace.StartSpan(wrapCtx, callback.funcName, server.config.GetTraceOptions()...)
-	}
+	ctx, span := trace.StartSpan(wrapCtx, callback.funcName, server.config.GetTraceOptions()...)
 	ctx = logging.SetLoggerToContext(ctx, logger)
-	span.AddAttributes(trace.BoolAttribute("from_connector", server.config.WithConnector()))
 	defer span.End()
 	wrapSpanContext := wrapSpan.SpanContext()
 	// mark that wrapSpan related with new remote span

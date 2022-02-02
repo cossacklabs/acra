@@ -1,3 +1,11 @@
+## 0.92.0 - 2022-02-01
+- `acra-connector` global removing from all its related components `acra-server`/`acra-translator`/`acra-keymaker`/`acra-keys`:
+  - updated `acra-server` to use TLS as default connection configuration/ Themis Secure Session connection support removal/ 
+    set `tls_client_id_from_cert=true` flag by default/ full usage removing of transport keys;
+  - updated `acra-translator` to use TLS as default connection configuration;
+  - updated `acra-keys` `read`, `generate`, `destroy` commands not to work with transport keys;
+- refactor all integration tests to use TLS by default;
+
 ## 0.92.0 - 2022-01-20
 - Improve TLS certificate validation performance with larger CRLs, check is now O(1) ops instead of O(N)
 

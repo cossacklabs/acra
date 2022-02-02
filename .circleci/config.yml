@@ -152,7 +152,7 @@ jobs:
   postgresql-vault:
     docker:
       - image: cossacklabs/ci-py-go-themis:latest
-      - image: postgres:11-alpine
+      - image: cossacklabs/postgresql-ssl:11-1
         environment:
           POSTGRES_PASSWORD: test
           POSTGRES_USER: test
@@ -170,7 +170,7 @@ jobs:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       GO_VERSIONS: 1.15.2 1.16.9 1.17.3
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
-      TEST_TLS: "off"
+      TEST_TLS: "on"
       TEST_WITH_VAULT: "on"
       VAULT_API_TOKEN: cm9vdF90b2tlbgo= # base64 of the root_token
       TEST_POSTGRESQL: "off"
@@ -203,7 +203,7 @@ jobs:
   postgresql-vault-ssl:
     docker:
       - image: cossacklabs/ci-py-go-themis:latest
-      - image: postgres:11-alpine
+      - image: cossacklabs/postgresql-ssl:11-1
         environment:
           POSTGRES_PASSWORD: test
           POSTGRES_USER: test
@@ -221,7 +221,7 @@ jobs:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       GO_VERSIONS: 1.15.2 1.16.9 1.17.3
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
-      TEST_TLS: "off"
+      TEST_TLS: "on"
       TEST_WITH_VAULT: "on"
       TEST_SSL_VAULT: "on"
       VAULT_ADDRESS: https://localhost:8201/

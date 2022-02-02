@@ -29,7 +29,6 @@ type AcraTranslatorConfig struct {
 	detectPoisonRecords          bool
 	scriptOnPoison               string
 	stopOnPoison                 bool
-	serverID                     []byte
 	incomingConnectionHTTPString string
 	incomingConnectionGRPCString string
 	HTTPConnectionWrapper        network.HTTPServerConnectionWrapper
@@ -39,7 +38,6 @@ type AcraTranslatorConfig struct {
 	traceToLog                   bool
 	tlsConfig                    *tls.Config
 	useClientIDFromConnection    bool
-	withConnector                bool
 	tokenizer                    common.Pseudoanonymizer
 	tlsClientIDExtractor         network.TLSClientIDExtractor
 }
@@ -47,11 +45,6 @@ type AcraTranslatorConfig struct {
 // NewConfig creates new AcraTranslatorConfig.
 func NewConfig() *AcraTranslatorConfig {
 	return &AcraTranslatorConfig{stopOnPoison: false}
-}
-
-// SetWithConnector set WithConnector
-func (a *AcraTranslatorConfig) SetWithConnector(v bool) {
-	a.withConnector = v
 }
 
 // SetTLSClientIDExtractor set clientID extractor from TLS metadata
@@ -72,11 +65,6 @@ func (a *AcraTranslatorConfig) SetTokenizer(tokenizer common.Pseudoanonymizer) {
 // GetTokenizer return configure tokenizer
 func (a *AcraTranslatorConfig) GetTokenizer() common.Pseudoanonymizer {
 	return a.tokenizer
-}
-
-// GetWithConnector return WithConnector
-func (a *AcraTranslatorConfig) GetWithConnector() bool {
-	return a.withConnector
 }
 
 // SetUseClientIDFromConnection use ClientID from connection metadata instead request arguments
@@ -152,16 +140,6 @@ func (a *AcraTranslatorConfig) StopOnPoison() bool {
 // SetStopOnPoison sets if AcraTranslator should stop working on detection of poison records.
 func (a *AcraTranslatorConfig) SetStopOnPoison(stopOnPoison bool) {
 	a.stopOnPoison = stopOnPoison
-}
-
-// ServerID returns server id associated with SecureSession connection.
-func (a *AcraTranslatorConfig) ServerID() []byte {
-	return a.serverID
-}
-
-// SetServerID sets server id associated with SecureSession connection.
-func (a *AcraTranslatorConfig) SetServerID(serverID []byte) {
-	a.serverID = serverID
 }
 
 // IncomingConnectionHTTPString returns connection string to listen for HTTP requests.
