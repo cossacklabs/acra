@@ -1,3 +1,8 @@
+## 0.92.0 - 2022-02-02
+- Change default value for flag `--poison_detect_enable` from `true` to `false` for `acra-server` and `acra-translator`.
+- Add integration tests for `acra-translator` with poison record detection and refactored poison record tests.
+- Change default port for prometheus handler in integration tests to fix port collisions during local testing.
+
 ## 0.92.0 - 2022-02-01
 - `acra-connector` global removing from all its related components `acra-server`/`acra-translator`/`acra-keymaker`/`acra-keys`:
   - updated `acra-server` to use TLS as default connection configuration/ Themis Secure Session connection support removal/ 
