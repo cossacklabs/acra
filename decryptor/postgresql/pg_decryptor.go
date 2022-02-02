@@ -159,11 +159,6 @@ func NewPgProxy(session base.ClientSession, parser *sqlparser.Parser, setting ba
 	}, nil
 }
 
-// SubscribeOnColumnDecryption subscribes for notifications about the column, indexed from left to right starting with zero.
-func (proxy *PgProxy) SubscribeOnColumnDecryption(column int, subscriber base.DecryptionSubscriber) {
-	proxy.decryptionObserver.SubscribeOnColumnDecryption(column, subscriber)
-}
-
 // SubscribeOnAllColumnsDecryption subscribes for notifications on each column.
 func (proxy *PgProxy) SubscribeOnAllColumnsDecryption(subscriber base.DecryptionSubscriber) {
 	proxy.decryptionObserver.SubscribeOnAllColumnsDecryption(subscriber)

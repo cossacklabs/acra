@@ -61,14 +61,12 @@ type DecryptionSubscriber interface {
 
 // ColumnDecryptionNotifier interface to subscribe/unsubscribe on OnColumn events
 type ColumnDecryptionNotifier interface {
-	SubscribeOnColumnDecryption(i int, subscriber DecryptionSubscriber)
 	SubscribeOnAllColumnsDecryption(subscriber DecryptionSubscriber)
 	Unsubscribe(DecryptionSubscriber)
 }
 
 // ColumnDecryptionObserver is a simple ColumnDecryptionNotifier implementation.
 type ColumnDecryptionObserver struct {
-	perColumn  map[int][]DecryptionSubscriber
 	allColumns []DecryptionSubscriber
 }
 
@@ -76,20 +74,8 @@ type ColumnDecryptionObserver struct {
 func NewColumnDecryptionObserver() ColumnDecryptionObserver {
 	// Reserve some memory for a typical amount of subscribers.
 	return ColumnDecryptionObserver{
-		perColumn:  make(map[int][]DecryptionSubscriber, 10),
 		allColumns: make([]DecryptionSubscriber, 0, 5),
 	}
-}
-
-// SubscribeOnColumnDecryption subscribes for notifications about the column, indexed from left to right starting with zero.
-func (o *ColumnDecryptionObserver) SubscribeOnColumnDecryption(column int, subscriber DecryptionSubscriber) {
-	subscribers := o.perColumn[column]
-	for _, existing := range subscribers {
-		if existing == subscriber {
-			return
-		}
-	}
-	o.perColumn[column] = append(subscribers, subscriber)
 }
 
 // SubscribeOnAllColumnsDecryption subscribes for notifications on each column.
@@ -99,14 +85,6 @@ func (o *ColumnDecryptionObserver) SubscribeOnAllColumnsDecryption(subscriber De
 
 // Unsubscribe a subscriber from all notifications.
 func (o *ColumnDecryptionObserver) Unsubscribe(subscriber DecryptionSubscriber) {
-	for column, observers := range o.perColumn {
-		for i, existing := range observers {
-			if existing == subscriber {
-				o.perColumn[column] = append(observers[:i], observers[i+1:]...)
-				break
-			}
-		}
-	}
 	for i, existing := range o.allColumns {
 		if existing == subscriber {
 			o.allColumns = append(o.allColumns[:i], o.allColumns[i+1:]...)
@@ -121,14 +99,6 @@ func (o *ColumnDecryptionObserver) Unsubscribe(subscriber DecryptionSubscriber) 
 func (o *ColumnDecryptionObserver) OnColumnDecryption(ctx context.Context, column int, data []byte) ([]byte, error) {
 	var err error
 	// Avoid creating a map entry if it does not exist.
-	subscribers, _ := o.perColumn[column]
-	for _, subscriber := range subscribers {
-		ctx, data, err = subscriber.OnColumn(ctx, data)
-		if err != nil {
-			logrus.WithField("subscriber", subscriber.ID()).WithError(err).Errorln("OnColumn error")
-			return data, err
-		}
-	}
 	for _, subscriber := range o.allColumns {
 		ctx, data, err = subscriber.OnColumn(ctx, data)
 		if err != nil {
