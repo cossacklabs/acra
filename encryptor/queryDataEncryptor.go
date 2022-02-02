@@ -99,6 +99,12 @@ func (encryptor *QueryDataEncryptor) encryptInsertQuery(ctx context.Context, ins
 		logrus.Debugf("Hasn't schema for table %s", tableName)
 		return false, nil
 	}
+	placeholders, err := encryptor.getInsertPlaceholders(ctx, insert)
+	if err != nil {
+		logrus.Debugf("Can't parse placeholders for table %s", tableName)
+		return false, err
+	}
+	encryptor.savePlaceholderSettingIntoClientSession(ctx, placeholders, schema)
 
 	if encryptor.encryptor == nil {
 		return false, encryptor.onReturning(insert.Returning, tableName.RawValue())
@@ -464,15 +470,14 @@ func (encryptor *QueryDataEncryptor) OnBind(ctx context.Context, statement sqlpa
 	return newValues, changed, nil
 }
 
-func (encryptor *QueryDataEncryptor) encryptInsertValues(ctx context.Context, insert *sqlparser.Insert, values []base.BoundValue) ([]base.BoundValue, bool, error) {
-	logrus.Debugln("QueryDataEncryptor.encryptInsertValues")
+func (encryptor *QueryDataEncryptor) getInsertPlaceholders(ctx context.Context, insert *sqlparser.Insert) (map[int]string, error) {
 	tableName := insert.Table.Name
 	// Look for the schema of the table where the INSERT happens.
 	// If we don't have a schema then we don't know what to encrypt, so do nothing.
 	schema := encryptor.schemaStore.GetTableSchema(tableName.String())
 	if schema == nil {
 		logrus.WithField("table", tableName).Debugln("No encryption schema")
-		return values, false, nil
+		return nil, nil
 	}
 
 	// Gather column names from the INSERT query. If there are no columns in the query,
@@ -489,10 +494,10 @@ func (encryptor *QueryDataEncryptor) encryptInsertValues(ctx context.Context, in
 	// If there is no column schema available, we can't encrypt values.
 	if len(columns) == 0 {
 		logrus.WithField("table", tableName).Debugln("No column information")
-		return values, false, nil
+		return nil, nil
 	}
 
-	placeholders := make(map[int]string, len(values))
+	placeholders := make(map[int]string, len(insert.Columns))
 
 	// We can also only process simple queries of the form
 	//
@@ -508,14 +513,65 @@ func (encryptor *QueryDataEncryptor) encryptInsertValues(ctx context.Context, in
 			for i, value := range row {
 				switch value := value.(type) {
 				case *sqlparser.SQLVal:
-					err := encryptor.updatePlaceholderMap(values, placeholders, value, columns[i])
+					err := encryptor.updatePlaceholderMap(len(insert.Columns), placeholders, value, columns[i])
 					if err != nil {
-						return values, false, err
+						return nil, err
 					}
 				}
 			}
 		}
 	}
+	return placeholders, nil
+}
+
+func (encryptor *QueryDataEncryptor) savePlaceholderSettingIntoClientSession(ctx context.Context, placeholders map[int]string, schema config.TableSchema){
+	if schema == nil {
+		logrus.Debugln("No encryption schema")
+		return
+	}
+	if placeholders == nil {
+		logrus.Debugln("No placeholders")
+		return
+	}
+	clientSession := base.ClientSessionFromContext(ctx)
+	needEncrypt := false
+	items := make([]*QueryDataItem, len(placeholders))
+	for i, columnName := range placeholders {
+		if !schema.NeedToEncrypt(columnName){
+			items[i] = nil
+			continue
+		}
+		needEncrypt = true
+		setting := schema.GetColumnEncryptionSettings(columnName)
+		items[i] = &QueryDataItem{
+			setting: setting,
+			tableName: schema.Name(),
+			columnName: columnName,
+			columnAlias: columnName,
+		}
+	}
+	if needEncrypt {
+		SaveQueryDataItemsToClientSession(clientSession, items)
+	}
+}
+
+func (encryptor *QueryDataEncryptor) encryptInsertValues(ctx context.Context, insert *sqlparser.Insert, values []base.BoundValue) ([]base.BoundValue, bool, error) {
+	logger := logging.GetLoggerFromContext(ctx)
+	logger.Debugln("QueryDataEncryptor.encryptInsertValues")
+	tableName := insert.Table.Name
+	// Look for the schema of the table where the INSERT happens.
+	// If we don't have a schema then we don't know what to encrypt, so do nothing.
+	schema := encryptor.schemaStore.GetTableSchema(tableName.String())
+	if schema == nil {
+		logrus.WithField("table", tableName).Debugln("No encryption schema")
+		return values, false, nil
+	}
+	placeholders, err := encryptor.getInsertPlaceholders(ctx, insert)
+	if err != nil {
+		logger.WithError(err).Errorln("Can't extract placeholders from INSERT query")
+		return values, false, err
+	}
+	encryptor.savePlaceholderSettingIntoClientSession(ctx, placeholders, schema)
 
 	// TODO(ilammy, 2020-10-13): handle ON DUPLICATE KEY UPDATE clauses
 	// These clauses are handled for textual queries. It would be nice to encrypt
@@ -562,7 +618,7 @@ func (encryptor *QueryDataEncryptor) encryptUpdateValues(ctx context.Context, up
 		columnName := expr.Name.Name.String()
 		switch value := expr.Expr.(type) {
 		case *sqlparser.SQLVal:
-			err := encryptor.updatePlaceholderMap(values, placeholders, value, columnName)
+			err := encryptor.updatePlaceholderMap(len(values), placeholders, value, columnName)
 			if err != nil {
 				return values, false, err
 			}
@@ -575,7 +631,7 @@ func (encryptor *QueryDataEncryptor) encryptUpdateValues(ctx context.Context, up
 }
 
 // updatePlaceholderMap matches the placeholder of a value to its column and records this into the mapping.
-func (encryptor *QueryDataEncryptor) updatePlaceholderMap(values []base.BoundValue, placeholders map[int]string, placeholder *sqlparser.SQLVal, columnName string) error {
+func (encryptor *QueryDataEncryptor) updatePlaceholderMap(valuesCount int, placeholders map[int]string, placeholder *sqlparser.SQLVal, columnName string) error {
 	updateMapByPlaceholderPart := func(part string) error {
 		text := string(placeholder.Val)
 		index, err := strconv.Atoi(strings.TrimPrefix(text, part))
@@ -585,13 +641,13 @@ func (encryptor *QueryDataEncryptor) updatePlaceholderMap(values []base.BoundVal
 		}
 		// Placeholders use 1-based indexing and "values" (Go slice) are 0-based.
 		index--
-		if index >= len(values) {
-			logrus.WithFields(logrus.Fields{"placeholder": text, "index": index, "values": len(values)}).
+		if index >= valuesCount {
+			logrus.WithFields(logrus.Fields{"placeholder": text, "index": index, "values": valuesCount}).
 				Warning("Invalid placeholder index")
 			return ErrInvalidPlaceholder
 		}
 		// Placeholders must map to columns uniquely.
-		// If there is already a column for given placholder and it's not the same,
+		// If there is already a column for given placeholder and it's not the same,
 		// we can't handle such queries currently.
 		name, exists := placeholders[index]
 		if exists && name != columnName {

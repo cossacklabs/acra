@@ -23,6 +23,8 @@ import (
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
+	"strconv"
+	"unicode/utf8"
 )
 
 var pgHexStringPrefix = []byte{'\\', 'x'}
@@ -75,6 +77,17 @@ func (*MysqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, error
 	return nil, errUnsupportedExpression
 }
 
+// PgEncodeToHexString return data as is if it's valid UTF string otherwise encode to hex with \x prefix
+func PgEncodeToHexString(data []byte)[]byte {
+	if utf8.Valid(data) {
+		return data
+	}
+	newVal := make([]byte, len(pgHexStringPrefix)+hex.EncodedLen(len(data)))
+	copy(newVal, pgHexStringPrefix)
+	hex.Encode(newVal[len(pgHexStringPrefix):], data)
+	return newVal
+}
+
 // PostgresqlDBDataCoder implement DBDataCoder for PostgreSQL
 type PostgresqlDBDataCoder struct{}
 
@@ -119,12 +132,20 @@ func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, 
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
 		switch val.Type {
-		case sqlparser.IntVal:
-			return data, nil
 		case sqlparser.HexVal:
 			output := make([]byte, hex.EncodedLen(len(data)))
 			hex.Encode(output, data)
 			return output, nil
+		case sqlparser.IntVal:
+			// if data was just tokenized, so we return it as is because it is valid int literal
+			if _, err:= strconv.Atoi(string(data)); err == nil {
+				return data, nil
+			}
+			// otherwise here we work with encrypted int literal and took binary data that we should pass forward
+			// as encoded into hex. So change type to StrVal and pass flow below to encode as it was binary data encoded
+			// with hex
+			val.Type = sqlparser.StrVal
+			fallthrough
 		case sqlparser.PgEscapeString, sqlparser.StrVal:
 			if utils.IsPrintableASCIIArray(data) {
 				return data, nil
