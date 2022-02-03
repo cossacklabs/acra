@@ -99,7 +99,7 @@ pgsql_escape_bytea: false
 pgsql_hex_bytea: false
 
 # Turn on poison record detection, if server shutdown is disabled, AcraServer logs the poison record detection and returns decrypted data
-poison_detect_enable: true
+poison_detect_enable: false
 
 # On detecting poison record: log about poison record detection, execute script, return decrypted data
 poison_run_script_file: 

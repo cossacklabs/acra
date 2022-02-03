@@ -1,5 +1,8 @@
-## 0.92.0 - 2022-03-01
-- use AcraBlocks as default crypto envelope;
+## 0.92.0 - 2022-02-02
+- Change the default value for flag `--poison_detect_enable` from `true` to `false` for `acra-server` and `acra-translator`.
+- Add integration tests for `acra-translator` with poison record detection and refactored poison record tests.
+- Change the default port for prometheus handler in integration tests to fix port collisions during local testing.
+- Use AcraBlocks as default crypto envelope;
 
 ## 0.92.0 - 2022-02-01
 - `acra-connector` global removing from all its related components `acra-server`/`acra-translator`/`acra-keymaker`/`acra-keys`:
