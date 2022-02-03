@@ -27,6 +27,9 @@ import re
 import shutil
 import signal
 import socket
+
+import urllib3.exceptions
+
 import ssl
 import stat
 import subprocess
@@ -166,10 +169,13 @@ POISON_KEY_PATH = '.poison_key/poison_key'
 
 STATEMENT_TIMEOUT = 5 * 1000 # 5 sec
 SETUP_SQL_COMMAND_TIMEOUT = 0.1
-FORK_FAIL_SLEEP = 0.5
+# how long wait forked process to respond
+FORK_TIMEOUT = 2
+# seconds for sleep call after failed polling forked process
+FORK_FAIL_SLEEP = 0.1
 CONNECTION_FAIL_SLEEP = 0.1
 SOCKET_CONNECT_TIMEOUT = 3
-KILL_WAIT_TIMEOUT = 10
+KILL_WAIT_TIMEOUT = 5
 CONNECT_TRY_COUNT = 3
 SQL_EXECUTE_TRY_COUNT = 5
 # http://docs.python-requests.org/en/master/user/advanced/#timeouts
@@ -433,7 +439,7 @@ def create_client_keypair_from_certificate(tls_cert, extractor=TLS_CLIENT_ID_SOU
             args.append(param)
     return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
-
+WAIT_CONNECTION_ERROR_MESSAGE = "can't wait connection"
 def wait_connection(port, count=1000, sleep=0.001):
     """try connect to 127.0.0.1:port and close connection
     if can't then sleep on and try again (<count> times)
@@ -448,7 +454,7 @@ def wait_connection(port, count=1000, sleep=0.001):
             pass
         count -= 1
         time.sleep(sleep)
-    raise Exception("can't wait connection")
+    raise Exception(WAIT_CONNECTION_ERROR_MESSAGE)
 
 def wait_command_success(command, count=10, sleep=0.200):
     """try executing `command` using `os.system()`
@@ -1075,7 +1081,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     ACRASERVER_PORT = int(os.environ.get('TEST_ACRASERVER_PORT', 10003))
     OCSP_SERVER_PORT = int(os.environ.get('TEST_OCSP_SERVER_PORT', 8888))
     CRL_HTTP_SERVER_PORT = int(os.environ.get('TEST_HTTP_SERVER_PORT', 8889))
-    ACRASERVER_PROMETHEUS_PORT = int(os.environ.get('TEST_ACRASERVER_PROMETHEUS_PORT', 10004))
+    ACRASERVER_PROMETHEUS_PORT = int(os.environ.get('TEST_ACRASERVER_PROMETHEUS_PORT', 11004))
     ACRA_BYTEA = 'pgsql_hex_bytea'
     DB_BYTEA = 'hex'
     WHOLECELL_MODE = False
@@ -1091,11 +1097,12 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     def fork(self, func):
         process = func()
         count = 0
-        while count <= 3:
+        step = FORK_TIMEOUT / FORK_FAIL_SLEEP
+        while count <= FORK_TIMEOUT:
             if process.poll() is None:
                 logging.info("forked %s [%s]", process.args[0], process.pid)
                 return process
-            count += 1
+            count += step
             time.sleep(FORK_FAIL_SLEEP)
         stop_process(process)
         raise Exception("Can't fork")
@@ -1145,7 +1152,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
 
         http_server_connection = self.get_crl_http_server_connection_string(port)
 
-        cli_args = ['--bind', 'localhost', '--directory', TEST_TLS_CRL_PATH, str(port)]
+        cli_args = ['--bind', '127.0.0.1', '--directory', TEST_TLS_CRL_PATH, str(port)]
         print('python HTTP server args: {}'.format(' '.join(cli_args)))
 
         process = self.fork(lambda: subprocess.Popen(['python3', '-m', 'http.server'] + cli_args))
@@ -1424,6 +1431,127 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             log_entry['poison_record'] = b64encode(get_poison_record()).decode('ascii')
 
         logging.debug("test log: {}".format(json.dumps(log_entry)))
+
+
+class AcraCatchLogsMixin(object):
+    def __init__(self, *args, **kwargs):
+        self.log_files = {}
+        super(AcraCatchLogsMixin, self).__init__(*args, **kwargs)
+
+    def read_log(self, process):
+        with open(self.log_files[process].name, 'r', errors='replace',
+                  encoding='utf-8') as f:
+            log = f.read()
+            print(log.encode(encoding='utf-8', errors='replace'))
+            return log
+
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        log_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
+        popen_args = {
+            'stderr': subprocess.STDOUT,
+            'stdout': log_file,
+            'close_fds': True,
+            'bufsize': 0,
+        }
+        process = super(AcraCatchLogsMixin, self).fork_acra(
+            popen_args, **acra_kwargs
+        )
+        assert process
+        # register process to not forget close all descriptors
+        self.log_files[process] = log_file
+        return process
+
+    def tearDown(self, *args, **kwargs):
+        super(AcraCatchLogsMixin, self).tearDown(*args, **kwargs)
+        for process, log_file in self.log_files.items():
+            log_file.close()
+            try:
+                os.remove(log_file.name)
+            except:
+                pass
+            stop_process(process)
+
+
+class AcraTranslatorMixin(object):
+    def get_identifier_extractor_type(self):
+        return TLS_CLIENT_ID_SOURCE_DN
+
+    def get_http_schema(self):
+        return 'https'
+
+    def get_http_default_kwargs(self):
+        return {
+            'timeout': REQUEST_TIMEOUT,
+            'verify': TEST_TLS_CA,
+            # https://requests.readthedocs.io/en/master/user/advanced/#client-side-certificates
+            # first crt, second key
+            'cert': (TEST_TLS_CLIENT_CERT, TEST_TLS_CLIENT_KEY),
+        }
+
+    def http_decrypt_request(self, port, client_id, zone_id, acrastruct):
+        api_url = '{}://localhost:{}/v1/decrypt'.format(self.get_http_schema(), port)
+        if zone_id:
+            api_url = '{}?zone_id={}'.format(api_url, zone_id)
+        kwargs = self.get_http_default_kwargs()
+        kwargs['data'] = acrastruct
+        with requests.post(api_url, **kwargs) as response:
+            return response.content
+
+    def http_encrypt_request(self, port, client_id, zone_id, data):
+        api_url = '{}://localhost:{}/v1/encrypt'.format(self.get_http_schema(), port)
+        if zone_id:
+            api_url = '{}?zone_id={}'.format(api_url, zone_id)
+        kwargs = self.get_http_default_kwargs()
+        kwargs['data'] = data
+        with requests.post(api_url, **kwargs) as response:
+            return response.content
+
+    def get_grpc_channel(self, port):
+        '''setup grpc to use tls client authentication'''
+        with open(TEST_TLS_CA, 'rb') as ca_file, open(TEST_TLS_CLIENT_KEY, 'rb') as key_file, open(TEST_TLS_CLIENT_CERT, 'rb') as cert_file:
+            ca_bytes = ca_file.read()
+            key_bytes = key_file.read()
+            cert_bytes = cert_file.read()
+        tls_credentials = grpc.ssl_channel_credentials(ca_bytes, key_bytes, cert_bytes)
+        return grpc.secure_channel('localhost:{}'.format(port), tls_credentials)
+
+    def grpc_encrypt_request(self, port, client_id, zone_id, data):
+        with self.get_grpc_channel(port) as channel:
+            stub = api_pb2_grpc.WriterStub(channel)
+            try:
+                if zone_id:
+                    response = stub.Encrypt(api_pb2.EncryptRequest(
+                        zone_id=zone_id.encode('ascii'), data=data,
+                        client_id=client_id.encode('ascii')),
+                        timeout=SOCKET_CONNECT_TIMEOUT)
+                else:
+                    response = stub.Encrypt(api_pb2.EncryptRequest(
+                        client_id=client_id.encode('ascii'), data=data),
+                        timeout=SOCKET_CONNECT_TIMEOUT)
+            except grpc.RpcError as exc:
+                logging.info(exc)
+                return b''
+            return response.acrastruct
+
+    def grpc_decrypt_request(self, port, client_id, zone_id, acrastruct, raise_exception_on_failure=False):
+        with self.get_grpc_channel(port) as channel:
+            stub = api_pb2_grpc.ReaderStub(channel)
+            try:
+                if zone_id:
+                    response = stub.Decrypt(api_pb2.DecryptRequest(
+                        zone_id=zone_id.encode('ascii'), acrastruct=acrastruct,
+                        client_id=client_id.encode('ascii')),
+                        timeout=SOCKET_CONNECT_TIMEOUT)
+                else:
+                    response = stub.Decrypt(api_pb2.DecryptRequest(
+                        client_id=client_id.encode('ascii'), acrastruct=acrastruct),
+                        timeout=SOCKET_CONNECT_TIMEOUT)
+            except grpc.RpcError as exc:
+                logging.info(exc)
+                if raise_exception_on_failure:
+                    raise
+                return b''
+            return response.data
 
 
 class HexFormatTest(BaseTestCase):
@@ -2047,16 +2175,18 @@ class TestConnectionClosing(BaseTestCase):
         # give a time to close connections via postgresql
         # because performance where tests will run not always constant,
         # we wait try_count times. in best case it will not need to sleep
-        try_count = SQL_EXECUTE_TRY_COUNT
-        for i in range(try_count):
+        timeout = 3
+        step = 0.1
+        iterations = timeout / step
+        for i in range(int(iterations)):
             try:
                 self.assertEqual(self.getActiveConnectionCount(cursor), expected)
                 break
             except AssertionError:
-                if i == (try_count - 1):
+                if i == (iterations - 1):
                     raise
                 # some wait for closing. chosen manually
-                time.sleep(1)
+                time.sleep(step)
 
     def checkConnectionLimit(self, connection_limit):
         connections = []
@@ -2126,7 +2256,7 @@ class TestConnectionClosing(BaseTestCase):
                 self.check_count(cursor, current_connection_count)
 
 
-class BasePoisonRecordTest(BaseTestCase):
+class BasePoisonRecordTest(AcraCatchLogsMixin, AcraTranslatorMixin, BaseTestCase):
     SHUTDOWN = True
     TEST_DATA_LOG = True
     DETECT_POISON_RECORDS = True
@@ -2146,18 +2276,53 @@ class BasePoisonRecordTest(BaseTestCase):
         args = {
             'poison_shutdown_enable': 'true' if self.SHUTDOWN else 'false',
             'poison_detect_enable': 'true' if self.DETECT_POISON_RECORDS else 'false',
+            # use text format to simplify check some error messages in logs, for example code=XXX instead of '|XXX|' in
+            # CEF format
+            'logging_format': 'text',
         }
 
         if hasattr(self, 'poisonscript'):
             args['poison_run_script_file'] = self.poisonscript
+        acra_kwargs.update(args)
 
-        return super(BasePoisonRecordTest, self).fork_acra(popen_kwargs, **args)
+        return super(BasePoisonRecordTest, self).fork_acra(popen_kwargs, **acra_kwargs)
+
+    def fork_translator(self, translator_kwargs, popen_kwargs=None):
+        args = {
+            'poison_shutdown_enable': 'true' if self.SHUTDOWN else 'false',
+            'poison_detect_enable': 'true' if self.DETECT_POISON_RECORDS else 'false',
+            # use text format to simplify check some error messages in logs, for example code=XXX instead of '|XXX|' in
+            # CEF format
+            'logging_format': 'text',
+        }
+
+        if hasattr(self, 'poisonscript'):
+            args['poison_run_script_file'] = self.poisonscript
+        translator_kwargs.update(args)
+
+        return super(BasePoisonRecordTest, self).fork_translator(translator_kwargs, popen_kwargs)
+
+    def get_base_translator_args(self):
+        return {
+            'tls_ocsp_from_cert': 'ignore',
+            'tls_crl_from_cert': 'ignore',
+            'tls_key': abs_path(TEST_TLS_SERVER_KEY),
+            'tls_cert': abs_path(TEST_TLS_SERVER_CERT),
+            'tls_ca': TEST_TLS_CA,
+            'tls_identifier_extractor_type': self.get_identifier_extractor_type(),
+            'acratranslator_client_id_from_connection_enable': 'true',
+        }
 
 
 class TestPoisonRecordShutdown(BasePoisonRecordTest):
     SHUTDOWN = True
 
     def testShutdown(self):
+        """fetch data from table by specifying row id
+
+        this method works with ZoneMode ON and OFF because in both cases acra-server should find poison record
+        on data decryption failure
+        """
         row_id = get_random_id()
         data = self.get_poison_record_data()
         self.engine1.execute(
@@ -2170,9 +2335,17 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
             row = result.fetchone()
             if row['data'] == data:
                 self.fail("unexpected response")
+        log = self.read_log(self.acra)
+        self.assertIn('code=101', log)
+        self.assertIn('Detected poison record, exit', log)
+        self.assertNotIn('executed code after os.Exit', log)
 
     def testShutdown2(self):
-        """check working poison record callback on full select"""
+        """check working poison record callback on full select
+
+        this method works with ZoneMode ON and OFF because in both cases acra-server should find poison record
+        on data decryption failure
+        """
         row_id = get_random_id()
         data = self.get_poison_record_data()
         self.engine1.execute(
@@ -2185,9 +2358,17 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
             for row in rows:
                 if row['id'] == row_id and row['data'] == data:
                     self.fail("unexpected response")
+        log = self.read_log(self.acra)
+        self.assertIn('code=101', log)
+        self.assertIn('Detected poison record, exit', log)
+        self.assertNotIn('executed code after os.Exit', log)
 
     def testShutdown3(self):
-        """check working poison record callback on full select inside another data"""
+        """check working poison record callback on full select inside another data
+
+        this method works with ZoneMode ON and OFF because in both cases acra-server should find poison record
+        on data decryption failure
+        """
         row_id = get_random_id()
         poison_record = get_poison_record()
         begin_tag = poison_record[:4]
@@ -2203,6 +2384,81 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
             for row in rows:
                 if row['id'] == row_id and row['data'] == data:
                     self.fail("unexpected response")
+        log = self.read_log(self.acra)
+        self.assertIn('code=101', log)
+        self.assertIn('Detected poison record, exit', log)
+        self.assertNotIn('executed code after os.Exit', log)
+
+    def testShutdownWithExplicitZone(self):
+        """check callback with select by id and specify zone id in select query
+
+        This method works with ZoneMode ON and OFF because in both cases acra-server should find poison record
+        on data decryption failure. Plus in ZoneMode OFF acra-server will ignore ZoneID
+        """
+        row_id = get_random_id()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': self.get_poison_record_data(), 'raw_data': 'poison_record'})
+        with self.assertRaises(DatabaseError):
+            zone = zones[0][ZONE_ID].encode('ascii')
+            result = self.engine1.execute(
+                sa.select([sa.cast(zone, BYTEA), test_table])
+                    .where(test_table.c.id == row_id))
+            print(result.fetchall())
+        log = self.read_log(self.acra)
+        self.assertIn('code=101', log)
+        self.assertIn('Detected poison record, exit', log)
+        self.assertNotIn('executed code after os.Exit', log)
+
+    def testShutdownTranslatorHTTP(self):
+        """check poison record decryption via acra-translator using HTTP v1 API
+
+        This method works with ZoneMode ON and OFF because in both cases acra-translator should match poison record
+        on data decryption failure
+        """
+        http_port = 3356
+        http_connection_string = 'tcp://127.0.0.1:{}'.format(http_port)
+        translator_kwargs = self.get_base_translator_args()
+        translator_kwargs.update({
+            'incoming_connection_http_string': http_connection_string,
+        })
+
+        data = self.get_poison_record_data()
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            with self.assertRaises(requests.exceptions.ConnectionError) as exc:
+                response = self.http_decrypt_request(http_port, TLS_CERT_CLIENT_ID_1, None, data)
+        self.assertEqual(exc.exception.args[0].args[0], 'Connection aborted.')
+
+        # check that port not listening anymore
+        with self.assertRaises(Exception) as exc:
+            wait_connection(http_port, count=1, sleep=0)
+        self.assertEqual(exc.exception.args[0], WAIT_CONNECTION_ERROR_MESSAGE)
+
+    def testShutdownTranslatorgRPC(self):
+        """check poison record decryption via acra-translator using gRPC API
+
+        This method works with ZoneMode ON and OFF because in both cases acra-translator should match poison record
+        on data decryption failure
+        """
+        grpc_port = 3357
+        grpc_connection_string = 'tcp://127.0.0.1:{}'.format(grpc_port)
+        translator_kwargs = self.get_base_translator_args()
+        translator_kwargs.update({
+            'incoming_connection_grpc_string': grpc_connection_string,
+        })
+
+        data = self.get_poison_record_data()
+
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            with self.assertRaises(grpc.RpcError) as exc:
+                response = self.grpc_decrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, None, data,
+                                                     raise_exception_on_failure=True)
+        self.assertEqual(exc.exception.code(), grpc.StatusCode.UNAVAILABLE)
+
+        # check that port not listening anymore
+        with self.assertRaises(Exception) as exc:
+            wait_connection(grpc_port, count=1, sleep=0)
+        self.assertEqual(exc.exception.args[0], WAIT_CONNECTION_ERROR_MESSAGE)
 
 
 class TestPoisonRecordShutdownWithAcraBlock(TestPoisonRecordShutdown):
@@ -2215,6 +2471,11 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
     DETECT_POISON_RECORDS = False
 
     def testShutdown(self):
+        """case with select by specifying row id, checks that acra-server doesn't initialize poison record detection
+        and any callbacks, and returns data as is on decryption failure even if it's valid poison record
+
+        Works with ZoneMode On/OFF
+        """
         row_id = get_random_id()
         data = self.get_poison_record_data()
         self.engine1.execute(
@@ -2229,8 +2490,17 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
         if row['data'] != data:
             self.fail("unexpected response")
 
+        log = self.read_log(self.acra)
+        self.assertNotIn('Check poison records', log)
+        self.assertNotIn('Turned on poison record detection', log)
+        self.assertNotIn('code=101', log)
+
     def testShutdown2(self):
-        """check working poison record callback on full select"""
+        """case with select full table, checks that acra-server doesn't initialize poison record detection
+        and any callbacks, and returns data as is on decryption failure even if it's valid poison record
+
+        Works with ZoneMode On/OFF
+        """
         row_id = get_random_id()
         data = self.get_poison_record_data()
         self.engine1.execute(
@@ -2245,8 +2515,18 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
             if row['id'] == row_id and row['data'] != data:
                 self.fail("unexpected response")
 
+        log = self.read_log(self.acra)
+        self.assertNotIn('Check poison records', log)
+        self.assertNotIn('Turned on poison record detection', log)
+        self.assertNotIn('code=101', log)
+
     def testShutdown3(self):
-        """check working poison record callback on full select inside another data"""
+        """case with select full table and inlined poison record, checks that acra-server doesn't initialize poison
+        record detection and any callbacks, and returns data as is on decryption failure even if it's valid poison
+        record
+
+        Works with ZoneMode On/OFF
+        """
         row_id = get_random_id()
         poison_record = self.get_poison_record_data()
         begin_tag = poison_record[:4]
@@ -2264,6 +2544,93 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
             if row['id'] == row_id and row['data'] != data:
                 self.fail("unexpected response")
 
+        log = self.read_log(self.acra)
+        self.assertNotIn('Check poison records', log)
+        self.assertNotIn('Turned on poison record detection', log)
+        self.assertNotIn('code=101', log)
+
+    def testShutdownWithExplicitZone(self):
+        """case with explicitly specified ZoneID in SELECT query, checks that acra-server doesn't initialize poison
+        record detection and any callbacks, and returns data as is on decryption failure even if it's valid poison
+        record
+
+        Works with ZoneMode On/OFF
+        """
+        row_id = get_random_id()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': self.get_poison_record_data(), 'raw_data': 'poison_record'})
+        zone = zones[0][ZONE_ID].encode('ascii')
+        result = self.engine1.execute(
+            sa.select([sa.cast(zone, BYTEA), test_table])
+                .where(test_table.c.id == row_id))
+        rows = result.fetchall()
+        for zone, _, data, raw_data, _, _ in result:
+            self.assertEqual(zone, zone)
+            self.assertEqual(data, poison_record)
+
+        log = self.read_log(self.acra)
+        self.assertNotIn('Check poison records', log)
+        self.assertNotIn('Turned on poison record detection', log)
+        self.assertNotIn('code=101', log)
+
+    def testShutdownTranslatorHTTP(self):
+        """check poison record ignoring via acra-translator using HTTP v1 API, omitting initialization poison
+        record detection and any callbacks, returning data as is on decryption failure even if it's valid poison
+        record
+
+        Works with ZoneMode On/OFF
+        """
+        http_port = 3356
+        http_connection_string = 'tcp://127.0.0.1:{}'.format(http_port)
+        with tempfile.NamedTemporaryFile('w+', encoding='utf-8') as log_file:
+            translator_kwargs = self.get_base_translator_args()
+            translator_kwargs.update({
+                'incoming_connection_http_string': http_connection_string,
+                'log_to_file': log_file.name,
+            })
+
+            data = self.get_poison_record_data()
+            with ProcessContextManager(self.fork_translator(translator_kwargs)) as translator:
+                response = self.http_decrypt_request(http_port, TLS_CERT_CLIENT_ID_1, None, data)
+                self.assertEqual(response, b"Can't decrypt AcraStruct")
+
+            with open(log_file.name, 'r') as f:
+                log = f.read()
+            self.assertNotIn('Check poison records', log)
+            self.assertNotIn('Turned on poison record detection', log)
+            self.assertNotIn('code=101', log)
+
+    def testShutdownTranslatorgRPC(self):
+        """check poison record ignoring via acra-translator using gRPC API, omitting initialization poison
+            record detection and any callbacks, returning data as is on decryption failure even if it's valid poison
+            record
+
+            Works with ZoneMode On/OFF
+            """
+        grpc_port = 3357
+        grpc_connection_string = 'tcp://127.0.0.1:{}'.format(grpc_port)
+        with tempfile.NamedTemporaryFile('w+', encoding='utf-8') as log_file:
+            translator_kwargs = self.get_base_translator_args()
+            translator_kwargs.update({
+                'incoming_connection_grpc_string': grpc_connection_string,
+                'log_to_file': log_file.name,
+            })
+
+            data = self.get_poison_record_data()
+
+            with ProcessContextManager(self.fork_translator(translator_kwargs)):
+                with self.assertRaises(grpc.RpcError) as exc:
+                    response = self.grpc_decrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, None, data,
+                                                         raise_exception_on_failure=True)
+                self.assertEqual(exc.exception.code(), grpc.StatusCode.UNKNOWN)
+                self.assertEqual(exc.exception.details(), "can't decrypt data")
+            with open(log_file.name, 'r') as f:
+                log = f.read()
+            self.assertNotIn('Check poison records', log)
+            self.assertNotIn('Turned on poison record detection', log)
+            self.assertNotIn('code=101', log)
+
 
 class TestPoisonRecordOffStatusWithAcraBlock(TestPoisonRecordOffStatus):
     def get_poison_record_data(self):
@@ -2275,130 +2642,17 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
     WHOLECELL_MODE = False
     SHUTDOWN = True
 
-    def testShutdown(self):
-        """check callback with select by id and zone"""
-        row_id = get_random_id()
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': self.get_poison_record_data(), 'raw_data': 'poison_record'})
-        with self.assertRaises(DatabaseError):
-            zone = zones[0][ZONE_ID].encode('ascii')
-            result = self.engine1.execute(
-                sa.select([sa.cast(zone, BYTEA), test_table])
-                    .where(test_table.c.id == row_id))
-            print(result.fetchall())
-
-    def testShutdown2(self):
-        """check callback with select by id and without zone"""
-        row_id = get_random_id()
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': self.get_poison_record_data(), 'raw_data': 'poison_record'})
-        with self.assertRaises(DatabaseError):
-            result = self.engine1.execute(
-                sa.select([test_table]).where(test_table.c.id == row_id))
-            print(result.fetchall())
-
-    def testShutdown3(self):
-        """check working poison record callback on full select"""
-        row_id = get_random_id()
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': self.get_poison_record_data(), 'raw_data': 'poison_record'})
-        with self.assertRaises(DatabaseError):
-            result = self.engine1.execute(
-                sa.select([test_table]))
-            print(result.fetchall())
-
-    def testShutdown4(self):
-        """check working poison record callback on full select inside another data"""
-        row_id = get_random_id()
-        poison_record = self.get_poison_record_data()
-        begin_tag = poison_record[:4]
-        # test with extra long begin tag
-        data = os.urandom(100) + begin_tag + poison_record + os.urandom(100)
-        self.log(poison_key=True, data=data, expected=data)
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
-
-        with self.assertRaises(DatabaseError):
-            result = self.engine1.execute(
-                sa.select([test_table]))
-            # here shouldn't execute code and it's debug info
-            print(result.fetchall())
-
 
 class TestShutdownPoisonRecordWithZoneAcraBlock(TestShutdownPoisonRecordWithZone):
     def get_poison_record_data(self):
         return get_poison_record_with_acrablock()
 
 
-class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordShutdown):
+class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordOffStatus):
     ZONE = True
     WHOLECELL_MODE = False
     SHUTDOWN = True
     DETECT_POISON_RECORDS = False
-
-    def testShutdown(self):
-        """check callback with select by id and zone"""
-        row_id = get_random_id()
-        poison_record = self.get_poison_record_data()
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': poison_record, 'raw_data': 'poison_record'})
-
-        zone = zones[0][ZONE_ID].encode('ascii')
-        result = self.engine1.execute(
-            sa.select([sa.cast(zone, BYTEA), test_table])
-                .where(test_table.c.id == row_id))
-        for zone, _, data, raw_data, _, _ in result:
-            self.assertEqual(zone, zone)
-            self.assertEqual(data, poison_record)
-
-    def testShutdown2(self):
-        """check callback with select by id and without zone"""
-        row_id = get_random_id()
-        poison_record = self.get_poison_record_data()
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': poison_record, 'raw_data': 'poison_record'})
-
-        result = self.engine1.execute(
-            sa.select([test_table])
-                .where(test_table.c.id == row_id))
-        for _, data, raw_data, _, _ in result:
-            self.assertEqual(data, poison_record)
-
-    def testShutdown3(self):
-        """check working poison record callback on full select"""
-        row_id = get_random_id()
-        poison_record = self.get_poison_record_data()
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': poison_record, 'raw_data': 'poison_record'})
-
-        result = self.engine1.execute(
-            sa.select([test_table]))
-        for _, data, raw_data, _, _ in result:
-            self.assertEqual(data, poison_record)
-
-    def testShutdown4(self):
-        """check working poison record callback on full select inside another data"""
-        row_id = get_random_id()
-        poison_record = self.get_poison_record_data()
-        begin_tag = poison_record[:4]
-        # test with extra long begin tag
-        testData = os.urandom(100) + begin_tag + poison_record + os.urandom(100)
-        self.log(poison_key=True, data=testData, expected=testData)
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': testData, 'raw_data': 'poison_record'})
-
-        result = self.engine1.execute(
-            sa.select([test_table]))
-        for _, data, raw_data, _, _ in result:
-            self.assertEqual(testData, data)
 
 
 class TestShutdownPoisonRecordWithZoneOffStatusWithAcraBlock(TestShutdownPoisonRecordWithZoneOffStatus):
@@ -2406,110 +2660,7 @@ class TestShutdownPoisonRecordWithZoneOffStatusWithAcraBlock(TestShutdownPoisonR
         return get_poison_record_with_acrablock()
 
 
-class TestPoisonRecordWholeCell(TestPoisonRecordShutdown):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown3(self):
-        return
-
-
-class TestPoisonRecordWholeCellWithAcraBlock(TestPoisonRecordShutdownWithAcraBlock):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown3(self):
-        return
-
-
-class TestPoisonRecordWholeCellStatusOff(TestPoisonRecordOffStatus):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown3(self):
-        return
-
-
-class TestPoisonRecordWholeCellStatusOffWithAcraBlock(TestPoisonRecordOffStatusWithAcraBlock):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown3(self):
-        return
-
-
-class TestShutdownPoisonRecordWithZoneWholeCell(TestShutdownPoisonRecordWithZone):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown4(self):
-        return
-
-
-class TestShutdownPoisonRecordWithZoneWholeCellWithAcraBlock(TestShutdownPoisonRecordWithZoneAcraBlock):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown4(self):
-        return
-
-
-class TestShutdownPoisonRecordWithZoneWholeCellOffStatus(TestShutdownPoisonRecordWithZoneOffStatus):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown4(self):
-        return
-
-
-class TestShutdownPoisonRecordWithZoneWholeCellOffStatusWithAcraBlock(TestShutdownPoisonRecordWithZoneOffStatusWithAcraBlock):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown4(self):
-        return
-
-
-class AcraCatchLogsMixin(object):
-    def __init__(self, *args, **kwargs):
-        self.log_files = {}
-        super(AcraCatchLogsMixin, self).__init__(*args, **kwargs)
-
-    def read_log(self, process):
-        with open(self.log_files[process].name, 'r', errors='replace',
-                  encoding='utf-8') as f:
-            log = f.read()
-            print(log.encode(encoding='utf-8', errors='replace'))
-            return log
-
-    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
-        log_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
-        popen_args = {
-            'stderr': subprocess.STDOUT,
-            'stdout': log_file,
-            'close_fds': True,
-            'bufsize': 0,
-        }
-        process = super(AcraCatchLogsMixin, self).fork_acra(
-            popen_args, **acra_kwargs
-        )
-        assert process
-        # register process to not forget close all descriptors
-        self.log_files[process] = log_file
-        return process
-
-    def tearDown(self, *args, **kwargs):
-        super(AcraCatchLogsMixin, self).tearDown(*args, **kwargs)
-        for process, log_file in self.log_files.items():
-            log_file.close()
-            try:
-                os.remove(log_file.name)
-            except:
-                pass
-            stop_process(process)
-
-
-class TestNoCheckPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
+class TestNoCheckPoisonRecord(BasePoisonRecordTest):
     WHOLECELL_MODE = False
     SHUTDOWN = False
     DEBUG_LOG = True
@@ -2525,6 +2676,8 @@ class TestNoCheckPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
         result.fetchall()
         log = self.read_log(self.acra)
         self.assertNotIn('Check poison records', log)
+        self.assertNotIn('Turned on poison record detection', log)
+        self.assertNotIn('code=101', log)
         result = self.engine1.execute(
             sa.select([test_table]))
         for _, data, raw_data, _, _ in result:
@@ -2535,15 +2688,7 @@ class TestNoCheckPoisonRecordWithZone(TestNoCheckPoisonRecord):
     ZONE = True
 
 
-class TestNoCheckPoisonRecordWholeCell(TestNoCheckPoisonRecord):
-    WHOLECELL_MODE = True
-
-
-class TestNoCheckPoisonRecordWithZoneWholeCell(TestNoCheckPoisonRecordWithZone):
-    WHOLECELL_MODE = True
-
-
-class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
+class TestCheckLogPoisonRecord(BasePoisonRecordTest):
     SHUTDOWN = True
     DEBUG_LOG = True
     TEST_DATA_LOG = True
@@ -2568,7 +2713,10 @@ class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
         with self.assertRaises(DatabaseError):
             self.engine1.execute(test_table.select())
 
-        self.assertIn('Check poison records', self.read_log(self.acra))
+        log = self.read_log(self.acra)
+        self.assertIn('Check poison records', log)
+        self.assertIn('Turned on poison record detection', log)
+        self.assertIn('code=101', log)
 
 
 class TestKeyStorageClearing(BaseTestCase):
@@ -3212,6 +3360,7 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
         ],
             env={ACRA_MASTER_KEY_VAR_NAME: master_key},
             timeout=PROCESS_CALL_TIMEOUT)
+
 
 class TestPostgreSQLParseQueryErrorSkipExit(AcraCatchLogsMixin, BaseTestCase):
     """By default AcraServer skip any errors connected SQL parse queries failures.
@@ -4010,77 +4159,6 @@ class ProcessContextManager(object):
         stop_process(self.process)
 
 
-class AcraTranslatorMixin(object):
-
-    def get_http_default_kwargs(self):
-        return {
-            'timeout': REQUEST_TIMEOUT,
-        }
-
-    def http_decrypt_request(self, port, client_id, zone_id, acrastruct):
-        api_url = '{}://localhost:{}/v1/decrypt'.format(self.get_http_schema(), port)
-        if zone_id:
-            api_url = '{}?zone_id={}'.format(api_url, zone_id)
-        kwargs = self.get_http_default_kwargs()
-        kwargs['data'] = acrastruct
-        with requests.post(api_url, **kwargs) as response:
-            return response.content
-
-    def http_encrypt_request(self, port, client_id, zone_id, data):
-        api_url = '{}://localhost:{}/v1/encrypt'.format(self.get_http_schema(), port)
-        if zone_id:
-            api_url = '{}?zone_id={}'.format(api_url, zone_id)
-        kwargs = self.get_http_default_kwargs()
-        kwargs['data'] = data
-        with requests.post(api_url, **kwargs) as response:
-            return response.content
-
-    def get_grpc_channel(self, port):
-        '''setup grpc to use tls client authentication'''
-        with open(TEST_TLS_CA, 'rb') as ca_file, open(TEST_TLS_CLIENT_KEY, 'rb') as key_file, open(TEST_TLS_CLIENT_CERT, 'rb') as cert_file:
-            ca_bytes = ca_file.read()
-            key_bytes = key_file.read()
-            cert_bytes = cert_file.read()
-        tls_credentials = grpc.ssl_channel_credentials(ca_bytes, key_bytes, cert_bytes)
-        return grpc.secure_channel('localhost:{}'.format(port), tls_credentials)
-
-    def grpc_encrypt_request(self, port, client_id, zone_id, data):
-        with self.get_grpc_channel(port) as channel:
-            stub = api_pb2_grpc.WriterStub(channel)
-            try:
-                if zone_id:
-                    response = stub.Encrypt(api_pb2.EncryptRequest(
-                        zone_id=zone_id.encode('ascii'), data=data,
-                        client_id=client_id.encode('ascii')),
-                        timeout=SOCKET_CONNECT_TIMEOUT)
-                else:
-                    response = stub.Encrypt(api_pb2.EncryptRequest(
-                        client_id=client_id.encode('ascii'), data=data),
-                        timeout=SOCKET_CONNECT_TIMEOUT)
-            except grpc.RpcError as exc:
-                logging.info(exc)
-                return b''
-            return response.acrastruct
-
-    def grpc_decrypt_request(self, port, client_id, zone_id, acrastruct):
-        with self.get_grpc_channel(port) as channel:
-            stub = api_pb2_grpc.ReaderStub(channel)
-            try:
-                if zone_id:
-                    response = stub.Decrypt(api_pb2.DecryptRequest(
-                        zone_id=zone_id.encode('ascii'), acrastruct=acrastruct,
-                        client_id=client_id.encode('ascii')),
-                        timeout=SOCKET_CONNECT_TIMEOUT)
-                else:
-                    response = stub.Decrypt(api_pb2.DecryptRequest(
-                        client_id=client_id.encode('ascii'), acrastruct=acrastruct),
-                        timeout=SOCKET_CONNECT_TIMEOUT)
-            except grpc.RpcError as exc:
-                logging.info(exc)
-                return b''
-            return response.data
-
-
 class TestClientIDDecryptionWithVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoaderMixin, HexFormatTest):
     pass
 
@@ -4090,20 +4168,6 @@ class TestZoneIDDecryptionWithVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoader
 
 
 class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
-    def get_http_schema(self):
-        return 'https'
-
-    def get_identifier_extractor_type(self):
-        return TLS_CLIENT_ID_SOURCE_DN
-
-    def get_http_default_kwargs(self):
-        '''setup requests to use client's certificates'''
-        kwargs = super().get_http_default_kwargs()
-        kwargs['verify'] = TEST_TLS_CA
-        # https://requests.readthedocs.io/en/master/user/advanced/#client-side-certificates
-        # first crt, second key
-        kwargs['cert'] = (TEST_TLS_CLIENT_CERT, TEST_TLS_CLIENT_KEY)
-        return kwargs
 
     def apiEncryptionTest(self, request_func, use_http=False, use_grpc=False):
         # one is set
@@ -5704,7 +5768,7 @@ class TestDirectTLSAuthenticationFailures(TLSAuthenticationBySerialNumberMixin, 
                 tls_identifier_extractor_type=self.get_identifier_extractor_type())
         # sometimes process start so fast that fork returns PID and between CLI checks and returning os.Exit(1)
         # python code starts connection loop even after process interruption
-        self.assertIn(exc.exception.args[0], ('Can\'t fork', "can't wait connection"))
+        self.assertIn(exc.exception.args[0], ('Can\'t fork', WAIT_CONNECTION_ERROR_MESSAGE))
 
     def testDirectConnectionWithoutCertificate(self):
         # try to start server with --tls_auth >= 1 and extracting client_id from TLS and connect directly without
@@ -7986,7 +8050,7 @@ class TestInvalidCryptoEnvelope(unittest.TestCase):
 
         with self.assertRaises(Exception) as e:
             BaseTestCase().fork_acra(encryptor_config_file=get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
-        self.assertEqual(str(e.exception), "can't wait connection")
+        self.assertEqual(str(e.exception), WAIT_CONNECTION_ERROR_MESSAGE)
 
     def test_invalid_specified_values(self):
         with open(self.ENCRYPTOR_CONFIG, 'r') as f:
@@ -8001,7 +8065,7 @@ class TestInvalidCryptoEnvelope(unittest.TestCase):
 
         with self.assertRaises(Exception) as e:
             BaseTestCase().fork_acra(encryptor_config_file=get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
-        self.assertEqual(str(e.exception), "can't wait connection")
+        self.assertEqual(str(e.exception), WAIT_CONNECTION_ERROR_MESSAGE)
 
 
 class TestRegressionInvalidOctalEncoding(BaseTokenizationWithBinaryPostgreSQL):

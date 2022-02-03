@@ -19,6 +19,7 @@ package poison
 import (
 	"container/list"
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"os/exec"
@@ -38,9 +39,9 @@ type StopCallback struct{}
 
 // Call exists service with log
 func (*StopCallback) Call() error {
-	log.Warningln("detected poison record, exit")
+	log.WithField(logging.FieldKeyEventCode, logging.EventCodePoisonRecordDetectionMessage).Warningln("Detected poison record, exit")
 	os.Exit(1)
-	log.Errorln("executed code after os.Exit")
+	log.WithField(logging.FieldKeyEventCode, logging.EventCodePoisonRecordDetectionMessage).Errorln("executed code after os.Exit")
 	return nil
 }
 

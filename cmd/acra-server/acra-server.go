@@ -141,7 +141,7 @@ func realMain() error {
 	debugServer := flag.Bool("ds", false, "Turn on HTTP debug server")
 	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DefaultAcraServerWaitTimeout, "Time that AcraServer will wait (in seconds) on restart before closing all connections")
 
-	detectPoisonRecords := flag.Bool("poison_detect_enable", true, "Turn on poison record detection, if server shutdown is disabled, AcraServer logs the poison record detection and returns decrypted data")
+	detectPoisonRecords := flag.Bool("poison_detect_enable", false, "Turn on poison record detection, if server shutdown is disabled, AcraServer logs the poison record detection and returns decrypted data")
 	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "On detecting poison record: log about poison record detection, stop and shutdown")
 	scriptOnPoison := flag.String("poison_run_script_file", "", "On detecting poison record: log about poison record detection, execute script, return decrypted data")
 
@@ -482,16 +482,19 @@ func realMain() error {
 
 	poisonCallbacks := poison.NewCallbackStorage()
 	if *detectPoisonRecords {
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodePoisonRecordDetectionMessage).Infoln("Turned on poison record detection")
 		// used to turn off poison record detection which rely on HasCallbacks
 		poisonCallbacks.AddCallback(poison.EmptyCallback{})
 		if *scriptOnPoison != "" {
 			poisonCallbacks.AddCallback(poison.NewExecuteScriptCallback(*scriptOnPoison))
 			serverConfig.SetScriptOnPoison(*scriptOnPoison)
+			log.WithField("poison_run_script_file", *scriptOnPoison).Infoln("Turned on script execution for on detected poison record")
 		}
 		// should setup "stopOnPoison" as last poison record callback"
 		if *stopOnPoison {
 			poisonCallbacks.AddCallback(&poison.StopCallback{})
 			serverConfig.SetStopOnPoison(*stopOnPoison)
+			log.Infoln("Turned on poison record callback that stops acra-server after poison record detection")
 		}
 	}
 
