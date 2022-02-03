@@ -5185,7 +5185,7 @@ class TransparentEncryptionNoKeyMixin(AcraCatchLogsMixin):
         except:
             log = self.read_log(self.acra)
             if KEYSTORE_VERSION == 'v1':
-                no_key_error_msg = 'open {}/.acrakeys/{}_storage.pub: no such file or directory'.format(self.server_keystore.name, self.client_id)
+                no_key_error_msg = 'open {}/.acrakeys/{}_storage_sym: no such file or directory'.format(self.server_keystore.name, self.client_id)
             else:
                 no_key_error_msg = 'key path does not exist'
             self.assertIn(no_key_error_msg, log)
@@ -7059,8 +7059,10 @@ class BaseMasking(BaseTokenization):
         source_data = source_data.fetchone()
         for i in ('masked_prefix', 'masked_suffix', 'masked_without_plaintext', 'exact_plaintext_length',
                   'shorter_plaintext'):
-            # check that data contains AcraStruct tag begin
-            self.assertIn(temp_acrastruct[:8], source_data[i])
+            # check that data not contains AcraStruct tag begin
+            self.assertNotIn(temp_acrastruct[:8], source_data[i])
+            # and check that data contains AcraBlock tag begin
+            self.assertIn(temp_acrastruct[:4], source_data[i])
 
     def get_specified_client_id(self):
         return TLS_CERT_CLIENT_ID_2

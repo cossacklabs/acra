@@ -1,3 +1,6 @@
+## 0.92.0 - 2022-03-01
+- use AcraBlocks as default crypto envelope;
+
 ## 0.92.0 - 2022-02-01
 - `acra-connector` global removing from all its related components `acra-server`/`acra-translator`/`acra-keymaker`/`acra-keys`:
   - updated `acra-server` to use TLS as default connection configuration/ Themis Secure Session connection support removal/ 
