@@ -69,7 +69,7 @@ schemas:
 	tableSchema := schemaStore.GetTableSchema("test_table")
 	// check default value
 	setting := tableSchema.GetColumnEncryptionSettings("data1")
-	if setting.GetCryptoEnvelope() != CryptoEnvelopeTypeAcraStruct {
+	if setting.GetCryptoEnvelope() != CryptoEnvelopeTypeAcraBlock {
 		t.Fatalf("Expect %s, took %s\n", CryptoEnvelopeTypeAcraStruct, setting.GetCryptoEnvelope())
 	}
 
