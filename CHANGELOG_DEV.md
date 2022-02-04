@@ -1,3 +1,6 @@
+## 0.92.0 - 2022-02-04
+- Avoid race conditions on startup when register listeners in `SServer` object
+
 ## 0.92.0 - 2022-02-02
 - Change the default value for flag `--poison_detect_enable` from `true` to `false` for `acra-server` and `acra-translator`.
 - Add integration tests for `acra-translator` with poison record detection and refactored poison record tests.
