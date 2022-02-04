@@ -12,8 +12,7 @@ mkdir -p "${OUTPUT_FOLDER}"
 echo "${OUTPUT_FOLDER}"
 
 for go_version in $GO_VERSIONS; do
-    #export GOROOT="/usr/local/lib/go/$go_version"
-    export GOROOT="/home/lagovas/.local/share/go${go_version}"
+    export GOROOT="/usr/local/lib/go/$go_version"
 
     if [ ! -d $GOROOT ]; then
         echo "Error: Go $go_version is not installed, $GOROOT does not exist"
