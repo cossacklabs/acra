@@ -1079,6 +1079,16 @@ class KeyMakerTest(unittest.TestCase):
                  '--generate_log_key',
                  '--keys_public_output_dir={}'.format(folder)])
 
+            #check that keymaker will no fail on case of not created directory
+            subprocess.check_output(
+                ['./acra-keymaker',
+                 '--client_id=',
+                 '--tls_cert={}'.format(TEST_TLS_CLIENT_CERT),
+                 '--keystore={}'.format(KEYSTORE_VERSION),
+                 '--generate_symmetric_storage_key',
+                 '--keys_output_dir={}'.format('/tmp/.testkeys')])
+            shutil.rmtree('/tmp/.testkeys')
+
 
 class PrometheusMixin(object):
     _prometheus_addresses_field_name = 'prometheus_addresses'
