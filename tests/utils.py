@@ -13,6 +13,8 @@ BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 abs_path = lambda x: os.path.join(BASE_DIR, x)
 BINARY_OUTPUT_FOLDER = os.environ.get('TEST_BINARY_OUTPUT_FOLDER', '/tmp/')
 
+# used to mark case when user didn't declare explicitly variable and we generated new temporary folder
+# in this case we clean temporary folder, otherwise don't touch user specified path
 TEMP_DATA_GENERATED = 'TEST_RANDOM_DATA_FOLDER_GENERATE'
 TEMP_DATA_FOLDER_VARNAME = 'TEST_RANDOM_DATA_FOLDER'
 

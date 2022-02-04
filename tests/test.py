@@ -706,12 +706,11 @@ def build_binaries():
 
 
 def clean_binaries():
-    if os.environ.get('TEST_CLEAN_BINARIES', 'on') == 'on':
-        for i in BINARIES:
-            try:
-                os.remove(os.path.join(BINARY_OUTPUT_FOLDER, i.name))
-            except:
-                pass
+    for i in BINARIES:
+        try:
+            os.remove(os.path.join(BINARY_OUTPUT_FOLDER, i.name))
+        except:
+            pass
 
 
 def clean_misc():
