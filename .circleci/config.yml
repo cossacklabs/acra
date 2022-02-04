@@ -545,7 +545,9 @@ workflows:
   tests:
     jobs:
       - build_binaries
-      - general_validation
+      - general_validation:
+          requires:
+            - build_binaries
       - postgresql:
           requires:
             - build_binaries
