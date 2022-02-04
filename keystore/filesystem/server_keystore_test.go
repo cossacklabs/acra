@@ -126,40 +126,40 @@ func checkPath(store *KeyStore, path string, t *testing.T) {
 }
 
 func testGenerateSymKeyUncreatedDir(store *KeyStore, t *testing.T) {
-	dir, err := ioutil.TempFile("/tmp", "keys")
+	dir, err := ioutil.TempDir("/tmp", "keys")
 	if err != nil {
 		t.Fatal(err)
 	}
 	// ensure we delete dir
-	if err := os.Remove(dir.Name()); err != nil {
+	if err := os.Remove(dir); err != nil {
 		t.Fatal(err)
 	}
 
-	err = store.generateAndSaveSymmetricKey([]byte("key"), fmt.Sprintf("%s/%s", dir.Name(), "test_id_sym"))
+	err = store.generateAndSaveSymmetricKey([]byte("key"), fmt.Sprintf("%s/%s", dir, "test_id_sym"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = os.Stat(dir.Name())
+	_, err = os.Stat(dir)
 	if os.IsNotExist(err) {
 		t.Fatal("dir should be created")
 	}
 }
 
 func testWriteKeyFileUncreatedDir(store *KeyStore, t *testing.T) {
-	dir, err := ioutil.TempFile("/tmp", "keys")
+	dir, err := ioutil.TempDir("/tmp", "keys")
 	if err != nil {
 		t.Fatal(err)
 	}
 	// ensure we delete dir
-	if err := os.Remove(dir.Name()); err != nil {
+	if err := os.Remove(dir); err != nil {
 		t.Fatal(err)
 	}
 
-	err = store.WriteKeyFile(fmt.Sprintf("%s/%s", dir.Name(), "test_id_sym"), []byte("key"), PrivateFileMode)
+	err = store.WriteKeyFile(fmt.Sprintf("%s/%s", dir, "test_id_sym"), []byte("key"), PrivateFileMode)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = os.Stat(dir.Name())
+	_, err = os.Stat(dir)
 	if os.IsNotExist(err) {
 		t.Fatal("dir should be created")
 	}
