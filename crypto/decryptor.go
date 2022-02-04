@@ -5,6 +5,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
+	log "github.com/sirupsen/logrus"
 )
 
 // DecryptHandler implements EnvelopeCallbackHandler as EnvelopeDetector callback for simple decryption processing
@@ -31,7 +32,12 @@ func (d DecryptHandler) OnCryptoEnvelope(ctx context.Context, container []byte) 
 	})
 
 	if err != nil {
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt SerializedContainer: can't unwrap symmetric key")
+		accessContext := base.AccessContextFromContext(ctx)
+		logger.WithFields(log.Fields{
+			logging.FieldKeyEventCode: logging.EventCodeErrorDecryptorCantDecryptBinary,
+			"client_id":               string(accessContext.GetClientID()),
+			"zone_id":                 string(accessContext.GetZoneID()),
+		}).WithError(err).Warningln("Can't decrypt SerializedContainer")
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 		return container, nil
 	}
