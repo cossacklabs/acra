@@ -113,6 +113,9 @@ TEST_TLS_OCSP_INDEX = abs_path(os.environ.get('TEST_TLS_OCSP_INDEX', os.path.joi
 TEST_TLS_CRL_PATH = abs_path(os.environ.get('TEST_TLS_CRL_PATH', os.path.join(os.path.dirname(__file__), 'ssl/ca')))
 TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
 
+OCSP_SERVER_PORT = int(os.environ.get('TEST_OCSP_SERVER_PORT', 8888))
+CRL_HTTP_SERVER_PORT = int(os.environ.get('TEST_HTTP_SERVER_PORT', 8889))
+
 TEST_WITH_TRACING = os.environ.get('TEST_TRACE', 'off').lower() == 'on'
 TEST_WITH_REDIS = os.environ.get('TEST_REDIS', 'off').lower() == 'on'
 TEST_TRACE_TO_JAEGER = os.environ.get('TEST_TRACE_JAEGER', 'off').lower() == 'on'
@@ -439,7 +442,10 @@ def create_client_keypair_from_certificate(tls_cert, extractor=TLS_CLIENT_ID_SOU
             args.append(param)
     return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
+
 WAIT_CONNECTION_ERROR_MESSAGE = "can't wait connection"
+
+
 def wait_connection(port, count=1000, sleep=0.001):
     """try connect to 127.0.0.1:port and close connection
     if can't then sleep on and try again (<count> times)
@@ -456,6 +462,7 @@ def wait_connection(port, count=1000, sleep=0.001):
         time.sleep(sleep)
     raise Exception(WAIT_CONNECTION_ERROR_MESSAGE)
 
+
 def wait_command_success(command, count=10, sleep=0.200):
     """try executing `command` using `os.system()`
     if exit code != 0 then sleep on and try again (<count> times)
@@ -468,6 +475,7 @@ def wait_command_success(command, count=10, sleep=0.200):
         count -= 1
         time.sleep(sleep)
     raise Exception(f"can't wait command success: {command}")
+
 
 def wait_unix_socket(socket_path, count=1000, sleep=0.005):
     last_exc = Exception("can't wait unix socket")
@@ -505,14 +513,18 @@ def get_engine_connection_string(connection_string, dbname):
             port = port.group(1)
         return get_postgresql_unix_connection_string(port, dbname)
 
+
 def get_postgresql_unix_connection_string(port, dbname):
     return '{}:///{}?host={}&port={}'.format(DB_DRIVER, dbname, PG_UNIX_HOST, port)
+
 
 def get_postgresql_tcp_connection_string(port, dbname):
     return '{}://localhost:{}/{}'.format(DB_DRIVER, port, dbname)
 
+
 def get_tcp_connection_string(port):
     return 'tcp://localhost:{}'.format(port)
+
 
 def socket_path_from_connection_string(connection_string):
     if '://' in connection_string:
@@ -520,8 +532,119 @@ def socket_path_from_connection_string(connection_string):
     else:
         return connection_string
 
+
 def acra_api_connection_string(port):
     return "tcp://localhost:{}".format(port)
+
+
+def get_ocsp_server_connection_string(port=None):
+    if not port:
+        port = OCSP_SERVER_PORT
+    return 'http://127.0.0.1:{}'.format(port)
+
+def get_crl_http_server_connection_string(port=None):
+    if not port:
+        port = CRL_HTTP_SERVER_PORT
+    return 'http://127.0.0.1:{}'.format(port)
+
+
+def fork(func):
+    process = func()
+    count = 0
+    step = FORK_TIMEOUT / FORK_FAIL_SLEEP
+    while count <= FORK_TIMEOUT:
+        if process.poll() is None:
+            logging.info("forked %s [%s]", process.args[0], process.pid)
+            return process
+        count += step
+        time.sleep(FORK_FAIL_SLEEP)
+    stop_process(process)
+    raise Exception("Can't fork")
+
+
+def fork_ocsp_server(port: int, check_connection: bool=True):
+    logging.info("fork OpenSSL OCSP server with port {}".format(port))
+
+    ocsp_server_connection = get_ocsp_server_connection_string(port)
+
+    args = {
+        'port': port,
+        'index': TEST_TLS_OCSP_INDEX,
+        'rsigner': TEST_TLS_OCSP_CERT,
+        'rkey': TEST_TLS_OCSP_KEY,
+        'CA': TEST_TLS_CA,
+        'ignore_err': None,
+    }
+
+    cli_args = sorted([f'-{k}={v}' if v is not None else f'-{k}' for k, v in args.items()])
+    print('openssl ocsp args: {}'.format(' '.join(cli_args)))
+
+    process = fork(lambda: subprocess.Popen(['openssl', 'ocsp'] + cli_args))
+
+    check_cmd = f"openssl ocsp -CAfile {TEST_TLS_CA} -issuer {TEST_TLS_CA} -cert {TEST_TLS_CLIENT_CERT} -url {ocsp_server_connection}"
+
+    if check_connection:
+        print('check OCSP server connection {}'.format(ocsp_server_connection))
+        try:
+            wait_command_success(check_cmd)
+        except:
+            stop_process(process)
+            raise
+
+    logging.info("fork openssl ocsp finished [pid={}]".format(process.pid))
+    return process
+
+
+def fork_crl_http_server(port: int, check_connection: bool=True):
+    logging.info("fork HTTP server with port {}".format(port))
+
+    http_server_connection = get_crl_http_server_connection_string(port)
+
+    cli_args = ['--bind', '127.0.0.1', '--directory', TEST_TLS_CRL_PATH, str(port)]
+    print('python HTTP server args: {}'.format(' '.join(cli_args)))
+
+    process = fork(lambda: subprocess.Popen(['python3', '-m', 'http.server'] + cli_args))
+
+    if check_connection:
+        print('check HTTP server connection {}'.format(http_server_connection))
+        try:
+            wait_connection(port)
+        except:
+            stop_process(process)
+            raise
+
+    logging.info("fork HTTP server finished [pid={}]".format(process.pid))
+    return process
+
+
+class ProcessStub(object):
+    pid = 'stub'
+    def kill(self, *args, **kwargs):
+        pass
+    def wait(self, *args, **kwargs):
+        pass
+    def terminate(self, *args, **kwargs):
+        pass
+    def poll(self, *args, **kwargs):
+        pass
+
+# declare global variables with ProcessStub by default to clean them in tearDownModule without extra checks with
+# stop_process
+OCSP_SERVER = ProcessStub()
+CRL_HTTP_SERVER = ProcessStub()
+
+
+def fork_certificate_validation_services():
+    global OCSP_SERVER, CRL_HTTP_SERVER
+    if TEST_WITH_TLS:
+        OCSP_SERVER = fork_ocsp_server(OCSP_SERVER_PORT)
+        CRL_HTTP_SERVER = fork_crl_http_server(CRL_HTTP_SERVER_PORT)
+
+
+def kill_certificate_validation_services():
+    if TEST_WITH_TLS:
+        processes = [OCSP_SERVER, CRL_HTTP_SERVER]
+        stop_process(processes)
 
 
 
@@ -560,6 +683,7 @@ BINARIES = [
 ]
 
 BUILD_TAGS = os.environ.get("TEST_BUILD_TAGS", '')
+
 
 def build_binaries():
     """Build Acra CE binaries for testing."""
@@ -653,6 +777,8 @@ def setUpModule():
     socket.setdefaulttimeout(SOCKET_CONNECT_TIMEOUT)
     drop_tables()
 
+    fork_certificate_validation_services()
+
 
 def extract_client_id_from_cert(tls_cert, extractor=TLS_CLIENT_ID_SOURCE_DN):
     res = json.loads(subprocess.check_output([
@@ -681,18 +807,7 @@ def tearDownModule():
         except:
             pass
     drop_tables()
-
-
-class ProcessStub(object):
-    pid = 'stub'
-    def kill(self, *args, **kwargs):
-        pass
-    def wait(self, *args, **kwargs):
-        pass
-    def terminate(self, *args, **kwargs):
-        pass
-    def poll(self, *args, **kwargs):
-        pass
+    kill_certificate_validation_services()
 
 
 ConnectionArgs = collections.namedtuple("ConnectionArgs",
@@ -1079,8 +1194,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     # for debugging with manually runned acra-server
     EXTERNAL_ACRA = False
     ACRASERVER_PORT = int(os.environ.get('TEST_ACRASERVER_PORT', 10003))
-    OCSP_SERVER_PORT = int(os.environ.get('TEST_OCSP_SERVER_PORT', 8888))
-    CRL_HTTP_SERVER_PORT = int(os.environ.get('TEST_HTTP_SERVER_PORT', 8889))
     ACRASERVER_PROMETHEUS_PORT = int(os.environ.get('TEST_ACRASERVER_PROMETHEUS_PORT', 11004))
     ACRA_BYTEA = 'pgsql_hex_bytea'
     DB_BYTEA = 'hex'
@@ -1094,19 +1207,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         if not TEST_WITH_TLS:
             self.skipTest("running tests with TLS")
 
-    def fork(self, func):
-        process = func()
-        count = 0
-        step = FORK_TIMEOUT / FORK_FAIL_SLEEP
-        while count <= FORK_TIMEOUT:
-            if process.poll() is None:
-                logging.info("forked %s [%s]", process.args[0], process.pid)
-                return process
-            count += step
-            time.sleep(FORK_FAIL_SLEEP)
-        stop_process(process)
-        raise Exception("Can't fork")
-
     def wait_acraserver_connection(self, connection_string: str, *args, **kwargs):
         if connection_string.startswith('unix'):
             return wait_unix_socket(
@@ -1114,59 +1214,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
                 *args, **kwargs)
         else:
             return wait_connection(connection_string.split(':')[-1])
-
-    def fork_ocsp_server(self, port: int, check_connection: bool=True):
-        logging.info("fork OpenSSL OCSP server with port {}".format(port))
-
-        ocsp_server_connection = self.get_ocsp_server_connection_string(port)
-
-        args = {
-            'port': port,
-            'index': TEST_TLS_OCSP_INDEX,
-            'rsigner': TEST_TLS_OCSP_CERT,
-            'rkey': TEST_TLS_OCSP_KEY,
-            'CA': TEST_TLS_CA,
-            'ignore_err': None,
-        }
-
-        cli_args = sorted([f'-{k}={v}' if v is not None else f'-{k}' for k, v in args.items()])
-        print('openssl ocsp args: {}'.format(' '.join(cli_args)))
-
-        process = self.fork(lambda: subprocess.Popen(['openssl', 'ocsp'] + cli_args))
-
-        check_cmd = f"openssl ocsp -CAfile {TEST_TLS_CA} -issuer {TEST_TLS_CA} -cert {TEST_TLS_CLIENT_CERT} -url {ocsp_server_connection}"
-
-        if check_connection:
-            print('check OCSP server connection {}'.format(ocsp_server_connection))
-            try:
-                wait_command_success(check_cmd)
-            except:
-                stop_process(process)
-                raise
-
-        logging.info("fork openssl ocsp finished [pid={}]".format(process.pid))
-        return process
-
-    def fork_crl_http_server(self, port: int, check_connection: bool=True):
-        logging.info("fork HTTP server with port {}".format(port))
-
-        http_server_connection = self.get_crl_http_server_connection_string(port)
-
-        cli_args = ['--bind', '127.0.0.1', '--directory', TEST_TLS_CRL_PATH, str(port)]
-        print('python HTTP server args: {}'.format(' '.join(cli_args)))
-
-        process = self.fork(lambda: subprocess.Popen(['python3', '-m', 'http.server'] + cli_args))
-
-        if check_connection:
-            print('check HTTP server connection {}'.format(http_server_connection))
-            try:
-                wait_connection(port)
-            except:
-                stop_process(process)
-                raise
-
-        logging.info("fork HTTP server finished [pid={}]".format(process.pid))
-        return process
 
     def get_acraserver_connection_string(self, port=None):
         if not port:
@@ -1179,16 +1226,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         elif port == self.ACRASERVER_PORT:
             port = port + 1
         return acra_api_connection_string(port)
-
-    def get_ocsp_server_connection_string(self, port=None):
-        if not port:
-            port = self.OCSP_SERVER_PORT
-        return 'http://localhost:{}'.format(port)
-
-    def get_crl_http_server_connection_string(self, port=None):
-        if not port:
-            port = self.CRL_HTTP_SERVER_PORT
-        return 'http://localhost:{}'.format(port)
 
     def get_acraserver_bin_path(self):
         return './acra-server'
@@ -1239,9 +1276,9 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             args['tls_cert'] = TEST_TLS_SERVER_CERT
             args['tls_ca'] = TEST_TLS_CA
             args['tls_auth'] = ACRA_TLS_AUTH
-            args['tls_ocsp_url'] = 'http://localhost:{}'.format(self.OCSP_SERVER_PORT)
+            args['tls_ocsp_url'] = 'http://localhost:{}'.format(OCSP_SERVER_PORT)
             args['tls_ocsp_from_cert'] = 'use'
-            args['tls_crl_url'] = 'http://localhost:{}/crl.pem'.format(self.CRL_HTTP_SERVER_PORT)
+            args['tls_crl_url'] = 'http://localhost:{}/crl.pem'.format(CRL_HTTP_SERVER_PORT)
             args['tls_crl_from_cert'] = 'use'
         else:
             # Explicitly disable certificate validation by default since otherwise we may end up
@@ -1258,7 +1295,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         cli_args = sorted(['--{}={}'.format(k, v) for k, v in args.items() if v is not None])
         print("acra-server args: {}".format(' '.join(cli_args)))
 
-        process = self.fork(lambda: subprocess.Popen([self.get_acraserver_bin_path()] + cli_args,
+        process = fork(lambda: subprocess.Popen([self.get_acraserver_bin_path()] + cli_args,
                                                      **popen_kwargs))
         try:
             self.wait_acraserver_connection(connection_string)
@@ -1293,8 +1330,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
 
         cli_args = ['--{}={}'.format(k, v) for k, v in default_config.items()]
 
-        translator = self.fork(lambda: subprocess.Popen(['./acra-translator'] + cli_args,
-                                                     **popen_kwargs))
+        translator = fork(lambda: subprocess.Popen(['./acra-translator'] + cli_args, **popen_kwargs))
         try:
             if default_config['incoming_connection_grpc_string']:
                 wait_connection(urlparse(default_config['incoming_connection_grpc_string']).port)
@@ -1305,23 +1341,9 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             raise
         return translator
 
-    def fork_certificate_validation_services(self):
-        if self.with_tls():
-            self.ocsp_server = self.fork_ocsp_server(self.OCSP_SERVER_PORT)
-            self.crl_http_server = self.fork_crl_http_server(self.CRL_HTTP_SERVER_PORT)
-
-    def kill_certificate_validation_services(self):
-        if self.with_tls():
-            processes = [getattr(self, 'ocsp_server', ProcessStub()),
-                         getattr(self, 'crl_http_server', ProcessStub())]
-
-            stop_process(processes)
-
     def setUp(self):
         self.checkSkip()
         try:
-            self.fork_certificate_validation_services()
-
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra()
 
@@ -1382,8 +1404,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             engine.dispose()
         stop_process([getattr(self, 'acra', ProcessStub())])
         send_signal_by_process_name('acra-server', signal.SIGKILL)
-
-        self.kill_certificate_validation_services()
 
     def log(self, data, expected=b'<no expected value>',
             storage_client_id=None, zone_id=None,
@@ -5670,8 +5690,6 @@ class TLSAuthenticationDirectlyToAcraMixin:
         self.assertEqual(create_client_keypair_from_certificate(tls_cert=TEST_TLS_CLIENT_2_CERT,
                                                                 extractor=self.get_identifier_extractor_type(), keys_dir=KEYS_FOLDER.name), 0)
         try:
-            self.fork_certificate_validation_services()
-
             if not self.EXTERNAL_ACRA:
                 # start acra with configured TLS
                 self.acra = self.fork_acra(
@@ -5739,8 +5757,6 @@ class TLSAuthenticationDirectlyToAcraMixin:
         processes = [getattr(self, 'acra', ProcessStub())]
         stop_process(processes)
         send_signal_by_process_name('acra-server', signal.SIGKILL)
-
-        self.kill_certificate_validation_services()
 
 
 class TestDirectTLSAuthenticationFailures(TLSAuthenticationBySerialNumberMixin, BaseTestCase):
