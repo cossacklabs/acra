@@ -105,29 +105,6 @@ func (_m *TranslationKeyStore) GetLogSecretKey() ([]byte, error) {
 	return r0, r1
 }
 
-// GetPeerPublicKey provides a mock function with given fields: id
-func (_m *TranslationKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
-	ret := _m.Called(id)
-
-	var r0 *keys.PublicKey
-	if rf, ok := ret.Get(0).(func([]byte) *keys.PublicKey); ok {
-		r0 = rf(id)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*keys.PublicKey)
-		}
-	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func([]byte) error); ok {
-		r1 = rf(id)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // GetPoisonKeyPair provides a mock function with given fields:
 func (_m *TranslationKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	ret := _m.Called()
@@ -190,29 +167,6 @@ func (_m *TranslationKeyStore) GetPoisonSymmetricKeys() ([][]byte, error) {
 	var r1 error
 	if rf, ok := ret.Get(1).(func() error); ok {
 		r1 = rf()
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// GetPrivateKey provides a mock function with given fields: id
-func (_m *TranslationKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
-	ret := _m.Called(id)
-
-	var r0 *keys.PrivateKey
-	if rf, ok := ret.Get(0).(func([]byte) *keys.PrivateKey); ok {
-		r0 = rf(id)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*keys.PrivateKey)
-		}
-	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func([]byte) error); ok {
-		r1 = rf(id)
 	} else {
 		r1 = ret.Error(1)
 	}

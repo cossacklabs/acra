@@ -194,29 +194,6 @@ func (_m *ServerKeyStore) GetLogSecretKey() ([]byte, error) {
 	return r0, r1
 }
 
-// GetPeerPublicKey provides a mock function with given fields: id
-func (_m *ServerKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
-	ret := _m.Called(id)
-
-	var r0 *keys.PublicKey
-	if rf, ok := ret.Get(0).(func([]byte) *keys.PublicKey); ok {
-		r0 = rf(id)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*keys.PublicKey)
-		}
-	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func([]byte) error); ok {
-		r1 = rf(id)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // GetPoisonKeyPair provides a mock function with given fields:
 func (_m *ServerKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	ret := _m.Called()
@@ -279,29 +256,6 @@ func (_m *ServerKeyStore) GetPoisonSymmetricKeys() ([][]byte, error) {
 	var r1 error
 	if rf, ok := ret.Get(1).(func() error); ok {
 		r1 = rf()
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// GetPrivateKey provides a mock function with given fields: id
-func (_m *ServerKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
-	ret := _m.Called(id)
-
-	var r0 *keys.PrivateKey
-	if rf, ok := ret.Get(0).(func([]byte) *keys.PrivateKey); ok {
-		r0 = rf(id)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*keys.PrivateKey)
-		}
-	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func([]byte) error); ok {
-		r1 = rf(id)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -487,6 +441,20 @@ func (_m *ServerKeyStore) ListKeys() ([]keystore.KeyDescription, error) {
 // Reset provides a mock function with given fields:
 func (_m *ServerKeyStore) Reset() {
 	_m.Called()
+}
+
+// RotateSymmetricZoneKey provides a mock function with given fields: zoneID
+func (_m *ServerKeyStore) RotateSymmetricZoneKey(zoneID []byte) error {
+	ret := _m.Called(zoneID)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func([]byte) error); ok {
+		r0 = rf(zoneID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }
 
 // RotateZoneKey provides a mock function with given fields: zoneID

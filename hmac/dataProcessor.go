@@ -37,12 +37,12 @@ type Processor struct {
 	matchedHash     Hash
 	rawData         []byte
 	hmacStore       keystore.HmacKeyStore
-	envelopeMatcher *crypto.CryptoEnvelopeMatcher
+	envelopeMatcher *crypto.EnvelopeMatcher
 }
 
 // NewHMACProcessor return initialized HMACProcessor by provided keystore.HmacKeyStore)
 func NewHMACProcessor(store keystore.HmacKeyStore) *Processor {
-	matcher := crypto.NewCryptoEnvelopeMatcher()
+	matcher := crypto.NewEnvelopeMatcher()
 	return &Processor{hmacStore: store, envelopeMatcher: matcher}
 }
 
