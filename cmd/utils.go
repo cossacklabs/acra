@@ -30,6 +30,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"reflect"
+	"sync"
 
 	"encoding/base64"
 	"github.com/cossacklabs/acra/keystore"
@@ -69,6 +70,7 @@ type SignalHandler struct {
 	listeners []net.Listener
 	callbacks []SignalCallback
 	signals   []os.Signal
+	lock      sync.RWMutex
 }
 
 // NewSignalHandler returns new SignalHandler registered for particular os.Signals
@@ -78,7 +80,9 @@ func NewSignalHandler(handledSignals []os.Signal) (*SignalHandler, error) {
 
 // AddListener to listeners list
 func (handler *SignalHandler) AddListener(listener net.Listener) {
+	handler.lock.Lock()
 	handler.listeners = append(handler.listeners, listener)
+	handler.lock.Unlock()
 }
 
 // GetChannel returns channel of os.Signal
@@ -88,7 +92,9 @@ func (handler *SignalHandler) GetChannel() chan os.Signal {
 
 // AddCallback to callbacks list
 func (handler *SignalHandler) AddCallback(callback SignalCallback) {
+	handler.lock.Lock()
 	handler.callbacks = append(handler.callbacks, callback)
+	handler.lock.Unlock()
 }
 
 // Register should be called as goroutine
@@ -96,13 +102,14 @@ func (handler *SignalHandler) Register() {
 	signal.Notify(handler.ch, handler.signals...)
 
 	<-handler.ch
-
+	handler.lock.RLock()
 	for _, listener := range handler.listeners {
 		listener.Close()
 	}
 	for _, callback := range handler.callbacks {
 		callback()
 	}
+	handler.lock.RUnlock()
 	os.Exit(0)
 }
 
@@ -112,12 +119,14 @@ func (handler *SignalHandler) RegisterWithContext(globalContext context.Context)
 	for {
 		select {
 		case <-handler.ch:
+			handler.lock.RLock()
 			for _, listener := range handler.listeners {
 				listener.Close()
 			}
 			for _, callback := range handler.callbacks {
 				callback()
 			}
+			handler.lock.RUnlock()
 		case <-globalContext.Done():
 			// got signal for shutdown, so just return
 			return

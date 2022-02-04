@@ -72,6 +72,7 @@ type SServer struct {
 	backgroundWorkersSync sync.WaitGroup
 	stopListenersSignal   chan bool
 	errCh                 chan error
+	lock                  sync.RWMutex
 }
 
 // ErrWaitTimeout error indicates that server was shutdown and waited N seconds while shutting down all connections.
@@ -81,6 +82,8 @@ var ErrWaitTimeout = errors.New("timeout")
 func (server *SServer) Close() {
 	log.Debugln("Closing server listeners..")
 	var err error
+	server.lock.RLock()
+	defer server.lock.RUnlock()
 	for _, listener := range server.listeners {
 		listener = network.UnwrapSafeCloseListener(listener)
 		switch listener.(type) {
@@ -123,7 +126,9 @@ func (server *SServer) Close() {
 }
 
 func (server *SServer) addListener(listener net.Listener) {
+	server.lock.Lock()
 	server.listeners = append(server.listeners, listener)
+	server.lock.Unlock()
 }
 
 type callbackData struct {
@@ -388,7 +393,7 @@ func (server *SServer) StopListeners() {
 	var err error
 	var deadlineListener network.DeadlineListener
 	log.Debugln("Stopping listeners")
-
+	server.lock.RLock()
 	for _, listener := range server.listeners {
 
 		deadlineListener, err = network.CastListenerToDeadline(listener)
@@ -401,6 +406,7 @@ func (server *SServer) StopListeners() {
 			log.WithError(err).Warningln("Can't set deadline for listener")
 		}
 	}
+	server.lock.RUnlock()
 }
 
 // WaitConnections waits until connection complete or stops them after duration time.
