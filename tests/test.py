@@ -7964,6 +7964,28 @@ class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
             self.assertEqual(decrypted_data[i], data[i])
 
 
+class TestTransparentAcraBlockEncryptionMissingExtraLog(TestTransparentAcraBlockEncryption):
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        self.log_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
+        acra_kwargs['log_to_file'] = self.log_file.name
+        acra_kwargs['poison_detect_enable'] = 'true'
+        return super().fork_acra(popen_kwargs, **acra_kwargs)
+
+    def testAcraStructReEncryption(self):
+        super().testAcraStructReEncryption()
+        with open(self.log_file.name, 'r') as f:
+            logs = f.read()
+        self.assertNotIn('invalid AcraBlock', logs)
+        self.assertNotIn("Can't decrypt AcraBlock", logs)
+
+    def testEncryptedInsert(self):
+        super().testEncryptedInsert()
+        with open(self.log_file.name, 'r') as f:
+            logs = f.read()
+        self.assertNotIn('invalid AcraBlock', logs)
+        self.assertNotIn("Can't decrypt AcraBlock", logs)
+
+
 class TestTransparentAcraBlockEncryptionWithDefaults(TestTransparentAcraBlockEncryption):
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_config_with_defaults.yaml')
 
