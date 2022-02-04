@@ -125,6 +125,20 @@ func checkPath(store *KeyStore, path string, t *testing.T) {
 	}
 }
 
+func testGenerateSymKeyUncreatedDir(store *KeyStore, t *testing.T) {
+	keyFileDir := "/tmp/.testkeys"
+	defer os.RemoveAll(keyFileDir)
+
+	err := store.generateAndSaveSymmetricKey([]byte("key"), fmt.Sprintf("%s/%s", keyFileDir, "test_id_sym"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = os.Stat(keyFileDir)
+	if os.IsNotExist(err) {
+		t.Fatal("dir should be created")
+	}
+}
+
 func testGenerateServerKeys(store *KeyStore, t *testing.T) {
 	testID := []byte("test id")
 	err := store.GenerateServerKeys(testID)
@@ -277,6 +291,7 @@ func testFilesystemKeyStoreBasic(storage Storage, t *testing.T) {
 		testSaveKeypairs(store, t)
 		resetKeyFolders()
 		testGetZonePublicKey(store, t)
+		testGenerateSymKeyUncreatedDir(store, t)
 		testGetClientIDEncryptionPublicKey(store, t)
 	}
 }

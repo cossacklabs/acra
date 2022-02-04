@@ -729,11 +729,6 @@ func (store *KeyStore) GetPoisonSymmetricKeys() ([][]byte, error) {
 	if !poisonKeyExists {
 		log.Debugln("Generate poison symmetric key")
 
-		if err := store.fs.MkdirAll(filepath.Dir(store.GetPrivateKeyFilePath(keyFileName)), keyDirMode); err != nil {
-			log.Debug("Can't generate .poison_key directory")
-			return nil, err
-		}
-
 		err := store.generateAndSaveSymmetricKey([]byte(keyFileName), store.GetPrivateKeyFilePath(keyFileName))
 		if err != nil {
 			log.Debug("Can't generate new poison sym key")
@@ -948,9 +943,7 @@ func (store *KeyStore) GeneratePoisonRecordSymmetricKey() error {
 	if exists {
 		return nil
 	}
-	if err := store.fs.MkdirAll(filepath.Dir(store.GetPrivateKeyFilePath(keyName)), keyDirMode); err != nil {
-		return err
-	}
+
 	return store.generateAndSaveSymmetricKey([]byte(keyName), store.GetPrivateKeyFilePath(keyName))
 }
 
