@@ -74,7 +74,7 @@ func (handler AcraBlockHandler) Decrypt(data []byte, context *base.DataProcessor
 				"client_id":               string(accessContext.GetClientID()),
 				"zone_id":                 string(accessContext.GetZoneID()),
 			}).
-			Debugln("Probably error occurred because: 1. used not appropriate TLS certificate or acra-server configured with inappropriate --client_id=<client_id>; 2. forgot to generate keys for your TLS certificate (or with specified client_id); 3. incorrectly configured keystore: incorrect path to folder or Redis database's number")
+			Debugln("The error occurred due to one of the following reasons: 1. The client_id from TLS certificate doesn't match the encryption key: check that you are using the appropriate TLS certificate or configure acra-server with a different --client_id=<client_id>. 2. The encryption key for the client_id from TLS certificate is missing, generate encryption keys using keymaker utility for your TLS certificate (or with specified client_id); 3. The required keys are missing in the `keys_dir`, ensure that `keys_dir` param is pointed to a folder with keys or to the correct Redis database's number")
 		return []byte{}, fmt.Errorf("can't read private key for matched client_id/zone_id to decrypt AcraBlock: %w", err)
 	}
 	decrypted, err := acraBlock.Decrypt(privateKeys, zoneID)
