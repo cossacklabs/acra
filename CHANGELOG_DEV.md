@@ -1,3 +1,7 @@
+## 0.92.0 - 2022-02-04
+- Improved hash extraction with working searchable encryption. Now it will not try to get encrypted HMAC key from a keystore
+  if matched valid hash header and remain data payload not matched to any CryptoEnvelope
+
 ## 0.92.0 - 2022-02-02
 - Change the default value for flag `--poison_detect_enable` from `true` to `false` for `acra-server` and `acra-translator`.
 - Add integration tests for `acra-translator` with poison record detection and refactored poison record tests.
