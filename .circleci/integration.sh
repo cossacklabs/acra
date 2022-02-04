@@ -43,6 +43,7 @@ for go_version in $GO_VERSIONS; do
     # use already existing binaries or create new empty folder
     export TEST_BINARY_OUTPUT_FOLDER="$(realpath "${TEST_BINARY_OUTPUT_FOLDER}")/${go_version}"
     mkdir -p "${TEST_BINARY_OUTPUT_FOLDER}"
+    export TEST_CLEAN_BINARIES=false
 
     echo "-------------------- Testing $(go version) at $(which go)"
     echo "GOROOT=$GOROOT"

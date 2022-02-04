@@ -1081,7 +1081,7 @@ class KeyMakerTest(unittest.TestCase):
 
             #check that keymaker will no fail on case of not created directory
             subprocess.check_output(
-                ['./acra-keymaker',
+                [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
                  '--client_id=',
                  '--tls_cert={}'.format(TEST_TLS_CLIENT_CERT),
                  '--keystore={}'.format(KEYSTORE_VERSION),
