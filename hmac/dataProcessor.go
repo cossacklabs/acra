@@ -52,7 +52,7 @@ func (p *Processor) ID() string {
 func (p *Processor) OnColumn(ctx context.Context, data []byte) (context.Context, []byte, error) {
 	_, err := p.Process(data, &base.DataProcessorContext{Context: ctx})
 	if err != nil {
-		logging.GetLoggerFromContext(ctx).WithError(err).Warning("Failed on HMAC processing")
+		logging.GetLoggerFromContext(ctx).WithError(err).Debugln("Failed on HMAC processing")
 
 		p.hashData = nil
 		return ctx, p.rawData, nil

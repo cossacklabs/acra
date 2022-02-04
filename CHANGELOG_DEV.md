@@ -1,5 +1,16 @@
 ## 0.92.0 - 2022-02-04
 - Avoid race conditions on startup when register listeners in `SServer` object
+- Remove confusing logs about failed decryption after poison record checks in valid cases
+- Changed log level for couple of confusing log events from Warning/Error to Debug because they don't represent error 
+  cases and useful only for debugging
+- Removed extra subscription of decryptor on every CryptoEnvelope when poison record detection turned on
+- Speed up integration tests:
+  - Fork openssl and CRL servers at module level once instead of forking on every test case
+  - Allow to re-use already compiled binaries instead of compiling them on every test run. Same for `configs/regenerate.sh`
+- Speed up CircleCI tests: build and cache acra binaries for each go version and after that run test jobs
+- Updated Themis SecureCell API usage from old deprecated to new in `acrablock` package
+- Removed unused legacy code in `acrablock` package left after migrating to `CryptoEnvelopes`
+- Clarified log message for `AcraTranslator's` `DecryptSymSearchable` method
 
 ## 0.92.0 - 2022-02-02
 - Change the default value for flag `--poison_detect_enable` from `true` to `false` for `acra-server` and `acra-translator`.

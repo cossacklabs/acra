@@ -16,7 +16,6 @@ import asyncio
 import collections
 import collections.abc
 import contextlib
-import hashlib
 import http
 import json
 import logging
@@ -27,8 +26,6 @@ import re
 import shutil
 import signal
 import socket
-
-import urllib3.exceptions
 
 import ssl
 import stat
@@ -55,8 +52,6 @@ import sqlalchemy as sa
 import sys
 import time
 import yaml
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
 from ddt import ddt, data
 from hvac import Client
 from prometheus_client.parser import text_string_to_metric_families
@@ -77,7 +72,7 @@ from utils import (read_storage_public_key, read_storage_private_key,
                    load_random_data_config, get_random_data_files,
                    clean_test_data, safe_string, prepare_encryptor_config,
                    get_encryptor_config, abs_path, get_test_encryptor_config, send_signal_by_process_name,
-                   load_yaml_config, dump_yaml_config)
+                   load_yaml_config, dump_yaml_config, BINARY_OUTPUT_FOLDER)
 
 # add to path our wrapper until not published to PYPI
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'wrappers/python'))
@@ -112,6 +107,9 @@ TEST_TLS_OCSP_KEY = abs_path(os.environ.get('TEST_TLS_OCSP_KEY', os.path.join(os
 TEST_TLS_OCSP_INDEX = abs_path(os.environ.get('TEST_TLS_OCSP_INDEX', os.path.join(os.path.dirname(__file__), 'ssl/ca/index.txt')))
 TEST_TLS_CRL_PATH = abs_path(os.environ.get('TEST_TLS_CRL_PATH', os.path.join(os.path.dirname(__file__), 'ssl/ca')))
 TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
+
+OCSP_SERVER_PORT = int(os.environ.get('TEST_OCSP_SERVER_PORT', 8888))
+CRL_HTTP_SERVER_PORT = int(os.environ.get('TEST_HTTP_SERVER_PORT', 8889))
 
 TEST_WITH_TRACING = os.environ.get('TEST_TRACE', 'off').lower() == 'on'
 TEST_WITH_REDIS = os.environ.get('TEST_REDIS', 'off').lower() == 'on'
@@ -175,7 +173,7 @@ FORK_TIMEOUT = 2
 FORK_FAIL_SLEEP = 0.1
 CONNECTION_FAIL_SLEEP = 0.1
 SOCKET_CONNECT_TIMEOUT = 3
-KILL_WAIT_TIMEOUT = 5
+KILL_WAIT_TIMEOUT = 2
 CONNECT_TRY_COUNT = 3
 SQL_EXECUTE_TRY_COUNT = 5
 # http://docs.python-requests.org/en/master/user/advanced/#timeouts
@@ -373,7 +371,7 @@ def get_master_key():
         master_key = os.environ.get(ACRA_MASTER_KEY_VAR_NAME)
         if not master_key:
             subprocess.check_output([
-                './acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
                 '--generate_master_key={}'.format(MASTER_KEY_PATH)])
             with open(MASTER_KEY_PATH, 'rb') as f:
                 master_key = b64encode(f.read()).decode('ascii')
@@ -386,7 +384,7 @@ def get_poison_record():
     global poison_record
     if not poison_record:
         poison_record = b64decode(subprocess.check_output([
-            './acra-poisonrecordmaker', '--keys_dir={}'.format(KEYS_FOLDER.name),
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-poisonrecordmaker'), '--keys_dir={}'.format(KEYS_FOLDER.name),
             ],
             timeout=PROCESS_CALL_TIMEOUT))
     return poison_record
@@ -398,7 +396,7 @@ def get_poison_record_with_acrablock():
     global poison_record_acrablock
     if not poison_record_acrablock:
         poison_record_acrablock = b64decode(subprocess.check_output([
-            './acra-poisonrecordmaker', '--keys_dir={}'.format(KEYS_FOLDER.name), '--type=acrablock',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-poisonrecordmaker'), '--keys_dir={}'.format(KEYS_FOLDER.name), '--type=acrablock',
         ],
             timeout=PROCESS_CALL_TIMEOUT))
     return poison_record_acrablock
@@ -407,7 +405,7 @@ def get_poison_record_with_acrablock():
 def create_client_keypair(name, only_storage=False, keys_dir=None, extra_kwargs: dict=None):
     if not keys_dir:
         keys_dir = KEYS_FOLDER.name
-    args = ['./acra-keymaker', '-client_id={}'.format(name),
+    args = [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '-client_id={}'.format(name),
             '-keys_output_dir={}'.format(keys_dir),
             '--keys_public_output_dir={}'.format(keys_dir),
             '--keystore={}'.format(KEYSTORE_VERSION)]
@@ -424,7 +422,7 @@ def create_client_keypair(name, only_storage=False, keys_dir=None, extra_kwargs:
 def create_client_keypair_from_certificate(tls_cert, extractor=TLS_CLIENT_ID_SOURCE_DN, only_storage=False, keys_dir=None, extra_kwargs: dict=None):
     if not keys_dir:
         keys_dir = KEYS_FOLDER.name
-    args = ['./acra-keymaker',  '--client_id=',
+    args = [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),  '--client_id=',
             '--tls_cert={}'.format(tls_cert),
             '--tls_identifier_extractor_type={}'.format(extractor),
             '-keys_output_dir={}'.format(keys_dir),
@@ -439,7 +437,10 @@ def create_client_keypair_from_certificate(tls_cert, extractor=TLS_CLIENT_ID_SOU
             args.append(param)
     return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
+
 WAIT_CONNECTION_ERROR_MESSAGE = "can't wait connection"
+
+
 def wait_connection(port, count=1000, sleep=0.001):
     """try connect to 127.0.0.1:port and close connection
     if can't then sleep on and try again (<count> times)
@@ -456,6 +457,7 @@ def wait_connection(port, count=1000, sleep=0.001):
         time.sleep(sleep)
     raise Exception(WAIT_CONNECTION_ERROR_MESSAGE)
 
+
 def wait_command_success(command, count=10, sleep=0.200):
     """try executing `command` using `os.system()`
     if exit code != 0 then sleep on and try again (<count> times)
@@ -468,6 +470,7 @@ def wait_command_success(command, count=10, sleep=0.200):
         count -= 1
         time.sleep(sleep)
     raise Exception(f"can't wait command success: {command}")
+
 
 def wait_unix_socket(socket_path, count=1000, sleep=0.005):
     last_exc = Exception("can't wait unix socket")
@@ -505,14 +508,18 @@ def get_engine_connection_string(connection_string, dbname):
             port = port.group(1)
         return get_postgresql_unix_connection_string(port, dbname)
 
+
 def get_postgresql_unix_connection_string(port, dbname):
     return '{}:///{}?host={}&port={}'.format(DB_DRIVER, dbname, PG_UNIX_HOST, port)
+
 
 def get_postgresql_tcp_connection_string(port, dbname):
     return '{}://localhost:{}/{}'.format(DB_DRIVER, port, dbname)
 
+
 def get_tcp_connection_string(port):
     return 'tcp://localhost:{}'.format(port)
+
 
 def socket_path_from_connection_string(connection_string):
     if '://' in connection_string:
@@ -520,8 +527,119 @@ def socket_path_from_connection_string(connection_string):
     else:
         return connection_string
 
+
 def acra_api_connection_string(port):
     return "tcp://localhost:{}".format(port)
+
+
+def get_ocsp_server_connection_string(port=None):
+    if not port:
+        port = OCSP_SERVER_PORT
+    return 'http://127.0.0.1:{}'.format(port)
+
+def get_crl_http_server_connection_string(port=None):
+    if not port:
+        port = CRL_HTTP_SERVER_PORT
+    return 'http://127.0.0.1:{}'.format(port)
+
+
+def fork(func):
+    process = func()
+    count = 0
+    step = FORK_TIMEOUT / FORK_FAIL_SLEEP
+    while count <= FORK_TIMEOUT:
+        if process.poll() is None:
+            logging.info("forked %s [%s]", process.args[0], process.pid)
+            return process
+        count += step
+        time.sleep(FORK_FAIL_SLEEP)
+    stop_process(process)
+    raise Exception("Can't fork")
+
+
+def fork_ocsp_server(port: int, check_connection: bool=True):
+    logging.info("fork OpenSSL OCSP server with port {}".format(port))
+
+    ocsp_server_connection = get_ocsp_server_connection_string(port)
+
+    args = {
+        'port': port,
+        'index': TEST_TLS_OCSP_INDEX,
+        'rsigner': TEST_TLS_OCSP_CERT,
+        'rkey': TEST_TLS_OCSP_KEY,
+        'CA': TEST_TLS_CA,
+        'ignore_err': None,
+    }
+
+    cli_args = sorted([f'-{k}={v}' if v is not None else f'-{k}' for k, v in args.items()])
+    print('openssl ocsp args: {}'.format(' '.join(cli_args)))
+
+    process = fork(lambda: subprocess.Popen(['openssl', 'ocsp'] + cli_args))
+
+    check_cmd = f"openssl ocsp -CAfile {TEST_TLS_CA} -issuer {TEST_TLS_CA} -cert {TEST_TLS_CLIENT_CERT} -url {ocsp_server_connection}"
+
+    if check_connection:
+        print('check OCSP server connection {}'.format(ocsp_server_connection))
+        try:
+            wait_command_success(check_cmd)
+        except:
+            stop_process(process)
+            raise
+
+    logging.info("fork openssl ocsp finished [pid={}]".format(process.pid))
+    return process
+
+
+def fork_crl_http_server(port: int, check_connection: bool=True):
+    logging.info("fork HTTP server with port {}".format(port))
+
+    http_server_connection = get_crl_http_server_connection_string(port)
+
+    cli_args = ['--bind', '127.0.0.1', '--directory', TEST_TLS_CRL_PATH, str(port)]
+    print('python HTTP server args: {}'.format(' '.join(cli_args)))
+
+    process = fork(lambda: subprocess.Popen(['python3', '-m', 'http.server'] + cli_args))
+
+    if check_connection:
+        print('check HTTP server connection {}'.format(http_server_connection))
+        try:
+            wait_connection(port)
+        except:
+            stop_process(process)
+            raise
+
+    logging.info("fork HTTP server finished [pid={}]".format(process.pid))
+    return process
+
+
+class ProcessStub(object):
+    pid = 'stub'
+    def kill(self, *args, **kwargs):
+        pass
+    def wait(self, *args, **kwargs):
+        pass
+    def terminate(self, *args, **kwargs):
+        pass
+    def poll(self, *args, **kwargs):
+        pass
+
+# declare global variables with ProcessStub by default to clean them in tearDownModule without extra checks with
+# stop_process
+OCSP_SERVER = ProcessStub()
+CRL_HTTP_SERVER = ProcessStub()
+
+
+def fork_certificate_validation_services():
+    global OCSP_SERVER, CRL_HTTP_SERVER
+    if TEST_WITH_TLS:
+        OCSP_SERVER = fork_ocsp_server(OCSP_SERVER_PORT)
+        CRL_HTTP_SERVER = fork_crl_http_server(CRL_HTTP_SERVER_PORT)
+
+
+def kill_certificate_validation_services():
+    if TEST_WITH_TLS:
+        processes = [OCSP_SERVER, CRL_HTTP_SERVER]
+        stop_process(processes)
 
 
 
@@ -533,7 +651,6 @@ Binary = collections.namedtuple(
 
 
 BINARIES = [
-    # compile with Test=true to disable golang tls client server verification
     Binary(name='acra-server', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-backup', from_version=DEFAULT_VERSION,
@@ -562,10 +679,13 @@ BINARIES = [
 
 BUILD_TAGS = os.environ.get("TEST_BUILD_TAGS", '')
 
+
 def build_binaries():
     """Build Acra CE binaries for testing."""
     builds = [
-        (binary.from_version, ['go', 'build', '-tags={}'.format(BUILD_TAGS)] + binary.build_args + ['github.com/cossacklabs/acra/cmd/{}'.format(binary.name)])
+        (binary.from_version, ['go', 'build', '-o={}'.format(os.path.join(BINARY_OUTPUT_FOLDER, binary.name)),  '-tags={}'.format(BUILD_TAGS)] +
+         binary.build_args +
+         ['github.com/cossacklabs/acra/cmd/{}'.format(binary.name)])
         for binary in BINARIES
     ]
     go_version = get_go_version()
@@ -588,9 +708,10 @@ def build_binaries():
 def clean_binaries():
     for i in BINARIES:
         try:
-            os.remove(i.name)
+            os.remove(os.path.join(BINARY_OUTPUT_FOLDER, i.name))
         except:
             pass
+
 
 def clean_misc():
     pass
@@ -645,18 +766,20 @@ def setUpModule():
     TLS_CERT_CLIENT_ID_2 = extract_client_id_from_cert(TEST_TLS_CLIENT_2_CERT)
     # add two zones
     zones.append(json.loads(subprocess.check_output(
-        ['./acra-addzone', '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
+        [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
         cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
     zones.append(json.loads(subprocess.check_output(
-        ['./acra-addzone', '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
+        [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
         cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
     socket.setdefaulttimeout(SOCKET_CONNECT_TIMEOUT)
     drop_tables()
 
+    fork_certificate_validation_services()
+
 
 def extract_client_id_from_cert(tls_cert, extractor=TLS_CLIENT_ID_SOURCE_DN):
     res = json.loads(subprocess.check_output([
-        './acra-keys',
+        os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
         'extract-client-id',
         '--tls_identifier_extractor_type={}'.format(extractor),
         '--tls_cert={}'.format(tls_cert),
@@ -681,18 +804,7 @@ def tearDownModule():
         except:
             pass
     drop_tables()
-
-
-class ProcessStub(object):
-    pid = 'stub'
-    def kill(self, *args, **kwargs):
-        pass
-    def wait(self, *args, **kwargs):
-        pass
-    def terminate(self, *args, **kwargs):
-        pass
-    def poll(self, *args, **kwargs):
-        pass
+    kill_certificate_validation_services()
 
 
 ConnectionArgs = collections.namedtuple("ConnectionArgs",
@@ -937,21 +1049,21 @@ class KeyMakerTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaises(subprocess.CalledProcessError) as exc:
                 subprocess.check_output(
-                    ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
                      '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder)],
                     env=random_keys(key_size - 1))
 
         with tempfile.TemporaryDirectory() as folder:
             subprocess.check_output(
-                    ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
                      '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder)],
                     env=random_keys(key_size))
 
         with tempfile.TemporaryDirectory() as folder:
             subprocess.check_output(
-                    ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
                      '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder)],
                     env=random_keys(key_size * 2))
@@ -960,7 +1072,7 @@ class KeyMakerTest(unittest.TestCase):
         #keys not needed client_id for generation
         with tempfile.TemporaryDirectory() as folder:
             subprocess.check_output(
-                ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
                  '--keys_output_dir={}'.format(folder),
                  "--client_id=''",
                  '--generate_poisonrecord_keys',
@@ -1079,8 +1191,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     # for debugging with manually runned acra-server
     EXTERNAL_ACRA = False
     ACRASERVER_PORT = int(os.environ.get('TEST_ACRASERVER_PORT', 10003))
-    OCSP_SERVER_PORT = int(os.environ.get('TEST_OCSP_SERVER_PORT', 8888))
-    CRL_HTTP_SERVER_PORT = int(os.environ.get('TEST_HTTP_SERVER_PORT', 8889))
     ACRASERVER_PROMETHEUS_PORT = int(os.environ.get('TEST_ACRASERVER_PROMETHEUS_PORT', 11004))
     ACRA_BYTEA = 'pgsql_hex_bytea'
     DB_BYTEA = 'hex'
@@ -1094,19 +1204,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         if not TEST_WITH_TLS:
             self.skipTest("running tests with TLS")
 
-    def fork(self, func):
-        process = func()
-        count = 0
-        step = FORK_TIMEOUT / FORK_FAIL_SLEEP
-        while count <= FORK_TIMEOUT:
-            if process.poll() is None:
-                logging.info("forked %s [%s]", process.args[0], process.pid)
-                return process
-            count += step
-            time.sleep(FORK_FAIL_SLEEP)
-        stop_process(process)
-        raise Exception("Can't fork")
-
     def wait_acraserver_connection(self, connection_string: str, *args, **kwargs):
         if connection_string.startswith('unix'):
             return wait_unix_socket(
@@ -1114,59 +1211,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
                 *args, **kwargs)
         else:
             return wait_connection(connection_string.split(':')[-1])
-
-    def fork_ocsp_server(self, port: int, check_connection: bool=True):
-        logging.info("fork OpenSSL OCSP server with port {}".format(port))
-
-        ocsp_server_connection = self.get_ocsp_server_connection_string(port)
-
-        args = {
-            'port': port,
-            'index': TEST_TLS_OCSP_INDEX,
-            'rsigner': TEST_TLS_OCSP_CERT,
-            'rkey': TEST_TLS_OCSP_KEY,
-            'CA': TEST_TLS_CA,
-            'ignore_err': None,
-        }
-
-        cli_args = sorted([f'-{k}={v}' if v is not None else f'-{k}' for k, v in args.items()])
-        print('openssl ocsp args: {}'.format(' '.join(cli_args)))
-
-        process = self.fork(lambda: subprocess.Popen(['openssl', 'ocsp'] + cli_args))
-
-        check_cmd = f"openssl ocsp -CAfile {TEST_TLS_CA} -issuer {TEST_TLS_CA} -cert {TEST_TLS_CLIENT_CERT} -url {ocsp_server_connection}"
-
-        if check_connection:
-            print('check OCSP server connection {}'.format(ocsp_server_connection))
-            try:
-                wait_command_success(check_cmd)
-            except:
-                stop_process(process)
-                raise
-
-        logging.info("fork openssl ocsp finished [pid={}]".format(process.pid))
-        return process
-
-    def fork_crl_http_server(self, port: int, check_connection: bool=True):
-        logging.info("fork HTTP server with port {}".format(port))
-
-        http_server_connection = self.get_crl_http_server_connection_string(port)
-
-        cli_args = ['--bind', '127.0.0.1', '--directory', TEST_TLS_CRL_PATH, str(port)]
-        print('python HTTP server args: {}'.format(' '.join(cli_args)))
-
-        process = self.fork(lambda: subprocess.Popen(['python3', '-m', 'http.server'] + cli_args))
-
-        if check_connection:
-            print('check HTTP server connection {}'.format(http_server_connection))
-            try:
-                wait_connection(port)
-            except:
-                stop_process(process)
-                raise
-
-        logging.info("fork HTTP server finished [pid={}]".format(process.pid))
-        return process
 
     def get_acraserver_connection_string(self, port=None):
         if not port:
@@ -1180,18 +1224,8 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             port = port + 1
         return acra_api_connection_string(port)
 
-    def get_ocsp_server_connection_string(self, port=None):
-        if not port:
-            port = self.OCSP_SERVER_PORT
-        return 'http://localhost:{}'.format(port)
-
-    def get_crl_http_server_connection_string(self, port=None):
-        if not port:
-            port = self.CRL_HTTP_SERVER_PORT
-        return 'http://localhost:{}'.format(port)
-
     def get_acraserver_bin_path(self):
-        return './acra-server'
+        return os.path.join(BINARY_OUTPUT_FOLDER, 'acra-server')
 
     def with_tls(self):
         return TEST_WITH_TLS
@@ -1239,9 +1273,9 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             args['tls_cert'] = TEST_TLS_SERVER_CERT
             args['tls_ca'] = TEST_TLS_CA
             args['tls_auth'] = ACRA_TLS_AUTH
-            args['tls_ocsp_url'] = 'http://localhost:{}'.format(self.OCSP_SERVER_PORT)
+            args['tls_ocsp_url'] = 'http://localhost:{}'.format(OCSP_SERVER_PORT)
             args['tls_ocsp_from_cert'] = 'use'
-            args['tls_crl_url'] = 'http://localhost:{}/crl.pem'.format(self.CRL_HTTP_SERVER_PORT)
+            args['tls_crl_url'] = 'http://localhost:{}/crl.pem'.format(CRL_HTTP_SERVER_PORT)
             args['tls_crl_from_cert'] = 'use'
         else:
             # Explicitly disable certificate validation by default since otherwise we may end up
@@ -1258,7 +1292,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         cli_args = sorted(['--{}={}'.format(k, v) for k, v in args.items() if v is not None])
         print("acra-server args: {}".format(' '.join(cli_args)))
 
-        process = self.fork(lambda: subprocess.Popen([self.get_acraserver_bin_path()] + cli_args,
+        process = fork(lambda: subprocess.Popen([self.get_acraserver_bin_path()] + cli_args,
                                                      **popen_kwargs))
         try:
             self.wait_acraserver_connection(connection_string)
@@ -1293,8 +1327,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
 
         cli_args = ['--{}={}'.format(k, v) for k, v in default_config.items()]
 
-        translator = self.fork(lambda: subprocess.Popen(['./acra-translator'] + cli_args,
-                                                     **popen_kwargs))
+        translator = fork(lambda: subprocess.Popen([os.path.join(BINARY_OUTPUT_FOLDER, 'acra-translator')] + cli_args, **popen_kwargs))
         try:
             if default_config['incoming_connection_grpc_string']:
                 wait_connection(urlparse(default_config['incoming_connection_grpc_string']).port)
@@ -1305,23 +1338,9 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             raise
         return translator
 
-    def fork_certificate_validation_services(self):
-        if self.with_tls():
-            self.ocsp_server = self.fork_ocsp_server(self.OCSP_SERVER_PORT)
-            self.crl_http_server = self.fork_crl_http_server(self.CRL_HTTP_SERVER_PORT)
-
-    def kill_certificate_validation_services(self):
-        if self.with_tls():
-            processes = [getattr(self, 'ocsp_server', ProcessStub()),
-                         getattr(self, 'crl_http_server', ProcessStub())]
-
-            stop_process(processes)
-
     def setUp(self):
         self.checkSkip()
         try:
-            self.fork_certificate_validation_services()
-
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra()
 
@@ -1382,8 +1401,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             engine.dispose()
         stop_process([getattr(self, 'acra', ProcessStub())])
         send_signal_by_process_name('acra-server', signal.SIGKILL)
-
-        self.kill_certificate_validation_services()
 
     def log(self, data, expected=b'<no expected value>',
             storage_client_id=None, zone_id=None,
@@ -2491,7 +2508,7 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
             self.fail("unexpected response")
 
         log = self.read_log(self.acra)
-        self.assertNotIn('Check poison records', log)
+        self.assertNotIn('Recognized poison record', log)
         self.assertNotIn('Turned on poison record detection', log)
         self.assertNotIn('code=101', log)
 
@@ -2516,7 +2533,7 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
                 self.fail("unexpected response")
 
         log = self.read_log(self.acra)
-        self.assertNotIn('Check poison records', log)
+        self.assertNotIn('Recognized poison record', log)
         self.assertNotIn('Turned on poison record detection', log)
         self.assertNotIn('code=101', log)
 
@@ -2545,7 +2562,7 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
                 self.fail("unexpected response")
 
         log = self.read_log(self.acra)
-        self.assertNotIn('Check poison records', log)
+        self.assertNotIn('Recognized poison record', log)
         self.assertNotIn('Turned on poison record detection', log)
         self.assertNotIn('code=101', log)
 
@@ -2570,7 +2587,7 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
             self.assertEqual(data, poison_record)
 
         log = self.read_log(self.acra)
-        self.assertNotIn('Check poison records', log)
+        self.assertNotIn('Recognized poison record', log)
         self.assertNotIn('Turned on poison record detection', log)
         self.assertNotIn('code=101', log)
 
@@ -2597,7 +2614,7 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
 
             with open(log_file.name, 'r') as f:
                 log = f.read()
-            self.assertNotIn('Check poison records', log)
+            self.assertNotIn('Recognized poison record', log)
             self.assertNotIn('Turned on poison record detection', log)
             self.assertNotIn('code=101', log)
 
@@ -2627,7 +2644,7 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
                 self.assertEqual(exc.exception.details(), "can't decrypt data")
             with open(log_file.name, 'r') as f:
                 log = f.read()
-            self.assertNotIn('Check poison records', log)
+            self.assertNotIn('Recognized poison record', log)
             self.assertNotIn('Turned on poison record detection', log)
             self.assertNotIn('code=101', log)
 
@@ -2675,7 +2692,7 @@ class TestNoCheckPoisonRecord(BasePoisonRecordTest):
         result = self.engine1.execute(test_table.select())
         result.fetchall()
         log = self.read_log(self.acra)
-        self.assertNotIn('Check poison records', log)
+        self.assertNotIn('Recognized poison record', log)
         self.assertNotIn('Turned on poison record detection', log)
         self.assertNotIn('code=101', log)
         result = self.engine1.execute(
@@ -2714,7 +2731,7 @@ class TestCheckLogPoisonRecord(BasePoisonRecordTest):
             self.engine1.execute(test_table.select())
 
         log = self.read_log(self.acra)
-        self.assertIn('Check poison records', log)
+        self.assertIn('Recognized poison record', log)
         self.assertIn('Turned on poison record detection', log)
         self.assertIn('code=101', log)
 
@@ -2856,7 +2873,7 @@ class TestKeyStoreMigration(BaseTestCase):
             temp_file = os.path.join(self.test_dir.name, 'master.key')
 
             subprocess.check_output([
-                './acra-keymaker', '--keystore={}'.format(version),
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(version),
                 '--generate_master_key={}'.format(temp_file)])
 
             with open(temp_file, 'rb') as f:
@@ -2873,7 +2890,7 @@ class TestKeyStoreMigration(BaseTestCase):
         # Start with service transport keys and client storage keys.
         self.client_id = TLS_CERT_CLIENT_ID_1
         subprocess.check_call([
-                './acra-keymaker',
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
                 '--generate_acrawriter_keys',
                 '--client_id={}'.format(self.client_id),
                 '--keys_output_dir={}'.format(self.current_key_store_path()),
@@ -2885,7 +2902,7 @@ class TestKeyStoreMigration(BaseTestCase):
 
         # Then add some zones that we're going to test with.
         zone_output = subprocess.check_output([
-                './acra-addzone',
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'),
                 '--keys_output_dir={}'.format(self.current_key_store_path()),
             ],
             env={ACRA_MASTER_KEY_VAR_NAME: self.get_master_key(version)},
@@ -2900,7 +2917,7 @@ class TestKeyStoreMigration(BaseTestCase):
         """Migrate keystore from current to given new version."""
         # Run the migration tool. New keystore is in a new directory.
         subprocess.check_call([
-                './acra-keys', 'migrate',
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'), 'migrate',
                 '--src_keys_dir={}'.format(self.current_key_store_path()),
                 '--src_keys_dir_public={}'.format(self.current_key_store_path()),
                 '--src_keystore={}'.format(self.keystore_version),
@@ -3156,11 +3173,11 @@ class TestAcraKeysWithZoneIDGeneration(unittest.TestCase):
 
     def test_rotate_symmetric_zone_key(self):
         zone = json.loads(subprocess.check_output(
-            ['./acra-addzone', '--keys_output_dir={}'.format(self.zone_dir.name)],
+            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.zone_dir.name)],
             cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8'))
 
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'generate',
             '--zone_symmetric_key',
             '--keys_dir={}'.format(self.zone_dir.name),
@@ -3188,7 +3205,7 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
 
     def test_non_client_id_keys_generation(self):
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'generate',
             '--audit_log_symmetric_key',
             '--poison_record_keys',
@@ -3202,7 +3219,7 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
     def test_keys_generation_without_client_id(self):
         with self.assertRaises(subprocess.CalledProcessError) as exc:
             subprocess.check_output([
-                './acra-keys',
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
                 'generate',
                 '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
                 '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
@@ -3215,7 +3232,7 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
 
         with self.assertRaises(subprocess.CalledProcessError) as exc:
             subprocess.check_output([
-                './acra-keys',
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
                 'generate',
                 "--client_id='test'",
                 '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
@@ -3229,7 +3246,7 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
 
     def test_read_keys_symmetric(self):
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'generate',
             '--client_id={}'.format("testclientid"),
             '--client_storage_symmetric_key',
@@ -3241,7 +3258,7 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
             timeout=PROCESS_CALL_TIMEOUT)
 
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'read',
             '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
             '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
@@ -3252,11 +3269,11 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
 
     def test_read_keys_symmetric_zone(self):
         zone = json.loads(subprocess.check_output(
-            ['./acra-addzone', '--keys_output_dir={}'.format(self.dir_with_distinguished_name_client_id.name)],
+            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.dir_with_distinguished_name_client_id.name)],
             cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8'))
 
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'read',
             '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
             '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
@@ -3272,7 +3289,7 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
 
     def read_key_by_client_id(self, extractor, dir_name):
         cmd_output = json.loads(subprocess.check_output([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'extract-client-id',
             '--tls_identifier_extractor_type={}'.format(extractor),
             '--tls_cert={}'.format(TEST_TLS_SERVER_CERT),
@@ -3282,7 +3299,7 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
 
         client_id = cmd_output['client_id']
         readKey = subprocess.check_output([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'read',
             '--keys_dir={}'.format(dir_name),
             '--keys_dir_public={}'.format(dir_name),
@@ -3295,7 +3312,7 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
     def create_key_store_with_client_id_from_cert(self, extractor, dir_name):
         """Create new keystore of given version using acra-keys tool."""
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'generate',
             '--tls_cert={}'.format(TEST_TLS_SERVER_CERT),
             '--tls_identifier_extractor_type={}'.format(extractor),
@@ -3322,7 +3339,7 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
         client_id = 'keypair1'
 
         subprocess.check_call(
-            ['./acra-keymaker',
+            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
              '--client_id={}'.format(client_id),
              '--generate_acrawriter_keys',
              '--generate_symmetric_storage_key',
@@ -3333,7 +3350,7 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
             timeout=PROCESS_CALL_TIMEOUT)
 
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'read',
             '--public',
             '--redis_host_port=localhost:6379',
@@ -3343,7 +3360,7 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
             timeout=PROCESS_CALL_TIMEOUT)
 
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'read',
             '--redis_host_port=localhost:6379',
             'client/keypair1/symmetric'
@@ -3352,7 +3369,7 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
             timeout=PROCESS_CALL_TIMEOUT)
 
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'read',
             '--private',
             '--redis_host_port=localhost:6379',
@@ -3558,7 +3575,7 @@ class TestAcraRollback(BaseTestCase):
             os.remove(self.output_filename)
 
     def run_acrarollback(self, extra_args):
-        args = ['./acra-rollback'] + self.default_acrarollback_args + extra_args
+        args = [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-rollback')] + self.default_acrarollback_args + extra_args
         try:
             subprocess.check_call(
                 args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
@@ -3704,7 +3721,7 @@ class TestAcraRollback(BaseTestCase):
             self.assertIn(data[0], source_data)
 
     def test_without_placeholder(self):
-        args = ['./acra-rollback',
+        args = [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-rollback'),
             '--execute=true',
             '--select=select data from {};'.format(test_table.name),
             '--insert=query without placeholders;',
@@ -4401,7 +4418,7 @@ class TestAcraRotateWithZone(BaseTestCase):
             for i in range(zone_id_count):
                 zone_data = json.loads(
                     subprocess.check_output(
-                        ['./acra-addzone',
+                        [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'),
                          '--keys_output_dir={}'.format(keys_folder)],
                         cwd=os.getcwd(),
                         timeout=PROCESS_CALL_TIMEOUT).decode('utf-8'))
@@ -4430,7 +4447,7 @@ class TestAcraRotateWithZone(BaseTestCase):
                     json.dump(zone_map, zone_map_file)
                     zone_map_file.close()
                     result = subprocess.check_output(
-                        ['./acra-rotate', '--keys_dir={}'.format(keys_folder),
+                        [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-rotate'), '--keys_dir={}'.format(keys_folder),
                          '--file_map_config={}'.format(zone_map_file.name),
                          '--dry-run={}'.format(1 if dryRun else 0)])
                     if not isinstance(result, str):
@@ -4507,7 +4524,7 @@ class TestAcraRotateWithZone(BaseTestCase):
         for i in range(zone_count):
             zones.append(
                 json.loads(subprocess.check_output(
-                    ['./acra-addzone',
+                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'),
                      '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
                     cwd=os.getcwd(),
                     timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
@@ -4557,7 +4574,7 @@ class TestAcraRotateWithZone(BaseTestCase):
                 self.fail("unsupported settings of tested db")
 
             default_args = [
-                './acra-rotate',
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-rotate'),
                 '--keys_dir={}'.format(KEYS_FOLDER.name),
                 '--db_connection_string={}'.format(connection_string),
                 '--dry-run={}'.format(1 if dry_run else 0),
@@ -4674,7 +4691,7 @@ class TestAcraRotate(TestAcraRotateWithZone):
             # generate keys in separate folder
 
             subprocess.check_output(
-                ['./acra-keymaker',
+                [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
                  '--client_id={}'.format(client_id),
                  '--keys_output_dir={}'.format(keys_folder),
                  '--keys_public_output_dir={}'.format(keys_folder),
@@ -4705,7 +4722,7 @@ class TestAcraRotate(TestAcraRotateWithZone):
                     json.dump(keys_map, keys_map_file)
                     keys_map_file.close()
                     result = subprocess.check_output(
-                        ['./acra-rotate', '--keys_dir={}'.format(keys_folder),
+                        [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-rotate'), '--keys_dir={}'.format(keys_folder),
                          '--file_map_config={}'.format(keys_map_file.name),
                          '--dry-run={}'.format(1 if dryRun else 0),
                          '--zonemode_enable=false'])
@@ -4824,7 +4841,7 @@ class TestAcraRotate(TestAcraRotateWithZone):
                 self.fail("unsupported settings of tested db")
 
             default_args = [
-                './acra-rotate',
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-rotate'),
                 '--keys_dir={}'.format(KEYS_FOLDER.name),
                 '--db_connection_string={}'.format(connection_string),
                 '--dry-run={}'.format(1 if dry_run else 0),
@@ -5232,7 +5249,7 @@ class TransparentEncryptionNoKeyMixin(AcraCatchLogsMixin):
         create_client_keypair(name=self.client_id, keys_dir=self.server_keys_dir, only_storage=True)
 
         zones.append(json.loads(subprocess.check_output(
-            ['./acra-addzone', '--keys_output_dir={}'.format(self.server_keys_dir)],
+            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.server_keys_dir)],
             cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
 
 
@@ -5490,7 +5507,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             # generate configs for tests
-            subprocess.check_output(['configs/regenerate.sh', tmp_dir])
+            subprocess.check_output(['configs/regenerate.sh', tmp_dir], env={'BINARY_FOLDER': BINARY_OUTPUT_FOLDER})
 
             for service in services:
                 self.remove_version_from_config(os.path.join(tmp_dir, service + '.yaml'))
@@ -5502,7 +5519,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
             }
             for service in services:
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
-                args = ['./' + service, config_param] + default_args.get(service, [])
+                args = [os.path.join(BINARY_OUTPUT_FOLDER, service), config_param] + default_args.get(service, [])
                 stderr = self.getOutputFromProcess(args)
                 self.assertIn('error="config hasn\'t version key"', stderr)
 
@@ -5513,7 +5530,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             # generate configs for tests
-            subprocess.check_output(['configs/regenerate.sh', tmp_dir])
+            subprocess.check_output(['configs/regenerate.sh', tmp_dir], env={'BINARY_FOLDER': BINARY_OUTPUT_FOLDER})
 
             for service in services:
                 self.replace_version_in_config('0.0.0', os.path.join(tmp_dir, service + '.yaml'))
@@ -5525,7 +5542,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
             }
             for service in services:
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
-                args = ['./' + service, config_param] + default_args.get(service, [])
+                args = [os.path.join(BINARY_OUTPUT_FOLDER, service), config_param] + default_args.get(service, [])
                 stderr = self.getOutputFromProcess(args)
                 self.assertRegexpMatches(stderr, r'code=508 error="config version \\"0.0.0\\" is not supported, expects \\"[\d.]+\\" version')
 
@@ -5536,7 +5553,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             # generate configs for tests
-            subprocess.check_output(['configs/regenerate.sh', tmp_dir])
+            subprocess.check_output(['configs/regenerate.sh', tmp_dir], env={'BINARY_FOLDER': BINARY_OUTPUT_FOLDER})
 
             for service in services:
                 config_path = os.path.join(tmp_dir, service + '.yaml')
@@ -5579,7 +5596,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                     service_args = test_data
 
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
-                args = ['./' + service, config_param] + service_args
+                args = [os.path.join(BINARY_OUTPUT_FOLDER, service), config_param] + service_args
                 stderr = self.getOutputFromProcess(args)
                 self.assertNotRegex(stderr, r'code=508 error="config version \\"[\d.+]\\" is not supported, expects \\"[\d.]+\\" version')
 
@@ -5621,7 +5638,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                 else:
                     service_args = test_data
 
-                args = ['./' + service, '-config_file=""'] + service_args
+                args = [os.path.join(BINARY_OUTPUT_FOLDER, service), '-config_file=""'] + service_args
                 stderr = self.getOutputFromProcess(args)
                 self.assertNotRegex(stderr, r'code=508 error="config version \\"[\d.]\\" is not supported, expects \\"[\d.]+\\" version')
 
@@ -5670,8 +5687,6 @@ class TLSAuthenticationDirectlyToAcraMixin:
         self.assertEqual(create_client_keypair_from_certificate(tls_cert=TEST_TLS_CLIENT_2_CERT,
                                                                 extractor=self.get_identifier_extractor_type(), keys_dir=KEYS_FOLDER.name), 0)
         try:
-            self.fork_certificate_validation_services()
-
             if not self.EXTERNAL_ACRA:
                 # start acra with configured TLS
                 self.acra = self.fork_acra(
@@ -5739,8 +5754,6 @@ class TLSAuthenticationDirectlyToAcraMixin:
         processes = [getattr(self, 'acra', ProcessStub())]
         stop_process(processes)
         send_signal_by_process_name('acra-server', signal.SIGKILL)
-
-        self.kill_certificate_validation_services()
 
 
 class TestDirectTLSAuthenticationFailures(TLSAuthenticationBySerialNumberMixin, BaseTestCase):
@@ -7805,7 +7818,7 @@ class TestKeymakerCertificateKeysFailures(unittest.TestCase):
             # by default --client_id=client, so we define only --tls_cert
             with self.assertRaises(subprocess.CalledProcessError) as exc:
                 subprocess.check_output(
-                    ['./acra-keymaker',
+                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
                      '--keystore={}'.format(KEYSTORE_VERSION),
                      '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder),
@@ -7819,7 +7832,7 @@ class TestKeymakerCertificateKeysFailures(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaises(subprocess.CalledProcessError) as exc:
                 subprocess.check_output(
-                    ['./acra-keymaker',
+                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
                      '--keystore={}'.format(KEYSTORE_VERSION),
                      '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder),
@@ -7845,7 +7858,7 @@ class BaseKeymakerCertificateKeys:
 
 
             subprocess.check_output(
-                ['./acra-keymaker',
+                [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
                  '--keystore={}'.format(KEYSTORE_VERSION),
                  '--keys_output_dir={}'.format(folder),
                  '--keys_public_output_dir={}'.format(folder),
@@ -7946,6 +7959,28 @@ class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
         self.assertNotEqual(decrypted_data['zone_id'], test_data)
         for i in ('masked_prefix', 'token_bytes', 'token_str', 'token_i64'):
             self.assertEqual(decrypted_data[i], data[i])
+
+
+class TestTransparentAcraBlockEncryptionMissingExtraLog(TestTransparentAcraBlockEncryption):
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        self.log_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
+        acra_kwargs['log_to_file'] = self.log_file.name
+        acra_kwargs['poison_detect_enable'] = 'true'
+        return super().fork_acra(popen_kwargs, **acra_kwargs)
+
+    def testAcraStructReEncryption(self):
+        super().testAcraStructReEncryption()
+        with open(self.log_file.name, 'r') as f:
+            logs = f.read()
+        self.assertNotIn('invalid AcraBlock', logs)
+        self.assertNotIn("Can't decrypt AcraBlock", logs)
+
+    def testEncryptedInsert(self):
+        super().testEncryptedInsert()
+        with open(self.log_file.name, 'r') as f:
+            logs = f.read()
+        self.assertNotIn('invalid AcraBlock', logs)
+        self.assertNotIn("Can't decrypt AcraBlock", logs)
 
 
 class TestTransparentAcraBlockEncryptionWithDefaults(TestTransparentAcraBlockEncryption):

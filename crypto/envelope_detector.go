@@ -3,6 +3,7 @@ package crypto
 import (
 	"bytes"
 	"context"
+	"errors"
 	"github.com/cossacklabs/acra/acrablock"
 	"github.com/cossacklabs/acra/acrastruct"
 	"github.com/cossacklabs/acra/utils"
@@ -37,7 +38,7 @@ func (recognizer *EnvelopeDetector) OnCryptoEnvelope(ctx context.Context, contai
 	for _, handler := range recognizer.callbacks {
 		processedData, err := handler.OnCryptoEnvelope(ctx, container)
 		if err != nil {
-			if err == ErrDecryptionError {
+			if errors.Is(err, ErrDecryptionError) {
 				continue
 			}
 			logrus.WithError(err).WithField("callback", handler.ID()).Debugln("EnvelopeDetector.OnCryptoEnvelope failed to process container")
@@ -80,7 +81,7 @@ func (recognizer *EnvelopeDetector) OnColumn(ctx context.Context, inBuffer []byt
 		for index, handler := range recognizer.callbacks {
 			processedData, err = handler.OnCryptoEnvelope(ctx, container)
 			if err != nil {
-				if err == ErrDecryptionError {
+				if errors.Is(err, ErrDecryptionError) {
 					if index == len(recognizer.callbacks)-1 {
 						outBuffer = append(outBuffer, inBuffer[inIndex])
 						inIndex++
