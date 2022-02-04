@@ -175,7 +175,7 @@ FORK_TIMEOUT = 2
 FORK_FAIL_SLEEP = 0.1
 CONNECTION_FAIL_SLEEP = 0.1
 SOCKET_CONNECT_TIMEOUT = 3
-KILL_WAIT_TIMEOUT = 5
+KILL_WAIT_TIMEOUT = 2
 CONNECT_TRY_COUNT = 3
 SQL_EXECUTE_TRY_COUNT = 5
 # http://docs.python-requests.org/en/master/user/advanced/#timeouts
@@ -533,7 +533,6 @@ Binary = collections.namedtuple(
 
 
 BINARIES = [
-    # compile with Test=true to disable golang tls client server verification
     Binary(name='acra-server', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-backup', from_version=DEFAULT_VERSION,
@@ -591,6 +590,7 @@ def clean_binaries():
             os.remove(i.name)
         except:
             pass
+
 
 def clean_misc():
     pass
@@ -2491,7 +2491,7 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
             self.fail("unexpected response")
 
         log = self.read_log(self.acra)
-        self.assertNotIn('Check poison records', log)
+        self.assertNotIn('Recognized poison record', log)
         self.assertNotIn('Turned on poison record detection', log)
         self.assertNotIn('code=101', log)
 
@@ -2516,7 +2516,7 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
                 self.fail("unexpected response")
 
         log = self.read_log(self.acra)
-        self.assertNotIn('Check poison records', log)
+        self.assertNotIn('Recognized poison record', log)
         self.assertNotIn('Turned on poison record detection', log)
         self.assertNotIn('code=101', log)
 
@@ -2545,7 +2545,7 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
                 self.fail("unexpected response")
 
         log = self.read_log(self.acra)
-        self.assertNotIn('Check poison records', log)
+        self.assertNotIn('Recognized poison record', log)
         self.assertNotIn('Turned on poison record detection', log)
         self.assertNotIn('code=101', log)
 
@@ -2570,7 +2570,7 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
             self.assertEqual(data, poison_record)
 
         log = self.read_log(self.acra)
-        self.assertNotIn('Check poison records', log)
+        self.assertNotIn('Recognized poison record', log)
         self.assertNotIn('Turned on poison record detection', log)
         self.assertNotIn('code=101', log)
 
@@ -2597,7 +2597,7 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
 
             with open(log_file.name, 'r') as f:
                 log = f.read()
-            self.assertNotIn('Check poison records', log)
+            self.assertNotIn('Recognized poison record', log)
             self.assertNotIn('Turned on poison record detection', log)
             self.assertNotIn('code=101', log)
 
@@ -2627,7 +2627,7 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
                 self.assertEqual(exc.exception.details(), "can't decrypt data")
             with open(log_file.name, 'r') as f:
                 log = f.read()
-            self.assertNotIn('Check poison records', log)
+            self.assertNotIn('Recognized poison record', log)
             self.assertNotIn('Turned on poison record detection', log)
             self.assertNotIn('code=101', log)
 
@@ -2675,7 +2675,7 @@ class TestNoCheckPoisonRecord(BasePoisonRecordTest):
         result = self.engine1.execute(test_table.select())
         result.fetchall()
         log = self.read_log(self.acra)
-        self.assertNotIn('Check poison records', log)
+        self.assertNotIn('Recognized poison record', log)
         self.assertNotIn('Turned on poison record detection', log)
         self.assertNotIn('code=101', log)
         result = self.engine1.execute(
@@ -2714,7 +2714,7 @@ class TestCheckLogPoisonRecord(BasePoisonRecordTest):
             self.engine1.execute(test_table.select())
 
         log = self.read_log(self.acra)
-        self.assertIn('Check poison records', log)
+        self.assertIn('Recognized poison record', log)
         self.assertIn('Turned on poison record detection', log)
         self.assertIn('code=101', log)
 

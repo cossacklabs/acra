@@ -84,7 +84,6 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 		poisonDetector.SetPoisonRecordCallbacks(factory.setting.PoisonRecordCallbackStorage())
 
 		envelopeDetector.AddCallback(poisonDetector)
-		proxy.SubscribeOnAllColumnsDecryption(containerDetector)
 	}
 
 	if factory.setting.WithZone() {
