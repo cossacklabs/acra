@@ -16,7 +16,6 @@ import asyncio
 import collections
 import collections.abc
 import contextlib
-import hashlib
 import http
 import json
 import logging
@@ -27,8 +26,6 @@ import re
 import shutil
 import signal
 import socket
-
-import urllib3.exceptions
 
 import ssl
 import stat
@@ -55,8 +52,6 @@ import sqlalchemy as sa
 import sys
 import time
 import yaml
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
 from ddt import ddt, data
 from hvac import Client
 from prometheus_client.parser import text_string_to_metric_families
@@ -77,7 +72,7 @@ from utils import (read_storage_public_key, read_storage_private_key,
                    load_random_data_config, get_random_data_files,
                    clean_test_data, safe_string, prepare_encryptor_config,
                    get_encryptor_config, abs_path, get_test_encryptor_config, send_signal_by_process_name,
-                   load_yaml_config, dump_yaml_config)
+                   load_yaml_config, dump_yaml_config, BINARY_OUTPUT_FOLDER)
 
 # add to path our wrapper until not published to PYPI
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'wrappers/python'))
@@ -376,7 +371,7 @@ def get_master_key():
         master_key = os.environ.get(ACRA_MASTER_KEY_VAR_NAME)
         if not master_key:
             subprocess.check_output([
-                './acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
                 '--generate_master_key={}'.format(MASTER_KEY_PATH)])
             with open(MASTER_KEY_PATH, 'rb') as f:
                 master_key = b64encode(f.read()).decode('ascii')
@@ -389,7 +384,7 @@ def get_poison_record():
     global poison_record
     if not poison_record:
         poison_record = b64decode(subprocess.check_output([
-            './acra-poisonrecordmaker', '--keys_dir={}'.format(KEYS_FOLDER.name),
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-poisonrecordmaker'), '--keys_dir={}'.format(KEYS_FOLDER.name),
             ],
             timeout=PROCESS_CALL_TIMEOUT))
     return poison_record
@@ -401,7 +396,7 @@ def get_poison_record_with_acrablock():
     global poison_record_acrablock
     if not poison_record_acrablock:
         poison_record_acrablock = b64decode(subprocess.check_output([
-            './acra-poisonrecordmaker', '--keys_dir={}'.format(KEYS_FOLDER.name), '--type=acrablock',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-poisonrecordmaker'), '--keys_dir={}'.format(KEYS_FOLDER.name), '--type=acrablock',
         ],
             timeout=PROCESS_CALL_TIMEOUT))
     return poison_record_acrablock
@@ -410,7 +405,7 @@ def get_poison_record_with_acrablock():
 def create_client_keypair(name, only_storage=False, keys_dir=None, extra_kwargs: dict=None):
     if not keys_dir:
         keys_dir = KEYS_FOLDER.name
-    args = ['./acra-keymaker', '-client_id={}'.format(name),
+    args = [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '-client_id={}'.format(name),
             '-keys_output_dir={}'.format(keys_dir),
             '--keys_public_output_dir={}'.format(keys_dir),
             '--keystore={}'.format(KEYSTORE_VERSION)]
@@ -427,7 +422,7 @@ def create_client_keypair(name, only_storage=False, keys_dir=None, extra_kwargs:
 def create_client_keypair_from_certificate(tls_cert, extractor=TLS_CLIENT_ID_SOURCE_DN, only_storage=False, keys_dir=None, extra_kwargs: dict=None):
     if not keys_dir:
         keys_dir = KEYS_FOLDER.name
-    args = ['./acra-keymaker',  '--client_id=',
+    args = [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),  '--client_id=',
             '--tls_cert={}'.format(tls_cert),
             '--tls_identifier_extractor_type={}'.format(extractor),
             '-keys_output_dir={}'.format(keys_dir),
@@ -688,7 +683,9 @@ BUILD_TAGS = os.environ.get("TEST_BUILD_TAGS", '')
 def build_binaries():
     """Build Acra CE binaries for testing."""
     builds = [
-        (binary.from_version, ['go', 'build', '-tags={}'.format(BUILD_TAGS)] + binary.build_args + ['github.com/cossacklabs/acra/cmd/{}'.format(binary.name)])
+        (binary.from_version, ['go', 'build', '-o={}'.format(os.path.join(BINARY_OUTPUT_FOLDER, binary.name)),  '-tags={}'.format(BUILD_TAGS)] +
+         binary.build_args +
+         ['github.com/cossacklabs/acra/cmd/{}'.format(binary.name)])
         for binary in BINARIES
     ]
     go_version = get_go_version()
@@ -709,11 +706,12 @@ def build_binaries():
 
 
 def clean_binaries():
-    for i in BINARIES:
-        try:
-            os.remove(i.name)
-        except:
-            pass
+    if os.environ.get('TEST_CLEAN_BINARIES', 'on') == 'on':
+        for i in BINARIES:
+            try:
+                os.remove(os.path.join(BINARY_OUTPUT_FOLDER, i.name))
+            except:
+                pass
 
 
 def clean_misc():
@@ -769,10 +767,10 @@ def setUpModule():
     TLS_CERT_CLIENT_ID_2 = extract_client_id_from_cert(TEST_TLS_CLIENT_2_CERT)
     # add two zones
     zones.append(json.loads(subprocess.check_output(
-        ['./acra-addzone', '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
+        [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
         cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
     zones.append(json.loads(subprocess.check_output(
-        ['./acra-addzone', '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
+        [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
         cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
     socket.setdefaulttimeout(SOCKET_CONNECT_TIMEOUT)
     drop_tables()
@@ -782,7 +780,7 @@ def setUpModule():
 
 def extract_client_id_from_cert(tls_cert, extractor=TLS_CLIENT_ID_SOURCE_DN):
     res = json.loads(subprocess.check_output([
-        './acra-keys',
+        os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
         'extract-client-id',
         '--tls_identifier_extractor_type={}'.format(extractor),
         '--tls_cert={}'.format(tls_cert),
@@ -1052,21 +1050,21 @@ class KeyMakerTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaises(subprocess.CalledProcessError) as exc:
                 subprocess.check_output(
-                    ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
                      '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder)],
                     env=random_keys(key_size - 1))
 
         with tempfile.TemporaryDirectory() as folder:
             subprocess.check_output(
-                    ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
                      '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder)],
                     env=random_keys(key_size))
 
         with tempfile.TemporaryDirectory() as folder:
             subprocess.check_output(
-                    ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
                      '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder)],
                     env=random_keys(key_size * 2))
@@ -1075,7 +1073,7 @@ class KeyMakerTest(unittest.TestCase):
         #keys not needed client_id for generation
         with tempfile.TemporaryDirectory() as folder:
             subprocess.check_output(
-                ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
                  '--keys_output_dir={}'.format(folder),
                  "--client_id=''",
                  '--generate_poisonrecord_keys',
@@ -1228,7 +1226,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         return acra_api_connection_string(port)
 
     def get_acraserver_bin_path(self):
-        return './acra-server'
+        return os.path.join(BINARY_OUTPUT_FOLDER, 'acra-server')
 
     def with_tls(self):
         return TEST_WITH_TLS
@@ -1330,7 +1328,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
 
         cli_args = ['--{}={}'.format(k, v) for k, v in default_config.items()]
 
-        translator = fork(lambda: subprocess.Popen(['./acra-translator'] + cli_args, **popen_kwargs))
+        translator = fork(lambda: subprocess.Popen([os.path.join(BINARY_OUTPUT_FOLDER, 'acra-translator')] + cli_args, **popen_kwargs))
         try:
             if default_config['incoming_connection_grpc_string']:
                 wait_connection(urlparse(default_config['incoming_connection_grpc_string']).port)
@@ -2876,7 +2874,7 @@ class TestKeyStoreMigration(BaseTestCase):
             temp_file = os.path.join(self.test_dir.name, 'master.key')
 
             subprocess.check_output([
-                './acra-keymaker', '--keystore={}'.format(version),
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(version),
                 '--generate_master_key={}'.format(temp_file)])
 
             with open(temp_file, 'rb') as f:
@@ -2893,7 +2891,7 @@ class TestKeyStoreMigration(BaseTestCase):
         # Start with service transport keys and client storage keys.
         self.client_id = TLS_CERT_CLIENT_ID_1
         subprocess.check_call([
-                './acra-keymaker',
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
                 '--generate_acrawriter_keys',
                 '--client_id={}'.format(self.client_id),
                 '--keys_output_dir={}'.format(self.current_key_store_path()),
@@ -2905,7 +2903,7 @@ class TestKeyStoreMigration(BaseTestCase):
 
         # Then add some zones that we're going to test with.
         zone_output = subprocess.check_output([
-                './acra-addzone',
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'),
                 '--keys_output_dir={}'.format(self.current_key_store_path()),
             ],
             env={ACRA_MASTER_KEY_VAR_NAME: self.get_master_key(version)},
@@ -2920,7 +2918,7 @@ class TestKeyStoreMigration(BaseTestCase):
         """Migrate keystore from current to given new version."""
         # Run the migration tool. New keystore is in a new directory.
         subprocess.check_call([
-                './acra-keys', 'migrate',
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'), 'migrate',
                 '--src_keys_dir={}'.format(self.current_key_store_path()),
                 '--src_keys_dir_public={}'.format(self.current_key_store_path()),
                 '--src_keystore={}'.format(self.keystore_version),
@@ -3176,11 +3174,11 @@ class TestAcraKeysWithZoneIDGeneration(unittest.TestCase):
 
     def test_rotate_symmetric_zone_key(self):
         zone = json.loads(subprocess.check_output(
-            ['./acra-addzone', '--keys_output_dir={}'.format(self.zone_dir.name)],
+            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.zone_dir.name)],
             cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8'))
 
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'generate',
             '--zone_symmetric_key',
             '--keys_dir={}'.format(self.zone_dir.name),
@@ -3208,7 +3206,7 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
 
     def test_non_client_id_keys_generation(self):
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'generate',
             '--audit_log_symmetric_key',
             '--poison_record_keys',
@@ -3222,7 +3220,7 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
     def test_keys_generation_without_client_id(self):
         with self.assertRaises(subprocess.CalledProcessError) as exc:
             subprocess.check_output([
-                './acra-keys',
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
                 'generate',
                 '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
                 '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
@@ -3235,7 +3233,7 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
 
         with self.assertRaises(subprocess.CalledProcessError) as exc:
             subprocess.check_output([
-                './acra-keys',
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
                 'generate',
                 "--client_id='test'",
                 '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
@@ -3249,7 +3247,7 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
 
     def test_read_keys_symmetric(self):
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'generate',
             '--client_id={}'.format("testclientid"),
             '--client_storage_symmetric_key',
@@ -3261,7 +3259,7 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
             timeout=PROCESS_CALL_TIMEOUT)
 
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'read',
             '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
             '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
@@ -3272,11 +3270,11 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
 
     def test_read_keys_symmetric_zone(self):
         zone = json.loads(subprocess.check_output(
-            ['./acra-addzone', '--keys_output_dir={}'.format(self.dir_with_distinguished_name_client_id.name)],
+            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.dir_with_distinguished_name_client_id.name)],
             cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8'))
 
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'read',
             '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
             '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
@@ -3292,7 +3290,7 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
 
     def read_key_by_client_id(self, extractor, dir_name):
         cmd_output = json.loads(subprocess.check_output([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'extract-client-id',
             '--tls_identifier_extractor_type={}'.format(extractor),
             '--tls_cert={}'.format(TEST_TLS_SERVER_CERT),
@@ -3302,7 +3300,7 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
 
         client_id = cmd_output['client_id']
         readKey = subprocess.check_output([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'read',
             '--keys_dir={}'.format(dir_name),
             '--keys_dir_public={}'.format(dir_name),
@@ -3315,7 +3313,7 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
     def create_key_store_with_client_id_from_cert(self, extractor, dir_name):
         """Create new keystore of given version using acra-keys tool."""
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'generate',
             '--tls_cert={}'.format(TEST_TLS_SERVER_CERT),
             '--tls_identifier_extractor_type={}'.format(extractor),
@@ -3342,7 +3340,7 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
         client_id = 'keypair1'
 
         subprocess.check_call(
-            ['./acra-keymaker',
+            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
              '--client_id={}'.format(client_id),
              '--generate_acrawriter_keys',
              '--generate_symmetric_storage_key',
@@ -3353,7 +3351,7 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
             timeout=PROCESS_CALL_TIMEOUT)
 
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'read',
             '--public',
             '--redis_host_port=localhost:6379',
@@ -3363,7 +3361,7 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
             timeout=PROCESS_CALL_TIMEOUT)
 
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'read',
             '--redis_host_port=localhost:6379',
             'client/keypair1/symmetric'
@@ -3372,7 +3370,7 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
             timeout=PROCESS_CALL_TIMEOUT)
 
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'read',
             '--private',
             '--redis_host_port=localhost:6379',
@@ -3578,7 +3576,7 @@ class TestAcraRollback(BaseTestCase):
             os.remove(self.output_filename)
 
     def run_acrarollback(self, extra_args):
-        args = ['./acra-rollback'] + self.default_acrarollback_args + extra_args
+        args = [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-rollback')] + self.default_acrarollback_args + extra_args
         try:
             subprocess.check_call(
                 args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
@@ -3724,7 +3722,7 @@ class TestAcraRollback(BaseTestCase):
             self.assertIn(data[0], source_data)
 
     def test_without_placeholder(self):
-        args = ['./acra-rollback',
+        args = [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-rollback'),
             '--execute=true',
             '--select=select data from {};'.format(test_table.name),
             '--insert=query without placeholders;',
@@ -4421,7 +4419,7 @@ class TestAcraRotateWithZone(BaseTestCase):
             for i in range(zone_id_count):
                 zone_data = json.loads(
                     subprocess.check_output(
-                        ['./acra-addzone',
+                        [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'),
                          '--keys_output_dir={}'.format(keys_folder)],
                         cwd=os.getcwd(),
                         timeout=PROCESS_CALL_TIMEOUT).decode('utf-8'))
@@ -4450,7 +4448,7 @@ class TestAcraRotateWithZone(BaseTestCase):
                     json.dump(zone_map, zone_map_file)
                     zone_map_file.close()
                     result = subprocess.check_output(
-                        ['./acra-rotate', '--keys_dir={}'.format(keys_folder),
+                        [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-rotate'), '--keys_dir={}'.format(keys_folder),
                          '--file_map_config={}'.format(zone_map_file.name),
                          '--dry-run={}'.format(1 if dryRun else 0)])
                     if not isinstance(result, str):
@@ -4527,7 +4525,7 @@ class TestAcraRotateWithZone(BaseTestCase):
         for i in range(zone_count):
             zones.append(
                 json.loads(subprocess.check_output(
-                    ['./acra-addzone',
+                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'),
                      '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
                     cwd=os.getcwd(),
                     timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
@@ -4577,7 +4575,7 @@ class TestAcraRotateWithZone(BaseTestCase):
                 self.fail("unsupported settings of tested db")
 
             default_args = [
-                './acra-rotate',
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-rotate'),
                 '--keys_dir={}'.format(KEYS_FOLDER.name),
                 '--db_connection_string={}'.format(connection_string),
                 '--dry-run={}'.format(1 if dry_run else 0),
@@ -4694,7 +4692,7 @@ class TestAcraRotate(TestAcraRotateWithZone):
             # generate keys in separate folder
 
             subprocess.check_output(
-                ['./acra-keymaker',
+                [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
                  '--client_id={}'.format(client_id),
                  '--keys_output_dir={}'.format(keys_folder),
                  '--keys_public_output_dir={}'.format(keys_folder),
@@ -4725,7 +4723,7 @@ class TestAcraRotate(TestAcraRotateWithZone):
                     json.dump(keys_map, keys_map_file)
                     keys_map_file.close()
                     result = subprocess.check_output(
-                        ['./acra-rotate', '--keys_dir={}'.format(keys_folder),
+                        [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-rotate'), '--keys_dir={}'.format(keys_folder),
                          '--file_map_config={}'.format(keys_map_file.name),
                          '--dry-run={}'.format(1 if dryRun else 0),
                          '--zonemode_enable=false'])
@@ -4844,7 +4842,7 @@ class TestAcraRotate(TestAcraRotateWithZone):
                 self.fail("unsupported settings of tested db")
 
             default_args = [
-                './acra-rotate',
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-rotate'),
                 '--keys_dir={}'.format(KEYS_FOLDER.name),
                 '--db_connection_string={}'.format(connection_string),
                 '--dry-run={}'.format(1 if dry_run else 0),
@@ -5252,7 +5250,7 @@ class TransparentEncryptionNoKeyMixin(AcraCatchLogsMixin):
         create_client_keypair(name=self.client_id, keys_dir=self.server_keys_dir, only_storage=True)
 
         zones.append(json.loads(subprocess.check_output(
-            ['./acra-addzone', '--keys_output_dir={}'.format(self.server_keys_dir)],
+            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.server_keys_dir)],
             cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
 
 
@@ -5510,7 +5508,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             # generate configs for tests
-            subprocess.check_output(['configs/regenerate.sh', tmp_dir])
+            subprocess.check_output(['configs/regenerate.sh', tmp_dir], env={'BINARY_FOLDER': BINARY_OUTPUT_FOLDER})
 
             for service in services:
                 self.remove_version_from_config(os.path.join(tmp_dir, service + '.yaml'))
@@ -5522,7 +5520,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
             }
             for service in services:
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
-                args = ['./' + service, config_param] + default_args.get(service, [])
+                args = [os.path.join(BINARY_OUTPUT_FOLDER, service), config_param] + default_args.get(service, [])
                 stderr = self.getOutputFromProcess(args)
                 self.assertIn('error="config hasn\'t version key"', stderr)
 
@@ -5533,7 +5531,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             # generate configs for tests
-            subprocess.check_output(['configs/regenerate.sh', tmp_dir])
+            subprocess.check_output(['configs/regenerate.sh', tmp_dir], env={'BINARY_FOLDER': BINARY_OUTPUT_FOLDER})
 
             for service in services:
                 self.replace_version_in_config('0.0.0', os.path.join(tmp_dir, service + '.yaml'))
@@ -5545,7 +5543,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
             }
             for service in services:
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
-                args = ['./' + service, config_param] + default_args.get(service, [])
+                args = [os.path.join(BINARY_OUTPUT_FOLDER, service), config_param] + default_args.get(service, [])
                 stderr = self.getOutputFromProcess(args)
                 self.assertRegexpMatches(stderr, r'code=508 error="config version \\"0.0.0\\" is not supported, expects \\"[\d.]+\\" version')
 
@@ -5556,7 +5554,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             # generate configs for tests
-            subprocess.check_output(['configs/regenerate.sh', tmp_dir])
+            subprocess.check_output(['configs/regenerate.sh', tmp_dir], env={'BINARY_FOLDER': BINARY_OUTPUT_FOLDER})
 
             for service in services:
                 config_path = os.path.join(tmp_dir, service + '.yaml')
@@ -5599,7 +5597,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                     service_args = test_data
 
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
-                args = ['./' + service, config_param] + service_args
+                args = [os.path.join(BINARY_OUTPUT_FOLDER, service), config_param] + service_args
                 stderr = self.getOutputFromProcess(args)
                 self.assertNotRegex(stderr, r'code=508 error="config version \\"[\d.+]\\" is not supported, expects \\"[\d.]+\\" version')
 
@@ -5641,7 +5639,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                 else:
                     service_args = test_data
 
-                args = ['./' + service, '-config_file=""'] + service_args
+                args = [os.path.join(BINARY_OUTPUT_FOLDER, service), '-config_file=""'] + service_args
                 stderr = self.getOutputFromProcess(args)
                 self.assertNotRegex(stderr, r'code=508 error="config version \\"[\d.]\\" is not supported, expects \\"[\d.]+\\" version')
 
@@ -7821,7 +7819,7 @@ class TestKeymakerCertificateKeysFailures(unittest.TestCase):
             # by default --client_id=client, so we define only --tls_cert
             with self.assertRaises(subprocess.CalledProcessError) as exc:
                 subprocess.check_output(
-                    ['./acra-keymaker',
+                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
                      '--keystore={}'.format(KEYSTORE_VERSION),
                      '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder),
@@ -7835,7 +7833,7 @@ class TestKeymakerCertificateKeysFailures(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaises(subprocess.CalledProcessError) as exc:
                 subprocess.check_output(
-                    ['./acra-keymaker',
+                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
                      '--keystore={}'.format(KEYSTORE_VERSION),
                      '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder),
@@ -7861,7 +7859,7 @@ class BaseKeymakerCertificateKeys:
 
 
             subprocess.check_output(
-                ['./acra-keymaker',
+                [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
                  '--keystore={}'.format(KEYSTORE_VERSION),
                  '--keys_output_dir={}'.format(folder),
                  '--keys_public_output_dir={}'.format(folder),
