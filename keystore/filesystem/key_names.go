@@ -17,10 +17,6 @@ limitations under the License.
 package filesystem
 
 import (
-	"errors"
-	"github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend/api"
-	"io/fs"
-
 	keystore2 "github.com/cossacklabs/acra/keystore"
 )
 
@@ -47,9 +43,4 @@ func getClientIDSymmetricKeyName(id []byte) string {
 
 func getZoneIDSymmetricKeyName(id []byte) string {
 	return getSymmetricKeyName(GetZoneKeyFilename(id))
-}
-
-// IsKeyReadError return true if error is os.ErrNotExist compatible and NoKeyFoundExit
-func IsKeyReadError(err error) bool {
-	return (errors.Is(err, fs.ErrNotExist) || errors.Is(err, api.ErrNotExist)) && keystore2.NoKeyFoundExit
 }
