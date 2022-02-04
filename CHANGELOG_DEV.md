@@ -1,3 +1,6 @@
+## 0.92.0 - 2022-02-04
+- Cache symmetric keys in in-memory cache (if turned on) in same way as asymmetric
+
 ## 0.92.0 - 2022-02-02
 - Change the default value for flag `--poison_detect_enable` from `true` to `false` for `acra-server` and `acra-translator`.
 - Add integration tests for `acra-translator` with poison record detection and refactored poison record tests.

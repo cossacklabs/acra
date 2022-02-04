@@ -915,9 +915,14 @@ func (store *KeyStore) generateAndSaveSymmetricKey(id []byte, filename string) e
 
 // GetSymmetricKey return symmetric key with specific identifier
 func (store *KeyStore) readEncryptedKey(id []byte, filename string) ([]byte, error) {
-	encryptedSymKey, err := store.ReadKeyFile(filename)
-	if err != nil {
-		return nil, err
+	encryptedSymKey, ok := store.Get(filename)
+	if !ok {
+		var err error
+		encryptedSymKey, err = store.ReadKeyFile(store.GetPrivateKeyFilePath(filename))
+		if err != nil {
+			return nil, err
+		}
+		store.Add(filename, encryptedSymKey)
 	}
 	return store.encryptor.Decrypt(encryptedSymKey, id)
 }
@@ -961,7 +966,7 @@ func (store *KeyStore) getSymmetricKeys(id []byte, keyname string) ([][]byte, er
 		return nil, err
 	}
 	for _, path := range historicalKeys {
-		key, err := store.readEncryptedKey(id, store.GetPrivateKeyFilePath(path))
+		key, err := store.readEncryptedKey(id, path)
 		if err != nil {
 			for _, key := range keys {
 				utils.ZeroizeSymmetricKey(key)
