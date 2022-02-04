@@ -3,6 +3,7 @@
 - Add integration tests for `acra-translator` with poison record detection and refactored poison record tests.
 - Change the default port for prometheus handler in integration tests to fix port collisions during local testing.
 - Use AcraBlocks as default crypto envelope;
+- `acra-keymaker` fix ability to generate sym key into uncreated dir via `generate_symmetric_storage_key` flag;
 
 ## 0.92.0 - 2022-02-01
 - `acra-connector` global removing from all its related components `acra-server`/`acra-translator`/`acra-keymaker`/`acra-keys`:

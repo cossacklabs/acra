@@ -298,6 +298,10 @@ func (store *KeyStore) ReadKeyFile(filename string) ([]byte, error) {
 
 // WriteKeyFile updates key data, creating a new file if necessary.
 func (store *KeyStore) WriteKeyFile(filename string, data []byte, mode os.FileMode) error {
+	if err := store.fs.MkdirAll(filepath.Dir(filename), keyDirMode); err != nil {
+		return err
+	}
+
 	// We do quite a few filesystem manipulations to maintain old key data. Ensure that
 	// no data is lost due to errors or power faults. "filename" must contain either
 	// new key data on success, or old key data on error.
