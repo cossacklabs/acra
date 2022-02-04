@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"fmt"
 	"github.com/cossacklabs/acra/acrastruct"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
@@ -41,13 +42,10 @@ func (handler AcraStructHandler) MatchDataSignature(bytes []byte) bool {
 
 // Decrypt implementation of ContainerHandler method
 func (handler AcraStructHandler) Decrypt(data []byte, context *base.DataProcessorContext) ([]byte, error) {
+	logger := logging.GetLoggerFromContext(context.Context).WithField("handler", handler.Name())
 	if err := acrastruct.ValidateAcraStructLength(data); err != nil {
-		logrus.WithError(err).Debugln("AcraStructHandler.Process: AcraStruct not found, exit")
+		logger.WithError(err).Debugln("AcraStructHandler.Process: AcraStruct not found, exit")
 		return data, err
-	}
-
-	if context.Keystore == nil {
-		return nil, ErrEmptyKeystore
 	}
 
 	var privateKeys []*keys.PrivateKey
@@ -63,9 +61,14 @@ func (handler AcraStructHandler) Decrypt(data []byte, context *base.DataProcesso
 	}
 	defer utils.ZeroizePrivateKeys(privateKeys)
 	if err != nil {
-		logging.GetLoggerFromContext(context.Context).WithError(err).WithFields(
-			logrus.Fields{"client_id": string(accessContext.GetClientID()), "zone_id": string(accessContext.GetZoneID())}).Warningln("Can't read private key for matched client_id/zone_id")
-		return []byte{}, err
+		logger.WithError(err).WithFields(
+			logrus.Fields{
+				logging.FieldKeyEventCode: logging.EventCodeErrorCantReadKeys,
+				"client_id":               string(accessContext.GetClientID()),
+				"zone_id":                 string(accessContext.GetZoneID()),
+			}).
+			Debugln("Probably error occurred because: 1. used not appropriate TLS certificate or acra-server configured with inappropriate --client_id=<client_id>; 2. forgot to generate keys for your TLS certificate (or with specified client_id); 3. incorrectly configured keystore: incorrect path to folder or Redis database's number")
+		return []byte{}, fmt.Errorf("can't read private key for matched client_id/zone_id to decrypt AcraStruct: %w", err)
 	}
 	return acrastruct.DecryptRotatedAcrastruct(data, privateKeys, zoneID)
 }

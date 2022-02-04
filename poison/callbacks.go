@@ -30,7 +30,7 @@ type EmptyCallback struct{}
 
 // Call log on Call
 func (EmptyCallback) Call() error {
-	log.Infoln("Check poison records")
+	log.Warningln("Recognized poison record")
 	return nil
 }
 
