@@ -298,6 +298,10 @@ func (store *KeyStore) ReadKeyFile(filename string) ([]byte, error) {
 
 // WriteKeyFile updates key data, creating a new file if necessary.
 func (store *KeyStore) WriteKeyFile(filename string, data []byte, mode os.FileMode) error {
+	if err := store.fs.MkdirAll(filepath.Dir(filename), keyDirMode); err != nil {
+		return err
+	}
+
 	// We do quite a few filesystem manipulations to maintain old key data. Ensure that
 	// no data is lost due to errors or power faults. "filename" must contain either
 	// new key data on success, or old key data on error.
@@ -725,11 +729,6 @@ func (store *KeyStore) GetPoisonSymmetricKeys() ([][]byte, error) {
 	if !poisonKeyExists {
 		log.Debugln("Generate poison symmetric key")
 
-		if err := store.fs.MkdirAll(filepath.Dir(store.GetPrivateKeyFilePath(keyFileName)), keyDirMode); err != nil {
-			log.Debug("Can't generate .poison_key directory")
-			return nil, err
-		}
-
 		err := store.generateAndSaveSymmetricKey([]byte(keyFileName), store.GetPrivateKeyFilePath(keyFileName))
 		if err != nil {
 			log.Debug("Can't generate new poison sym key")
@@ -944,9 +943,7 @@ func (store *KeyStore) GeneratePoisonRecordSymmetricKey() error {
 	if exists {
 		return nil
 	}
-	if err := store.fs.MkdirAll(filepath.Dir(store.GetPrivateKeyFilePath(keyName)), keyDirMode); err != nil {
-		return err
-	}
+
 	return store.generateAndSaveSymmetricKey([]byte(keyName), store.GetPrivateKeyFilePath(keyName))
 }
 

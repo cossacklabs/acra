@@ -56,7 +56,7 @@ func (p *Processor) OnColumn(ctx context.Context, data []byte) (context.Context,
 	_, err := p.Process(data, &base.DataProcessorContext{Context: ctx})
 	if err != nil {
 		logger := logging.GetLoggerFromContext(ctx)
-		logger.WithError(err).Warning("Failed on HMAC processing")
+		logger.WithError(err).Debugln("Failed on HMAC processing")
 		p.hashData = nil
 		return ctx, p.rawData, nil
 	}

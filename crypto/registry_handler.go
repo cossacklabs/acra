@@ -15,7 +15,6 @@ import (
 // Errors related to crypto handlers
 var (
 	ErrDecryptionError = errors.New("decryption error")
-	ErrEmptyKeystore   = errors.New("nil keystore in context")
 )
 
 // TagSymbol used in begin of serialized container
@@ -152,9 +151,6 @@ func (r RegistryHandler) DecryptWithHandler(handler ContainerHandler, data []byt
 
 	processed, err := handler.Decrypt(internal, context)
 	if err != nil {
-		if err == ErrEmptyKeystore {
-			return data, nil
-		}
 		return nil, err
 	}
 

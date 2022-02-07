@@ -1,5 +1,30 @@
 version: 2
 jobs:
+  build_binaries:
+    docker:
+      - image: cossacklabs/ci-py-go-themis:latest
+    environment:
+      FILEPATH_ERROR_FLAG: /tmp/test_fail
+      GO_VERSIONS: 1.15.2 1.16.9 1.17.3
+    steps:
+        # prepare
+        - checkout
+        - run:
+            command: python3 tests/generate_random_data.py
+            environment:
+              TEST_RANDOM_DATA_FOLDER: /tmp/test_data
+        - run:
+            command: ".circleci/build_binaries.sh"
+            environment:
+              OUTPUT_FOLDER: /tmp/acra-binaries
+        - save_cache:
+            # cache only for one commit, don't cache between commits because binaries should be changed
+            # but it's okay to cache them for same commit because it will avoid re-building on re-run commands
+            key: integration_tests_preparements_.{{ .Revision }}
+            paths:
+              - /tmp/test_data
+              - /tmp/acra-binaries
+
   general_validation:
     docker:
       - image: cossacklabs/ci-py-go-themis:latest
@@ -21,13 +46,19 @@ jobs:
     steps:
       # prepare
       - checkout
+      - restore_cache:
+          keys:
+            - integration_tests_preparements_.{{ .Revision }}
       # HashiCorp Vault and Redis are neighbor containers and need some time to start
       # wait for the containers to be reachable, up to 15 pings with 1 second interval
       - run: NUM_PINGS=15 DELAY=1 .circleci/check_vault_connection.sh
       - run: NUM_PINGS=15 DELAY=1 .circleci/check_redis_connection.sh
       # validation
       - run: .circleci/check_gofmt.sh
-      - run: .circleci/check_configs.sh | tee /home/user/tests_output
+      - run:
+          command: .circleci/check_configs.sh | tee /home/user/tests_output
+          environment:
+            BINARY_FOLDER: /tmp/acra-binaries/1.17.3
       - run: .circleci/check_golint.sh
       - run: .circleci/check_misspell.sh
       - run: .circleci/check_ineffassign.sh
@@ -72,9 +103,13 @@ jobs:
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
       TEST_REDIS: "on"
+      TEST_BINARY_OUTPUT_FOLDER: /tmp/acra-binaries
     steps:
       # prepare
       - checkout
+      - restore_cache:
+          keys:
+            - integration_tests_preparements_.{{ .Revision }}
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: NUM_PINGS=15 DELAY=1 .circleci/check_postgresql_connection.sh
@@ -120,9 +155,13 @@ jobs:
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
       TEST_REDIS: "on"
+      TEST_BINARY_OUTPUT_FOLDER: /tmp/acra-binaries
     steps:
       # prepare
       - checkout
+      - restore_cache:
+          keys:
+            - integration_tests_preparements_.{{ .Revision }}
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: NUM_PINGS=15 DELAY=1 .circleci/check_postgresql_connection.sh
@@ -175,9 +214,13 @@ jobs:
       VAULT_API_TOKEN: cm9vdF90b2tlbgo= # base64 of the root_token
       TEST_POSTGRESQL: "off"
       TEST_NAME_PATTERN: "VaultMasterKeyLoader"
+      TEST_BINARY_OUTPUT_FOLDER: /tmp/acra-binaries
     steps:
       # prepare
       - checkout
+      - restore_cache:
+          keys:
+            - integration_tests_preparements_.{{ .Revision }}
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: NUM_PINGS=15 DELAY=1 .circleci/check_postgresql_connection.sh
@@ -228,9 +271,13 @@ jobs:
       VAULT_API_TOKEN: cm9vdF90b2tlbgo= # base64 of the root_token
       TEST_POSTGRESQL: "off"
       TEST_NAME_PATTERN: "VaultMasterKeyLoader"
+      TEST_BINARY_OUTPUT_FOLDER: /tmp/acra-binaries
     steps:
       # prepare
       - checkout
+      - restore_cache:
+          keys:
+            - integration_tests_preparements_.{{ .Revision }}
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: NUM_PINGS=15 DELAY=1 .circleci/check_postgresql_connection.sh
@@ -275,9 +322,13 @@ jobs:
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
       TEST_REDIS: "on"
+      TEST_BINARY_OUTPUT_FOLDER: /tmp/acra-binaries
     steps:
       # prepare
       - checkout
+      - restore_cache:
+          keys:
+            - integration_tests_preparements_.{{ .Revision }}
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: NUM_PINGS=15 DELAY=1 .circleci/check_mysql_connection.sh
@@ -328,9 +379,13 @@ jobs:
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
       TEST_REDIS: "on"
+      TEST_BINARY_OUTPUT_FOLDER: /tmp/acra-binaries
     steps:
       # prepare
       - checkout
+      - restore_cache:
+          keys:
+            - integration_tests_preparements_.{{ .Revision }}
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: NUM_PINGS=15 DELAY=1 .circleci/check_mysql_connection.sh
@@ -379,9 +434,13 @@ jobs:
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
       TEST_REDIS: "on"
+      TEST_BINARY_OUTPUT_FOLDER: /tmp/acra-binaries
     steps:
       # prepare
       - checkout
+      - restore_cache:
+          keys:
+            - integration_tests_preparements_.{{ .Revision }}
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: NUM_PINGS=15 DELAY=1 .circleci/check_mysql_connection.sh
@@ -429,9 +488,13 @@ jobs:
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
       TEST_REDIS: "on"
+      TEST_BINARY_OUTPUT_FOLDER: /tmp/acra-binaries
     steps:
       # prepare
       - checkout
+      - restore_cache:
+          keys:
+            - integration_tests_preparements_.{{ .Revision }}
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: NUM_PINGS=15 DELAY=1 .circleci/check_mysql_connection.sh
@@ -481,13 +544,32 @@ workflows:
   version: 2
   tests:
     jobs:
-      - general_validation
-      - postgresql
-      - postgresql-ssl
-      - mysql
-      - mysql-ssl
-      - mariadb
-      - mariadb-ssl
+      - build_binaries
+      - general_validation:
+          requires:
+            - build_binaries
+      - postgresql:
+          requires:
+            - build_binaries
+      - postgresql-ssl:
+          requires:
+            - build_binaries
+      - mysql:
+          requires:
+            - build_binaries
+      - mysql-ssl:
+          requires:
+            - build_binaries
+      - mariadb:
+          requires:
+            - build_binaries
+      - mariadb-ssl:
+          requires:
+            - build_binaries
+      - postgresql-vault:
+          requires:
+            - build_binaries
+      - postgresql-vault-ssl:
+          requires:
+            - build_binaries
       - build_image
-      - postgresql-vault
-      - postgresql-vault-ssl
