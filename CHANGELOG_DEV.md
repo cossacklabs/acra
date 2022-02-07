@@ -1,4 +1,6 @@
 ## 0.92.0 - 2022-02-04
+- Improved hash extraction with working searchable encryption. Now it will not try to get encrypted HMAC key from a keystore
+  if matched valid hash header and remain data payload not matched to any CryptoEnvelope
 - Avoid race conditions on startup when register listeners in `SServer` object
 - Remove confusing logs about failed decryption after poison record checks in valid cases
 - Changed log level for couple of confusing log events from Warning/Error to Debug because they don't represent error 
