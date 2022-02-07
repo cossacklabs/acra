@@ -1,5 +1,5 @@
 defaults:
-  crypto_envelope: acrastruct
+  crypto_envelope: acrablock
 
 schemas:
   - table: test
@@ -14,25 +14,32 @@ schemas:
       - token_email
     encrypted:
       - column: data
+        zone_id: DDDDDDDDHHNqiSYFXkpxopYZ
       - column: masking
         masking: "xxxx"
         plaintext_length: 3
         plaintext_side: "left"
+        zone_id: DDDDDDDDHHNqiSYFXkpxopYZ
       - column: token_i32
         token_type: int32
         tokenized: true
+        zone_id: DDDDDDDDHHNqiSYFXkpxopYZ
       - column: token_i64
         token_type: int64
         tokenized: true
+        zone_id: DDDDDDDDHHNqiSYFXkpxopYZ
       - column: token_bytes
         token_type: bytes
         tokenized: true
+        zone_id: DDDDDDDDHHNqiSYFXkpxopYZ
       - column: token_str
         token_type: str
         tokenized: true
+        zone_id: DDDDDDDDHHNqiSYFXkpxopYZ
       - column: token_email
         token_type: email
         tokenized: true
+        zone_id: DDDDDDDDHHNqiSYFXkpxopYZ
 
   - table: users
     columns:
