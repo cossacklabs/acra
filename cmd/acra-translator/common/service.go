@@ -373,7 +373,9 @@ func (service *TranslatorService) DecryptSymSearchable(ctx context.Context, data
 	hashPart, containerData := hmac.ExtractHashAndData(dataToDecrypt)
 	if hashPart == nil {
 		// check poison records
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraBlock).WithError(err).Errorln("Can't decrypt AcraBlock")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraBlock).
+			WithError(err).
+			Errorln("Can't split ciphertext to hash and encrypted data")
 		_, _, err := service.poisonDetector.OnColumn(dataCtx, dataToDecrypt)
 		if err != nil {
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(err).Errorln("Can't check for poison record with AcraBlock, possible missing Poison record decryption key")

@@ -21,6 +21,7 @@ import (
 	"errors"
 	"github.com/cossacklabs/acra/acrablock"
 	acrastruct2 "github.com/cossacklabs/acra/acrastruct"
+	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
@@ -32,15 +33,17 @@ var ErrHMACNotMatch = errors.New("HMAC not match to data in AcraStruct")
 
 //Processor HMAC DataProcessor implementation
 type Processor struct {
-	hashData    []byte
-	matchedHash Hash
-	rawData     []byte
-	hmacStore   keystore.HmacKeyStore
+	hashData        []byte
+	matchedHash     Hash
+	rawData         []byte
+	hmacStore       keystore.HmacKeyStore
+	envelopeMatcher *crypto.EnvelopeMatcher
 }
 
 // NewHMACProcessor return initialized HMACProcessor by provided keystore.HmacKeyStore)
 func NewHMACProcessor(store keystore.HmacKeyStore) *Processor {
-	return &Processor{hmacStore: store}
+	matcher := crypto.NewEnvelopeMatcher()
+	return &Processor{hmacStore: store, envelopeMatcher: matcher}
 }
 
 // ID return hardcoded HMAC ID
@@ -52,8 +55,8 @@ func (p *Processor) ID() string {
 func (p *Processor) OnColumn(ctx context.Context, data []byte) (context.Context, []byte, error) {
 	_, err := p.Process(data, &base.DataProcessorContext{Context: ctx})
 	if err != nil {
-		logging.GetLoggerFromContext(ctx).WithError(err).Warning("Failed on HMAC processing")
-
+		logger := logging.GetLoggerFromContext(ctx)
+		logger.WithError(err).Debugln("Failed on HMAC processing")
 		p.hashData = nil
 		return ctx, p.rawData, nil
 	}
@@ -63,7 +66,10 @@ func (p *Processor) OnColumn(ctx context.Context, data []byte) (context.Context,
 		p.hashData = nil
 		return ctx, data, nil
 	}
-
+	if !p.envelopeMatcher.Match(data[p.matchedHash.Length():]) {
+		p.matchedHash = nil
+		return ctx, data, nil
+	}
 	p.rawData = make([]byte, len(data))
 	// save initial data
 	copy(p.rawData, data)
