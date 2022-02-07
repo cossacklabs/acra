@@ -1,4 +1,5 @@
 ## 0.92.0 - 2022-02-04
+- Avoid race conditions on startup when register listeners in `SServer` object
 - Remove confusing logs about failed decryption after poison record checks in valid cases
 - Changed log level for couple of confusing log events from Warning/Error to Debug because they don't represent error 
   cases and useful only for debugging
