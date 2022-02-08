@@ -1,4 +1,5 @@
 ## 0.92.0 - 2022-02-04
+- Cache symmetric keys in in-memory cache (if turned on) in same way as asymmetric
 - Improved hash extraction with working searchable encryption. Now it will not try to get encrypted HMAC key from a keystore
   if matched valid hash header and remain data payload not matched to any CryptoEnvelope
 - Avoid race conditions on startup when register listeners in `SServer` object

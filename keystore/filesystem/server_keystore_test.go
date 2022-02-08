@@ -35,6 +35,7 @@ func TestFilesystemKeyStore(t *testing.T) {
 func FilesystemKeyStoreTests(storage Storage, t *testing.T) {
 	testFilesystemKeyStoreBasic(storage, t)
 	testFilesystemKeyStoreWithCache(storage, t)
+	testFilesystemKeyStoreSymmetricWithCache(storage, t)
 	testFilesystemKeyStoreRotateZoneKey(storage, t)
 	testHistoricalKeyAccess(storage, t)
 }
@@ -320,6 +321,96 @@ func testFilesystemKeyStoreBasic(storage Storage, t *testing.T) {
 		testGenerateSymKeyUncreatedDir(store, t)
 		testWriteKeyFileUncreatedDir(store, t)
 		testGetClientIDEncryptionPublicKey(store, t)
+	}
+}
+
+func testFilesystemKeyStoreSymmetricWithCache(storage Storage, t *testing.T) {
+	keyDirectory, err := storage.TempDir("test_filesystem_store", keyDirMode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer storage.RemoveAll(keyDirectory)
+
+	encryptor, err := keystore.NewSCellKeyEncryptor([]byte("some key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := NewCustomFilesystemKeyStore().
+		KeyDirectory(keyDirectory).
+		Encryptor(encryptor).
+		CacheSize(1).
+		Storage(storage).
+		Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// create some key
+	testID := []byte("test id")
+	if err := store.GenerateClientIDSymmetricKey(testID); err != nil {
+		t.Fatal(err)
+	}
+	// load and save in cache
+	_, err = store.GetClientIDSymmetricKeys(testID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testID2 := []byte("test id 2")
+	// create one more key that shouldn't saved in cache with 1 size
+	if err = store.GenerateClientIDSymmetricKey(testID2); err != nil {
+		t.Fatal(err)
+	}
+	// load and save in cache. it must drop previous key from cache
+	keys, err := store.GetClientIDSymmetricKeys(testID2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	filenames, err := store.GetHistoricalPrivateKeyFilenames(getClientIDSymmetricKeyName(testID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(filenames) != 1 {
+		t.Fatal("Unexpected amount of filenames")
+	}
+	// check that previous value was dropped
+	value, ok := store.cache.Get(filenames[0])
+	if ok {
+		t.Fatal("Value wasn't expected")
+	}
+	if value != nil {
+		t.Fatal("Value wasn't expected")
+	}
+	filenames, err = store.GetHistoricalPrivateKeyFilenames(getClientIDSymmetricKeyName(testID2))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(filenames) != 1 {
+		t.Fatal("Unexpected amount of filenames")
+	}
+	// check that new values is what we expect: encrypted key
+	value, ok = store.cache.Get(filenames[0])
+	if !ok {
+		t.Fatal("Expected key in result")
+	}
+	decrypted, err := encryptor.Decrypt(value, testID2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(decrypted, keys[0]) {
+		t.Fatal("Expected correct key in result")
+	}
+
+	// check that store created with empty cache
+	store, err = NewCustomFilesystemKeyStore().
+		KeyDirectory(keyDirectory).
+		Encryptor(encryptor).
+		CacheSize(keystore.WithoutCache).
+		Storage(storage).
+		Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := store.cache.(keystore.NoCache); !ok {
+		t.Fatal("KeyStore wasn't created with NoCache implementation")
 	}
 }
 
