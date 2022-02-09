@@ -530,7 +530,7 @@ func testDefaultCRLVerifierWithGroupRevoked(t *testing.T, certGroup TestCertGrou
 	if err == nil {
 		t.Fatal("Unexpected success when verifying revoked certificate\n")
 	}
-	if err != ErrCertWasRevoked {
+	if !errors.Is(err, ErrCertWasRevoked) {
 		t.Logf("Verify error: %v\n", err)
 		t.Fatalf("Expected error: %d\n", ErrCertWasRevoked)
 	}

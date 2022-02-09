@@ -112,6 +112,21 @@ const (
 	SerialEncodeBase = 32
 )
 
+// CRLError error wrapper to recognize CRL related errors
+type CRLError struct {
+	err error
+}
+
+// Error return wrapped error string
+func (e CRLError) Error() string {
+	return e.err.Error()
+}
+
+// Unwrap wrapped error
+func (e CRLError) Unwrap() error {
+	return e.err
+}
+
 // NewCRLConfig creates new CRLConfig
 func NewCRLConfig(url, fromCert string, checkOnlyLeafCertificate bool, cacheSize, cacheTime uint) (*CRLConfig, error) {
 	fromCertVal, ok := crlFromCertValValues[fromCert]
@@ -502,12 +517,12 @@ func (v DefaultCRLVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate,
 		crl, err := v.getCachedOrFetch(crlToCheck.url, !crlToCheck.fromCert, issuer)
 		if err != nil {
 			log.WithError(err).WithField("url", crlToCheck.url).Debugf("CRL: Cannot get CRL")
-			return err
+			return CRLError{err}
 		}
 
 		err = checkCertWithCRL(cert, crl)
 		if err != nil {
-			return err
+			return CRLError{err}
 		}
 
 		if crlToCheck.fromCert && v.Config.fromCert == crlFromCertTrust {
@@ -531,7 +546,7 @@ func (v DefaultCRLVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.C
 				log.Infoln("CRL: Empty verified certificates chain, nothing to do")
 				return nil
 			default: // tls.VerifyClientCertIfGiven, tls.RequireAndVerifyClientCert
-				return ErrEmptyCertChain
+				return CRLError{ErrEmptyCertChain}
 			}
 		}
 
@@ -550,7 +565,7 @@ func (v DefaultCRLVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.C
 			// certificates because v.Config.checkOnlyLeafCertificate == false)
 			err := v.verifyCertWithIssuer(cert, issuer, i == 0)
 			if err != nil {
-				return err
+				return CRLError{err}
 			}
 
 			if v.Config.checkOnlyLeafCertificate {
