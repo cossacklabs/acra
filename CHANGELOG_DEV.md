@@ -1,3 +1,6 @@
+## 0.92.0 - 2022-02-09
+- Log messages that suggests how to fix problems related to TLS connection issues.
+
 ## 0.92.0 - 2022-02-04
 - Cache symmetric keys in in-memory cache (if turned on) in same way as asymmetric
 - Improved hash extraction with working searchable encryption. Now it will not try to get encrypted HMAC key from a keystore
