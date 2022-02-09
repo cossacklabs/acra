@@ -298,6 +298,8 @@ func (v DefaultOCSPVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate
 		response, err := v.Client.Query(cert.Issuer.CommonName, cert, issuer, serverToCheck.url)
 		if err != nil {
 			log.WithError(err).WithField("url", serverToCheck.url).Warnln("Cannot query OCSP server")
+			log.WithError(err).WithField("url", serverToCheck.url).
+				Infoln(OCSPCheckErrorSuggestion)
 
 			if v.Config.required == ocspRequiredGood {
 				return ErrOCSPRequiredAllButGotError

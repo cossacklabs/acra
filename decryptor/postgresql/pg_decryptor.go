@@ -449,6 +449,20 @@ func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, logger *log.Entry)
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
 			Errorln("Error in tls handshake with client")
+		var crlErr *network.CRLError
+		if network.IsClientBadRecordMacError(err) {
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+				Infoln(network.ClientSideBadMacErrorSuggestion)
+		} else if network.IsClientUnknownCAError(err) {
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+				Infoln(network.ClientSideUnknownCAErrorSuggestion)
+		} else if network.IsMissingClientCertificate(err) {
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+				Infoln(network.ClientSideNoCertificateErrorSuggestion)
+		} else if errors.As(err, &crlErr) {
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+				Infoln(network.CRLCheckErrorSuggestion)
+		}
 		return nil, nil, err
 	}
 	logger.WithField("use_client_id", proxy.setting.TLSConnectionWrapper().UseConnectionClientID()).Infoln("TLS connection to db")
@@ -461,6 +475,17 @@ func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, logger *log.Entry)
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
 			Errorln("Can't initialize tls connection with db")
+		var crlErr *network.CRLError
+		if network.IsSNIError(err) {
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+				Infoln(network.DatabaseSideSNIErrorSuggestion)
+		} else if network.IsDatabaseUnknownCAError(err) {
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+				Infoln(network.DatabaseSideUnknownCAErrorSuggestions)
+		} else if errors.As(err, &crlErr) {
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+				Infoln(network.CRLCheckErrorSuggestion)
+		}
 		return nil, nil, err
 	}
 	return tlsClientConnection, dbTLSConnection, nil
