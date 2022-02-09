@@ -6,30 +6,30 @@ import "strings"
 const (
 	DatabaseSideSNIErrorSuggestion = "" +
 		"Acra-server configured with --db_host=<db_host> and --tls_database_sni=<sni> that don't " +
-		"match \"Subject Alternative Name\" in database's certificate. Check for which domains generated " +
+		"match \"Subject Alternative Name\" in database's certificate. Check which domains are present in the" +
 		"certificate for database with command: \"openssl x509 -noout -ext subjectAltName -in <cert_path>>\" " +
-		"and set one of them in acra-server's parameter \"--tls_database_sni\""
+		"and set one of the domains as acra-server's parameter \"--tls_database_sni\""
 	DatabaseSideUnknownCAErrorSuggestions = "" +
-		"Database sent certificate that cannot be verified by CA certificate set in \"--tls_database_ca\" (\"--tls_ca\") " +
-		"acra-server's parameters. Set same CA certificate that you use for database."
+		"The database sent certificate that cannot be verified by CA certificate set in \"--tls_database_ca\" (\"--tls_ca\") " +
+		"acra-server's parameters. Set the same CA certificate that you use for the database."
 	ClientSideBadMacErrorSuggestion = "" +
-		"Possible cause of the error is client cannot verify acra-server's certificate. Application or DB driver haven't " +
+		"Possible cause of the error is that the client application cannot verify acra-server's certificate. The application or its DB driver haven't " +
 		"CA certificate related to acra-server's certificate. Configure your application to use acra-server's CA too."
 	ClientSideUnknownCAErrorSuggestion = "" +
-		"Client sent certificate signed by unknown CA. Configure acra-server to use CA certificate used to sign client's " +
+		"The client app has sent a certificate signed by unknown CA. Configure acra-server to use CA certificate used to sign client's " +
 		"certificate with parameter \"--tls_client_ca=<path>\"."
-	ClientSideNoCertificateErrorSuggestion = "Application doesn't send certificate. Check that application configured with appropriate " +
-		"SSLMODE that turn on usage TLS for connections, configured private key with certificate. Additionally, check private " +
-		"key has 0600 permissions and database supports TLS."
-	CRLCheckErrorSuggestion = "Check that CRL server responsible. Acra-server uses CRL server's configured with " +
+	ClientSideNoCertificateErrorSuggestion = "The client application doesn't send TLS certificate. Check that the application configured with appropriate " +
+		"SSLMODE that turn on usage TLS for connections, configured private key with certificate. Additionally, check that private " +
+		"key has 0600 permissions, and the database supports TLS."
+	CRLCheckErrorSuggestion = "Ensure that the CRL server is up and responding. Acra-server uses CRL server's configured with " +
 		"--tls_crl_client_url | --tls_crl_database_url parameters and specified in client's/databases's " +
 		"certificates. You can get CRL urls from certificates with command: \"openssl x509 -noout -ext crlDistributionPoints -in <path>\". " +
-		"For test purposes you can turn off CRL checks with \"--tls_crl_from_cert=ignore\" and empty " +
+		"For test purposes you can disable CRL checks with \"--tls_crl_from_cert=ignore\" and empty " +
 		"\"--tls_crl_url=\" parameters for acra-server."
-	OCSPCheckErrorSuggestion = "Check that OCSP server responsible. Acra-server uses OCSP server's configured with " +
+	OCSPCheckErrorSuggestion = "Check that the OCSP server is up and responding. Acra-server uses OCSP server's configured with " +
 		"--tls_ocsp_client_url | --tls_ocsp_database_url parameters and specified in client's/databases's " +
 		"certificates. You can get OCSP urls from certificates with command: \"openssl x509 -noout -ocsp_uri -in <path>\". " +
-		"For test purposes you can turn off OCSP checks with \"--tls_ocsp_from_cert=ignore\" and empty " +
+		"For test purposes you can disable OCSP checks with \"--tls_ocsp_from_cert=ignore\" and empty " +
 		"\"--tls_ocsp_url=\" parameters for acra-server."
 )
 
