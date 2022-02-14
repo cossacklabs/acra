@@ -15,20 +15,21 @@
 package main
 
 import (
-	"fmt"
 	"github.com/cossacklabs/acra/benchmarks/common"
 	"github.com/cossacklabs/acra/benchmarks/write"
+	"github.com/sirupsen/logrus"
 	"time"
 )
 
 func main() {
+	logrus.SetLevel(logrus.InfoLevel)
 	db := common.Connect()
 	common.DropCreateRaw(db)
-	fmt.Println("Start benchmark")
+	logrus.Debugln("Start benchmark")
 	startTime := time.Now()
 	write.GenerateDataRows(db)
 	endTime := time.Now()
 	diff := endTime.Sub(startTime)
-	fmt.Printf("Took %v sec\n", diff.Seconds())
+	logrus.Infof("Took %v sec\n", diff.Seconds())
 	db.Close()
 }

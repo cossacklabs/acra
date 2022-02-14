@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"github.com/cossacklabs/acra/acrastruct"
 	"github.com/cossacklabs/acra/benchmarks/common"
-	"github.com/cossacklabs/acra/benchmarks/config"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"os"
@@ -61,7 +60,7 @@ func GetPublicOneKey() *keys.PublicKey {
 // GenerateAcrastructRowsOneKey generate RowCount acrastructs with random data
 // using <onekey_storage.pub> and insert to db
 func GenerateAcrastructRowsOneKey(publicKey *keys.PublicKey, db *sql.DB) {
-	for count := 0; count < config.RowCount; count++ {
+	for count := 0; count < common.RowCount; count++ {
 		data, err := common.GenerateData()
 		if err != nil {
 			panic(err)
@@ -80,7 +79,7 @@ func GenerateAcrastructRowsOneKey(publicKey *keys.PublicKey, db *sql.DB) {
 
 // GenerateDataRows generate RowCount raw random data and insert to db
 func GenerateDataRows(db *sql.DB) {
-	for count := 0; count < config.RowCount; count++ {
+	for count := 0; count < common.RowCount; count++ {
 		data, err := common.GenerateData()
 		if err != nil {
 			panic(err)
@@ -96,13 +95,13 @@ func GenerateDataRows(db *sql.DB) {
 // all ZoneCount zones
 func GenerateAcrastructWithZone(db *sql.DB) {
 	zones := common.LoadZones()
-	for count := 0; count < config.RowCount; count++ {
+	for count := 0; count < common.RowCount; count++ {
 		data, err := common.GenerateData()
 		if err != nil {
 			panic(err)
 		}
 
-		zoneData := zones[count%config.ZoneCount]
+		zoneData := zones[count%common.ZoneCount]
 		acraStruct, err := acrastruct.CreateAcrastruct(data, &keys.PublicKey{Value: zoneData.PublicKey}, zoneData.ID)
 		if err != nil {
 			panic(err)

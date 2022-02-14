@@ -17,7 +17,6 @@ package main
 import (
 	"fmt"
 	"github.com/cossacklabs/acra/benchmarks/common"
-	"github.com/cossacklabs/acra/benchmarks/config"
 	"github.com/cossacklabs/acra/benchmarks/write"
 	"math/rand"
 	"time"
@@ -37,8 +36,8 @@ func main() {
 	startTime := time.Now()
 	var rowID int
 	var data []byte
-	for i := 0; i < config.RequestCount; i++ {
-		id := rand.Intn(config.RowCount)
+	for i := 0; i < common.RequestCount; i++ {
+		id := rand.Intn(common.RowCount)
 		err := db.QueryRow("SELECT id, data FROM test_raw WHERE id=$1+1;", &id).Scan(&rowID, &data)
 		if err != nil {
 			panic(err)

@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"math/rand"
 
-	"github.com/cossacklabs/acra/benchmarks/config"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 )
@@ -32,7 +31,7 @@ const (
 
 // GenerateData generates random data with MaxDataLength
 func GenerateData() ([]byte, error) {
-	length := rand.Intn(config.MaxDataLength)
+	length := rand.Intn(MaxDataLength)
 	data := make([]byte, length)
 	_, err := data_rand.Read(data)
 	return data, err
@@ -61,7 +60,7 @@ type JSONData struct {
 
 // LoadZones loads zones keys
 func LoadZones() []*ZoneData {
-	zones := make([]*ZoneData, config.ZoneCount)
+	zones := make([]*ZoneData, ZoneCount)
 	dumpedZoneData, err := utils.ReadFile(zoneListPath)
 	if err != nil {
 		panic(err)

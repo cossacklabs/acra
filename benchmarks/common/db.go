@@ -18,12 +18,13 @@ package common
 import (
 	"database/sql"
 	"fmt"
-	"github.com/cossacklabs/acra/benchmarks/config"
+	_ "github.com/jackc/pgx/v4/stdlib"
+	"github.com/sirupsen/logrus"
 	"os"
 )
 
 func connect(connectionString string) *sql.DB {
-	db, err := sql.Open("postgres", connectionString)
+	db, err := sql.Open("pgx", connectionString)
 	if err != nil {
 		panic(err)
 	}
@@ -86,10 +87,10 @@ func DropCreateRaw(db *sql.DB) {
 // RunScripts function execute all sql queries in scripts variable using using db
 func RunScripts(scripts []string, db *sql.DB) {
 	for _, script := range scripts {
-		fmt.Println(script)
+		logrus.Debugln(script)
 		_, err := db.Exec(script)
 		if err != nil {
-			fmt.Printf("Error: on sql - %v\n", script)
+			logrus.Debugf("Error: on sql - %v\n", script)
 			panic(err)
 		}
 	}
@@ -97,9 +98,10 @@ func RunScripts(scripts []string, db *sql.DB) {
 
 // IsExistsData checks is exists table with name <tablename>
 func IsExistsData(tablename string, db *sql.DB) bool {
+	return false
 	var count int
 	db.QueryRow(fmt.Sprintf("SELECT count(*) FROM %s;", tablename)).Scan(&count)
-	if count == config.RowCount {
+	if count == RowCount {
 		fmt.Printf("Data in table '%s' already exists\n", tablename)
 		return true
 	}
