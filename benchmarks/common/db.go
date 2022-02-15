@@ -17,7 +17,6 @@ package common
 
 import (
 	"database/sql"
-	"fmt"
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/sirupsen/logrus"
 	"os"
@@ -94,16 +93,4 @@ func RunScripts(scripts []string, db *sql.DB) {
 			panic(err)
 		}
 	}
-}
-
-// IsExistsData checks is exists table with name <tablename>
-func IsExistsData(tablename string, db *sql.DB) bool {
-	return false
-	var count int
-	db.QueryRow(fmt.Sprintf("SELECT count(*) FROM %s;", tablename)).Scan(&count)
-	if count == RowCount {
-		fmt.Printf("Data in table '%s' already exists\n", tablename)
-		return true
-	}
-	return false
 }

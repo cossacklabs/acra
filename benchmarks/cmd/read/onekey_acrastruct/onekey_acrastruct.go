@@ -25,10 +25,8 @@ import (
 func main() {
 	db := common.Connect()
 	fmt.Println("Generate rows")
-	if !common.IsExistsData("test_without_zone", db) {
-		common.DropCreateWithoutZone(db)
-		write.GenerateAcrastructRowsOneKey(common.GetServerOneKeyPublic(), db)
-	}
+	common.DropCreateWithoutZone(db)
+	write.GenerateAcrastructRowsOneKey(common.GetServerOneKeyPublic(), db)
 	db.Close()
 
 	db = common.ConnectAcra()

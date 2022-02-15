@@ -15,7 +15,7 @@ export READ_TIMEOUT=${READ_TIMEOUT:-25}
 export WRITE_TIMEOUT=${WRITE_TIMEOUT:-25}
 ```
 
-* `OUTPUT_DIR` - here will be saved profiling data
+* `OUTPUT_DIR` - where to store profiling data
 * `BENCHMARK_NAME` - will be used as suffix name for collected profiling files. Useful to use different filenames with 
   different config files for acra-server
 * `READ_TIMEOUT` - amount of time how long collect data from acra-server during `read` command. To collect all data it should 

@@ -25,10 +25,8 @@ import (
 func main() {
 	db := common.Connect()
 	fmt.Println("Generate rows")
-	if !common.IsExistsData("test_raw", db) {
-		common.DropCreateRaw(db)
-		write.GenerateDataRows(db)
-	}
+	common.DropCreateRaw(db)
+	write.GenerateDataRows(db)
 	db.Close()
 
 	db = common.ConnectAcra()

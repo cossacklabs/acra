@@ -26,10 +26,9 @@ func main() {
 	logrus.SetLevel(logrus.InfoLevel)
 	db := common.Connect()
 	logrus.Debugln("Generate rows")
-	if !common.IsExistsData("test_raw", db) {
-		common.DropCreateRaw(db)
-		write.GenerateDataRows(db)
-	}
+	common.DropCreateRaw(db)
+	write.GenerateDataRows(db)
+
 	logrus.Debugln("Start benchmark")
 	startTime := time.Now()
 	for i := 0; i < common.RequestCount; i++ {
