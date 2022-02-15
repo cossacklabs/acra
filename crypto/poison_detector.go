@@ -83,6 +83,20 @@ func (p PoisonRecordKeyStoreWrapper) GetClientIDSymmetricKeys([]byte) ([][]byte,
 	return p.keyStore.GetPoisonSymmetricKeys()
 }
 
+// GetClientIDEncryptionKey implementation of keystore.PrivateKeyStore with for poison records key
+func (p PoisonRecordKeyStoreWrapper) GetClientIDEncryptionKey([]byte) ([]byte, error) {
+	keys, err := p.keyStore.GetPoisonSymmetricKeys()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(keys) > 0 {
+		return keys[len(keys)-1], nil
+	} else {
+		return nil, nil
+	}
+}
+
 // GetServerDecryptionPrivateKeys implementation of keystore.PrivateKeyStore with for poison records keys
 func (p PoisonRecordKeyStoreWrapper) GetServerDecryptionPrivateKeys([]byte) ([]*keys.PrivateKey, error) {
 	return p.keyStore.GetPoisonPrivateKeys()
@@ -91,6 +105,20 @@ func (p PoisonRecordKeyStoreWrapper) GetServerDecryptionPrivateKeys([]byte) ([]*
 // GetZoneIDSymmetricKeys implementation of keystore.PrivateKeyStore with for poison records keys
 func (p PoisonRecordKeyStoreWrapper) GetZoneIDSymmetricKeys(id []byte) ([][]byte, error) {
 	return p.keyStore.GetPoisonSymmetricKeys()
+}
+
+// GetZoneIDEncryptionKey implementation of keystore.PrivateKeyStore with for poison records key
+func (p PoisonRecordKeyStoreWrapper) GetZoneIDEncryptionKey(id []byte) ([]byte, error) {
+	keys, err := p.keyStore.GetPoisonSymmetricKeys()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(keys) > 0 {
+		return keys[len(keys)-1], nil
+	} else {
+		return nil, nil
+	}
 }
 
 // GetZonePrivateKeys implementation of keystore.PrivateKeyStore with for poison records keys

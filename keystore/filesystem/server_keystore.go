@@ -975,16 +975,44 @@ func (store *KeyStore) getSymmetricKeys(id []byte, keyname string) ([][]byte, er
 	return keys, nil
 }
 
-// GetClientIDSymmetricKeys return symmetric key for specified client id
+// GetClientIDSymmetricKeys return symmetric keys for specified client id
 func (store *KeyStore) GetClientIDSymmetricKeys(id []byte) ([][]byte, error) {
 	keyName := getClientIDSymmetricKeyName(id)
 	return store.getSymmetricKeys(id, keyName)
 }
 
-// GetZoneIDSymmetricKeys return symmetric key for specified zone id
+// GetClientIDEncryptionKey return (latest) symmetric key for specified client id
+func (store *KeyStore) GetClientIDEncryptionKey(id []byte) ([]byte, error) {
+	encryptionKeys, err := store.GetClientIDSymmetricKeys(id)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(encryptionKeys) > 0 {
+		return encryptionKeys[len(encryptionKeys)-1], nil
+	} else {
+		return nil, nil
+	}
+}
+
+// GetZoneIDSymmetricKeys return symmetric keys for specified zone id
 func (store *KeyStore) GetZoneIDSymmetricKeys(id []byte) ([][]byte, error) {
 	keyName := getZoneIDSymmetricKeyName(id)
 	return store.getSymmetricKeys(id, keyName)
+}
+
+// GetZoneIDEncryptionKey return (latest) symmetric key for specified zone id
+func (store *KeyStore) GetZoneIDEncryptionKey(id []byte) ([]byte, error) {
+	encryptionKeys, err := store.GetZoneIDSymmetricKeys(id)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(encryptionKeys) > 0 {
+		return encryptionKeys[len(encryptionKeys)-1], nil
+	} else {
+		return nil, nil
+	}
 }
 
 // GetDecryptionTokenSymmetricKeys return symmetric keys which may be used to decrypt encrypted token
