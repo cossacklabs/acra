@@ -90,11 +90,11 @@ func (p PoisonRecordKeyStoreWrapper) GetClientIDEncryptionKey([]byte) ([]byte, e
 		return nil, err
 	}
 
-	if len(encryptionKeys) > 0 {
-		return encryptionKeys[len(encryptionKeys)-1], nil
-	} else {
+	if len(encryptionKeys) == 0 {
 		return nil, nil
 	}
+
+	return encryptionKeys[0], nil
 }
 
 // GetServerDecryptionPrivateKeys implementation of keystore.PrivateKeyStore ith for poison records keys
@@ -114,11 +114,11 @@ func (p PoisonRecordKeyStoreWrapper) GetZoneIDEncryptionKey(id []byte) ([]byte, 
 		return nil, err
 	}
 
-	if len(encryptionKeys) > 0 {
-		return encryptionKeys[len(encryptionKeys)-1], nil
-	} else {
+	if len(encryptionKeys) == 0 {
 		return nil, nil
 	}
+
+	return encryptionKeys[0], nil
 }
 
 // GetZonePrivateKeys implementation of keystore.PrivateKeyStore for poison records keys

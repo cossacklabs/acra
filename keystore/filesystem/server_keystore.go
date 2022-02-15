@@ -988,11 +988,11 @@ func (store *KeyStore) GetClientIDEncryptionKey(id []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	if len(encryptionKeys) > 0 {
-		return encryptionKeys[len(encryptionKeys)-1], nil
-	} else {
+	if len(encryptionKeys) == 0 {
 		return nil, nil
 	}
+
+	return encryptionKeys[0], nil
 }
 
 // GetZoneIDSymmetricKeys return symmetric keys for specified zone id
@@ -1008,11 +1008,11 @@ func (store *KeyStore) GetZoneIDEncryptionKey(id []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	if len(encryptionKeys) > 0 {
-		return encryptionKeys[len(encryptionKeys)-1], nil
-	} else {
+	if len(encryptionKeys) == 0 {
 		return nil, nil
 	}
+
+	return encryptionKeys[0], nil
 }
 
 // GetDecryptionTokenSymmetricKeys return symmetric keys which may be used to decrypt encrypted token

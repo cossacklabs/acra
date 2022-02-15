@@ -43,16 +43,16 @@ func (s *ServerKeyStore) GetClientIDSymmetricKeys(clientID []byte) ([][]byte, er
 
 // GetClientIDEncryptionKey retrieves latest symmetric key used to encrypt data by given client
 func (s *ServerKeyStore) GetClientIDEncryptionKey(clientID []byte) ([]byte, error) {
-	keys, err := s.GetClientIDSymmetricKeys(clientID)
+	encryptionKeys, err := s.GetClientIDSymmetricKeys(clientID)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(keys) > 0 {
-		return keys[len(keys)-1], nil
-	} else {
+	if len(encryptionKeys) == 0 {
 		return nil, nil
 	}
+
+	return encryptionKeys[0], nil
 }
 
 // GetZoneIDSymmetricKeys retrieves all symmetric keys used to decrypt data in given zone.
@@ -74,16 +74,16 @@ func (s *ServerKeyStore) GetZoneIDSymmetricKeys(zoneID []byte) ([][]byte, error)
 
 // GetZoneIDEncryptionKey retrieves latest symmetric key used to encrypt data in given zone
 func (s *ServerKeyStore) GetZoneIDEncryptionKey(zoneID []byte) ([]byte, error) {
-	keys, err := s.GetZoneIDSymmetricKeys(zoneID)
+	encryptionKeys, err := s.GetZoneIDSymmetricKeys(zoneID)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(keys) > 0 {
-		return keys[len(keys)-1], nil
-	} else {
+	if len(encryptionKeys) == 0 {
 		return nil, nil
 	}
+
+	return encryptionKeys[0], nil
 }
 
 //

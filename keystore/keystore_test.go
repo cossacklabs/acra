@@ -114,3 +114,13 @@ func TestGetMasterKeyFromEnvironment(t *testing.T) {
 		}
 	}
 }
+
+func TestGetEncryptionKey(t *testing.T) {
+	// Ensure GetClientIDEncryptionKey returns 0th element of that GetClientIDSymmetricKeys returns
+
+	// TODO
+
+	// Ensure GetZoneIDEncryptionKey returns 0th element of that GetZoneIDSymmetricKeys returns
+
+	// TODO
+}
