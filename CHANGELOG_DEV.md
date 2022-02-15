@@ -1,3 +1,6 @@
+## 0.92.0 - 2022-02-15
+- Extend KeyStore interface to allow fetching single latest symmetric key for encryption purposes
+
 ## 0.92.0 - 2022-02-09
 - Log messages that suggests how to fix problems related to TLS connection issues.
 
