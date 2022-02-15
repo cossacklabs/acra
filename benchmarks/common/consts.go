@@ -22,5 +22,5 @@ const (
 	// ZoneCount num of zones which will be generated and used
 	ZoneCount = 100
 	// MaxDataLength size of test random data that will be generated and inserted to db (before encrypting)
-	MaxDataLength = 1 * 1024 // 100 kb
+	MaxDataLength = 1 * 1024 // 1 kb
 )
