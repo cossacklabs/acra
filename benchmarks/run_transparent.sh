@@ -15,7 +15,7 @@ go build -o write.bin ./benchmarks/cmd/write/raw/raw.go
 echo "run write scripts"
 # direct to database
 export PG_CONNECTION_STRING=${DIRECT_CONNECTION_STRING}
-script="./write.bin 2> >(tee -a ${BENCHMARK_NAME}.direct.txt)"
+script="./write.bin 2>&1 | tee -a ${BENCHMARK_NAME}.direct.txt"
 echo "run direct write '$script'"
 eval $script
 
@@ -24,7 +24,7 @@ curl --silent -o "${OUTPUT_DIR}/${BENCHMARK_NAME}.write.pb.gz" "http://localhost
 pid=$!
 
 export PG_CONNECTION_STRING=${ACRA_CONNECTION_STRING}
-script="./write.bin 2> >(tee -a ${BENCHMARK_NAME}.acra.txt)"
+script="./write.bin 2>&1 | tee -a ${BENCHMARK_NAME}.acra.txt"
 echo "run acra write '$script'"
 eval $script
 echo "wait $pid"
@@ -33,7 +33,7 @@ wait ${pid}
 
 echo "run read scripts without zones"
 export PG_CONNECTION_STRING=${DIRECT_CONNECTION_STRING}
-script="./read.bin 2> >(tee -a ${BENCHMARK_NAME}.direct.txt)"
+script="./read.bin 2>&1 | tee -a ${BENCHMARK_NAME}.direct.txt"
 echo "run direct read '$script'"
 eval $script
 
@@ -41,7 +41,7 @@ curl --silent -o "${OUTPUT_DIR}/${BENCHMARK_NAME}.read.pb.gz" "http://localhost:
 pid="$!"
 
 export PG_CONNECTION_STRING=${ACRA_CONNECTION_STRING}
-script="./read.bin 2> >(tee -a ${BENCHMARK_NAME}.acra.txt)"
+script="./read.bin 2>&1 | tee -a ${BENCHMARK_NAME}.acra.txt"
 echo "run acra read '$script'"
 eval $script
 
