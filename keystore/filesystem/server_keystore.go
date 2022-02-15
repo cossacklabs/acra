@@ -981,7 +981,7 @@ func (store *KeyStore) GetClientIDSymmetricKeys(id []byte) ([][]byte, error) {
 	return store.getSymmetricKeys(id, keyName)
 }
 
-// GetClientIDEncryptionKey return (latest) symmetric key for specified client id
+// GetClientIDEncryptionKey return latest symmetric key for encryption by specified client id
 func (store *KeyStore) GetClientIDEncryptionKey(id []byte) ([]byte, error) {
 	encryptionKeys, err := store.GetClientIDSymmetricKeys(id)
 	if err != nil {
@@ -1001,7 +1001,7 @@ func (store *KeyStore) GetZoneIDSymmetricKeys(id []byte) ([][]byte, error) {
 	return store.getSymmetricKeys(id, keyName)
 }
 
-// GetZoneIDEncryptionKey return (latest) symmetric key for specified zone id
+// GetZoneIDEncryptionKey return latest symmetric key for encryption in specified zone id
 func (store *KeyStore) GetZoneIDEncryptionKey(id []byte) ([]byte, error) {
 	encryptionKeys, err := store.GetZoneIDSymmetricKeys(id)
 	if err != nil {
