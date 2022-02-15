@@ -1,0 +1,10 @@
+defaults:
+  crypto_envelope: acrablock
+
+schemas:
+  - table: test_raw
+    columns:
+      - id
+      - data
+    encrypted:
+      - column: data

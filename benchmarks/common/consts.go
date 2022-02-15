@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package common
 
 const (
 	// RowCount num of rows that will be generated in each write benchmark
-	RowCount = 10000
+	RowCount = 6000
 	// RequestCount num of requests that will be done in each read benchmark
-	RequestCount = 10000
+	RequestCount = 80000
 	// ZoneCount num of zones which will be generated and used
 	ZoneCount = 100
 	// MaxDataLength size of test random data that will be generated and inserted to db (before encrypting)
-	MaxDataLength = 100 * 1024 // 100 kb
+	MaxDataLength = 1 * 1024 // 1 kb
 )
