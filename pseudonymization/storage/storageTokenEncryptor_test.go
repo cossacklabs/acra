@@ -29,8 +29,16 @@ func (t tokenKeyStore) GetClientIDSymmetricKeys(id []byte) ([][]byte, error) {
 	return [][]byte{[]byte(`client key`)}, nil
 }
 
+func (t tokenKeyStore) GetClientIDEncryptionKey(id []byte) ([]byte, error) {
+	return []byte(`client key`), nil
+}
+
 func (t tokenKeyStore) GetZoneIDSymmetricKeys(id []byte) ([][]byte, error) {
 	return [][]byte{[]byte(`zone key`)}, nil
+}
+
+func (t tokenKeyStore) GetZoneIDEncryptionKey(id []byte) ([]byte, error) {
+	return []byte(`zone key`), nil
 }
 
 func TestNewSCellEncryptor(t *testing.T) {

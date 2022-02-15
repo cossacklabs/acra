@@ -71,7 +71,15 @@ func (keystore *testKeystore) GetClientIDSymmetricKeys(id []byte) ([][]byte, err
 	panic("implement me")
 }
 
+func (keystore *testKeystore) GetClientIDEncryptionKey(id []byte) ([]byte, error) {
+	panic("implement me")
+}
+
 func (keystore *testKeystore) GetZoneIDSymmetricKeys(id []byte) ([][]byte, error) {
+	panic("implement me")
+}
+
+func (keystore *testKeystore) GetZoneIDEncryptionKey(id []byte) ([]byte, error) {
 	panic("implement me")
 }
 

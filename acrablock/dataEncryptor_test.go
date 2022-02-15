@@ -14,7 +14,7 @@ import (
 )
 
 func TestSuccessDataEncryptionWithClientID(t *testing.T) {
-	keyStore := mocks.KeyStore{}
+	keyStore := mocks.ServerKeyStore{}
 	dataEncryptor, err := NewDataEncryptor(false, &keyStore)
 	if err != nil {
 		t.Fatal(err)
@@ -61,7 +61,7 @@ func TestSuccessAcraStructReEncryptionWithClientID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	keyStore := mocks.KeyStore{}
+	keyStore := mocks.ServerKeyStore{}
 	dataEncryptor, err := NewDataEncryptor(false, &keyStore)
 	if err != nil {
 		t.Fatal(err)
@@ -110,7 +110,7 @@ func TestSuccessIgnoringAcraStructReEncryptionWithClientID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	keyStore := mocks.KeyStore{}
+	keyStore := mocks.ServerKeyStore{}
 	dataEncryptor, err := NewDataEncryptor(false, &keyStore)
 	if err != nil {
 		t.Fatal(err)
@@ -159,7 +159,7 @@ func TestFailedCorruptedAcraStructReEncryptionWithClientID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	keyStore := mocks.KeyStore{}
+	keyStore := mocks.ServerKeyStore{}
 	dataEncryptor, err := NewDataEncryptor(false, &keyStore)
 	if err != nil {
 		t.Fatal(err)
@@ -184,7 +184,7 @@ func TestFailedCorruptedAcraStructReEncryptionWithClientID(t *testing.T) {
 }
 
 func TestSuccessDataEncryptionWithZoneID(t *testing.T) {
-	keyStore := mocks.KeyStore{}
+	keyStore := mocks.ServerKeyStore{}
 	// doesn't matter zoneMode for encryption
 	dataEncryptor, err := NewDataEncryptor(false, &keyStore)
 	if err != nil {
@@ -235,7 +235,7 @@ func TestSuccessAcraStructReEncryptionWithZoneID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	keyStore := mocks.KeyStore{}
+	keyStore := mocks.ServerKeyStore{}
 	// doesn't matter zoneMode for encryption
 	dataEncryptor, err := NewDataEncryptor(true, &keyStore)
 	if err != nil {
@@ -286,7 +286,7 @@ func TestSuccessIgnoringAcraStructReEncryptionWithZoneID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	keyStore := mocks.KeyStore{}
+	keyStore := mocks.ServerKeyStore{}
 	// doesn't matter zoneMode for encryption
 	dataEncryptor, err := NewDataEncryptor(true, &keyStore)
 	if err != nil {
@@ -337,7 +337,7 @@ func TestFailedAcraStructDecryptionWithoutZoneMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	keyStore := mocks.KeyStore{}
+	keyStore := mocks.ServerKeyStore{}
 	// doesn't matter zoneMode for encryption
 	dataEncryptor, err := NewDataEncryptor(false, &keyStore)
 	if err != nil {
@@ -369,7 +369,7 @@ func TestSkipDataEncryptionForAcraBlock(t *testing.T) {
 	symKey := [][]byte{[]byte(`some key`)}
 	testData := []byte(`some data`)
 
-	keyStore := mocks.KeyStore{}
+	keyStore := mocks.ServerKeyStore{}
 	// doesn't matter zoneMode for encryption
 	dataEncryptor, err := NewDataEncryptor(false, &keyStore)
 	if err != nil {
@@ -427,7 +427,7 @@ func TestSkipDataEncryptionWithoutConfiguredSetting(t *testing.T) {
 }
 
 func TestFailedDataEncryptionWithErrorFromKeystore(t *testing.T) {
-	keyStore := mocks.KeyStore{}
+	keyStore := mocks.ServerKeyStore{}
 	// doesn't matter zoneMode for encryption
 	dataEncryptor, err := NewDataEncryptor(false, &keyStore)
 	if err != nil {
@@ -460,7 +460,7 @@ func TestFailedDataEncryptionWithErrorFromKeystore(t *testing.T) {
 }
 
 func TestFailedDataEncryptionOnEmptyKeys(t *testing.T) {
-	keyStore := mocks.KeyStore{}
+	keyStore := mocks.ServerKeyStore{}
 	// doesn't matter zoneMode for encryption
 	dataEncryptor, err := NewDataEncryptor(false, &keyStore)
 	if err != nil {
