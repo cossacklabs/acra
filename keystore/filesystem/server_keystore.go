@@ -28,6 +28,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/cossacklabs/acra/logging"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -36,6 +37,7 @@ import (
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	keystore2 "github.com/cossacklabs/acra/keystore"
+	fs "github.com/cossacklabs/acra/keystore/filesystem/internal"
 	"github.com/cossacklabs/acra/keystore/lru"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
@@ -251,11 +253,12 @@ func (store *KeyStore) SaveKeyPairWithFilename(keypair *keys.Keypair, filename s
 	if err != nil {
 		return err
 	}
-	err = store.WritePublicKey(store.GetPublicKeyFilePath(fmt.Sprintf("%s.pub", filename)), keypair.Public.Value)
+	err = store.WritePublicKey(store.GetPublicKeyFilePath(filename+".pub"), keypair.Public.Value)
 	if err != nil {
 		return err
 	}
 	store.cache.Add(filename, encryptedPrivate)
+	store.cache.Add(filename+".pub", encryptedPrivate)
 	return nil
 }
 
@@ -387,12 +390,55 @@ func (store *KeyStore) GetPublicKeyFilePath(filename string) string {
 	return fmt.Sprintf("%s%s%s", store.publicKeyDirectory, string(os.PathSeparator), filename)
 }
 
+// use key started with "." (dot) because it's invalid character for clientID that generally stored in cache and
+// it will not intersect with other keys
+const cacheKeySuffix = ".historical."
+
+var errCacheMissHistoricalFilenames = errors.New("cache doesn't contain historical filenames")
+
+func (store *KeyStore) getCachedHistoricalPrivateKeyFilenames(id string) ([]string, error) {
+	key := cacheKeySuffix + id
+	value, ok := store.cache.Get(key)
+	if !ok {
+		return nil, errCacheMissHistoricalFilenames
+	}
+	paths := &fs.HistoricalPaths{}
+	_, err := paths.UnmarshalMsg(value)
+	if err != nil {
+		return nil, err
+	}
+	return paths.Paths, nil
+}
+
+func (store *KeyStore) cacheHistoricalPrivateKeyFilenames(id string, paths []string) error {
+	values := &fs.HistoricalPaths{Paths: paths}
+	serialized, err := values.MarshalMsg(nil)
+	if err != nil {
+		return err
+	}
+	key := cacheKeySuffix + id
+	store.cache.Add(key, serialized)
+	return nil
+}
+
 // GetHistoricalPrivateKeyFilenames return filenames for current and rotated keys
 func (store *KeyStore) GetHistoricalPrivateKeyFilenames(filename string) ([]string, error) {
 	// getHistoricalFilePaths() expects a path, not a name, but we must return names.
 	// Add private key directory path and then remove it to avoid directory switching.
 	fullPath := filepath.Join(store.privateKeyDirectory, filename)
-	paths, err := getHistoricalFilePaths(fullPath, store.fs)
+	paths, err := store.getCachedHistoricalPrivateKeyFilenames(fullPath)
+	if err == nil {
+		return paths, nil
+	}
+	// check that error is not expected errCacheMissHistoricalFilenames
+	if err != nil && err != errCacheMissHistoricalFilenames {
+		// log but don't return error to continue processing. less performance, more stability
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCacheIssues).
+			WithError(err).
+			Errorln("Can't get cache value of historical private key filenames")
+	}
+
+	paths, err = getHistoricalFilePaths(fullPath, store.fs)
 	if err != nil {
 		return nil, err
 	}
@@ -402,6 +448,12 @@ func (store *KeyStore) GetHistoricalPrivateKeyFilenames(filename string) ([]stri
 			return nil, err
 		}
 		paths[i] = p
+	}
+	if err := store.cacheHistoricalPrivateKeyFilenames(fullPath, paths); err != nil {
+		// log but don't return error to continue processing. less performance, more stability
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCacheIssues).
+			WithError(err).
+			Errorln("Can't cache historical private key filenames")
 	}
 	return paths, nil
 }
@@ -661,29 +713,10 @@ func (store *KeyStore) Reset() {
 // encrypting private key or reads existing keypair from fs.
 // Returns keypair or error if generation/decryption failed.
 func (store *KeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
-	privatePath := store.GetPrivateKeyFilePath(PoisonKeyFilename)
-	publicPath := store.GetPublicKeyFilePath(poisonKeyFilenamePublic)
-	privateExists, err := store.fs.Exists(privatePath)
-	if err != nil {
-		return nil, err
-	}
-	publicExists, err := store.fs.Exists(publicPath)
-	if err != nil {
-		return nil, err
-	}
-	if privateExists && publicExists {
-		private, err := store.loadPrivateKey(privatePath)
-		if err != nil {
-			return nil, err
-		}
-		if private.Value, err = store.encryptor.Decrypt(private.Value, []byte(PoisonKeyFilename)); err != nil {
-			return nil, err
-		}
-		public, err := store.loadPublicKey(publicPath)
-		if err != nil {
-			return nil, err
-		}
-		return &keys.Keypair{Public: public, Private: private}, nil
+	privateKey, privateOk := store.cache.Get(PoisonKeyFilename)
+	publicKey, publicOk := store.cache.Get(poisonKeyFilenamePublic)
+	if privateOk && publicOk {
+		return &keys.Keypair{Public: &keys.PublicKey{Value: publicKey}, Private: &keys.PrivateKey{Value: privateKey}}, nil
 	}
 	log.Debug("Generate poison key pair")
 	return store.generateKeyPair(PoisonKeyFilename, []byte(PoisonKeyFilename))
@@ -693,25 +726,26 @@ func (store *KeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 // If a poison record does not exist, it is created and its sole private key is returned.
 // Returns a list of private poison keys (possibly empty), or an error if decryption fails.
 func (store *KeyStore) GetPoisonPrivateKeys() ([]*keys.PrivateKey, error) {
-	poisonKeyExists, err := store.fs.Exists(store.GetPrivateKeyFilePath(PoisonKeyFilename))
-	if err != nil {
-		return nil, err
-	}
-	// If there is no poison record keypair, generated one and returns its private key.
-	if !poisonKeyExists {
-		log.Debug("Generate poison key pair")
-		keypair, err := store.generateKeyPair(PoisonKeyFilename, []byte(PoisonKeyFilename))
-		if err != nil {
-			return nil, err
-		}
-		return []*keys.PrivateKey{keypair.Private}, nil
-	}
 	// If some poison keypairs exist, pull their private keys.
 	filenames, err := store.GetHistoricalPrivateKeyFilenames(PoisonKeyFilename)
 	if err != nil {
 		return nil, err
 	}
-	return store.getPrivateKeysByFilenames([]byte(PoisonKeyFilename), filenames)
+	poisonKeys, err := store.getPrivateKeysByFilenames([]byte(PoisonKeyFilename), filenames)
+	if err != nil {
+		if IsKeyReadError(err) {
+			// If there is no poison record keypair, generated one and returns its private key.
+			log.Debug("Generate poison key pair")
+			keypair, err := store.generateKeyPair(PoisonKeyFilename, []byte(PoisonKeyFilename))
+			if err != nil {
+				return nil, err
+			}
+			return []*keys.PrivateKey{keypair.Private}, nil
+
+		}
+		return nil, err
+	}
+	return poisonKeys, nil
 }
 
 // GetPoisonSymmetricKeys returns all symmetric keys used to decrypt poison records with AcraBlock, from newest to oldest.
@@ -953,7 +987,7 @@ func (store *KeyStore) GeneratePoisonRecordSymmetricKey() error {
 }
 
 func (store *KeyStore) getSymmetricKeys(id []byte, keyname string) ([][]byte, error) {
-	keys := make([][]byte, 0, 1)
+	keys := make([][]byte, 0, 4)
 	historicalKeys, err := store.GetHistoricalPrivateKeyFilenames(keyname)
 	if err != nil {
 		log.Debug("Can't get historical private key filenames")
