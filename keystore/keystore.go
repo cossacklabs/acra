@@ -303,6 +303,7 @@ type ServerKeyStore interface {
 	AuditLogKeyStore
 	SymmetricEncryptionKeyStoreGenerator
 
+	CacheOnStart() error
 	ListKeys() ([]KeyDescription, error)
 	Reset()
 }

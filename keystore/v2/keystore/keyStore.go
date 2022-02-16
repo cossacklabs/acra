@@ -84,6 +84,10 @@ func (s *ServerKeyStore) ListKeys() ([]keystore.KeyDescription, error) {
 	return DescribeKeyRings(keyRings, s)
 }
 
+func (s *ServerKeyStore) CacheOnStart() error {
+	panic("caching is not implemented for keystore v2")
+}
+
 // DescribeKeyRings describes multiple key rings by their purpose paths.
 func DescribeKeyRings(keyRings []string, keyStore api.KeyStore) ([]keystore.KeyDescription, error) {
 	keys := make([]keystore.KeyDescription, len(keyRings))

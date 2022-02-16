@@ -75,7 +75,11 @@ const (
 	PurposeStorageZoneSymmetricKey   = "zone_sym_key"
 	PurposePoisonRecordKeyPair       = "poison_key"
 	PurposeStorageClientKeyPair      = "storage"
+	PurposeStorageClientPublicKey    = "public_storage"
+	PurposeStorageClientPrivateKey   = "private_storage"
 	PurposeStorageZoneKeyPair        = "zone"
+	PurposeStorageZonePrivateKey     = "private_zone"
+	PurposeStorageZonePublicKey      = "public_zone"
 )
 
 // ExportPublicKey loads a public key for export.

@@ -11,6 +11,9 @@ acrastruct_wholecell_enable: false
 # Enable audit log functionality
 audit_log_enable: false
 
+# Load all keys to cache on start
+cache_keystore_on_start: false
+
 # Static ClientID used by AcraServer for data protection operations
 client_id: 
 
