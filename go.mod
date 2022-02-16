@@ -12,7 +12,8 @@ require (
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e
 	github.com/golang/protobuf v1.5.2
 	github.com/hashicorp/vault/api v1.3.0
-	github.com/lib/pq v1.8.0
+	github.com/jackc/pgx/v4 v4.14.1
+	github.com/lib/pq v1.10.4
 	github.com/prometheus/client_golang v1.7.1
 	github.com/prometheus/common v0.11.1 // indirect
 	github.com/sirupsen/logrus v1.6.0

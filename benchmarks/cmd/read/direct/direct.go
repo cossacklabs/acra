@@ -15,34 +15,40 @@
 package main
 
 import (
-	"fmt"
 	"github.com/cossacklabs/acra/benchmarks/common"
-	"github.com/cossacklabs/acra/benchmarks/config"
 	"github.com/cossacklabs/acra/benchmarks/write"
+	"github.com/sirupsen/logrus"
 	"math/rand"
 	"time"
 )
 
 func main() {
+	logrus.SetLevel(logrus.InfoLevel)
 	db := common.Connect()
-	fmt.Println("Generate rows")
-	if !common.IsExistsData("test_raw", db) {
-		common.DropCreateRaw(db)
-		write.GenerateDataRows(db)
-	}
-	fmt.Println("Start benchmark")
+	logrus.Debugln("Generate rows")
+	common.DropCreateRaw(db)
+	write.GenerateDataRows(db)
+
+	logrus.Debugln("Start benchmark")
 	startTime := time.Now()
-	for i := 0; i < config.RequestCount; i++ {
-		id := rand.Intn(config.RowCount)
+	for i := 0; i < common.RequestCount; i++ {
+		id := rand.Intn(common.RowCount)
 		rows, err := db.Query("SELECT id, data FROM test_raw WHERE id=$1;", &id)
 		if err != nil {
 			panic(err)
+		}
+		var data []byte
+		for rows.Next() {
+			err := rows.Scan(&id, &data)
+			if err != nil {
+				panic(err)
+			}
 		}
 		rows.Close()
 	}
 	endTime := time.Now()
 
 	diff := endTime.Sub(startTime)
-	fmt.Printf("Took %v sec\n", diff.Seconds())
+	logrus.Infof("Took %v sec\n", diff.Seconds())
 	db.Close()
 }

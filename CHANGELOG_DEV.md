@@ -3,6 +3,10 @@
 - Changed the default flag value for `keystore_cache_size` flag. Default is 1000;
 - Added server halt for keystore `v2` and `keystore_cache_size` not -1;
 
+## 0.92.0 - 2022-02-14
+- Add new script `run_transparent.sh` to `benchmark` folder that collects data from debug server for `pprof` tool and
+  works with docker-compose file
+
 ## 0.92.0 - 2022-02-09
 - Log messages that suggests how to fix problems related to TLS connection issues.
 
