@@ -258,7 +258,7 @@ func (store *KeyStore) SaveKeyPairWithFilename(keypair *keys.Keypair, filename s
 		return err
 	}
 	store.cache.Add(filename, encryptedPrivate)
-	store.cache.Add(filename+".pub", encryptedPrivate)
+	store.cache.Add(filename+".pub", keypair.Public.Value)
 	return nil
 }
 
