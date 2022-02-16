@@ -26,7 +26,6 @@ import re
 import shutil
 import signal
 import socket
-
 import ssl
 import stat
 import subprocess
@@ -34,6 +33,7 @@ import tempfile
 import traceback
 import unittest
 from base64 import b64decode, b64encode
+from distutils.dir_util import copy_tree
 from tempfile import NamedTemporaryFile
 from urllib.parse import urlparse
 from urllib.request import urlopen
@@ -45,8 +45,8 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import pymysql
-import requests
 import redis
+import requests
 import semver
 import sqlalchemy as sa
 import sys
@@ -59,7 +59,6 @@ from sqlalchemy.dialects import mysql as mysql_dialect
 from sqlalchemy.dialects import postgresql as postgresql_dialect
 from sqlalchemy.dialects.postgresql import BYTEA
 from sqlalchemy.exc import DatabaseError
-from distutils.dir_util import copy_tree
 
 import api_pb2
 import api_pb2_grpc
@@ -2096,6 +2095,54 @@ class ZoneHexFormatTest(BaseTestCase):
         self.assertEqual(row['empty'], b'')
 
 
+class TestEnableCachedOnStartupTest(HexFormatTest):
+
+    def setUp(self):
+        self.cached_dir = tempfile.TemporaryDirectory()
+        # fill temp dir with all keys
+        copy_tree(KEYS_FOLDER.name, self.cached_dir.name)
+        super().setUp()
+
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        acra_kwargs['cache_keystore_on_start'] = 'true'
+        acra_kwargs['keys_dir'] = self.cached_dir.name
+        return super(TestEnableCachedOnStartupTest, self).fork_acra(
+            popen_kwargs, **acra_kwargs)
+
+    def testReadAcrastructInAcrastruct(self):
+        self.cached_dir.cleanup()
+        super().testReadAcrastructInAcrastruct()
+
+    def testClientIDRead(self):
+        self.cached_dir.cleanup()
+        super().testReadAcrastructInAcrastruct()
+
+
+class TestDisableCachedOnStartupTest(HexFormatTest):
+
+    def setUp(self):
+        self.non_cached_dir = tempfile.TemporaryDirectory()
+        # fill temp dir with all keys
+        copy_tree(KEYS_FOLDER.name, self.non_cached_dir.name)
+        super().setUp()
+
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        # cache_keystore_on_start is false by default in super().fork_acra()
+        acra_kwargs['keys_dir'] = self.non_cached_dir.name
+        return super(TestDisableCachedOnStartupTest, self).fork_acra(
+            popen_kwargs, **acra_kwargs)
+
+    def testReadAcrastructInAcrastruct(self):
+        self.non_cached_dir.cleanup()
+        with self.assertRaises(Exception):
+            super().testReadAcrastructInAcrastruct()
+
+    def testClientIDRead(self):
+        self.non_cached_dir.cleanup()
+        with self.assertRaises(Exception):
+            super().testReadAcrastructInAcrastruct()
+
+
 class EscapeFormatTest(HexFormatTest):
     ACRA_BYTEA = 'pgsql_escape_bytea'
     DB_BYTEA = 'escape'
@@ -2341,22 +2388,6 @@ class BasePoisonRecordTest(AcraCatchLogsMixin, AcraTranslatorMixin, BaseTestCase
             'tls_identifier_extractor_type': self.get_identifier_extractor_type(),
             'acratranslator_client_id_from_connection_enable': 'true',
         }
-
-
-class KeystoreCacheOnStartMixin:
-    def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
-        temp_dir = tempfile.TemporaryDirectory()
-        copy_tree(KEYS_FOLDER.name, temp_dir.name)
-
-        acra_kwargs.update({
-            'cache_keystore_on_start': 'true',
-            'keys_dir': temp_dir.name,
-        })
-
-        process = super(KeystoreCacheOnStartMixin, self).fork_acra(
-            popen_kwargs, **acra_kwargs)
-        temp_dir.cleanup()
-        return process
 
 
 class TestPoisonRecordShutdown(BasePoisonRecordTest):
@@ -2691,11 +2722,6 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
 class TestShutdownPoisonRecordWithZoneAcraBlock(TestShutdownPoisonRecordWithZone):
     def get_poison_record_data(self):
         return get_poison_record_with_acrablock()
-
-
-class TestShutdownPoisonRecordWithZoneAcraBlockWithCachedKeystore(KeystoreCacheOnStartMixin, TestShutdownPoisonRecordWithZoneAcraBlock):
-    def testShutdown3(self):
-        pass
 
 
 class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordOffStatus):
@@ -5311,10 +5337,6 @@ class TestTransparentEncryptionWithNoEncryptionKey(TransparentEncryptionNoKeyMix
     pass
 
 
-class TestTransparentEncryptionWithCachedKeystore(KeystoreCacheOnStartMixin, TestTransparentEncryption):
-    pass
-
-
 class TestTransparentEncryptionWithZone(TestTransparentEncryption):
     ZONE = True
 
@@ -5355,10 +5377,6 @@ class TestTransparentEncryptionWithZone(TestTransparentEncryption):
 
 
 class TestTransparentEncryptionWithZoneWithNoEncryptionKey(TransparentEncryptionNoKeyMixin, TestTransparentEncryptionWithZone):
-    pass
-
-
-class TestTransparentEncryptionWithZoneWithCachedKeystore(KeystoreCacheOnStartMixin, TestTransparentEncryptionWithZone):
     pass
 
 
@@ -7700,10 +7718,6 @@ class TestMaskingAcraBlockWithoutZone(BaseAcraBlockMasking, TestMaskingWithoutZo
     pass
 
 
-class TestMaskingAcraBlockWithoutZoneWithCachedKeystore(KeystoreCacheOnStartMixin, TestMaskingAcraBlockWithoutZone):
-    pass
-
-
 class TestMaskingAcraBlockWithoutZoneBinaryMySQL(BaseAcraBlockMasking, BaseMaskingBinaryMySQLMixin, TestMaskingWithoutZone):
     pass
 
@@ -7712,19 +7726,11 @@ class TestMaskingAcraBlockWithoutZoneBinaryPostgreSQL(BaseAcraBlockMasking, Base
     pass
 
 
-class TestMaskingAcraBlockWithoutZoneBinaryPostgreSQLWithCachedKeystore(KeystoreCacheOnStartMixin, TestMaskingAcraBlockWithoutZoneBinaryPostgreSQL):
-    pass
-
-
 class TestMaskingAcraBlockWithoutZoneWithDefaults(BaseAcraBlockMasking, TestMaskingWithoutZone):
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_masking_acrablock_with_defaults_config.yaml')
 
 
 class TestMaskingAcraBlockWithZonePerValue(BaseAcraBlockMasking, TestMaskingWithZonePerValue):
-    pass
-
-
-class TestMaskingAcraBlockWithZonePerValueWithCachedKeystore(KeystoreCacheOnStartMixin, TestMaskingAcraBlockWithZonePerValue):
     pass
 
 

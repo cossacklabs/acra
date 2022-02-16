@@ -84,6 +84,7 @@ func (s *ServerKeyStore) ListKeys() ([]keystore.KeyDescription, error) {
 	return DescribeKeyRings(keyRings, s)
 }
 
+// CacheOnStart v2 keystore doesnt support keys caching
 func (s *ServerKeyStore) CacheOnStart() error {
 	panic("caching is not implemented for keystore v2")
 }
