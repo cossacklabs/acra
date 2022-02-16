@@ -976,14 +976,7 @@ func (store *KeyStore) getSymmetricKeys(id []byte, keyname string) ([][]byte, er
 }
 
 func (store *KeyStore) getLatestSymmetricKey(id []byte, keyname string) ([]byte, error) {
-	historicalKeys, err := store.GetHistoricalPrivateKeyFilenames(keyname)
-	if err != nil {
-		log.Debug("Can't get historical private key filenames")
-		return nil, err
-	}
-
-	path := historicalKeys[0]
-	key, err := store.readEncryptedKey(id, path)
+	key, err := store.readEncryptedKey(id, keyname)
 	if err != nil {
 		return nil, err
 	}
