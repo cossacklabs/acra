@@ -1,5 +1,9 @@
-## 0.92.0 - 2022-02-15
+## 0.92.0 - 2022-02-16
 - Extend KeyStore interface to allow fetching single latest symmetric key for encryption purposes
+
+## 0.92.0 - 2022-02-14
+- Add new script `run_transparent.sh` to `benchmark` folder that collects data from debug server for `pprof` tool and 
+  works with docker-compose file
 
 ## 0.92.0 - 2022-02-09
 - Log messages that suggests how to fix problems related to TLS connection issues.

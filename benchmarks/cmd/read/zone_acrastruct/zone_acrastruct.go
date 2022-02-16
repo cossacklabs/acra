@@ -17,7 +17,6 @@ package main
 import (
 	"fmt"
 	"github.com/cossacklabs/acra/benchmarks/common"
-	"github.com/cossacklabs/acra/benchmarks/config"
 	"github.com/cossacklabs/acra/benchmarks/write"
 	"math/rand"
 	"time"
@@ -26,10 +25,8 @@ import (
 func main() {
 	db := common.Connect()
 	fmt.Println("Generate rows")
-	if !common.IsExistsData("test_with_zone", db) {
-		common.DropCreateWithZone(db)
-		write.GenerateAcrastructWithZone(db)
-	}
+	common.DropCreateWithZone(db)
+	write.GenerateAcrastructWithZone(db)
 	db.Close()
 
 	db = common.ConnectAcra()
@@ -38,8 +35,8 @@ func main() {
 	startTime := time.Now()
 	var rowID int
 	var zone, data []byte
-	for i := 0; i < config.RequestCount; i++ {
-		id := rand.Intn(config.RowCount)
+	for i := 0; i < common.RequestCount; i++ {
+		id := rand.Intn(common.RowCount)
 		err := db.QueryRow("SELECT id, zone, data FROM test_with_zone WHERE id=$1+1;", &id).Scan(&rowID, &zone, &data)
 		if err != nil {
 			panic(err)
