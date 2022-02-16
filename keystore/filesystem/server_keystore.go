@@ -797,7 +797,7 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 		return &keystore.KeyDescription{
 			ID:       fileInfo.Name(),
 			Purpose:  PurposeSearchHMAC,
-			ClientID: []byte(strings.Join(components[:len(components)-1],"_")),
+			ClientID: []byte(strings.Join(components[:len(components)-1], "_")),
 		}, nil
 	}
 
@@ -805,7 +805,7 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 		return &keystore.KeyDescription{
 			ID:       fileInfo.Name(),
 			Purpose:  PurposeStorageClientPrivateKey,
-			ClientID: []byte(strings.Join(components[:len(components)-1],"_")),
+			ClientID: []byte(strings.Join(components[:len(components)-1], "_")),
 		}, nil
 	}
 
@@ -813,7 +813,7 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 		return &keystore.KeyDescription{
 			ID:       fileInfo.Name(),
 			Purpose:  PurposeStorageClientPublicKey,
-			ClientID: []byte(strings.Join(components[:len(components)-1],"_")),
+			ClientID: []byte(strings.Join(components[:len(components)-1], "_")),
 		}, nil
 	}
 
@@ -821,7 +821,7 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 		return &keystore.KeyDescription{
 			ID:      fileInfo.Name(),
 			Purpose: PurposeStorageZonePrivateKey,
-			ZoneID: []byte(strings.Join(components[:len(components)-1],"_")),
+			ZoneID:  []byte(strings.Join(components[:len(components)-1], "_")),
 		}, nil
 	}
 
@@ -829,7 +829,7 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 		return &keystore.KeyDescription{
 			ID:      fileInfo.Name(),
 			Purpose: PurposeStorageZonePublicKey,
-			ZoneID: []byte(strings.Join(components[:len(components)-1],"_")),
+			ZoneID:  []byte(strings.Join(components[:len(components)-1], "_")),
 		}, nil
 	}
 
@@ -837,7 +837,7 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 		return &keystore.KeyDescription{
 			ID:       fileInfo.Name(),
 			Purpose:  PurposeStorageClientSymmetricKey,
-			ClientID: []byte(strings.Join(components[:len(components)-2],"_")),
+			ClientID: []byte(strings.Join(components[:len(components)-2], "_")),
 		}, nil
 	}
 
@@ -845,7 +845,7 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 		return &keystore.KeyDescription{
 			ID:      fileInfo.Name(),
 			Purpose: PurposeStorageZoneSymmetricKey,
-			ZoneID: []byte(strings.Join(components[:len(components)-2],"_")),
+			ZoneID:  []byte(strings.Join(components[:len(components)-2], "_")),
 		}, nil
 	}
 
@@ -853,7 +853,7 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 		return &keystore.KeyDescription{
 			ID:       fileInfo.Name(),
 			Purpose:  PurposeAuditLog,
-			ClientID: []byte(strings.Join(components[:len(components)-2],"_")),
+			ClientID: []byte(strings.Join(components[:len(components)-2], "_")),
 		}, nil
 	}
 
