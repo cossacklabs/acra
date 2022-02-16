@@ -975,6 +975,22 @@ func (store *KeyStore) getSymmetricKeys(id []byte, keyname string) ([][]byte, er
 	return keys, nil
 }
 
+func (store *KeyStore) getLatestSymmetricKey(id []byte, keyname string) ([]byte, error) {
+	historicalKeys, err := store.GetHistoricalPrivateKeyFilenames(keyname)
+	if err != nil {
+		log.Debug("Can't get historical private key filenames")
+		return nil, err
+	}
+
+	path := historicalKeys[0]
+	key, err := store.readEncryptedKey(id, path)
+	if err != nil {
+		return nil, err
+	}
+
+	return key, nil
+}
+
 // GetClientIDSymmetricKeys return symmetric keys for specified client id
 func (store *KeyStore) GetClientIDSymmetricKeys(id []byte) ([][]byte, error) {
 	keyName := getClientIDSymmetricKeyName(id)
@@ -983,16 +999,8 @@ func (store *KeyStore) GetClientIDSymmetricKeys(id []byte) ([][]byte, error) {
 
 // GetClientIDEncryptionKey return latest symmetric key for encryption by specified client id
 func (store *KeyStore) GetClientIDEncryptionKey(id []byte) ([]byte, error) {
-	encryptionKeys, err := store.GetClientIDSymmetricKeys(id)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(encryptionKeys) == 0 {
-		return nil, nil
-	}
-
-	return encryptionKeys[0], nil
+	keyName := getClientIDSymmetricKeyName(id)
+	return store.getLatestSymmetricKey(id, keyName)
 }
 
 // GetZoneIDSymmetricKeys return symmetric keys for specified zone id
@@ -1003,16 +1011,8 @@ func (store *KeyStore) GetZoneIDSymmetricKeys(id []byte) ([][]byte, error) {
 
 // GetZoneIDEncryptionKey return latest symmetric key for encryption in specified zone id
 func (store *KeyStore) GetZoneIDEncryptionKey(id []byte) ([]byte, error) {
-	encryptionKeys, err := store.GetZoneIDSymmetricKeys(id)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(encryptionKeys) == 0 {
-		return nil, nil
-	}
-
-	return encryptionKeys[0], nil
+	keyName := getZoneIDSymmetricKeyName(id)
+	return store.getLatestSymmetricKey(id, keyName)
 }
 
 // GetDecryptionTokenSymmetricKeys return symmetric keys which may be used to decrypt encrypted token
