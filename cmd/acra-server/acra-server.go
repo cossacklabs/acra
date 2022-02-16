@@ -127,8 +127,8 @@ func realMain() error {
 	apiPort := flag.Int("incoming_connection_api_port", cmd.DefaultAcraServerAPIPort, "Port for AcraServer for HTTP API")
 
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
-	cacheKeystoreOnStart := flag.Bool("cache_keystore_on_start", false, "Load all keys to cache on start")
-	keysCacheSize := flag.Int("keystore_cache_size", keystore.InfiniteCacheSize, "Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
+	cacheKeystoreOnStart := flag.Bool("cache_keystore_on_start", true, "Load all keys to cache on start")
+	keysCacheSize := flag.Int("keystore_cache_size", keystore.DefaultCacheSize, "Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache. Default is 1000")
 
 	cmd.RegisterRedisKeyStoreParameters()
 	cmd.RegisterRedisTokenStoreParameters()
@@ -296,7 +296,7 @@ func realMain() error {
 	log.Infof("Initialising keystore...")
 	var keyStore keystore.ServerKeyStore
 	if filesystemV2.IsKeyDirectory(*keysDir) {
-		keyStore, err = openKeyStoreV2(*keysDir, keyLoader)
+		keyStore, err = openKeyStoreV2(*keysDir, *keysCacheSize, keyLoader)
 	} else {
 		keyStore, err = openKeyStoreV1(*keysDir, *keysCacheSize, keyLoader)
 	}
@@ -872,7 +872,11 @@ func openKeyStoreV1(output string, cacheSize int, loader keyloader.MasterKeyLoad
 	return keyStoreV1, nil
 }
 
-func openKeyStoreV2(keyDirPath string, loader keyloader.MasterKeyLoader) (keystore.ServerKeyStore, error) {
+func openKeyStoreV2(keyDirPath string, cacheSize int, loader keyloader.MasterKeyLoader) (keystore.ServerKeyStore, error) {
+	if cacheSize != keystore.WithoutCache {
+		return nil, keystore.ErrCacheIsNotSupportedV2
+	}
+
 	encryption, signature, err := loader.LoadMasterKeys()
 	if err != nil {
 		log.WithError(err).Errorln("Cannot load master key")

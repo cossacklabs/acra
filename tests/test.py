@@ -59,6 +59,7 @@ from sqlalchemy.dialects import mysql as mysql_dialect
 from sqlalchemy.dialects import postgresql as postgresql_dialect
 from sqlalchemy.dialects.postgresql import BYTEA
 from sqlalchemy.exc import DatabaseError
+from distutils.dir_util import copy_tree
 
 import api_pb2
 import api_pb2_grpc
@@ -1269,6 +1270,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             'd': 'true' if self.DEBUG_LOG else 'false',
             'zonemode_enable': 'true' if self.ZONE else 'false',
             'http_api_enable': 'true' if self.ZONE else 'true',
+            'cache_keystore_on_start': 'false',
             'keys_dir': KEYS_FOLDER.name,
         }
         if TEST_WITH_TRACING:
@@ -2341,6 +2343,22 @@ class BasePoisonRecordTest(AcraCatchLogsMixin, AcraTranslatorMixin, BaseTestCase
         }
 
 
+class KeystoreCacheOnStartMixin:
+    def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
+        temp_dir = tempfile.TemporaryDirectory()
+        copy_tree(KEYS_FOLDER.name, temp_dir.name)
+
+        acra_kwargs.update({
+            'cache_keystore_on_start': 'true',
+            'keys_dir': temp_dir.name,
+        })
+
+        process = super(KeystoreCacheOnStartMixin, self).fork_acra(
+            popen_kwargs, **acra_kwargs)
+        temp_dir.cleanup()
+        return process
+
+
 class TestPoisonRecordShutdown(BasePoisonRecordTest):
     SHUTDOWN = True
 
@@ -2675,6 +2693,11 @@ class TestShutdownPoisonRecordWithZoneAcraBlock(TestShutdownPoisonRecordWithZone
         return get_poison_record_with_acrablock()
 
 
+class TestShutdownPoisonRecordWithZoneAcraBlockWithCachedKeystore(KeystoreCacheOnStartMixin, TestShutdownPoisonRecordWithZoneAcraBlock):
+    def testShutdown3(self):
+        pass
+
+
 class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordOffStatus):
     ZONE = True
     WHOLECELL_MODE = False
@@ -2970,6 +2993,7 @@ class TestKeyStoreMigration(BaseTestCase):
             tls_crl_from_cert='ignore',
             tls_ocsp_url='',
             tls_crl_url='',
+            keystore_cache_size=-1,
             popen_kwargs={'env': master_key_env})
 
         args = get_connect_args(port=self.ACRASERVER_PORT, sslmode='require')
@@ -5287,6 +5311,10 @@ class TestTransparentEncryptionWithNoEncryptionKey(TransparentEncryptionNoKeyMix
     pass
 
 
+class TestTransparentEncryptionWithCachedKeystore(KeystoreCacheOnStartMixin, TestTransparentEncryption):
+    pass
+
+
 class TestTransparentEncryptionWithZone(TestTransparentEncryption):
     ZONE = True
 
@@ -5327,6 +5355,10 @@ class TestTransparentEncryptionWithZone(TestTransparentEncryption):
 
 
 class TestTransparentEncryptionWithZoneWithNoEncryptionKey(TransparentEncryptionNoKeyMixin, TestTransparentEncryptionWithZone):
+    pass
+
+
+class TestTransparentEncryptionWithZoneWithCachedKeystore(KeystoreCacheOnStartMixin, TestTransparentEncryptionWithZone):
     pass
 
 
@@ -7668,6 +7700,10 @@ class TestMaskingAcraBlockWithoutZone(BaseAcraBlockMasking, TestMaskingWithoutZo
     pass
 
 
+class TestMaskingAcraBlockWithoutZoneWithCachedKeystore(KeystoreCacheOnStartMixin, TestMaskingAcraBlockWithoutZone):
+    pass
+
+
 class TestMaskingAcraBlockWithoutZoneBinaryMySQL(BaseAcraBlockMasking, BaseMaskingBinaryMySQLMixin, TestMaskingWithoutZone):
     pass
 
@@ -7676,11 +7712,19 @@ class TestMaskingAcraBlockWithoutZoneBinaryPostgreSQL(BaseAcraBlockMasking, Base
     pass
 
 
+class TestMaskingAcraBlockWithoutZoneBinaryPostgreSQLWithCachedKeystore(KeystoreCacheOnStartMixin, TestMaskingAcraBlockWithoutZoneBinaryPostgreSQL):
+    pass
+
+
 class TestMaskingAcraBlockWithoutZoneWithDefaults(BaseAcraBlockMasking, TestMaskingWithoutZone):
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_masking_acrablock_with_defaults_config.yaml')
 
 
 class TestMaskingAcraBlockWithZonePerValue(BaseAcraBlockMasking, TestMaskingWithZonePerValue):
+    pass
+
+
+class TestMaskingAcraBlockWithZonePerValueWithCachedKeystore(KeystoreCacheOnStartMixin, TestMaskingAcraBlockWithZonePerValue):
     pass
 
 

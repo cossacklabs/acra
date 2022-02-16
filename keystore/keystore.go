@@ -50,7 +50,7 @@ var (
 	ErrInvalidClientID          = errors.New("invalid client ID")
 	ErrEmptyMasterKey           = errors.New("master key is empty")
 	ErrMasterKeyIncorrectLength = fmt.Errorf("master key must have %v length in bytes", SymmetricKeyLength)
-	ErrNotImplemented           = errors.New("not implemented")
+	ErrCacheIsNotSupportedV2    = errors.New("keystore cache is not supported for keystore v2")
 )
 
 // Key struct store content of keypair or some symmetric key

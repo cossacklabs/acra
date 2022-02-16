@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"testing"
@@ -143,6 +144,75 @@ func testGenerateSymKeyUncreatedDir(store *KeyStore, t *testing.T) {
 	_, err = os.Stat(dir)
 	if os.IsNotExist(err) {
 		t.Fatal("dir should be created")
+	}
+}
+
+func testKeyStoreCacheOnStart(store *KeyStore, t *testing.T) {
+	clientID := []byte("client_id_with_underscore")
+	zoneID := []byte("DDDDDDDDujwBdsnitwoaHEeo")
+
+	if err := store.GenerateClientIDSymmetricKey(clientID); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := store.GenerateDataEncryptionKeys(clientID); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := store.GenerateZoneIDSymmetricKey(zoneID); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := store.GenerateHmacKey(clientID); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := store.GenerateLogKey(); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := store.CacheOnStart(); err != nil {
+		log.Fatal(err)
+	}
+
+	for _, key := range []string{
+		"secure_log_key",
+		fmt.Sprintf("%s_storage_sym", clientID),
+		fmt.Sprintf("%s_storage", clientID),
+		fmt.Sprintf("%s_storage.pub", clientID),
+		fmt.Sprintf("%s_zone_sym", zoneID),
+		fmt.Sprintf("%s_hmac", clientID),
+	} {
+		err := store.fs.Remove(fmt.Sprintf("%s/%s", store.privateKeyDirectory, key))
+		if err != nil && !os.IsNotExist(err) {
+			log.Fatal(err)
+		}
+	}
+
+	// read from cache section
+	_, err := store.GetClientIDSymmetricKeys(clientID)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = store.GetZoneIDSymmetricKeys(zoneID)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = store.GetClientIDEncryptionPublicKey(clientID)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = store.GetHMACSecretKey(clientID)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = store.GetLogSecretKey()
+	if err != nil {
+		log.Fatal(err)
 	}
 }
 

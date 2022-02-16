@@ -29,7 +29,7 @@ import (
 
 const serviceName = "keystore"
 
-// Errors in keystore listing and export.
+// Errors for describing keys
 var (
 	ErrUnrecognizedKeyPurpose = errors.New("key purpose not recognized")
 )

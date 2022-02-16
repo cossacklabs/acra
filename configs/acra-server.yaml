@@ -12,7 +12,7 @@ acrastruct_wholecell_enable: false
 audit_log_enable: false
 
 # Load all keys to cache on start
-cache_keystore_on_start: false
+cache_keystore_on_start: true
 
 # Static ClientID used by AcraServer for data protection operations
 client_id: 
@@ -80,8 +80,8 @@ jaeger_collector_endpoint:
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
 
-# Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache
-keystore_cache_size: 0
+# Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache. Default is 1000
+keystore_cache_size: 1000
 
 # Log to stderr if true
 log_to_console: true
