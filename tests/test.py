@@ -1272,6 +1272,8 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             'cache_keystore_on_start': 'false',
             'keys_dir': KEYS_FOLDER.name,
         }
+        if KEYSTORE_VERSION == 'v2':
+            args['keystore_cache_size'] = -1
         if TEST_WITH_TRACING:
             args['tracing_log_enable'] = 'true'
             if TEST_TRACE_TO_JAEGER:
@@ -2096,6 +2098,11 @@ class ZoneHexFormatTest(BaseTestCase):
 
 
 class TestEnableCachedOnStartupTest(HexFormatTest):
+
+    def checkSkip(self):
+        super().checkSkip()
+        if KEYSTORE_VERSION == 'v2':
+            self.skipTest("test only for keystore Version v1")
 
     def setUp(self):
         self.cached_dir = tempfile.TemporaryDirectory()
