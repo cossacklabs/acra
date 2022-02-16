@@ -35,7 +35,6 @@ func TestFilesystemKeyStore(t *testing.T) {
 func FilesystemKeyStoreTests(storage Storage, t *testing.T) {
 	testFilesystemKeyStoreBasic(storage, t)
 	testFilesystemKeyStoreWithCache(storage, t)
-	testFilesystemKeyStoreGetEncryptionKey(storage, t)
 	testFilesystemKeyStoreSymmetricWithCache(storage, t)
 	testFilesystemKeyStoreRotateZoneKey(storage, t)
 	testHistoricalKeyAccess(storage, t)
@@ -261,6 +260,66 @@ func testGetClientIDEncryptionPublicKey(store *KeyStore, t *testing.T) {
 	}
 }
 
+func testGetEncryptionKey(store *KeyStore, t *testing.T) {
+	// Insert one clientID key, expect to get it
+	testClientID := []byte("client1")
+	if err := store.GenerateClientIDSymmetricKey(testClientID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.GetClientIDEncryptionKey(testClientID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Insert multiple clientID keys, expect to get 0th one
+	testClientID = []byte("client2")
+	if err := store.GenerateClientIDSymmetricKey(testClientID); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.GenerateClientIDSymmetricKey(testClientID); err != nil {
+		t.Fatal(err)
+	}
+	encryptionKeys, err := store.GetClientIDSymmetricKeys(testClientID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encryptionKey, err := store.GetClientIDEncryptionKey(testClientID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(encryptionKey, encryptionKeys[0]) {
+		t.Fatal("store.GetClientIDEncryptionKey() did not return 0th key")
+	}
+
+	// Insert one zoneID key, expect to get it
+	testZoneID := []byte("zone1")
+	if err = store.GenerateClientIDSymmetricKey(testZoneID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.GetClientIDEncryptionKey(testZoneID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Insert multiple zoneID keys, expect to get 0th one
+	testZoneID = []byte("zone2")
+	if err = store.GenerateZoneIDSymmetricKey(testZoneID); err != nil {
+		t.Fatal(err)
+	}
+	if err = store.GenerateZoneIDSymmetricKey(testZoneID); err != nil {
+		t.Fatal(err)
+	}
+	encryptionKeys, err = store.GetZoneIDSymmetricKeys(testZoneID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encryptionKey, err = store.GetZoneIDEncryptionKey(testZoneID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(encryptionKey, encryptionKeys[0]) {
+		t.Fatal("store.GetZoneIDEncryptionKey() did not return 0th key")
+	}
+}
+
 func testFilesystemKeyStoreBasic(storage Storage, t *testing.T) {
 	privateKeyDirectory := fmt.Sprintf(".%s%s", string(filepath.Separator), "cache")
 	storage.MkdirAll(privateKeyDirectory, 0700)
@@ -322,86 +381,7 @@ func testFilesystemKeyStoreBasic(storage Storage, t *testing.T) {
 		testGenerateSymKeyUncreatedDir(store, t)
 		testWriteKeyFileUncreatedDir(store, t)
 		testGetClientIDEncryptionPublicKey(store, t)
-	}
-}
-
-func testFilesystemKeyStoreGetEncryptionKey(storage Storage, t *testing.T) {
-	keyDirectory, err := storage.TempDir("test_filesystem_store", keyDirMode)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer storage.RemoveAll(keyDirectory)
-
-	encryptor, err := keystore.NewSCellKeyEncryptor([]byte("some key"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	store, err := NewCustomFilesystemKeyStore().
-		KeyDirectory(keyDirectory).
-		Encryptor(encryptor).
-		CacheSize(10).
-		Storage(storage).
-		Build()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Insert one clientID key, expect to get it
-	testClientID := []byte("client1")
-	if err = store.GenerateClientIDSymmetricKey(testClientID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = store.GetClientIDEncryptionKey(testClientID); err != nil {
-		t.Fatal(err)
-	}
-
-	// Insert multiple clientID keys, expect to get 0th one
-	testClientID = []byte("client2")
-	if err = store.GenerateClientIDSymmetricKey(testClientID); err != nil {
-		t.Fatal(err)
-	}
-	if err = store.GenerateClientIDSymmetricKey(testClientID); err != nil {
-		t.Fatal(err)
-	}
-	encryptionKeys, err := store.GetClientIDSymmetricKeys(testClientID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	encryptionKey, err := store.GetClientIDEncryptionKey(testClientID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(encryptionKey, encryptionKeys[0]) {
-		t.Fatal("store.GetClientIDEncryptionKey() did not return 0th key")
-	}
-
-	// Insert one zoneID key, expect to get it
-	testZoneID := []byte("zone1")
-	if err = store.GenerateClientIDSymmetricKey(testZoneID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = store.GetClientIDEncryptionKey(testZoneID); err != nil {
-		t.Fatal(err)
-	}
-
-	// Insert multiple zoneID keys, expect to get 0th one
-	testZoneID = []byte("zone2")
-	if err = store.GenerateZoneIDSymmetricKey(testZoneID); err != nil {
-		t.Fatal(err)
-	}
-	if err = store.GenerateZoneIDSymmetricKey(testZoneID); err != nil {
-		t.Fatal(err)
-	}
-	encryptionKeys, err = store.GetZoneIDSymmetricKeys(testZoneID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	encryptionKey, err = store.GetZoneIDEncryptionKey(testZoneID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(encryptionKey, encryptionKeys[0]) {
-		t.Fatal("store.GetZoneIDEncryptionKey() did not return 0th key")
+		testGetEncryptionKey(store, t)
 	}
 }
 
