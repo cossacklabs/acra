@@ -1,3 +1,6 @@
+## 0.92.0 - 2022-02-16
+- Cache fetching rotated key filenames to decrease extra syscalls
+
 ## 0.92.0 - 2022-02-14
 - Add new script `run_transparent.sh` to `benchmark` folder that collects data from debug server for `pprof` tool and 
   works with docker-compose file
