@@ -4469,6 +4469,7 @@ class TestTranslatorDisableCachedOnStartup(AcraTranslatorMixin, BaseTestCase):
         self.cached_dir = tempfile.TemporaryDirectory()
         # fill temp dir with all keys
         copy_tree(KEYS_FOLDER.name, self.cached_dir.name)
+        super().setUp()
 
     def fork_translator(self, translator_kwargs, popen_kwargs=None):
         args = {
@@ -4478,7 +4479,7 @@ class TestTranslatorDisableCachedOnStartup(AcraTranslatorMixin, BaseTestCase):
         translator_kwargs.update(args)
         return super().fork_translator(translator_kwargs, popen_kwargs)
 
-    def testApiEncryptionTestWithoutKeysDir(self):
+    def testApiEncryptionDisableCacheWithoutKeysDir(self):
         translator_port = 3456
 
         client_id = extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_CERT, extractor=self.get_identifier_extractor_type())
@@ -4502,10 +4503,9 @@ class TestTranslatorDisableCachedOnStartup(AcraTranslatorMixin, BaseTestCase):
         incorrect_client_id = TLS_CERT_CLIENT_ID_2
         with ProcessContextManager(self.fork_translator(translator_kwargs)):
             self.cached_dir.cleanup()
-            with self.assertRaises(Exception):
-                response = self.http_encrypt_request(translator_port, incorrect_client_id, None, data)
-                decrypted = deserialize_and_decrypt_acrastruct(response, client_id_private_key, client_id)
-                self.assertEqual(data, decrypted)
+            response = self.http_encrypt_request(translator_port, incorrect_client_id, None, data)
+            with self.assertRaises(ValueError):
+                deserialize_and_decrypt_acrastruct(response, client_id_private_key, client_id)
 
 
 class TestTranslatorEnableCachedOnStartup(AcraTranslatorMixin, BaseTestCase):
@@ -4518,6 +4518,7 @@ class TestTranslatorEnableCachedOnStartup(AcraTranslatorMixin, BaseTestCase):
         self.cached_dir = tempfile.TemporaryDirectory()
         # fill temp dir with all keys
         copy_tree(KEYS_FOLDER.name, self.cached_dir.name)
+        super().setUp()
 
     def fork_translator(self, translator_kwargs, popen_kwargs=None):
         args = {
@@ -4527,7 +4528,7 @@ class TestTranslatorEnableCachedOnStartup(AcraTranslatorMixin, BaseTestCase):
         translator_kwargs.update(args)
         return super().fork_translator(translator_kwargs, popen_kwargs)
 
-    def testApiEncryptionTestWithoutKeysDir(self):
+    def testApiEncryptionEnabledCacheWithoutKeysDir(self):
         translator_port = 3456
 
         client_id = extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_CERT, extractor=self.get_identifier_extractor_type())
