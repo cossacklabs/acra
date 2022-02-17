@@ -324,4 +324,6 @@ type KeyDescription struct {
 type TranslationKeyStore interface {
 	DecryptionKeyStore
 	AuditLogKeyStore
+
+	CacheOnStart() error
 }

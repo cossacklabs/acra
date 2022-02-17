@@ -47,7 +47,7 @@ keys_dir: .acrakeys
 # Load all keys to cache on start
 keystore_cache_on_start_enable: true
 
-# Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache. Default is 1000
+# Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache. Default is 1000
 keystore_cache_size: 1000
 
 # Log to stderr if true

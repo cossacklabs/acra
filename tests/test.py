@@ -2122,10 +2122,10 @@ class TestEnableCachedOnStartupTest(HexFormatTest):
 
     def testClientIDRead(self):
         self.cached_dir.cleanup()
-        super().testReadAcrastructInAcrastruct()
+        super().testClientIDRead()
 
 
-class TestEnableCachedOnStartupV2ErrorExit(BaseTestCase):
+class TestEnableCachedOnStartupServerV2ErrorExit(BaseTestCase):
     def checkSkip(self):
         if KEYSTORE_VERSION == 'v1':
             self.skipTest("test only for keystore Version v2")
@@ -2143,11 +2143,33 @@ class TestEnableCachedOnStartupV2ErrorExit(BaseTestCase):
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         acra_kwargs['keystore_cache_on_start_enable'] = 'true'
         acra_kwargs['log_to_file'] = self.log_file.name
-        return super(TestEnableCachedOnStartupV2ErrorExit, self).fork_acra(
+        return super(TestEnableCachedOnStartupServerV2ErrorExit, self).fork_acra(
             popen_kwargs, **acra_kwargs)
 
     def testRun(self):
         pass
+
+
+class TestEnableCachedOnStartupTranslatorSV2ErrorExit(AcraTranslatorMixin, BaseTestCase):
+    def checkSkip(self):
+        if KEYSTORE_VERSION == 'v1':
+            self.skipTest("test only for keystore Version v2")
+
+    def setUp(self):
+        self.log_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
+
+    def testRun(self):
+        translator_kwargs = {
+            'log_to_file': self.log_file.name,
+            'keystore_cache_on_start_enable': 'true',
+        }
+
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            with self.assertRaises(Exception):
+                with open(self.log_file.name, 'r') as f:
+                    log = f.read()
+                    self.assertIn("Can't cache on start with disabled cache", log)
+                self.tearDown()
 
 
 class TestDisableCachedOnStartupTest(HexFormatTest):
@@ -2172,7 +2194,7 @@ class TestDisableCachedOnStartupTest(HexFormatTest):
     def testClientIDRead(self):
         self.non_cached_dir.cleanup()
         with self.assertRaises(Exception):
-            super().testReadAcrastructInAcrastruct()
+            super().testClientIDRead()
 
 
 class EscapeFormatTest(HexFormatTest):
@@ -4434,6 +4456,103 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
     def testHTTPApi(self):
         self.apiDecryptionTest(self.http_decrypt_request, use_http=True)
         self.apiEncryptionTest(self.http_encrypt_request, use_http=True)
+
+
+class TestTranslatorDisableCachedOnStartup(AcraTranslatorMixin, BaseTestCase):
+    def checkSkip(self):
+        super().checkSkip()
+        if KEYSTORE_VERSION == 'v2':
+            self.skipTest("test only for keystore Version v1")
+
+    def setUp(self):
+        self.cached_dir = tempfile.TemporaryDirectory()
+        # fill temp dir with all keys
+        copy_tree(KEYS_FOLDER.name, self.cached_dir.name)
+
+    def fork_translator(self, translator_kwargs, popen_kwargs=None):
+        args = {
+            'keystore_cache_on_start_enable': 'false',
+            'keys_dir': self.cached_dir.name
+        }
+        translator_kwargs.update(args)
+        return super().fork_translator(translator_kwargs, popen_kwargs)
+
+    def testApiEncryptionTestWithoutKeysDir(self):
+        translator_port = 3456
+
+        client_id = extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_CERT, extractor=self.get_identifier_extractor_type())
+        self.assertEqual(create_client_keypair_from_certificate(tls_cert=TEST_TLS_CLIENT_CERT,
+                                                                extractor=self.get_identifier_extractor_type(), keys_dir=self.cached_dir.name), 0)
+        data = get_pregenerated_random_data().encode('ascii')
+        client_id_private_key = read_storage_private_key(self.cached_dir.name, client_id)
+        connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
+        translator_kwargs = {
+            'incoming_connection_http_string': connection_string,
+            'tls_key': abs_path(TEST_TLS_SERVER_KEY),
+            'tls_cert': abs_path(TEST_TLS_SERVER_CERT),
+            'tls_ca': TEST_TLS_CA,
+            'keys_dir': self.cached_dir.name,
+            'tls_identifier_extractor_type': self.get_identifier_extractor_type(),
+            'acratranslator_client_id_from_connection_enable': 'true',
+            'tls_ocsp_from_cert': 'ignore',
+            'tls_crl_from_cert': 'ignore',
+        }
+
+        incorrect_client_id = TLS_CERT_CLIENT_ID_2
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            self.cached_dir.cleanup()
+            with self.assertRaises(Exception):
+                response = self.http_encrypt_request(translator_port, incorrect_client_id, None, data)
+                decrypted = deserialize_and_decrypt_acrastruct(response, client_id_private_key, client_id)
+                self.assertEqual(data, decrypted)
+
+
+class TestTranslatorEnableCachedOnStartup(AcraTranslatorMixin, BaseTestCase):
+    def checkSkip(self):
+        super().checkSkip()
+        if KEYSTORE_VERSION == 'v2':
+            self.skipTest("test only for keystore Version v1")
+
+    def setUp(self):
+        self.cached_dir = tempfile.TemporaryDirectory()
+        # fill temp dir with all keys
+        copy_tree(KEYS_FOLDER.name, self.cached_dir.name)
+
+    def fork_translator(self, translator_kwargs, popen_kwargs=None):
+        args = {
+            'keystore_cache_on_start_enable': 'true',
+            'keys_dir': self.cached_dir.name
+        }
+        translator_kwargs.update(args)
+        return super().fork_translator(translator_kwargs, popen_kwargs)
+
+    def testApiEncryptionTestWithoutKeysDir(self):
+        translator_port = 3456
+
+        client_id = extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_CERT, extractor=self.get_identifier_extractor_type())
+        self.assertEqual(create_client_keypair_from_certificate(tls_cert=TEST_TLS_CLIENT_CERT,
+                                                                    extractor=self.get_identifier_extractor_type(), keys_dir=self.cached_dir.name), 0)
+        data = get_pregenerated_random_data().encode('ascii')
+        client_id_private_key = read_storage_private_key(self.cached_dir.name, client_id)
+        connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
+        translator_kwargs = {
+                'incoming_connection_http_string': connection_string,
+                'tls_key': abs_path(TEST_TLS_SERVER_KEY),
+                'tls_cert': abs_path(TEST_TLS_SERVER_CERT),
+                'tls_ca': TEST_TLS_CA,
+                'keys_dir': self.cached_dir.name,
+                'tls_identifier_extractor_type': self.get_identifier_extractor_type(),
+                'acratranslator_client_id_from_connection_enable': 'true',
+                'tls_ocsp_from_cert': 'ignore',
+                'tls_crl_from_cert': 'ignore',
+            }
+
+        incorrect_client_id = TLS_CERT_CLIENT_ID_2
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            self.cached_dir.cleanup()
+            response = self.http_encrypt_request(translator_port, incorrect_client_id, None, data)
+            decrypted = deserialize_and_decrypt_acrastruct(response, client_id_private_key, client_id)
+            self.assertEqual(data, decrypted)
 
 
 class TestAcraTranslatorWithVaultMasterKeyLoaderByDistinguishedName(HashiCorpVaultMasterKeyLoaderMixin,

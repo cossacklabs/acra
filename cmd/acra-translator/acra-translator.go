@@ -116,7 +116,7 @@ func realMain() error {
 
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	cacheKeystoreOnStart := flag.Bool("keystore_cache_on_start_enable", true, "Load all keys to cache on start")
-	keysCacheSize := flag.Int("keystore_cache_size", keystore.DefaultCacheSize, "Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache. Default is 1000")
+	keysCacheSize := flag.Int("keystore_cache_size", keystore.DefaultCacheSize, fmt.Sprintf("Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache. Default is %d", keystore.DefaultCacheSize))
 
 	detectPoisonRecords := flag.Bool("poison_detect_enable", false, "Turn on poison record detection, if server shutdown is disabled, AcraTranslator logs the poison record detection and returns error")
 	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "On detecting poison record: log about poison record detection, stop and shutdown")
@@ -222,6 +222,11 @@ func realMain() error {
 		}
 		if err := keyStore.CacheOnStart(); err != nil {
 			log.WithError(err).Errorln("Failed to cache keystore on start")
+			return err
+		}
+
+		if err := transportKeystore.CacheOnStart(); err != nil {
+			log.WithError(err).Errorln("Failed to cache transport keystore on start")
 			return err
 		}
 		log.Info("Cached keystore on start successfully")
