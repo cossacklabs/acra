@@ -931,7 +931,6 @@ func (store *KeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 		return &keys.Keypair{Public: &keys.PublicKey{Value: publicKey}, Private: &keys.PrivateKey{Value: decryptedPrivate}}, nil
 	}
 	privatePath := store.GetPrivateKeyFilePath(PoisonKeyFilename)
-	publicPath := store.GetPublicKeyFilePath(poisonKeyFilenamePublic)
 	private, err := store.loadPrivateKey(privatePath)
 	if err != nil {
 		if IsKeyReadError(err) {
@@ -944,6 +943,7 @@ func (store *KeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	if private.Value, err = store.encryptor.Decrypt(private.Value, []byte(PoisonKeyFilename)); err != nil {
 		return nil, err
 	}
+	publicPath := store.GetPublicKeyFilePath(poisonKeyFilenamePublic)
 	public, err := store.loadPublicKey(publicPath)
 	if err != nil {
 		return nil, err
