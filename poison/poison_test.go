@@ -16,6 +16,10 @@ func (keystore *testKeystore) GetPoisonSymmetricKeys() ([][]byte, error) {
 	panic("implement me")
 }
 
+func (keystore *testKeystore) GetPoisonSymmetricKey() ([]byte, error) {
+	panic("implement me")
+}
+
 func (keystore *testKeystore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	return keystore.PoisonKeypair, nil
 }

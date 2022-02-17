@@ -229,6 +229,7 @@ type PublicKeyStore interface {
 type RecordProcessorKeyStore interface {
 	GetPoisonPrivateKeys() ([]*keys.PrivateKey, error)
 	GetPoisonSymmetricKeys() ([][]byte, error)
+	GetPoisonSymmetricKey() ([]byte, error)
 }
 
 // DataEncryptorKeyStore interface with required methods for CryptoHandlers
@@ -295,6 +296,7 @@ type PoisonKeyStore interface {
 	GetPoisonKeyPair() (*keys.Keypair, error)
 	GetPoisonPrivateKeys() ([]*keys.PrivateKey, error)
 	GetPoisonSymmetricKeys() ([][]byte, error)
+	GetPoisonSymmetricKey() ([]byte, error)
 }
 
 // ServerKeyStore enables AcraStruct encryption, decryption,

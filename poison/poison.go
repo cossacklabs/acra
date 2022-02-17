@@ -112,18 +112,18 @@ type RecordProcessor struct {
 	poisonDetector *crypto.EnvelopeDetector
 }
 
-// NewRecordProcessor return new RecordProcessor
-func NewRecordProcessor(keystore RecordProcessorKeyStore, callbacks base.PoisonRecordCallbackStorage) (*RecordProcessor, error) {
-	registryHandler := crypto.NewRegistryHandler(crypto.NewPoisonRecordKeyStoreWrapper(keystore))
-	envelopeDetector := crypto.NewEnvelopeDetector()
-	if callbacks != nil && callbacks.HasCallbacks() {
-		// setting PoisonRecords callback for CryptoHandlers inside registry
-		poisonDetector := crypto.NewPoisonRecordsRecognizer(keystore, registryHandler)
-		poisonDetector.SetPoisonRecordCallbacks(callbacks)
-		envelopeDetector.AddCallback(poisonDetector)
-	}
-	return &RecordProcessor{keystore, callbacks, envelopeDetector}, nil
-}
+//// NewRecordProcessor return new RecordProcessor
+//func NewRecordProcessor(keystore RecordProcessorKeyStore, callbacks base.PoisonRecordCallbackStorage) (*RecordProcessor, error) {
+//	registryHandler := crypto.NewRegistryHandler(crypto.NewPoisonRecordKeyStoreWrapper(keystore))
+//	envelopeDetector := crypto.NewEnvelopeDetector()
+//	if callbacks != nil && callbacks.HasCallbacks() {
+//		// setting PoisonRecords callback for CryptoHandlers inside registry
+//		poisonDetector := crypto.NewPoisonRecordsRecognizer(keystore, registryHandler)
+//		poisonDetector.SetPoisonRecordCallbacks(callbacks)
+//		envelopeDetector.AddCallback(poisonDetector)
+//	}
+//	return &RecordProcessor{keystore, callbacks, envelopeDetector}, nil
+//}
 
 // ID return string id of processor
 func (processor *RecordProcessor) ID() string {

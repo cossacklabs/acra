@@ -772,6 +772,29 @@ func (store *KeyStore) GetPoisonSymmetricKeys() ([][]byte, error) {
 	return store.getSymmetricKeys([]byte(keyFileName), keyFileName)
 }
 
+// GetPoisonSymmetricKey returns latest symmetric key for encryption of poison records with AcraBlock.
+// If a poison record does not exist, it is created and its sole symmetric key is returned.
+func (store *KeyStore) GetPoisonSymmetricKey() ([]byte, error) {
+	keyFileName := getSymmetricKeyName(PoisonKeyFilename)
+	poisonKeyExists, err := store.fs.Exists(store.GetPrivateKeyFilePath(keyFileName))
+	if err != nil {
+		log.Debug("Can't check poison key existence")
+		return nil, err
+	}
+	log.WithError(err).WithField("exists", poisonKeyExists).Debug("Get poison sym key")
+	// If there is no poison record keypair, generated one and returns its private key.
+	if !poisonKeyExists {
+		log.Debugln("Generate poison symmetric key")
+
+		err := store.generateAndSaveSymmetricKey([]byte(keyFileName), store.GetPrivateKeyFilePath(keyFileName))
+		if err != nil {
+			log.Debug("Can't generate new poison sym key")
+			return nil, err
+		}
+	}
+	return store.getLatestSymmetricKey([]byte(keyFileName), keyFileName)
+}
+
 // RotateZoneKey generate new key pair for ZoneId, overwrite private key with new and return new public key
 func (store *KeyStore) RotateZoneKey(zoneID []byte) ([]byte, error) {
 	_, public, err := store.generateZoneKey(zoneID)

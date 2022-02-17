@@ -97,6 +97,27 @@ func (s *ServerKeyStore) GetPoisonSymmetricKeys() ([][]byte, error) {
 	return symmetricKeys, nil
 }
 
+// GetPoisonSymmetricKey returns latest symmetric key for encryption of poison records with AcraBlock.
+// If a poison record does not exist, it is created and its sole symmetric key is returned.
+func (s *ServerKeyStore) GetPoisonSymmetricKey() ([]byte, error) {
+	ring, err := s.OpenKeyRingRW(poisonSymmetricKeyPath)
+	if err != nil {
+		s.log.WithError(err).WithField("path", poisonSymmetricKeyPath).
+			Debug("Failed to open poison key ring")
+		return nil, err
+	}
+
+	symmetricKey, err := s.currentSymmetricKey(ring)
+	if err != nil {
+		s.log.WithError(err).Debug("Failed to get current poison record symmetric key")
+		if err := s.GeneratePoisonRecordSymmetricKey(); err != nil {
+			return nil, err
+		}
+		return s.currentSymmetricKey(ring)
+	}
+	return symmetricKey, nil
+}
+
 func (s *ServerKeyStore) savePoisonKeyPair(keypair *keys.Keypair) error {
 	ring, err := s.OpenKeyRingRW(poisonKeyPath)
 	if err != nil {
