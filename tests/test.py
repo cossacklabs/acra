@@ -2137,23 +2137,21 @@ class TestEnableCachedOnStartupServerV2ErrorExit(BaseTestCase):
 
     def setUp(self):
         self.log_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
+
+    def testRun(self):
+        self.checkSkip()
+        acra_kwargs = {
+            'log_to_file': self.log_file.name,
+            'keystore_cache_on_start_enable': 'true',
+        }
         try:
-            super().setUp()
-        except:
-            self.checkSkip()
+            self.fork_acra(**acra_kwargs)
+        except Exception as exc:
+            self.assertEqual(str(exc), WAIT_CONNECTION_ERROR_MESSAGE)
             with open(self.log_file.name, 'r') as f:
                 log = f.read()
                 self.assertIn("Can't cache on start with disabled cache", log)
             self.tearDown()
-
-    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
-        acra_kwargs['keystore_cache_on_start_enable'] = 'true'
-        acra_kwargs['log_to_file'] = self.log_file.name
-        return super(TestEnableCachedOnStartupServerV2ErrorExit, self).fork_acra(
-            popen_kwargs, **acra_kwargs)
-
-    def testRun(self):
-        pass
 
 
 class TestEnableCachedOnStartupTranslatorSV2ErrorExit(AcraTranslatorMixin, BaseTestCase):
