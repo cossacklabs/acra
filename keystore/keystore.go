@@ -103,9 +103,9 @@ type HmacKeyGenerator interface {
 // SymmetricEncryptionKeyStore interface describe access methods to encryption symmetric keys
 type SymmetricEncryptionKeyStore interface {
 	GetClientIDSymmetricKeys(id []byte) ([][]byte, error)
-	GetClientIDEncryptionKey(id []byte) ([]byte, error)
+	GetClientIDSymmetricKey(id []byte) ([]byte, error)
 	GetZoneIDSymmetricKeys(id []byte) ([][]byte, error)
-	GetZoneIDEncryptionKey(id []byte) ([]byte, error)
+	GetZoneIDSymmetricKey(id []byte) ([]byte, error)
 }
 
 // SymmetricEncryptionKeyStoreGenerator interface methods responsible for generation encryption symmetric keys

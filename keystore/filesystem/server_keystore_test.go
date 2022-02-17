@@ -266,7 +266,7 @@ func testGetEncryptionKey(store *KeyStore, t *testing.T) {
 	if err := store.GenerateClientIDSymmetricKey(testClientID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.GetClientIDEncryptionKey(testClientID); err != nil {
+	if _, err := store.GetClientIDSymmetricKey(testClientID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -282,12 +282,12 @@ func testGetEncryptionKey(store *KeyStore, t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	encryptionKey, err := store.GetClientIDEncryptionKey(testClientID)
+	encryptionKey, err := store.GetClientIDSymmetricKey(testClientID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(encryptionKey, encryptionKeys[0]) {
-		t.Fatal("store.GetClientIDEncryptionKey() did not return 0th key")
+		t.Fatal("store.GetClientIDSymmetricKey() did not return 0th key")
 	}
 
 	// Insert one zoneID key, expect to get it
@@ -295,7 +295,7 @@ func testGetEncryptionKey(store *KeyStore, t *testing.T) {
 	if err = store.GenerateClientIDSymmetricKey(testZoneID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = store.GetClientIDEncryptionKey(testZoneID); err != nil {
+	if _, err = store.GetClientIDSymmetricKey(testZoneID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -311,12 +311,12 @@ func testGetEncryptionKey(store *KeyStore, t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	encryptionKey, err = store.GetZoneIDEncryptionKey(testZoneID)
+	encryptionKey, err = store.GetZoneIDSymmetricKey(testZoneID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(encryptionKey, encryptionKeys[0]) {
-		t.Fatal("store.GetZoneIDEncryptionKey() did not return 0th key")
+		t.Fatal("store.GetZoneIDSymmetricKey() did not return 0th key")
 	}
 }
 

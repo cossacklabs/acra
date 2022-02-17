@@ -41,8 +41,8 @@ func (s *ServerKeyStore) GetClientIDSymmetricKeys(clientID []byte) ([][]byte, er
 	return symmetricKeys, nil
 }
 
-// GetClientIDEncryptionKey retrieves latest symmetric key used to encrypt data by given client
-func (s *ServerKeyStore) GetClientIDEncryptionKey(clientID []byte) ([]byte, error) {
+// GetClientIDSymmetricKey retrieves latest symmetric key used to encrypt data by given client
+func (s *ServerKeyStore) GetClientIDSymmetricKey(clientID []byte) ([]byte, error) {
 	log := s.log.WithField("clientID", clientID)
 	ring, err := s.OpenKeyRing(s.clientStorageSymmetricKeyPath(clientID))
 	if err != nil {
@@ -74,8 +74,8 @@ func (s *ServerKeyStore) GetZoneIDSymmetricKeys(zoneID []byte) ([][]byte, error)
 	return symmetricKeys, nil
 }
 
-// GetZoneIDEncryptionKey retrieves latest symmetric key used to encrypt data in given zone
-func (s *ServerKeyStore) GetZoneIDEncryptionKey(zoneID []byte) ([]byte, error) {
+// GetZoneIDSymmetricKey retrieves latest symmetric key used to encrypt data in given zone
+func (s *ServerKeyStore) GetZoneIDSymmetricKey(zoneID []byte) ([]byte, error) {
 	log := s.log.WithField("zoneID", zoneID)
 	ring, err := s.OpenKeyRing(s.zoneStorageSymmetricKeyPath(zoneID))
 	if err != nil {

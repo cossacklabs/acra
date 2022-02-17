@@ -13,29 +13,6 @@ type TranslationKeyStore struct {
 	mock.Mock
 }
 
-// GetClientIDEncryptionKey provides a mock function with given fields: id
-func (_m *TranslationKeyStore) GetClientIDEncryptionKey(id []byte) ([]byte, error) {
-	ret := _m.Called(id)
-
-	var r0 []byte
-	if rf, ok := ret.Get(0).(func([]byte) []byte); ok {
-		r0 = rf(id)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]byte)
-		}
-	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func([]byte) error); ok {
-		r1 = rf(id)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // GetClientIDEncryptionPublicKey provides a mock function with given fields: clientID
 func (_m *TranslationKeyStore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
 	ret := _m.Called(clientID)
@@ -52,6 +29,29 @@ func (_m *TranslationKeyStore) GetClientIDEncryptionPublicKey(clientID []byte) (
 	var r1 error
 	if rf, ok := ret.Get(1).(func([]byte) error); ok {
 		r1 = rf(clientID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetClientIDSymmetricKey provides a mock function with given fields: id
+func (_m *TranslationKeyStore) GetClientIDSymmetricKey(id []byte) ([]byte, error) {
+	ret := _m.Called(id)
+
+	var r0 []byte
+	if rf, ok := ret.Get(0).(func([]byte) []byte); ok {
+		r0 = rf(id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]byte)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func([]byte) error); ok {
+		r1 = rf(id)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -243,8 +243,8 @@ func (_m *TranslationKeyStore) GetServerDecryptionPrivateKeys(id []byte) ([]*key
 	return r0, r1
 }
 
-// GetZoneIDEncryptionKey provides a mock function with given fields: id
-func (_m *TranslationKeyStore) GetZoneIDEncryptionKey(id []byte) ([]byte, error) {
+// GetZoneIDSymmetricKey provides a mock function with given fields: id
+func (_m *TranslationKeyStore) GetZoneIDSymmetricKey(id []byte) ([]byte, error) {
 	ret := _m.Called(id)
 
 	var r0 []byte
