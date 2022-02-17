@@ -716,10 +716,33 @@ func (store *KeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	privateKey, privateOk := store.cache.Get(PoisonKeyFilename)
 	publicKey, publicOk := store.cache.Get(poisonKeyFilenamePublic)
 	if privateOk && publicOk {
-		return &keys.Keypair{Public: &keys.PublicKey{Value: publicKey}, Private: &keys.PrivateKey{Value: privateKey}}, nil
+		decryptedPrivate, err := store.encryptor.Decrypt(privateKey, []byte(PoisonKeyFilename))
+		if err != nil {
+			return nil, err
+		}
+		return &keys.Keypair{Public: &keys.PublicKey{Value: publicKey}, Private: &keys.PrivateKey{Value: decryptedPrivate}}, nil
 	}
-	log.Debug("Generate poison key pair")
-	return store.generateKeyPair(PoisonKeyFilename, []byte(PoisonKeyFilename))
+	privatePath := store.GetPrivateKeyFilePath(PoisonKeyFilename)
+	publicPath := store.GetPublicKeyFilePath(poisonKeyFilenamePublic)
+	private, err := store.loadPrivateKey(privatePath)
+	if err != nil {
+		if IsKeyReadError(err) {
+			log.Debug("Generate poison key pair")
+			return store.generateKeyPair(PoisonKeyFilename, []byte(PoisonKeyFilename))
+		}
+		return nil, err
+	}
+	encryptedPrivate := private.Value
+	if private.Value, err = store.encryptor.Decrypt(private.Value, []byte(PoisonKeyFilename)); err != nil {
+		return nil, err
+	}
+	public, err := store.loadPublicKey(publicPath)
+	if err != nil {
+		return nil, err
+	}
+	store.cache.Add(PoisonKeyFilename, encryptedPrivate)
+	store.cache.Add(poisonKeyFilenamePublic, public.Value)
+	return &keys.Keypair{Public: public, Private: private}, nil
 }
 
 // GetPoisonPrivateKeys returns all private keys used to decrypt poison records, from newest to oldest.
