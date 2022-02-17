@@ -45,6 +45,9 @@ services:
             POSTGRES_DB: ${POSTGRES_DB:-test}
             POSTGRES_USER: ${POSTGRES_USER:-test}
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-test}
+            PGDATA: /var/lib/postgresql/data/pgdata
+        tmpfs:
+            - "/var/lib/postgresql/data"
         ports:
             - "5432:5432"
 
