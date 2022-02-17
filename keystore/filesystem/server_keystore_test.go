@@ -1101,3 +1101,64 @@ func BenchmarkHistoricalPathsSerialization(b *testing.B) {
 		reflect.DeepEqual(paths, values)
 	})
 }
+
+func TestKeyStore_GetPoisonKeyPair(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	encryptor, err := keystore.NewSCellKeyEncryptor([]byte(`some key`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyStore, err := NewFilesystemKeyStore(tmpDir, encryptor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Run("Check empty cache before generation", func(t *testing.T) {
+		_, ok := keyStore.cache.Get(PoisonKeyFilename)
+		if ok {
+			t.Fatal("Unexpected cached poison private key")
+		}
+		_, ok = keyStore.cache.Get(poisonKeyFilenamePublic)
+		if ok {
+			t.Fatal("Unexpected cached poison public key")
+		}
+	})
+	// we don't have api to generate keypair because keystore generates it automatically on first request
+	keyPair, err := keyStore.GetPoisonKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Run("Check caching keys after generation and property that private key encrypted", func(t *testing.T) {
+		privateKey, ok := keyStore.cache.Get(PoisonKeyFilename)
+		if !ok {
+			t.Fatal("Private key wasn't cached")
+		}
+		if bytes.Equal(privateKey, keyPair.Private.Value) {
+			t.Fatal("Cached private key wasn't encrypted and equal to generated raw keypair")
+		}
+		publicKey, ok := keyStore.cache.Get(poisonKeyFilenamePublic)
+		if !ok {
+			t.Fatal("Public key wasn't cached")
+		}
+		if !bytes.Equal(keyPair.Public.Value, publicKey) {
+			t.Fatal("Cached public key not equal to raw key")
+		}
+	})
+	t.Run("Check reading keys from the cache after purging keystore folder", func(t *testing.T) {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Fatal(err)
+		}
+		keyPair2, err := keyStore.GetPoisonKeyPair()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(keyPair2.Public.Value, keyPair.Public.Value) {
+			t.Fatal("Took unexpected new keypair's public key")
+		}
+		if !bytes.Equal(keyPair2.Private.Value, keyPair.Private.Value) {
+			t.Fatal("Took unexpected new keypair's private key")
+		}
+	})
+}
