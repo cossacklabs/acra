@@ -1269,7 +1269,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             'd': 'true' if self.DEBUG_LOG else 'false',
             'zonemode_enable': 'true' if self.ZONE else 'false',
             'http_api_enable': 'true' if self.ZONE else 'true',
-            'cache_keystore_on_start': 'false',
+            'keystore_cache_on_start_enable': 'false',
             'keys_dir': KEYS_FOLDER.name,
         }
         if KEYSTORE_VERSION == 'v2':
@@ -2111,7 +2111,7 @@ class TestEnableCachedOnStartupTest(HexFormatTest):
         super().setUp()
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
-        acra_kwargs['cache_keystore_on_start'] = 'true'
+        acra_kwargs['keystore_cache_on_start_enable'] = 'true'
         acra_kwargs['keys_dir'] = self.cached_dir.name
         return super(TestEnableCachedOnStartupTest, self).fork_acra(
             popen_kwargs, **acra_kwargs)
@@ -2125,6 +2125,32 @@ class TestEnableCachedOnStartupTest(HexFormatTest):
         super().testReadAcrastructInAcrastruct()
 
 
+class TestEnableCachedOnStartupV2ErrorExit(BaseTestCase):
+    def checkSkip(self):
+        super().checkSkip()
+        if KEYSTORE_VERSION == 'v1':
+            self.skipTest("test only for keystore Version v2")
+
+    def setUp(self):
+        self.log_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
+        try:
+            super().setUp()
+        except:
+            with open(self.log_file.name, 'r') as f:
+                log = f.read()
+                self.assertIn("Can't cache on start with disabled cache", log)
+            self.tearDown()
+
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        acra_kwargs['keystore_cache_on_start_enable'] = 'true'
+        acra_kwargs['log_to_file'] = self.log_file.name
+        return super(TestEnableCachedOnStartupV2ErrorExit, self).fork_acra(
+            popen_kwargs, **acra_kwargs)
+
+    def testRun(self):
+        pass
+
+
 class TestDisableCachedOnStartupTest(HexFormatTest):
 
     def setUp(self):
@@ -2134,7 +2160,7 @@ class TestDisableCachedOnStartupTest(HexFormatTest):
         super().setUp()
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
-        # cache_keystore_on_start is false by default in super().fork_acra()
+        # keystore_cache_on_start_enable is false by default in super().fork_acra()
         acra_kwargs['keys_dir'] = self.non_cached_dir.name
         return super(TestDisableCachedOnStartupTest, self).fork_acra(
             popen_kwargs, **acra_kwargs)

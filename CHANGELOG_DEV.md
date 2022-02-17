@@ -1,5 +1,5 @@
 ## 0.92.0 - 2022-02-16
-- Added cache keystore keys on start logic with `cache_keystore_on_start` flag;
+- Added cache keystore keys on start logic with `keystore_cache_on_start_enable` flag;
 - Changed the default flag value for `keystore_cache_size` flag. Default is 1000;
 - Added server halt for keystore `v2` and `keystore_cache_size` not -1;
 
