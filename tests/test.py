@@ -1272,6 +1272,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             'keystore_cache_on_start_enable': 'false',
             'keys_dir': KEYS_FOLDER.name,
         }
+        # keystore v2 doest not support caching, disable it for now
         if KEYSTORE_VERSION == 'v2':
             args['keystore_cache_size'] = -1
         if TEST_WITH_TRACING:
@@ -1326,6 +1327,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             'incoming_connection_close_timeout': 0,
             'keys_dir': KEYS_FOLDER.name,
             'logging_format': 'cef',
+            'keystore_cache_on_start_enable': 'false',
         }
         default_config.update(default_args)
         default_config.update(translator_kwargs)
@@ -1333,6 +1335,9 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             popen_kwargs = {}
         if self.DEBUG_LOG:
             default_config['d'] = 1
+        # keystore v2 doest not support caching, disable it for now
+        if KEYSTORE_VERSION == 'v2':
+            default_config['keystore_cache_size'] = -1
         if TEST_WITH_TRACING:
             default_config['tracing_log_enable'] = 1
             if TEST_TRACE_TO_JAEGER:
@@ -4504,6 +4509,8 @@ class TestTranslatorDisableCachedOnStartup(AcraTranslatorMixin, BaseTestCase):
         with ProcessContextManager(self.fork_translator(translator_kwargs)):
             self.cached_dir.cleanup()
             response = self.http_encrypt_request(translator_port, incorrect_client_id, None, data)
+            # we cant encrypt data because AcraServer doest have access to encryption key with disabled keystore caching
+            self.assertEqual(response, b"Can't encrypt data")
             with self.assertRaises(ValueError):
                 deserialize_and_decrypt_acrastruct(response, client_id_private_key, client_id)
 
