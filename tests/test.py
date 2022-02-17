@@ -2135,6 +2135,7 @@ class TestEnableCachedOnStartupServerV2ErrorExit(BaseTestCase):
         try:
             super().setUp()
         except:
+            self.checkSkip()
             with open(self.log_file.name, 'r') as f:
                 log = f.read()
                 self.assertIn("Can't cache on start with disabled cache", log)
