@@ -39,6 +39,7 @@ const (
 	EventCodeErrorCantReadKeys                 = 511
 	EventCodeErrorCantLoadMasterKey            = 512
 	EventCodeErrorCantInitPrivateKeysEncryptor = 513
+	EventCodeErrorCacheIssues                  = 514
 
 	// system events
 	EventCodeErrorCantGetFileDescriptor     = 520

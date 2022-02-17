@@ -22,6 +22,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/cossacklabs/acra/keystore"
@@ -38,6 +40,7 @@ func FilesystemKeyStoreTests(storage Storage, t *testing.T) {
 	testFilesystemKeyStoreSymmetricWithCache(storage, t)
 	testFilesystemKeyStoreRotateZoneKey(storage, t)
 	testHistoricalKeyAccess(storage, t)
+	testFilesystemKeyStoreWithOnlyCachedData(storage, t)
 }
 
 func testGenerateKeyPair(store *KeyStore, t *testing.T) {
@@ -338,7 +341,8 @@ func testFilesystemKeyStoreSymmetricWithCache(storage Storage, t *testing.T) {
 	store, err := NewCustomFilesystemKeyStore().
 		KeyDirectory(keyDirectory).
 		Encryptor(encryptor).
-		CacheSize(1).
+		// set 3 because 1 key and 2 GetHistoricalFileNames call that cached too
+		CacheSize(3).
 		Storage(storage).
 		Build()
 	if err != nil {
@@ -489,6 +493,210 @@ func testFilesystemKeyStoreWithCache(storage Storage, t *testing.T) {
 	}
 	if _, ok := store.cache.(keystore.NoCache); !ok {
 		t.Fatal("KeyStore wasn't created with NoCache implementation")
+	}
+}
+
+func testFilesystemKeyStoreWithOnlyCachedData(storage Storage, t *testing.T) {
+	keyDirectory, err := storage.TempDir("test_filesystem_store", keyDirMode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer storage.RemoveAll(keyDirectory)
+
+	encryptor, err := keystore.NewSCellKeyEncryptor([]byte("some key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := NewCustomFilesystemKeyStore().
+		KeyDirectory(keyDirectory).
+		Encryptor(encryptor).
+		CacheSize(keystore.InfiniteCacheSize).
+		Storage(storage).
+		Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// generate all kind of keys. Generate twice if keys support rotation to check that cached all keys
+	testID := []byte("test id")
+	if err := store.GenerateDataEncryptionKeys(testID); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.GenerateDataEncryptionKeys(testID); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.GenerateHmacKey(testID); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.GenerateLogKey(); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.GenerateClientIDSymmetricKey(testID); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.GenerateClientIDSymmetricKey(testID); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.GenerateTokenSymmetricKey(testID, keystore.KeyOwnerTypeClient); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.GenerateTokenSymmetricKey(testID, keystore.KeyOwnerTypeClient); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.GeneratePoisonRecordSymmetricKey(); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.GeneratePoisonRecordSymmetricKey(); err != nil {
+		t.Fatal(err)
+	}
+	// we don't have public function to generate poison record keypair because it's generated on first fetch operation
+	// if they don't exists
+	if _, err := store.generateKeyPair(PoisonKeyFilename, []byte(PoisonKeyFilename)); err != nil {
+		t.Fatal(err)
+	}
+	// we don't have public function to generate poison record keypair because it's generated on first fetch operation
+	// if they don't exists
+	if _, err := store.generateKeyPair(PoisonKeyFilename, []byte(PoisonKeyFilename)); err != nil {
+		t.Fatal(err)
+	}
+	zoneID, _, err := store.GenerateZoneKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.RotateZoneKey(zoneID); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.GenerateZoneIDSymmetricKey(zoneID); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.GenerateZoneIDSymmetricKey(zoneID); err != nil {
+		t.Fatal(err)
+	}
+
+	// fetch keys once to cache backed up keys. due to implementation backed up keys don't stored in cache
+	// and put there only after first fetching operation
+	_, err = store.GetServerDecryptionPrivateKeys(testID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.GetClientIDEncryptionPublicKey(testID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.GetHMACSecretKey(testID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.GetLogSecretKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.GetClientIDSymmetricKeys(testID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.GetDecryptionTokenSymmetricKeys(testID, keystore.KeyOwnerTypeClient)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.GetPoisonSymmetricKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.GetPoisonPrivateKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.GetZoneIDSymmetricKeys(zoneID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.GetZonePrivateKeys(zoneID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// we expect that all keys put in cache after generation. so delete them from storage
+	if err := storage.RemoveAll(keyDirectory); err != nil {
+		t.Fatal(err)
+	}
+
+	// load and save in cache
+	privateECKey, err := store.GetServerDecryptionPrivateKeys(testID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(privateECKey) != 2 {
+		t.Fatal("PrivateEC keys not cached")
+	}
+	hmacKey, err := store.GetHMACSecretKey(testID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hmacKey == nil {
+		t.Fatal("Hmac key not cached")
+	}
+	logKey, err := store.GetLogSecretKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if logKey == nil {
+		t.Fatal("log key not cached")
+	}
+
+	symKeys, err := store.GetClientIDSymmetricKeys(testID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(symKeys) != 2 {
+		t.Fatal("ClientID sym keys not cached")
+	}
+
+	symKeys, err = store.GetDecryptionTokenSymmetricKeys(testID, keystore.KeyOwnerTypeClient)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(symKeys) != 2 {
+		t.Fatal("Token sym keys not cached")
+	}
+
+	symKeys, err = store.GetPoisonSymmetricKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(symKeys) != 2 {
+		t.Fatal("Poison sym keys not cached")
+	}
+
+	asymKeys, err := store.GetPoisonPrivateKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(asymKeys) != 2 {
+		t.Fatal("Poison asym keys not cached")
+	}
+	keyPair, err := store.GetPoisonKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if keyPair == nil {
+		t.Fatal("Poison keypair not cached")
+	}
+
+	asymKeys, err = store.GetZonePrivateKeys(zoneID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(asymKeys) != 2 {
+		t.Fatal("Zone asym keys not cached")
+	}
+
+	symKeys, err = store.GetZoneIDSymmetricKeys(zoneID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(symKeys) != 2 {
+		t.Fatal("ZoneID sym keys not cached")
 	}
 }
 
@@ -767,4 +975,59 @@ func testHistoricalKeyAccess(storage Storage, t *testing.T) {
 			t.Error("incorrect previous private key value")
 		}
 	}
+}
+
+// BenchmarkHistoricalPathsSerialization compare simple way of serialization []string into []byte with strings.[Split|Join] and msgpack
+// Example of benchmarks to see comparison how msgpack faster simple join/split operations with strings
+// goos: linux
+// goarch: amd64
+// pkg: github.com/cossacklabs/acra/keystore/filesystem
+// cpu: Intel(R) Core(TM) i7-10750H CPU @ 2.60GHz
+// BenchmarkHistoricalPathsSerialization
+// BenchmarkHistoricalPathsSerialization/serialize_with_strings.Split/strings.Join
+// BenchmarkHistoricalPathsSerialization/serialize_with_strings.Split/strings.Join-12         	 1000000	      1055 ns/op
+// BenchmarkHistoricalPathsSerialization/serialize_with_msgpack
+// BenchmarkHistoricalPathsSerialization/serialize_with_msgpack-12                            	1000000000	         0.0000044 ns/op
+func BenchmarkHistoricalPathsSerialization(b *testing.B) {
+	values := []string{
+		"some key 1",
+		"some key 2",
+		"some key 3",
+		"some key 4",
+		"some key 5",
+	}
+	sep := string([]byte{0})
+	cacheByJoin := func(paths []string) []byte {
+		return []byte(strings.Join(paths, sep))
+	}
+	getCacheBySplit := func(value []byte) []string {
+		return strings.Split(string(value), sep)
+	}
+
+	b.Run("serialize with strings.Split/strings.Join", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			cached := cacheByJoin(values)
+			stringsValue := getCacheBySplit(cached)
+			reflect.DeepEqual(stringsValue, values)
+		}
+	})
+	tmpDir, err := ioutil.TempDir("", "")
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+	ks, err := NewCustomFilesystemKeyStore().Encryptor(&dummyEncryptor{}).KeyDirectory(tmpDir).Build()
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Run("serialize with msgpack", func(b *testing.B) {
+		if err := ks.cacheHistoricalPrivateKeyFilenames("id", values); err != nil {
+			b.Fatal(err)
+		}
+		paths, err := ks.getCachedHistoricalPrivateKeyFilenames("id")
+		if err != nil {
+			b.Fatal(err)
+		}
+		reflect.DeepEqual(paths, values)
+	})
 }
