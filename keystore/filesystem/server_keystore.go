@@ -392,12 +392,12 @@ func (store *KeyStore) GetPublicKeyFilePath(filename string) string {
 
 // use key started with "." (dot) because it's invalid character for clientID that generally stored in cache and
 // it will not intersect with other keys
-const cacheKeySuffix = ".historical."
+const cacheKeyPrefix = ".historical."
 
 var errCacheMissHistoricalFilenames = errors.New("cache doesn't contain historical filenames")
 
 func (store *KeyStore) getCachedHistoricalPrivateKeyFilenames(id string) ([]string, error) {
-	key := cacheKeySuffix + id
+	key := cacheKeyPrefix + id
 	value, ok := store.cache.Get(key)
 	if !ok {
 		return nil, errCacheMissHistoricalFilenames
@@ -416,7 +416,7 @@ func (store *KeyStore) cacheHistoricalPrivateKeyFilenames(id string, paths []str
 	if err != nil {
 		return err
 	}
-	key := cacheKeySuffix + id
+	key := cacheKeyPrefix + id
 	store.cache.Add(key, serialized)
 	return nil
 }
