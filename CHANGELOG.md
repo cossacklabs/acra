@@ -12,7 +12,7 @@ _Core_:
   - Poison record detection turned off by default. Flag `--poison_detect_enable` changed default value from `true` to `false`. [#484](https://github.com/cossacklabs/acra/pull/484)
   - Removed SecureSession and AcraConnector support as transport encryption. [#481](https://github.com/cossacklabs/acra/pull/481)
   - Improved and clarified log messages. Removed messages with `error` level for success cases (not detected poison record),
-    clarified context of messages. [#487](https://github.com/cossacklabs/acra/pull/487)
+    clarified context of messages. [#487](https://github.com/cossacklabs/acra/pulldsfsdf/487)
   - Added suggestions in log messages how to solve issues with TLS connections. [#493](https://github.com/cossacklabs/acra/pull/493)
   - Improved in-memory caching keys:
     - Added caching symmetric keys like asymmetric [#489](https://github.com/cossacklabs/acra/pull/489)
