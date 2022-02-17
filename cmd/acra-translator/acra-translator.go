@@ -115,7 +115,8 @@ func realMain() error {
 	incomingConnectionGRPCString := flag.String("incoming_connection_grpc_string", "", "Default option: connection string for gRPC transport like grpc://0.0.0.0:9696")
 
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
-	keysCacheSize := flag.Int("keystore_cache_size", keystore.InfiniteCacheSize, "Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
+	cacheKeystoreOnStart := flag.Bool("keystore_cache_on_start_enable", true, "Load all keys to cache on start")
+	keysCacheSize := flag.Int("keystore_cache_size", keystore.DefaultCacheSize, "Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache. Default is 1000")
 
 	detectPoisonRecords := flag.Bool("poison_detect_enable", false, "Turn on poison record detection, if server shutdown is disabled, AcraTranslator logs the poison record detection and returns error")
 	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "On detecting poison record: log about poison record detection, stop and shutdown")
@@ -205,7 +206,7 @@ func realMain() error {
 	var keyStore keystore.ServerKeyStore
 	var transportKeystore keystore.TranslationKeyStore
 	if filesystem2.IsKeyDirectory(*keysDir) {
-		keyStore, transportKeystore, err = openKeyStoreV2(*keysDir, keyLoader)
+		keyStore, transportKeystore, err = openKeyStoreV2(*keysDir, *keysCacheSize, keyLoader)
 	} else {
 		keyStore, transportKeystore, err = openKeyStoreV1(*keysDir, *keysCacheSize, keyLoader)
 	}
@@ -213,6 +214,19 @@ func realMain() error {
 		log.WithError(err).Errorln("Can't open keyStore")
 		return err
 	}
+
+	if *cacheKeystoreOnStart {
+		if *keysCacheSize == keystore.WithoutCache {
+			log.Errorln("Can't cache on start with disabled cache")
+			os.Exit(1)
+		}
+		if err := keyStore.CacheOnStart(); err != nil {
+			log.WithError(err).Errorln("Failed to cache keystore on start")
+			return err
+		}
+		log.Info("Cached keystore on start successfully")
+	}
+
 	log.Infof("Keystore init OK")
 	if err := crypto.InitRegistry(keyStore); err != nil {
 		log.WithError(err).Errorln("Can't initialize crypto registry")
@@ -678,7 +692,11 @@ func openKeyStoreV1(keysDir string, cacheSize int, loader keyloader.MasterKeyLoa
 	return keyStoreV1, transportKeyStoreV1, nil
 }
 
-func openKeyStoreV2(keysDir string, loader keyloader.MasterKeyLoader) (keystore.ServerKeyStore, keystore.TranslationKeyStore, error) {
+func openKeyStoreV2(keysDir string, cacheSize int, loader keyloader.MasterKeyLoader) (keystore.ServerKeyStore, keystore.TranslationKeyStore, error) {
+	if cacheSize != keystore.WithoutCache {
+		return nil, nil, keystore.ErrCacheIsNotSupportedV2
+	}
+
 	encryption, signature, err := loader.LoadMasterKeys()
 	if err != nil {
 		log.WithError(err).

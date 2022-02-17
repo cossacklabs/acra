@@ -2127,7 +2127,6 @@ class TestEnableCachedOnStartupTest(HexFormatTest):
 
 class TestEnableCachedOnStartupV2ErrorExit(BaseTestCase):
     def checkSkip(self):
-        super().checkSkip()
         if KEYSTORE_VERSION == 'v1':
             self.skipTest("test only for keystore Version v2")
 

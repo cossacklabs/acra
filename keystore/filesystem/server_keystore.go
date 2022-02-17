@@ -34,12 +34,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	keystore2 "github.com/cossacklabs/acra/keystore"
 	fs "github.com/cossacklabs/acra/keystore/filesystem/internal"
 	"github.com/cossacklabs/acra/keystore/lru"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
