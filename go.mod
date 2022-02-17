@@ -4,7 +4,7 @@ go 1.14
 
 require (
 	contrib.go.opencensus.io/exporter/jaeger v0.2.1
-	github.com/cossacklabs/themis/gothemis v0.13.1
+	github.com/cossacklabs/themis/gothemis v0.14.0
 	github.com/gin-gonic/gin v1.7.2
 	github.com/go-redis/redis/v7 v7.0.1
 	github.com/go-sql-driver/mysql v1.5.0
@@ -20,6 +20,7 @@ require (
 	github.com/swaggo/files v0.0.0-20190704085106-630677cd5c14
 	github.com/swaggo/gin-swagger v1.3.0
 	github.com/swaggo/swag v1.7.9
+	github.com/tinylib/msgp v1.1.6
 	go.etcd.io/bbolt v1.3.6
 	go.opencensus.io v0.22.4
 	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97

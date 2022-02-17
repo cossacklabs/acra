@@ -1,5 +1,8 @@
-## 0.92.0 - 2022-02-16
+## 0.92.0 - 2022-02-17
 - Extend KeyStore interface to allow fetching single latest symmetric key for encryption purposes
+
+## 0.92.0 - 2022-02-16
+- Cache fetching rotated key filenames to decrease extra syscalls
 
 ## 0.92.0 - 2022-02-14
 - Add new script `run_transparent.sh` to `benchmark` folder that collects data from debug server for `pprof` tool and 
