@@ -33,9 +33,9 @@ _Core_:
   - Removed next CLI parameters due to removed AcraConnector support:
     - `--securesession_id`, `--acraconnector_tls_transport_enable`, `--acraconnector_transport_encryption_disable`. [#481](https://github.com/cossacklabs/acra/pull/481)
 - **AcraTranslator**:
+  Now AcraTranslator works with TLS by default, it doesn't support AcraConnector anymore. [#481](https://github.com/cossacklabs/acra/pull/481)
   - Removed next CLI parameters due to removed AcraConnector support:
     - `--securesession_id`, `--acratranslator_tls_transport_enable`, `--acraconnector_transport_encryption_disable`. [#481](https://github.com/cossacklabs/acra/pull/481) 
-    Now AcraTranslator works with TLS by default. [#481](https://github.com/cossacklabs/acra/pull/481)
 - **AcraKeymaker**:
   - Now handle correctly generation symmetric keys into not existing folders. [#486](https://github.com/cossacklabs/acra/pull/486)
   - Removed next CLI parameters due to removed AcraConnector support:
@@ -43,7 +43,7 @@ _Core_:
 - **AcraKeys**:
   - Removed next key types for all commands (generate, read, destroy): `transport-connector`, `transport-server`, `transport-translator`. [#481](https://github.com/cossacklabs/acra/pull/481)
 - **AcraConnector**:
-  - Removed everywhere and stopped support. [#481](https://github.com/cossacklabs/acra/pull/481)
+  - Removed everywhere and stopped support. Switch to TLS instead, see [Security controls > Transport Security > TLS](https://docs.cossacklabs.com/acra/security-controls/transport-security/tls/), [#481](https://github.com/cossacklabs/acra/pull/481)
 
 _Example projects and demos_:
 - [Python examples](https://github.com/cossacklabs/acra/tree/0.91.0/examples/python): now support MySQL database. [#476](https://github.com/cossacklabs/acra/pull/476)
