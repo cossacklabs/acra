@@ -28,10 +28,10 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"github.com/cossacklabs/acra/logging"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 
 	"github.com/cossacklabs/acra/cmd"
@@ -39,6 +39,7 @@ import (
 	keystore2 "github.com/cossacklabs/acra/keystore"
 	fs "github.com/cossacklabs/acra/keystore/filesystem/internal"
 	"github.com/cossacklabs/acra/keystore/lru"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -52,6 +53,15 @@ const PrivateFileMode = os.FileMode(0600)
 const publicFileMode = os.FileMode(0644)
 
 const keyDirMode = os.FileMode(0700)
+
+const (
+	poisonPrivateKey   = "poison_key"
+	poisonPublicKey    = "poison_key.pub"
+	poisonSymmetricKey = "poison_key_sym"
+)
+
+// ErrUnrecognizedKeyPurpose describe key mismatch error
+var ErrUnrecognizedKeyPurpose = errors.New("key purpose not recognized")
 
 // KeyStore represents keystore that reads keys from key folders, and stores them in memory.
 type KeyStore struct {
@@ -218,6 +228,62 @@ func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, storage Sto
 	// set callback on cache value removing
 
 	return store, nil
+}
+
+// CacheOnStart list and cache all keys from keystore
+func (store *KeyStore) CacheOnStart() error {
+	descriptions, err := store.ListKeys()
+	if err != nil {
+		return err
+	}
+
+	for _, desc := range descriptions {
+		switch desc.Purpose {
+		case PurposePoisonRecordSymmetricKey:
+			if _, err = store.GetPoisonSymmetricKeys(); err != nil {
+				return err
+			}
+		case PurposePoisonRecordKeyPair:
+			if _, err = store.GetPoisonKeyPair(); err != nil {
+				return err
+			}
+		case PurposeSearchHMAC:
+			if _, err = store.GetHMACSecretKey(desc.ClientID); err != nil {
+				return err
+			}
+		case PurposeAuditLog:
+			if _, err = store.GetLogSecretKey(); err != nil {
+				return err
+			}
+		case PurposeStorageClientSymmetricKey:
+			if _, err = store.GetClientIDSymmetricKeys(desc.ClientID); err != nil {
+				return err
+			}
+		case PurposeStorageClientPrivateKey:
+			if _, err = store.GetServerDecryptionPrivateKey(desc.ClientID); err != nil {
+				return err
+			}
+		case PurposeStorageClientPublicKey:
+			if _, err = store.GetClientIDEncryptionPublicKey(desc.ClientID); err != nil {
+				return err
+			}
+		case PurposeStorageZonePrivateKey:
+			if _, err = store.GetZonePrivateKey(desc.ZoneID); err != nil {
+				return err
+			}
+		case PurposeStorageZonePublicKey:
+			if _, err = store.GetZonePublicKey(desc.ZoneID); err != nil {
+				return err
+			}
+		case PurposeStorageZoneSymmetricKey:
+			if _, err = store.GetZoneIDSymmetricKeys(desc.ZoneID); err != nil {
+				return err
+			}
+		default:
+			return ErrUnrecognizedKeyPurpose
+		}
+	}
+	return nil
 }
 
 func (store *KeyStore) generateKeyPair(filename string, clientID []byte) (*keys.Keypair, error) {
@@ -392,12 +458,12 @@ func (store *KeyStore) GetPublicKeyFilePath(filename string) string {
 
 // use key started with "." (dot) because it's invalid character for clientID that generally stored in cache and
 // it will not intersect with other keys
-const cacheKeySuffix = ".historical."
+const cacheKeyPrefix = ".historical."
 
 var errCacheMissHistoricalFilenames = errors.New("cache doesn't contain historical filenames")
 
 func (store *KeyStore) getCachedHistoricalPrivateKeyFilenames(id string) ([]string, error) {
-	key := cacheKeySuffix + id
+	key := cacheKeyPrefix + id
 	value, ok := store.cache.Get(key)
 	if !ok {
 		return nil, errCacheMissHistoricalFilenames
@@ -416,7 +482,7 @@ func (store *KeyStore) cacheHistoricalPrivateKeyFilenames(id string, paths []str
 	if err != nil {
 		return err
 	}
-	key := cacheKeySuffix + id
+	key := cacheKeyPrefix + id
 	store.cache.Add(key, serialized)
 	return nil
 }
@@ -700,8 +766,150 @@ func (store *KeyStore) GenerateDataEncryptionKeys(id []byte) error {
 
 // ListKeys enumerates keys present in the keystore.
 func (store *KeyStore) ListKeys() ([]keystore.KeyDescription, error) {
-	// In Acra CE this method is implemented only for keystore v2.
-	return nil, keystore.ErrNotImplemented
+	privateKeys, err := store.describeDir(store.privateKeyDirectory)
+	if err != nil {
+		return nil, err
+	}
+
+	publicKeys, err := store.describeDir(store.publicKeyDirectory)
+	if err != nil {
+		return nil, err
+	}
+
+	keys := make([]keystore.KeyDescription, 0)
+	keys = append(keys, privateKeys...)
+	keys = append(keys, publicKeys...)
+	return keys, nil
+}
+
+func (store *KeyStore) describeDir(dirName string) ([]keystore.KeyDescription, error) {
+	files, err := store.fs.ReadDir(dirName)
+	if err != nil {
+		return nil, err
+	}
+
+	keys := make([]keystore.KeyDescription, 0, len(files))
+	for _, fileInfo := range files {
+		if fileInfo.IsDir() && fileInfo.Name() == ".poison_key" {
+			//recursive read to scan poison directory
+			poisonKeys, err := store.describeDir(filepath.Join(dirName, fileInfo.Name()))
+			if err != nil {
+				return nil, err
+			}
+			keys = append(keys, poisonKeys...)
+
+			continue
+		}
+
+		if strings.HasSuffix(fileInfo.Name(), "old") {
+			continue
+		}
+
+		description, err := store.DescribeKeyFile(fileInfo)
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, *description)
+	}
+	return keys, nil
+}
+
+// DescribeKeyFile describes key by its purpose path.
+func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescription, error) {
+
+	switch fileInfo.Name() {
+	case poisonPrivateKey:
+		return &keystore.KeyDescription{
+			ID:      poisonPrivateKey,
+			Purpose: PurposePoisonRecordKeyPair,
+		}, nil
+	case poisonPublicKey:
+		return &keystore.KeyDescription{
+			ID:      poisonPublicKey,
+			Purpose: PurposePoisonRecordKeyPair,
+		}, nil
+	case poisonSymmetricKey:
+		return &keystore.KeyDescription{
+			ID:      poisonSymmetricKey,
+			Purpose: PurposePoisonRecordSymmetricKey,
+		}, nil
+	}
+
+	components := strings.Split(fileInfo.Name(), "_")
+
+	//in case of one split result slice will have more than one element
+	if len(components) < 2 {
+		return nil, ErrUnrecognizedKeyPurpose
+	}
+
+	lastKeyPart := components[len(components)-1]
+	penultimateKeyPart := components[len(components)-2]
+
+	if lastKeyPart == "hmac" {
+		return &keystore.KeyDescription{
+			ID:       fileInfo.Name(),
+			Purpose:  PurposeSearchHMAC,
+			ClientID: []byte(strings.Join(components[:len(components)-1], "_")),
+		}, nil
+	}
+
+	if lastKeyPart == "storage" {
+		return &keystore.KeyDescription{
+			ID:       fileInfo.Name(),
+			Purpose:  PurposeStorageClientPrivateKey,
+			ClientID: []byte(strings.Join(components[:len(components)-1], "_")),
+		}, nil
+	}
+
+	if lastKeyPart == "storage.pub" {
+		return &keystore.KeyDescription{
+			ID:       fileInfo.Name(),
+			Purpose:  PurposeStorageClientPublicKey,
+			ClientID: []byte(strings.Join(components[:len(components)-1], "_")),
+		}, nil
+	}
+
+	if lastKeyPart == "zone" {
+		return &keystore.KeyDescription{
+			ID:      fileInfo.Name(),
+			Purpose: PurposeStorageZonePrivateKey,
+			ZoneID:  []byte(strings.Join(components[:len(components)-1], "_")),
+		}, nil
+	}
+
+	if lastKeyPart == "zone.pub" {
+		return &keystore.KeyDescription{
+			ID:      fileInfo.Name(),
+			Purpose: PurposeStorageZonePublicKey,
+			ZoneID:  []byte(strings.Join(components[:len(components)-1], "_")),
+		}, nil
+	}
+
+	if penultimateKeyPart == "storage" && lastKeyPart == "sym" {
+		return &keystore.KeyDescription{
+			ID:       fileInfo.Name(),
+			Purpose:  PurposeStorageClientSymmetricKey,
+			ClientID: []byte(strings.Join(components[:len(components)-2], "_")),
+		}, nil
+	}
+
+	if penultimateKeyPart == "zone" && lastKeyPart == "sym" {
+		return &keystore.KeyDescription{
+			ID:      fileInfo.Name(),
+			Purpose: PurposeStorageZoneSymmetricKey,
+			ZoneID:  []byte(strings.Join(components[:len(components)-2], "_")),
+		}, nil
+	}
+
+	if penultimateKeyPart == "log" && lastKeyPart == "key" {
+		return &keystore.KeyDescription{
+			ID:       fileInfo.Name(),
+			Purpose:  PurposeAuditLog,
+			ClientID: []byte(strings.Join(components[:len(components)-2], "_")),
+		}, nil
+	}
+
+	return nil, ErrUnrecognizedKeyPurpose
 }
 
 // Reset clears all cached keys

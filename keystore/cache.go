@@ -19,6 +19,8 @@ package keystore
 const (
 	// InfiniteCacheSize unlimited size
 	InfiniteCacheSize = 0
+	// DefaultCacheSize default cache size
+	DefaultCacheSize = 1000
 	// WithoutCache means not using cache at all
 	WithoutCache = -1
 )

@@ -1,8 +1,11 @@
 ## 0.92.0 - 2022-02-16
+- Added cache keystore keys on start logic with `keystore_cache_on_start_enable` flag;
+- Changed the default flag value for `keystore_cache_size` flag. Default is 1000;
+- Added server halt for keystore `v2` and `keystore_cache_size` not -1;
 - Cache fetching rotated key filenames to decrease extra syscalls
 
 ## 0.92.0 - 2022-02-14
-- Add new script `run_transparent.sh` to `benchmark` folder that collects data from debug server for `pprof` tool and 
+- Add new script `run_transparent.sh` to `benchmark` folder that collects data from debug server for `pprof` tool and
   works with docker-compose file
 
 ## 0.92.0 - 2022-02-09

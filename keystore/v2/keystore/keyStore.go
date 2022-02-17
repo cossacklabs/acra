@@ -29,7 +29,7 @@ import (
 
 const serviceName = "keystore"
 
-// Errors in keystore listing and export.
+// Errors for describing keys
 var (
 	ErrUnrecognizedKeyPurpose = errors.New("key purpose not recognized")
 )
@@ -82,6 +82,11 @@ func (s *ServerKeyStore) ListKeys() ([]keystore.KeyDescription, error) {
 		return nil, err
 	}
 	return DescribeKeyRings(keyRings, s)
+}
+
+// CacheOnStart v2 keystore doesnt support keys caching
+func (s *ServerKeyStore) CacheOnStart() error {
+	panic("caching is not implemented for keystore v2")
 }
 
 // DescribeKeyRings describes multiple key rings by their purpose paths.
