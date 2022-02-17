@@ -776,23 +776,34 @@ func (store *KeyStore) GetPoisonSymmetricKeys() ([][]byte, error) {
 // If a poison record does not exist, it is created and its sole symmetric key is returned.
 func (store *KeyStore) GetPoisonSymmetricKey() ([]byte, error) {
 	keyFileName := getSymmetricKeyName(PoisonKeyFilename)
-	poisonKeyExists, err := store.fs.Exists(store.GetPrivateKeyFilePath(keyFileName))
+
+	// Try getting it from cache first
+	key, ok := store.cache.Get(keyFileName)
+	if ok {
+		return key, nil
+	}
+
+	// Not cached? Try reading it
+	key, err := store.getLatestSymmetricKey([]byte(keyFileName), keyFileName)
+	if err == nil {
+		return key, nil
+	}
+
+	// Does not exist? Generate it!
+	log.Debugln("Generating poison symmetric key")
+	err = store.generateAndSaveSymmetricKey([]byte(keyFileName), store.GetPrivateKeyFilePath(keyFileName))
 	if err != nil {
-		log.Debug("Can't check poison key existence")
+		log.Debug("Can't generate new poison sym key")
 		return nil, err
 	}
-	log.WithError(err).WithField("exists", poisonKeyExists).Debug("Get poison sym key")
-	// If there is no poison record keypair, generated one and returns its private key.
-	if !poisonKeyExists {
-		log.Debugln("Generate poison symmetric key")
 
-		err := store.generateAndSaveSymmetricKey([]byte(keyFileName), store.GetPrivateKeyFilePath(keyFileName))
-		if err != nil {
-			log.Debug("Can't generate new poison sym key")
-			return nil, err
-		}
+	// And read again, this time should be successful
+	key, err = store.getLatestSymmetricKey([]byte(keyFileName), keyFileName)
+	if err != nil {
+		return nil, err
 	}
-	return store.getLatestSymmetricKey([]byte(keyFileName), keyFileName)
+
+	return key, nil
 }
 
 // RotateZoneKey generate new key pair for ZoneId, overwrite private key with new and return new public key
