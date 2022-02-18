@@ -139,6 +139,29 @@ func (_m *ServerKeyStore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys
 	return r0, r1
 }
 
+// GetClientIDSymmetricKey provides a mock function with given fields: id
+func (_m *ServerKeyStore) GetClientIDSymmetricKey(id []byte) ([]byte, error) {
+	ret := _m.Called(id)
+
+	var r0 []byte
+	if rf, ok := ret.Get(0).(func([]byte) []byte); ok {
+		r0 = rf(id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]byte)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func([]byte) error); ok {
+		r1 = rf(id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetClientIDSymmetricKeys provides a mock function with given fields: id
 func (_m *ServerKeyStore) GetClientIDSymmetricKeys(id []byte) ([][]byte, error) {
 	ret := _m.Called(id)
@@ -254,6 +277,29 @@ func (_m *ServerKeyStore) GetPoisonPrivateKeys() ([]*keys.PrivateKey, error) {
 	return r0, r1
 }
 
+// GetPoisonSymmetricKey provides a mock function with given fields:
+func (_m *ServerKeyStore) GetPoisonSymmetricKey() ([]byte, error) {
+	ret := _m.Called()
+
+	var r0 []byte
+	if rf, ok := ret.Get(0).(func() []byte); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]byte)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func() error); ok {
+		r1 = rf()
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetPoisonSymmetricKeys provides a mock function with given fields:
 func (_m *ServerKeyStore) GetPoisonSymmetricKeys() ([][]byte, error) {
 	ret := _m.Called()
@@ -310,6 +356,29 @@ func (_m *ServerKeyStore) GetServerDecryptionPrivateKeys(id []byte) ([]*keys.Pri
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]*keys.PrivateKey)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func([]byte) error); ok {
+		r1 = rf(id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetZoneIDSymmetricKey provides a mock function with given fields: id
+func (_m *ServerKeyStore) GetZoneIDSymmetricKey(id []byte) ([]byte, error) {
+	ret := _m.Called(id)
+
+	var r0 []byte
+	if rf, ok := ret.Get(0).(func([]byte) []byte); ok {
+		r0 = rf(id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]byte)
 		}
 	}
 

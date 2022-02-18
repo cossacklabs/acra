@@ -1003,6 +1003,45 @@ func (store *KeyStore) GetPoisonSymmetricKeys() ([][]byte, error) {
 	return store.getSymmetricKeys([]byte(keyFileName), keyFileName)
 }
 
+// GetPoisonSymmetricKey returns latest symmetric key for encryption of poison records with AcraBlock.
+// If a poison record does not exist, it is created and its sole symmetric key is returned.
+func (store *KeyStore) GetPoisonSymmetricKey() ([]byte, error) {
+	keyFileName := getSymmetricKeyName(PoisonKeyFilename)
+
+	// Try getting it from cache first
+	key, ok := store.cache.Get(keyFileName)
+	if ok {
+		decryptedKey, err := store.encryptor.Decrypt(key, []byte(keyFileName))
+		if err != nil {
+			return nil, err
+		}
+
+		return decryptedKey, nil
+	}
+
+	// Not cached? Try reading it
+	key, err := store.getLatestSymmetricKey([]byte(keyFileName), keyFileName)
+	if err == nil {
+		return key, nil
+	}
+
+	// Does not exist? Generate it!
+	log.Debugln("Generating poison symmetric key")
+	err = store.generateAndSaveSymmetricKey([]byte(keyFileName), store.GetPrivateKeyFilePath(keyFileName))
+	if err != nil {
+		log.Debug("Can't generate new poison sym key")
+		return nil, err
+	}
+
+	// And read again, this time should be successful
+	key, err = store.getLatestSymmetricKey([]byte(keyFileName), keyFileName)
+	if err != nil {
+		return nil, err
+	}
+
+	return key, nil
+}
+
 // RotateZoneKey generate new key pair for ZoneId, overwrite private key with new and return new public key
 func (store *KeyStore) RotateZoneKey(zoneID []byte) ([]byte, error) {
 	_, public, err := store.generateZoneKey(zoneID)
@@ -1240,16 +1279,37 @@ func (store *KeyStore) getSymmetricKeys(id []byte, keyname string) ([][]byte, er
 	return keys, nil
 }
 
-// GetClientIDSymmetricKeys return symmetric key for specified client id
+func (store *KeyStore) getLatestSymmetricKey(id []byte, keyname string) ([]byte, error) {
+	key, err := store.readEncryptedKey(id, keyname)
+	if err != nil {
+		return nil, err
+	}
+
+	return key, nil
+}
+
+// GetClientIDSymmetricKeys return symmetric keys for specified client id
 func (store *KeyStore) GetClientIDSymmetricKeys(id []byte) ([][]byte, error) {
 	keyName := getClientIDSymmetricKeyName(id)
 	return store.getSymmetricKeys(id, keyName)
 }
 
-// GetZoneIDSymmetricKeys return symmetric key for specified zone id
+// GetClientIDSymmetricKey return latest symmetric key for encryption by specified client id
+func (store *KeyStore) GetClientIDSymmetricKey(id []byte) ([]byte, error) {
+	keyName := getClientIDSymmetricKeyName(id)
+	return store.getLatestSymmetricKey(id, keyName)
+}
+
+// GetZoneIDSymmetricKeys return symmetric keys for specified zone id
 func (store *KeyStore) GetZoneIDSymmetricKeys(id []byte) ([][]byte, error) {
 	keyName := getZoneIDSymmetricKeyName(id)
 	return store.getSymmetricKeys(id, keyName)
+}
+
+// GetZoneIDSymmetricKey return latest symmetric key for encryption in specified zone id
+func (store *KeyStore) GetZoneIDSymmetricKey(id []byte) ([]byte, error) {
+	keyName := getZoneIDSymmetricKeyName(id)
+	return store.getLatestSymmetricKey(id, keyName)
 }
 
 // GetDecryptionTokenSymmetricKeys return symmetric keys which may be used to decrypt encrypted token

@@ -48,6 +48,10 @@ func (keystore *testKeystore) GetPoisonSymmetricKeys() ([][]byte, error) {
 	panic("implement me")
 }
 
+func (keystore *testKeystore) GetPoisonSymmetricKey() ([]byte, error) {
+	panic("implement me")
+}
+
 func (*testKeystore) GetLogSecretKey() ([]byte, error) {
 	panic("implement me")
 }
@@ -75,7 +79,15 @@ func (keystore *testKeystore) GetClientIDSymmetricKeys(id []byte) ([][]byte, err
 	panic("implement me")
 }
 
+func (keystore *testKeystore) GetClientIDSymmetricKey(id []byte) ([]byte, error) {
+	panic("implement me")
+}
+
 func (keystore *testKeystore) GetZoneIDSymmetricKeys(id []byte) ([][]byte, error) {
+	panic("implement me")
+}
+
+func (keystore *testKeystore) GetZoneIDSymmetricKey(id []byte) ([]byte, error) {
 	panic("implement me")
 }
 

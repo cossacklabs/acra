@@ -333,6 +333,90 @@ func testGetClientIDEncryptionPublicKey(store *KeyStore, t *testing.T) {
 	}
 }
 
+func testGetSymmetricKey(store *KeyStore, t *testing.T) {
+	// Insert one clientID key, expect to get it
+	testClientID := []byte("client1")
+	if err := store.GenerateClientIDSymmetricKey(testClientID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.GetClientIDSymmetricKey(testClientID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Insert multiple clientID keys, expect to get 0th one
+	testClientID = []byte("client2")
+	if err := store.GenerateClientIDSymmetricKey(testClientID); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.GenerateClientIDSymmetricKey(testClientID); err != nil {
+		t.Fatal(err)
+	}
+	encryptionKeys, err := store.GetClientIDSymmetricKeys(testClientID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encryptionKey, err := store.GetClientIDSymmetricKey(testClientID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(encryptionKey, encryptionKeys[0]) {
+		t.Fatal("store.GetClientIDSymmetricKey() did not return 0th key")
+	}
+
+	// Insert one zoneID key, expect to get it
+	testZoneID := []byte("zone1")
+	if err = store.GenerateClientIDSymmetricKey(testZoneID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.GetClientIDSymmetricKey(testZoneID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Insert multiple zoneID keys, expect to get 0th one
+	testZoneID = []byte("zone2")
+	if err = store.GenerateZoneIDSymmetricKey(testZoneID); err != nil {
+		t.Fatal(err)
+	}
+	if err = store.GenerateZoneIDSymmetricKey(testZoneID); err != nil {
+		t.Fatal(err)
+	}
+	encryptionKeys, err = store.GetZoneIDSymmetricKeys(testZoneID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encryptionKey, err = store.GetZoneIDSymmetricKey(testZoneID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(encryptionKey, encryptionKeys[0]) {
+		t.Fatal("store.GetZoneIDSymmetricKey() did not return 0th key")
+	}
+}
+
+func testGetPoisonSymmetricKey(store *KeyStore, t *testing.T) {
+	poisonKey1, err := store.GetPoisonSymmetricKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(poisonKey1) != keystore.SymmetricKeyLength {
+		t.Fatalf("GetPoisonSymmetricKey() returned encrypted key (%d bytes, expected %d)\n", len(poisonKey1), keystore.SymmetricKeyLength)
+	}
+
+	poisonKey2, err := store.GetPoisonSymmetricKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(poisonKey2) != keystore.SymmetricKeyLength {
+		t.Fatalf("GetPoisonSymmetricKey() returned encrypted key (%d bytes, expected %d)\n", len(poisonKey2), keystore.SymmetricKeyLength)
+	}
+
+	if !bytes.Equal(poisonKey1, poisonKey2) {
+		t.Fatal("Two calls to GetPoisonSymmetricKey() returned different keys")
+	}
+}
+
 func testFilesystemKeyStoreBasic(storage Storage, t *testing.T) {
 	privateKeyDirectory := fmt.Sprintf(".%s%s", string(filepath.Separator), "cache")
 	storage.MkdirAll(privateKeyDirectory, 0700)
@@ -394,6 +478,8 @@ func testFilesystemKeyStoreBasic(storage Storage, t *testing.T) {
 		testGenerateSymKeyUncreatedDir(store, t)
 		testWriteKeyFileUncreatedDir(store, t)
 		testGetClientIDEncryptionPublicKey(store, t)
+		testGetSymmetricKey(store, t)
+		testGetPoisonSymmetricKey(store, t)
 	}
 }
 

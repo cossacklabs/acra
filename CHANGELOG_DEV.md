@@ -1,3 +1,6 @@
+## 0.92.0 - 2022-02-17
+- Extend KeyStore interface to allow fetching single latest symmetric key for encryption purposes
+
 ## 0.92.0 - 2022-02-16
 - Added cache keystore keys on start logic with `keystore_cache_on_start_enable` flag;
 - Changed the default flag value for `keystore_cache_size` flag. Default is 1000;
