@@ -1,4 +1,4 @@
-version: 0.91.0
+version: 0.92.0
 # Use clientID from TLS certificates or secure session handshake instead directly passed values in gRPC methods
 acratranslator_client_id_from_connection_enable: false
 
