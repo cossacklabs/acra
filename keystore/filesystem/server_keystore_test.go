@@ -329,8 +329,8 @@ func testGetPoisonSymmetricKey(store *KeyStore, t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(poisonKey1) != 32 {
-		t.Fatalf("GetPoisonSymmetricKey() returned encrypted key (%d bytes, expected 32)\n", len(poisonKey1))
+	if len(poisonKey1) != keystore.SymmetricKeyLength {
+		t.Fatalf("GetPoisonSymmetricKey() returned encrypted key (%d bytes, expected %d)\n", len(poisonKey1), keystore.SymmetricKeyLength)
 	}
 
 	poisonKey2, err := store.GetPoisonSymmetricKey()
@@ -338,8 +338,8 @@ func testGetPoisonSymmetricKey(store *KeyStore, t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(poisonKey2) != 32 {
-		t.Fatalf("GetPoisonSymmetricKey() returned encrypted key (%d bytes, expected 32)\n", len(poisonKey2))
+	if len(poisonKey2) != keystore.SymmetricKeyLength {
+		t.Fatalf("GetPoisonSymmetricKey() returned encrypted key (%d bytes, expected %d)\n", len(poisonKey2), keystore.SymmetricKeyLength)
 	}
 
 	if !bytes.Equal(poisonKey1, poisonKey2) {
