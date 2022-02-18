@@ -780,7 +780,12 @@ func (store *KeyStore) GetPoisonSymmetricKey() ([]byte, error) {
 	// Try getting it from cache first
 	key, ok := store.cache.Get(keyFileName)
 	if ok {
-		return key, nil
+		decryptedKey, err := store.encryptor.Decrypt(key, []byte(keyFileName))
+		if err != nil {
+			return nil, err
+		}
+
+		return decryptedKey, nil
 	}
 
 	// Not cached? Try reading it
