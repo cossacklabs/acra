@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -149,6 +150,75 @@ func testGenerateSymKeyUncreatedDir(store *KeyStore, t *testing.T) {
 	}
 }
 
+func testKeyStoreCacheOnStart(store *KeyStore, t *testing.T) {
+	clientID := []byte("client_id_with_underscore")
+	zoneID := []byte("DDDDDDDDujwBdsnitwoaHEeo")
+
+	if err := store.GenerateClientIDSymmetricKey(clientID); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := store.GenerateDataEncryptionKeys(clientID); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := store.GenerateZoneIDSymmetricKey(zoneID); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := store.GenerateHmacKey(clientID); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := store.GenerateLogKey(); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := store.CacheOnStart(); err != nil {
+		log.Fatal(err)
+	}
+
+	for _, key := range []string{
+		"secure_log_key",
+		fmt.Sprintf("%s_storage_sym", clientID),
+		fmt.Sprintf("%s_storage", clientID),
+		fmt.Sprintf("%s_storage.pub", clientID),
+		fmt.Sprintf("%s_zone_sym", zoneID),
+		fmt.Sprintf("%s_hmac", clientID),
+	} {
+		err := store.fs.Remove(fmt.Sprintf("%s/%s", store.privateKeyDirectory, key))
+		if err != nil && !os.IsNotExist(err) {
+			log.Fatal(err)
+		}
+	}
+
+	// read from cache section
+	_, err := store.GetClientIDSymmetricKeys(clientID)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = store.GetZoneIDSymmetricKeys(zoneID)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = store.GetClientIDEncryptionPublicKey(clientID)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = store.GetHMACSecretKey(clientID)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = store.GetLogSecretKey()
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func testWriteKeyFileUncreatedDir(store *KeyStore, t *testing.T) {
 	dir, err := ioutil.TempDir("/tmp", "keys")
 	if err != nil {
@@ -263,6 +333,90 @@ func testGetClientIDEncryptionPublicKey(store *KeyStore, t *testing.T) {
 	}
 }
 
+func testGetSymmetricKey(store *KeyStore, t *testing.T) {
+	// Insert one clientID key, expect to get it
+	testClientID := []byte("client1")
+	if err := store.GenerateClientIDSymmetricKey(testClientID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.GetClientIDSymmetricKey(testClientID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Insert multiple clientID keys, expect to get 0th one
+	testClientID = []byte("client2")
+	if err := store.GenerateClientIDSymmetricKey(testClientID); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.GenerateClientIDSymmetricKey(testClientID); err != nil {
+		t.Fatal(err)
+	}
+	encryptionKeys, err := store.GetClientIDSymmetricKeys(testClientID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encryptionKey, err := store.GetClientIDSymmetricKey(testClientID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(encryptionKey, encryptionKeys[0]) {
+		t.Fatal("store.GetClientIDSymmetricKey() did not return 0th key")
+	}
+
+	// Insert one zoneID key, expect to get it
+	testZoneID := []byte("zone1")
+	if err = store.GenerateClientIDSymmetricKey(testZoneID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.GetClientIDSymmetricKey(testZoneID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Insert multiple zoneID keys, expect to get 0th one
+	testZoneID = []byte("zone2")
+	if err = store.GenerateZoneIDSymmetricKey(testZoneID); err != nil {
+		t.Fatal(err)
+	}
+	if err = store.GenerateZoneIDSymmetricKey(testZoneID); err != nil {
+		t.Fatal(err)
+	}
+	encryptionKeys, err = store.GetZoneIDSymmetricKeys(testZoneID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encryptionKey, err = store.GetZoneIDSymmetricKey(testZoneID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(encryptionKey, encryptionKeys[0]) {
+		t.Fatal("store.GetZoneIDSymmetricKey() did not return 0th key")
+	}
+}
+
+func testGetPoisonSymmetricKey(store *KeyStore, t *testing.T) {
+	poisonKey1, err := store.GetPoisonSymmetricKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(poisonKey1) != keystore.SymmetricKeyLength {
+		t.Fatalf("GetPoisonSymmetricKey() returned encrypted key (%d bytes, expected %d)\n", len(poisonKey1), keystore.SymmetricKeyLength)
+	}
+
+	poisonKey2, err := store.GetPoisonSymmetricKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(poisonKey2) != keystore.SymmetricKeyLength {
+		t.Fatalf("GetPoisonSymmetricKey() returned encrypted key (%d bytes, expected %d)\n", len(poisonKey2), keystore.SymmetricKeyLength)
+	}
+
+	if !bytes.Equal(poisonKey1, poisonKey2) {
+		t.Fatal("Two calls to GetPoisonSymmetricKey() returned different keys")
+	}
+}
+
 func testFilesystemKeyStoreBasic(storage Storage, t *testing.T) {
 	privateKeyDirectory := fmt.Sprintf(".%s%s", string(filepath.Separator), "cache")
 	storage.MkdirAll(privateKeyDirectory, 0700)
@@ -324,6 +478,8 @@ func testFilesystemKeyStoreBasic(storage Storage, t *testing.T) {
 		testGenerateSymKeyUncreatedDir(store, t)
 		testWriteKeyFileUncreatedDir(store, t)
 		testGetClientIDEncryptionPublicKey(store, t)
+		testGetSymmetricKey(store, t)
+		testGetPoisonSymmetricKey(store, t)
 	}
 }
 
@@ -1029,5 +1185,66 @@ func BenchmarkHistoricalPathsSerialization(b *testing.B) {
 			b.Fatal(err)
 		}
 		reflect.DeepEqual(paths, values)
+	})
+}
+
+func TestKeyStore_GetPoisonKeyPair(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	encryptor, err := keystore.NewSCellKeyEncryptor([]byte(`some key`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyStore, err := NewFilesystemKeyStore(tmpDir, encryptor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Run("Check empty cache before generation", func(t *testing.T) {
+		_, ok := keyStore.cache.Get(PoisonKeyFilename)
+		if ok {
+			t.Fatal("Unexpected cached poison private key")
+		}
+		_, ok = keyStore.cache.Get(poisonKeyFilenamePublic)
+		if ok {
+			t.Fatal("Unexpected cached poison public key")
+		}
+	})
+	// we don't have api to generate keypair because keystore generates it automatically on first request
+	keyPair, err := keyStore.GetPoisonKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Run("Check caching keys after generation and property that private key encrypted", func(t *testing.T) {
+		privateKey, ok := keyStore.cache.Get(PoisonKeyFilename)
+		if !ok {
+			t.Fatal("Private key wasn't cached")
+		}
+		if bytes.Equal(privateKey, keyPair.Private.Value) {
+			t.Fatal("Cached private key wasn't encrypted and equal to generated raw keypair")
+		}
+		publicKey, ok := keyStore.cache.Get(poisonKeyFilenamePublic)
+		if !ok {
+			t.Fatal("Public key wasn't cached")
+		}
+		if !bytes.Equal(keyPair.Public.Value, publicKey) {
+			t.Fatal("Cached public key not equal to raw key")
+		}
+	})
+	t.Run("Check reading keys from the cache after purging keystore folder", func(t *testing.T) {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Fatal(err)
+		}
+		keyPair2, err := keyStore.GetPoisonKeyPair()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(keyPair2.Public.Value, keyPair.Public.Value) {
+			t.Fatal("Took unexpected new keypair's public key")
+		}
+		if !bytes.Equal(keyPair2.Private.Value, keyPair.Private.Value) {
+			t.Fatal("Took unexpected new keypair's private key")
+		}
 	})
 }

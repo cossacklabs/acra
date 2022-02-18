@@ -50,7 +50,7 @@ var (
 	ErrInvalidClientID          = errors.New("invalid client ID")
 	ErrEmptyMasterKey           = errors.New("master key is empty")
 	ErrMasterKeyIncorrectLength = fmt.Errorf("master key must have %v length in bytes", SymmetricKeyLength)
-	ErrNotImplemented           = errors.New("not implemented")
+	ErrCacheIsNotSupportedV2    = errors.New("keystore cache is not supported for keystore v2")
 )
 
 // Key struct store content of keypair or some symmetric key
@@ -103,7 +103,9 @@ type HmacKeyGenerator interface {
 // SymmetricEncryptionKeyStore interface describe access methods to encryption symmetric keys
 type SymmetricEncryptionKeyStore interface {
 	GetClientIDSymmetricKeys(id []byte) ([][]byte, error)
+	GetClientIDSymmetricKey(id []byte) ([]byte, error)
 	GetZoneIDSymmetricKeys(id []byte) ([][]byte, error)
+	GetZoneIDSymmetricKey(id []byte) ([]byte, error)
 }
 
 // SymmetricEncryptionKeyStoreGenerator interface methods responsible for generation encryption symmetric keys
@@ -227,6 +229,7 @@ type PublicKeyStore interface {
 type RecordProcessorKeyStore interface {
 	GetPoisonPrivateKeys() ([]*keys.PrivateKey, error)
 	GetPoisonSymmetricKeys() ([][]byte, error)
+	GetPoisonSymmetricKey() ([]byte, error)
 }
 
 // DataEncryptorKeyStore interface with required methods for CryptoHandlers
@@ -293,6 +296,7 @@ type PoisonKeyStore interface {
 	GetPoisonKeyPair() (*keys.Keypair, error)
 	GetPoisonPrivateKeys() ([]*keys.PrivateKey, error)
 	GetPoisonSymmetricKeys() ([][]byte, error)
+	GetPoisonSymmetricKey() ([]byte, error)
 }
 
 // ServerKeyStore enables AcraStruct encryption, decryption,
@@ -303,6 +307,7 @@ type ServerKeyStore interface {
 	AuditLogKeyStore
 	SymmetricEncryptionKeyStoreGenerator
 
+	CacheOnStart() error
 	ListKeys() ([]KeyDescription, error)
 	Reset()
 }
@@ -323,4 +328,6 @@ type KeyDescription struct {
 type TranslationKeyStore interface {
 	DecryptionKeyStore
 	AuditLogKeyStore
+
+	CacheOnStart() error
 }
