@@ -79,15 +79,11 @@ func CreateSymmetricPoisonRecord(keyStore keystore.PoisonKeyStore, dataLength in
 	if err != nil {
 		return nil, err
 	}
-	symmetricKeys, err := keyStore.GetPoisonSymmetricKeys()
+	symmetricKey, err := keyStore.GetPoisonSymmetricKey()
 	if err != nil {
 		return nil, err
 	}
-	if len(symmetricKeys) <= 0 {
-		return nil, keystore.ErrKeysNotFound
-	}
-
-	acraBlock, err := acrablock.CreateAcraBlock(data, symmetricKeys[0], nil)
+	acraBlock, err := acrablock.CreateAcraBlock(data, symmetricKey, nil)
 	if err != nil {
 		return nil, err
 	}

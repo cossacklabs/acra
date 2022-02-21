@@ -56,14 +56,11 @@ func (d *DataEncryptor) EncryptWithZoneID(zoneID, data []byte, setting config.Co
 			data = decrypted
 		}
 	}
-	keys, err := d.keyStore.GetZoneIDSymmetricKeys(zoneID)
+	key, err := d.keyStore.GetZoneIDSymmetricKey(zoneID)
 	if err != nil {
 		return data, err
 	}
-	if len(keys) == 0 {
-		return data, keystore.ErrKeysNotFound
-	}
-	return CreateAcraBlock(data, keys[0], zoneID)
+	return CreateAcraBlock(data, key, zoneID)
 }
 
 // EncryptWithClientID encrypt data using AcraBlock
@@ -88,12 +85,9 @@ func (d *DataEncryptor) EncryptWithClientID(clientID, data []byte, setting confi
 			data = decrypted
 		}
 	}
-	keys, err := d.keyStore.GetClientIDSymmetricKeys(clientID)
+	keys, err := d.keyStore.GetClientIDSymmetricKey(clientID)
 	if err != nil {
 		return data, err
 	}
-	if len(keys) == 0 {
-		return data, keystore.ErrKeysNotFound
-	}
-	return CreateAcraBlock(data, keys[0], nil)
+	return CreateAcraBlock(data, keys, nil)
 }

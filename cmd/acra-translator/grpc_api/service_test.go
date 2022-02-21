@@ -279,9 +279,19 @@ func TestTranslatorService_SearchSym(t *testing.T) {
 			return [][]byte{append([]byte{}, zoneIDSymKey...)}
 		},
 		nil)
+	keystore.On("GetZoneIDSymmetricKey", mock.MatchedBy(func([]byte) bool { return true })).Return(
+		func([]byte) []byte {
+			return append([]byte{}, zoneIDSymKey...)
+		},
+		nil)
 	keystore.On("GetClientIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
 		func([]byte) [][]byte {
 			return [][]byte{append([]byte{}, clientIDSymKey...)}
+		},
+		nil)
+	keystore.On("GetClientIDSymmetricKey", mock.MatchedBy(func([]byte) bool { return true })).Return(
+		func([]byte) []byte {
+			return append([]byte{}, clientIDSymKey...)
 		},
 		nil)
 
@@ -369,6 +379,7 @@ func TestTranslatorService_DecryptionPoisonRecord(t *testing.T) {
 	keyStorage := &mocks.ServerKeyStore{}
 	// everytime return copy of value because it will be zeroized after each call
 	keyStorage.On("GetPoisonSymmetricKeys").Return(func() [][]byte { return [][]byte{append([]byte{}, poisonSymKey...)} }, nil)
+	keyStorage.On("GetPoisonSymmetricKey").Return(func() []byte { return append([]byte{}, poisonSymKey...) }, nil)
 	callbackStorage := poison.NewCallbackStorage()
 	callback := &testPoisonCallback{}
 	callbackStorage.AddCallback(callback)
@@ -394,15 +405,26 @@ func TestTranslatorService_DecryptionPoisonRecord(t *testing.T) {
 		// reset all .On registered callbacks
 		keyStorage.ExpectedCalls = nil
 		keyStorage.On("GetPoisonSymmetricKeys").Return(func() [][]byte { return [][]byte{append([]byte{}, poisonSymKey...)} }, nil)
+		keyStorage.On("GetPoisonSymmetricKey").Return(func() []byte { return append([]byte{}, poisonSymKey...) }, nil)
 		keyStorage.On("GetHMACSecretKey", mock.MatchedBy(func([]byte) bool { return true })).Return(func([]byte) []byte { return append([]byte{}, hmacKey...) }, nil)
 		keyStorage.On("GetZoneIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
 			func([]byte) [][]byte {
 				return [][]byte{append([]byte{}, someSymKey...)}
 			},
 			nil)
+		keyStorage.On("GetZoneIDSymmetricKey", mock.MatchedBy(func([]byte) bool { return true })).Return(
+			func([]byte) []byte {
+				return append([]byte{}, someSymKey...)
+			},
+			nil)
 		keyStorage.On("GetClientIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
 			func([]byte) [][]byte {
 				return [][]byte{append([]byte{}, someSymKey...)}
+			},
+			nil)
+		keyStorage.On("GetClientIDSymmetricKey", mock.MatchedBy(func([]byte) bool { return true })).Return(
+			func([]byte) []byte {
+				return append([]byte{}, someSymKey...)
 			},
 			nil)
 		for _, tcase := range testCases {
@@ -424,14 +446,25 @@ func TestTranslatorService_DecryptionPoisonRecord(t *testing.T) {
 		// reset all .On registered callbacks
 		keyStorage.ExpectedCalls = nil
 		keyStorage.On("GetPoisonSymmetricKeys").Return(func() [][]byte { return [][]byte{append([]byte{}, poisonSymKey...)} }, nil)
+		keyStorage.On("GetPoisonSymmetricKey").Return(func() []byte { return append([]byte{}, poisonSymKey...) }, nil)
 		keyStorage.On("GetZoneIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
 			func([]byte) [][]byte {
 				return [][]byte{append([]byte{}, someSymKey...)}
 			},
 			nil)
+		keyStorage.On("GetZoneIDSymmetricKey", mock.MatchedBy(func([]byte) bool { return true })).Return(
+			func([]byte) []byte {
+				return append([]byte{}, someSymKey...)
+			},
+			nil)
 		keyStorage.On("GetClientIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
 			func([]byte) [][]byte {
 				return [][]byte{append([]byte{}, someSymKey...)}
+			},
+			nil)
+		keyStorage.On("GetClientIDSymmetricKey", mock.MatchedBy(func([]byte) bool { return true })).Return(
+			func([]byte) []byte {
+				return append([]byte{}, someSymKey...)
 			},
 			nil)
 		for _, tcase := range testCases {
@@ -612,6 +645,11 @@ func testgRPCServiceFlow(ctx context.Context, expectedClientID []byte, conn *grp
 	keystorage.On("GetClientIDSymmetricKeys", mock.Anything).Return(
 		func([]byte) [][]byte {
 			return [][]byte{append([]byte{}, testSymmetricKey...)}
+		},
+		nil)
+	keystorage.On("GetClientIDSymmetricKey", mock.Anything).Return(
+		func([]byte) []byte {
+			return append([]byte{}, testSymmetricKey...)
 		},
 		nil)
 	symWriterClient := NewWriterSymClient(conn)

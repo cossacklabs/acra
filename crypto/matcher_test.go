@@ -41,6 +41,9 @@ func TestEnvelopeMatcher(t *testing.T) {
 	keyStore.On("GetClientIDSymmetricKeys", clientID).Return(func([]byte) [][]byte {
 		return [][]byte{append([]byte{}, symKey...)}
 	}, nil)
+	keyStore.On("GetClientIDSymmetricKey", clientID).Return(func([]byte) []byte {
+		return append([]byte{}, symKey...)
+	}, nil)
 	keyStore.On("GetClientIDEncryptionPublicKey", clientID).Return(func([]byte) *keys.PublicKey {
 		return &keys.PublicKey{Value: keypair.Public.Value}
 	}, nil)

@@ -1321,14 +1321,11 @@ func (store *KeyStore) GetDecryptionTokenSymmetricKeys(id []byte, ownerType keys
 // GetEncryptionTokenSymmetricKey return symmetric key which should be used to encrypt tokens
 func (store *KeyStore) GetEncryptionTokenSymmetricKey(id []byte, ownerType keystore2.KeyOwnerType) ([]byte, error) {
 	keyName := getTokenSymmetricKeyName(id, ownerType)
-	keys, err := store.getSymmetricKeys(id, keyName)
+	key, err := store.getLatestSymmetricKey(id, keyName)
 	if err != nil {
 		return nil, err
 	}
-	if len(keys) == 0 {
-		return nil, keystore2.ErrKeysNotFound
-	}
-	return keys[0], nil
+	return key, nil
 }
 
 // GenerateTokenSymmetricKey new symmetric key in keystore

@@ -594,11 +594,11 @@ def fork_crl_http_server(port: int, check_connection: bool=True):
     logging.info("fork HTTP server with port {}".format(port))
 
     http_server_connection = get_crl_http_server_connection_string(port)
-
-    cli_args = ['--bind', '127.0.0.1', '--directory', TEST_TLS_CRL_PATH, str(port)]
+    # use cwd= parameter for Popen instead of --directory parameter to support 3.6 that doesn't accept --directory
+    cli_args = ['--bind', '127.0.0.1', str(port)]
     print('python HTTP server args: {}'.format(' '.join(cli_args)))
 
-    process = fork(lambda: subprocess.Popen(['python3', '-m', 'http.server'] + cli_args))
+    process = fork(lambda: subprocess.Popen(['python3', '-m', 'http.server'] + cli_args, cwd=TEST_TLS_CRL_PATH))
 
     if check_connection:
         print('check HTTP server connection {}'.format(http_server_connection))
@@ -807,11 +807,26 @@ def tearDownModule():
     kill_certificate_validation_services()
 
 
-ConnectionArgs = collections.namedtuple("ConnectionArgs",
-    field_names=["user", "password", "host", "port", "dbname",
-                 "ssl_ca", "ssl_key", "ssl_cert", "format"],
-    # 'format' is optional, other fields are required.
-    defaults=[None])
+if sys.version_info[1] > 6:
+    ConnectionArgs = collections.namedtuple(
+        "ConnectionArgs",
+        field_names=["user", "password", "host", "port", "dbname",
+                     "ssl_ca", "ssl_key", "ssl_cert", "format"],
+        # 'format' is optional, other fields are required.
+        defaults=[None])
+else:
+    class ConnectionArgs:
+        def __init__(self, user=None, password=None, host=None, port=None, dbname=None,
+                     ssl_ca=None, ssl_key=None, ssl_cert=None, format=None):
+            self.user = user
+            self.password = password
+            self.host = host
+            self.port = port
+            self.dbname = dbname
+            self.ssl_ca = ssl_ca
+            self.ssl_key = ssl_key
+            self.ssl_cert = ssl_cert
+            self.format = format
 
 
 class QueryExecutor(object):

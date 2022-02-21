@@ -7,7 +7,6 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
-	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
@@ -91,16 +90,13 @@ func (handler AcraBlockHandler) EncryptWithClientID(clientID, data []byte, conte
 	if _, _, err := acrablock.ExtractAcraBlockFromData(data); err == nil {
 		return data, nil
 	}
-	keys, err := context.Keystore.GetClientIDSymmetricKeys(clientID)
+	key, err := context.Keystore.GetClientIDSymmetricKey(clientID)
 	if err != nil {
 		return data, fmt.Errorf("can't read private key for matched client_id to encrypt with AcraBlock: %w", err)
 	}
-	defer utils.ZeroizeSymmetricKeys(keys)
+	defer utils.ZeroizeSymmetricKey(key)
 
-	if len(keys) == 0 {
-		return data, keystore.ErrKeysNotFound
-	}
-	return acrablock.CreateAcraBlock(data, keys[0], nil)
+	return acrablock.CreateAcraBlock(data, key, nil)
 }
 
 // EncryptWithZoneID implementation of ContainerHandler method
@@ -108,14 +104,11 @@ func (handler AcraBlockHandler) EncryptWithZoneID(zoneID, data []byte, context *
 	if _, _, err := acrablock.ExtractAcraBlockFromData(data); err == nil {
 		return data, nil
 	}
-	keys, err := context.Keystore.GetZoneIDSymmetricKeys(zoneID)
+	key, err := context.Keystore.GetZoneIDSymmetricKey(zoneID)
 	if err != nil {
 		return data, fmt.Errorf("can't read private key for matched zone_id to encrypt with AcraBlock: %w", err)
 	}
-	defer utils.ZeroizeSymmetricKeys(keys)
+	defer utils.ZeroizeSymmetricKey(key)
 
-	if len(keys) == 0 {
-		return data, keystore.ErrKeysNotFound
-	}
-	return acrablock.CreateAcraBlock(data, keys[0], zoneID)
+	return acrablock.CreateAcraBlock(data, key, zoneID)
 }

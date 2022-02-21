@@ -41,6 +41,7 @@ func TestReEncryptHandler(t *testing.T) {
 
 		keystore.On("GetServerDecryptionPrivateKeys", clientID).Return([]*keys.PrivateKey{keypair.Private}, nil)
 		keystore.On("GetClientIDSymmetricKeys", clientID).Return([][]byte{[]byte(`some key`)}, nil)
+		keystore.On("GetClientIDSymmetricKey", clientID).Return([]byte(`some key`), nil)
 
 		t.Run("AcraStruct reEncryption Success ", func(t *testing.T) {
 			result, err := reEncryptor.EncryptWithClientID(clientID, rawAcraStruct, &config.BasicColumnEncryptionSetting{
@@ -86,9 +87,10 @@ func TestReEncryptHandler(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-
+		symKey := []byte(`some key`)
 		keystore.On("GetZonePrivateKeys", zoneID).Return([]*keys.PrivateKey{keypair.Private}, nil)
-		keystore.On("GetZoneIDSymmetricKeys", zoneID).Return([][]byte{[]byte(`some key`)}, nil)
+		keystore.On("GetZoneIDSymmetricKeys", zoneID).Return([][]byte{append([]byte{}, symKey...)}, nil)
+		keystore.On("GetZoneIDSymmetricKey", zoneID).Return(append([]byte{}, symKey...), nil)
 
 		t.Run("AcraStruct reEncryption Success ", func(t *testing.T) {
 			result, err := reEncryptor.EncryptWithZoneID(zoneID, rawAcraStruct, &config.BasicColumnEncryptionSetting{
@@ -113,7 +115,7 @@ func TestReEncryptHandler(t *testing.T) {
 				t.Fatal("failed to create acraBlock from internal container", err)
 			}
 
-			decrypted, err := acraBlock.Decrypt([][]byte{[]byte(`some key`)}, zoneID)
+			decrypted, err := acraBlock.Decrypt([][]byte{append([]byte{}, symKey...)}, zoneID)
 			if err != nil {
 				t.Fatal("failed to Decrypt internal container", err)
 			}
