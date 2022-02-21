@@ -41,25 +41,21 @@ func NewSCellEncryptor(tokenKeystore keystore.SymmetricEncryptionKeyStore) (Toke
 // Encrypt data with context
 func (s *scellEncryptor) Encrypt(data []byte, ctx common.TokenContext) ([]byte, error) {
 	var context []byte
-	var keys [][]byte
+	var key []byte
 	var err error
 	if len(ctx.ZoneID) != 0 {
 		context = ctx.ZoneID
-		keys, err = s.tokenKeystore.GetZoneIDSymmetricKeys(ctx.ZoneID)
+		key, err = s.tokenKeystore.GetZoneIDSymmetricKey(ctx.ZoneID)
 	} else {
 		context = ctx.ClientID
-		keys, err = s.tokenKeystore.GetClientIDSymmetricKeys(ctx.ClientID)
+		key, err = s.tokenKeystore.GetClientIDSymmetricKey(ctx.ClientID)
 	}
 	if err != nil {
 		return nil, err
 	}
-	if len(keys) == 0 {
-		return nil, keystore.ErrKeysNotFound
-	}
-	encrypted, err := acrablock.CreateAcraBlock(data, keys[0], context)
-	for _, key := range keys {
-		utils.ZeroizeSymmetricKey(key)
-	}
+	encrypted, err := acrablock.CreateAcraBlock(data, key, context)
+	utils.ZeroizeSymmetricKey(key)
+
 	return encrypted, err
 }
 

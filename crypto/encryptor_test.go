@@ -41,6 +41,7 @@ func TestEncryptHandler(t *testing.T) {
 			},
 			nil)
 		keystore.On("GetClientIDSymmetricKeys", clientID).Return([][]byte{[]byte(`some key`)}, nil)
+		keystore.On("GetClientIDSymmetricKey", clientID).Return([]byte(`some key`), nil)
 
 		t.Run("AcraStruct encryption success", func(t *testing.T) {
 			result, err := encryptor.EncryptWithClientID(clientID, []byte(rawData), &config.BasicColumnEncryptionSetting{
@@ -110,6 +111,7 @@ func TestEncryptHandler(t *testing.T) {
 		keystore.On("GetZonePublicKey", zoneID).Return(zoneIDKeypair.Public, nil)
 
 		keystore.On("GetZoneIDSymmetricKeys", zoneID).Return([][]byte{[]byte(`some key`)}, nil)
+		keystore.On("GetZoneIDSymmetricKey", zoneID).Return([]byte(`some key`), nil)
 
 		t.Run("AcraStruct encryption success", func(t *testing.T) {
 			result, err := encryptor.EncryptWithZoneID(zoneID, []byte(rawData), &config.BasicColumnEncryptionSetting{

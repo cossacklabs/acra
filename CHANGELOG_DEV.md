@@ -1,3 +1,6 @@
+## 0.92.0 - 2022-02-21
+- Adapt python integration tests for python3.6 for tests on centos 7/8
+
 ## 0.92.0 - 2022-02-17
 - Extend KeyStore interface to allow fetching single latest symmetric key for encryption purposes
 

@@ -19,9 +19,9 @@ func TestSuccessDataEncryptionWithClientID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	symKey := [][]byte{[]byte(`some key`)}
+	symKey := []byte(`some key`)
 	clientID := []byte(`clientid`)
-	keyStore.On("GetClientIDSymmetricKeys", clientID).Return(symKey, nil)
+	keyStore.On("GetClientIDSymmetricKey", clientID).Return(symKey, nil)
 	envelopeType := config.CryptoEnvelopeTypeAcraBlock
 	setting := &config.BasicColumnEncryptionSetting{CryptoEnvelope: &envelopeType}
 	testData := []byte(`test data`)
@@ -42,7 +42,7 @@ func TestSuccessDataEncryptionWithClientID(t *testing.T) {
 	if n != len(acraBlock) {
 		t.Fatal("Took invalid AcraBlock with extra data")
 	}
-	decrypted, err := acraBlock.Decrypt(symKey, nil)
+	decrypted, err := acraBlock.Decrypt([][]byte{symKey}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,9 +66,10 @@ func TestSuccessAcraStructReEncryptionWithClientID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	symKey := [][]byte{[]byte(`some key`)}
+	symKey := []byte(`some key`)
 	clientID := []byte(`clientid`)
-	keyStore.On("GetClientIDSymmetricKeys", clientID).Return(symKey, nil)
+	keyStore.On("GetClientIDSymmetricKeys", clientID).Return([][]byte{symKey}, nil)
+	keyStore.On("GetClientIDSymmetricKey", clientID).Return(symKey, nil)
 	keyStore.On("GetServerDecryptionPrivateKeys", clientID).Return([]*keys.PrivateKey{keyPair.Private}, nil)
 
 	envelopeType := config.CryptoEnvelopeTypeAcraBlock
@@ -91,7 +92,7 @@ func TestSuccessAcraStructReEncryptionWithClientID(t *testing.T) {
 	if n != len(acraBlock) {
 		t.Fatal("Took invalid AcraBlock with extra data")
 	}
-	decrypted, err := acraBlock.Decrypt(symKey, nil)
+	decrypted, err := acraBlock.Decrypt([][]byte{symKey}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,9 +116,10 @@ func TestSuccessIgnoringAcraStructReEncryptionWithClientID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	symKey := [][]byte{[]byte(`some key`)}
+	symKey := []byte(`some key`)
 	clientID := []byte(`clientid`)
-	keyStore.On("GetClientIDSymmetricKeys", clientID).Return(symKey, nil)
+	keyStore.On("GetClientIDSymmetricKeys", clientID).Return([][]byte{symKey}, nil)
+	keyStore.On("GetClientIDSymmetricKey", clientID).Return(symKey, nil)
 	keyStore.On("GetServerDecryptionPrivateKeys", clientID).Return([]*keys.PrivateKey{keyPair.Private}, nil)
 
 	envelopeType := config.CryptoEnvelopeTypeAcraBlock
@@ -140,7 +142,7 @@ func TestSuccessIgnoringAcraStructReEncryptionWithClientID(t *testing.T) {
 	if n != len(acraBlock) {
 		t.Fatal("Took invalid AcraBlock with extra data")
 	}
-	decrypted, err := acraBlock.Decrypt(symKey, nil)
+	decrypted, err := acraBlock.Decrypt([][]byte{symKey}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,9 +192,10 @@ func TestSuccessDataEncryptionWithZoneID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	symKey := [][]byte{[]byte(`some key`)}
+	symKey := []byte(`some key`)
 	zoneID := zone.GenerateZoneID()
-	keyStore.On("GetZoneIDSymmetricKeys", zoneID).Return(symKey, nil)
+	keyStore.On("GetZoneIDSymmetricKeys", zoneID).Return([][]byte{symKey}, nil)
+	keyStore.On("GetZoneIDSymmetricKey", zoneID).Return(symKey, nil)
 	envelopeType := config.CryptoEnvelopeTypeAcraBlock
 	setting := &config.BasicColumnEncryptionSetting{CryptoEnvelope: &envelopeType}
 	testData := []byte(`test data`)
@@ -215,7 +218,7 @@ func TestSuccessDataEncryptionWithZoneID(t *testing.T) {
 		t.Fatal("Took invalid AcraBlock with extra data")
 	}
 
-	decrypted, err := acraBlock.Decrypt(symKey, zoneID)
+	decrypted, err := acraBlock.Decrypt([][]byte{symKey}, zoneID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,8 +244,9 @@ func TestSuccessAcraStructReEncryptionWithZoneID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	symKey := [][]byte{[]byte(`some key`)}
-	keyStore.On("GetZoneIDSymmetricKeys", zoneID).Return(symKey, nil)
+	symKey := []byte(`some key`)
+	keyStore.On("GetZoneIDSymmetricKeys", zoneID).Return([][]byte{symKey}, nil)
+	keyStore.On("GetZoneIDSymmetricKey", zoneID).Return(symKey, nil)
 	keyStore.On("GetZonePrivateKeys", zoneID).Return([]*keys.PrivateKey{keyPair.Private}, nil)
 	envelopeType := config.CryptoEnvelopeTypeAcraBlock
 	reEncrypt := true
@@ -266,7 +270,7 @@ func TestSuccessAcraStructReEncryptionWithZoneID(t *testing.T) {
 		t.Fatal("Took invalid AcraBlock with extra data")
 	}
 
-	decrypted, err := acraBlock.Decrypt(symKey, zoneID)
+	decrypted, err := acraBlock.Decrypt([][]byte{symKey}, zoneID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,8 +296,9 @@ func TestSuccessIgnoringAcraStructReEncryptionWithZoneID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	symKey := [][]byte{[]byte(`some key`)}
-	keyStore.On("GetZoneIDSymmetricKeys", zoneID).Return(symKey, nil)
+	symKey := []byte(`some key`)
+	keyStore.On("GetZoneIDSymmetricKeys", zoneID).Return([][]byte{symKey}, nil)
+	keyStore.On("GetZoneIDSymmetricKey", zoneID).Return(symKey, nil)
 	keyStore.On("GetZonePrivateKeys", zoneID).Return([]*keys.PrivateKey{keyPair.Private}, nil)
 	envelopeType := config.CryptoEnvelopeTypeAcraBlock
 	reEncrypt := false
@@ -317,7 +322,7 @@ func TestSuccessIgnoringAcraStructReEncryptionWithZoneID(t *testing.T) {
 		t.Fatal("Took invalid AcraBlock with extra data")
 	}
 
-	decrypted, err := acraBlock.Decrypt(symKey, zoneID)
+	decrypted, err := acraBlock.Decrypt([][]byte{symKey}, zoneID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -436,8 +441,8 @@ func TestFailedDataEncryptionWithErrorFromKeystore(t *testing.T) {
 	expectedError := errors.New("some error")
 	zoneID := zone.GenerateZoneID()
 	clientID := []byte(`clientid`)
-	keyStore.On("GetZoneIDSymmetricKeys", zoneID).Return(nil, expectedError)
-	keyStore.On("GetClientIDSymmetricKeys", clientID).Return(nil, expectedError)
+	keyStore.On("GetZoneIDSymmetricKey", zoneID).Return(nil, expectedError)
+	keyStore.On("GetClientIDSymmetricKey", clientID).Return(nil, expectedError)
 	envelopeType := config.CryptoEnvelopeTypeAcraBlock
 	setting := &config.BasicColumnEncryptionSetting{CryptoEnvelope: &envelopeType}
 	testData := []byte(`test data`)
@@ -468,8 +473,8 @@ func TestFailedDataEncryptionOnEmptyKeys(t *testing.T) {
 	}
 	zoneID := zone.GenerateZoneID()
 	clientID := []byte(`clientid`)
-	keyStore.On("GetZoneIDSymmetricKeys", zoneID).Return(nil, nil)
-	keyStore.On("GetClientIDSymmetricKeys", clientID).Return(nil, nil)
+	keyStore.On("GetZoneIDSymmetricKey", zoneID).Return(nil, keystore.ErrKeysNotFound)
+	keyStore.On("GetClientIDSymmetricKey", clientID).Return(nil, keystore.ErrKeysNotFound)
 	envelopeType := config.CryptoEnvelopeTypeAcraBlock
 	setting := &config.BasicColumnEncryptionSetting{CryptoEnvelope: &envelopeType}
 	testData := []byte(`test data`)

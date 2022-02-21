@@ -131,6 +131,9 @@ func initKeyStore(clientID, zoneID []byte, keyStorage *mocks.ServerKeyStore, t *
 	keyStorage.On("GetClientIDSymmetricKeys", mock.MatchedBy(func(id []byte) bool {
 		return bytes.Equal(id, clientID)
 	})).Return(func([]byte) [][]byte { return [][]byte{append([]byte{}, acraBlockSymKey...)} }, nil)
+	keyStorage.On("GetClientIDSymmetricKey", mock.MatchedBy(func(id []byte) bool {
+		return bytes.Equal(id, clientID)
+	})).Return(func([]byte) []byte { return append([]byte{}, acraBlockSymKey...) }, nil)
 	keyStorage.On("GetHMACSecretKey", mock.MatchedBy(func(id []byte) bool {
 		return bytes.Equal(id, clientID)
 	})).Return(func([]byte) []byte { return append([]byte{}, hmacSymKey...) }, nil)
@@ -146,6 +149,9 @@ func initKeyStore(clientID, zoneID []byte, keyStorage *mocks.ServerKeyStore, t *
 	keyStorage.On("GetZoneIDSymmetricKeys", mock.MatchedBy(func(id []byte) bool {
 		return bytes.Equal(id, zoneID)
 	})).Return(func([]byte) [][]byte { return [][]byte{append([]byte{}, acraBlockZoneKey...)} }, nil)
+	keyStorage.On("GetZoneIDSymmetricKey", mock.MatchedBy(func(id []byte) bool {
+		return bytes.Equal(id, zoneID)
+	})).Return(func([]byte) []byte { return append([]byte{}, acraBlockZoneKey...) }, nil)
 	keyStorage.On("GetClientIDEncryptionPublicKey", mock.MatchedBy(func(id []byte) bool {
 		return bytes.Equal(id, clientID)
 	})).Return(AcraStructKeyPair.Public, nil)

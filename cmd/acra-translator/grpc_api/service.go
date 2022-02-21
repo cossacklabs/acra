@@ -253,21 +253,19 @@ func (service *TranslatorService) EncryptSymSearchable(ctx context.Context, requ
 		logger.Errorln("Empty ClientID")
 		return nil, ErrEmptyClientID
 	}
-	var symKeys [][]byte
+	var symKey []byte
 	var err error
 	logger.Debugln("Load encryption symmetric key from KeyStore")
 	if request.ZoneId != nil {
-		symKeys, err = service.data.Keystorage.GetZoneIDSymmetricKeys(request.ZoneId)
+		symKey, err = service.data.Keystorage.GetZoneIDSymmetricKey(request.ZoneId)
 	} else {
-		symKeys, err = service.data.Keystorage.GetClientIDSymmetricKeys(request.ClientId)
+		symKey, err = service.data.Keystorage.GetClientIDSymmetricKey(request.ClientId)
 	}
 	if err != nil {
 		logger.WithError(err).Errorln("Can't load symmetric keys")
 		return nil, ErrKeysNotFound
 	}
-	if len(symKeys) == 0 {
-		return nil, ErrKeysNotFound
-	}
+
 	logger.Debugln("Load secret key for HMAC from KeyStore")
 	hmacKey, err := service.data.Keystorage.GetHMACSecretKey(request.ClientId)
 	if err != nil {
@@ -277,7 +275,7 @@ func (service *TranslatorService) EncryptSymSearchable(ctx context.Context, requ
 	logger.Debugln("Generate HMAC")
 	dataHash := hmac.GenerateHMAC(hmacKey, request.Data)
 	logger.Debugln("Create AcraBlock")
-	acrastruct, err := acrablock.CreateAcraBlock(request.Data, symKeys[0], request.ZoneId)
+	acrastruct, err := acrablock.CreateAcraBlock(request.Data, symKey, request.ZoneId)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't create AcraBlock")
 		return nil, ErrEncryptionFailed
