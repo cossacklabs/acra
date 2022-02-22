@@ -31,6 +31,9 @@ type PgProtocolState struct {
 	pendingParse   *ParsePacket
 	pendingBind    *BindPacket
 	pendingExecute *ExecutePacket
+
+	gotParseComplete bool
+	gotBindComplete  bool
 }
 
 // PacketType describes how to handle a message packet.
@@ -151,11 +154,13 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 	}
 
 	if packet.IsParseComplete() {
+		p.gotParseComplete = true
 		p.lastPacketType = ParseCompletePacket
 		return nil
 	}
 
 	if packet.IsBindComplete() {
+		p.gotBindComplete = true
 		p.lastPacketType = BindCompletePacket
 		return nil
 	}
@@ -163,7 +168,20 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 	// ReadyForQuery starts a new query processing. Forget pending queries.
 	// There is nothing interesting in the packet otherwise.
 	if packet.IsReadyForQuery() {
-		p.forgetQueryState()
+		// Forget pending parse, but only if we got ParseComplete before
+		if p.gotParseComplete {
+			p.forgetPendingParse()
+			p.gotParseComplete = false
+		}
+
+		// Forget pending bind, but only if we got BindComplete before
+		if p.gotBindComplete {
+			p.forgetPendingBind()
+			p.gotBindComplete = false
+		}
+
+		p.forgetPendingExecute()
+		p.forgetPendingQuery()
 		p.lastPacketType = OtherPacket
 		return nil
 	}
@@ -173,24 +191,30 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 	return nil
 }
 
-func (p *PgProtocolState) forgetQueryState() {
+func (p *PgProtocolState) forgetPendingParse() {
 	// Query content is sensitive so we should securely remove it from memory
 	// once we're sure that it's not needed anymore.
 	if p.pendingParse != nil {
 		p.pendingParse.Zeroize()
 	}
 	p.pendingParse = nil
+}
 
+func (p *PgProtocolState) forgetPendingBind() {
 	if p.pendingBind != nil {
 		p.pendingBind.Zeroize()
 	}
 	p.pendingBind = nil
+}
 
+func (p *PgProtocolState) forgetPendingExecute() {
 	if p.pendingExecute != nil {
 		p.pendingExecute.Zeroize()
 	}
 	p.pendingExecute = nil
+}
 
+func (p *PgProtocolState) forgetPendingQuery() {
 	// OnQuery uses "string" values and those can't be safely zeroized :(
 	p.pendingQuery = nil
 }
