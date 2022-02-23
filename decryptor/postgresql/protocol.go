@@ -31,9 +31,6 @@ type PgProtocolState struct {
 	pendingParse   *ParsePacket
 	pendingBind    *BindPacket
 	pendingExecute *ExecutePacket
-
-	gotParseComplete bool
-	gotBindComplete  bool
 }
 
 // PacketType describes how to handle a message packet.
@@ -154,13 +151,11 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 	}
 
 	if packet.IsParseComplete() {
-		p.gotParseComplete = true
 		p.lastPacketType = ParseCompletePacket
 		return nil
 	}
 
 	if packet.IsBindComplete() {
-		p.gotBindComplete = true
 		p.lastPacketType = BindCompletePacket
 		return nil
 	}
@@ -168,16 +163,7 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 	// ReadyForQuery starts a new query processing. Forget pending queries.
 	// There is nothing interesting in the packet otherwise.
 	if packet.IsReadyForQuery() {
-		// Forget pending parse, but only if we got ParseComplete before
-		if p.gotParseComplete {
-			p.forgetPendingParse()
-			p.gotParseComplete = false
-		}
 
-		// Forget pending bind, but only if we got BindComplete before
-		if p.gotBindComplete {
-			p.forgetPendingBind()
-			p.gotBindComplete = false
 		}
 
 		p.forgetPendingExecute()
