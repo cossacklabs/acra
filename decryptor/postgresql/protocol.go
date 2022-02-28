@@ -163,9 +163,6 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 	// ReadyForQuery starts a new query processing. Forget pending queries.
 	// There is nothing interesting in the packet otherwise.
 	if packet.IsReadyForQuery() {
-
-		}
-
 		p.forgetPendingExecute()
 		p.forgetPendingQuery()
 		p.lastPacketType = OtherPacket
