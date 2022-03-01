@@ -1,6 +1,6 @@
 # Acra ChangeLog
 
-## [0.92.0](https://github.com/cossacklabs/acra/releases/tag/0.92.0), February 21th 2021
+## [0.92.0](https://github.com/cossacklabs/acra/releases/tag/0.92.0), March 01th 2021
 
 This release brings stability and performance fixes to AcraServer and AcraTranslator. It officially deprecates usage 
 of AcraConnector in favour of TLS everywhere. Some default configuration params are changed in favour of more secure & 
