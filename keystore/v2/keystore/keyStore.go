@@ -22,7 +22,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	connector_mode "github.com/cossacklabs/acra/cmd/acra-connector/connector-mode"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
 	log "github.com/sirupsen/logrus"
@@ -30,7 +29,7 @@ import (
 
 const serviceName = "keystore"
 
-// Errors in keystore listing and export.
+// Errors for describing keys
 var (
 	ErrUnrecognizedKeyPurpose = errors.New("key purpose not recognized")
 )
@@ -41,7 +40,6 @@ const (
 	PurposeStorageClient       = "client storage key"
 	PurposeStorageZone         = "zone storage key"
 	PurposeTransportServer     = "AcraServer transport key"
-	PurposeTransportConnector  = "AcraConnector transport key"
 	PurposeTransportTranslator = "AcraTranslator transport key"
 	PurposeAuditLog            = "audit log signature key"
 	PurposePoisonSym           = "poison record symmetric key"
@@ -58,15 +56,6 @@ type ServerKeyStore struct {
 	log *log.Entry
 }
 
-// ConnectorKeyStore provides access to Acra Keystore for AcraConnector.
-//
-// This is the same as ServerKeyStore, but with AcraConnector transport keys.
-type ConnectorKeyStore struct {
-	ServerKeyStore
-	clientID []byte
-	mode     connector_mode.ConnectorMode
-}
-
 // TranslatorKeyStore provides access to Acra Keystore for AcraTranslator.
 //
 // This is the same as ServerKeyStore, but with AcraTranslator transport keys.
@@ -77,16 +66,6 @@ type TranslatorKeyStore struct {
 // NewServerKeyStore configures keystore for AcraServer.
 func NewServerKeyStore(keyStore api.MutableKeyStore) *ServerKeyStore {
 	return &ServerKeyStore{keyStore, log.WithField("service", serviceName)}
-}
-
-// NewConnectorKeyStore configures keystore for AcraConnector.
-// Aside from keystore you need to provide connecting clientID and connection mode.
-func NewConnectorKeyStore(keyStore api.MutableKeyStore, clientID []byte, mode connector_mode.ConnectorMode) *ConnectorKeyStore {
-	return &ConnectorKeyStore{
-		ServerKeyStore: ServerKeyStore{keyStore, log.WithField("service", serviceName)},
-		clientID:       clientID,
-		mode:           mode,
-	}
 }
 
 // NewTranslatorKeyStore configures keystore for AcraTranslator
@@ -103,6 +82,11 @@ func (s *ServerKeyStore) ListKeys() ([]keystore.KeyDescription, error) {
 		return nil, err
 	}
 	return DescribeKeyRings(keyRings, s)
+}
+
+// CacheOnStart v2 keystore doesnt support keys caching
+func (s *ServerKeyStore) CacheOnStart() error {
+	panic("caching is not implemented for keystore v2")
 }
 
 // DescribeKeyRings describes multiple key rings by their purpose paths.
@@ -184,29 +168,6 @@ func (s *ServerKeyStore) DescribeKeyRing(path string) (*keystore.KeyDescription,
 				ID:      path,
 				Purpose: PurposeStorageZoneSym,
 				ZoneID:  []byte(components[1]),
-			}, nil
-		}
-	}
-	if len(components) == 4 {
-		if components[0] == clientPrefix && components[2] == transportSuffix && components[3] == serverSuffix {
-			return &keystore.KeyDescription{
-				ID:       path,
-				Purpose:  PurposeTransportServer,
-				ClientID: []byte(components[1]),
-			}, nil
-		}
-		if components[0] == clientPrefix && components[2] == transportSuffix && components[3] == connectorSuffix {
-			return &keystore.KeyDescription{
-				ID:       path,
-				Purpose:  PurposeTransportConnector,
-				ClientID: []byte(components[1]),
-			}, nil
-		}
-		if components[0] == clientPrefix && components[2] == transportSuffix && components[3] == translatorSuffix {
-			return &keystore.KeyDescription{
-				ID:       path,
-				Purpose:  PurposeTransportTranslator,
-				ClientID: []byte(components[1]),
 			}, nil
 		}
 	}

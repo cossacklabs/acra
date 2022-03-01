@@ -30,7 +30,6 @@ import (
 	"github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/utils/tests"
 	"github.com/stretchr/testify/assert"
-	"go.opencensus.io/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
@@ -280,9 +279,19 @@ func TestTranslatorService_SearchSym(t *testing.T) {
 			return [][]byte{append([]byte{}, zoneIDSymKey...)}
 		},
 		nil)
+	keystore.On("GetZoneIDSymmetricKey", mock.MatchedBy(func([]byte) bool { return true })).Return(
+		func([]byte) []byte {
+			return append([]byte{}, zoneIDSymKey...)
+		},
+		nil)
 	keystore.On("GetClientIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
 		func([]byte) [][]byte {
 			return [][]byte{append([]byte{}, clientIDSymKey...)}
+		},
+		nil)
+	keystore.On("GetClientIDSymmetricKey", mock.MatchedBy(func([]byte) bool { return true })).Return(
+		func([]byte) []byte {
+			return append([]byte{}, clientIDSymKey...)
 		},
 		nil)
 
@@ -370,6 +379,7 @@ func TestTranslatorService_DecryptionPoisonRecord(t *testing.T) {
 	keyStorage := &mocks.ServerKeyStore{}
 	// everytime return copy of value because it will be zeroized after each call
 	keyStorage.On("GetPoisonSymmetricKeys").Return(func() [][]byte { return [][]byte{append([]byte{}, poisonSymKey...)} }, nil)
+	keyStorage.On("GetPoisonSymmetricKey").Return(func() []byte { return append([]byte{}, poisonSymKey...) }, nil)
 	callbackStorage := poison.NewCallbackStorage()
 	callback := &testPoisonCallback{}
 	callbackStorage.AddCallback(callback)
@@ -395,15 +405,26 @@ func TestTranslatorService_DecryptionPoisonRecord(t *testing.T) {
 		// reset all .On registered callbacks
 		keyStorage.ExpectedCalls = nil
 		keyStorage.On("GetPoisonSymmetricKeys").Return(func() [][]byte { return [][]byte{append([]byte{}, poisonSymKey...)} }, nil)
+		keyStorage.On("GetPoisonSymmetricKey").Return(func() []byte { return append([]byte{}, poisonSymKey...) }, nil)
 		keyStorage.On("GetHMACSecretKey", mock.MatchedBy(func([]byte) bool { return true })).Return(func([]byte) []byte { return append([]byte{}, hmacKey...) }, nil)
 		keyStorage.On("GetZoneIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
 			func([]byte) [][]byte {
 				return [][]byte{append([]byte{}, someSymKey...)}
 			},
 			nil)
+		keyStorage.On("GetZoneIDSymmetricKey", mock.MatchedBy(func([]byte) bool { return true })).Return(
+			func([]byte) []byte {
+				return append([]byte{}, someSymKey...)
+			},
+			nil)
 		keyStorage.On("GetClientIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
 			func([]byte) [][]byte {
 				return [][]byte{append([]byte{}, someSymKey...)}
+			},
+			nil)
+		keyStorage.On("GetClientIDSymmetricKey", mock.MatchedBy(func([]byte) bool { return true })).Return(
+			func([]byte) []byte {
+				return append([]byte{}, someSymKey...)
 			},
 			nil)
 		for _, tcase := range testCases {
@@ -425,14 +446,25 @@ func TestTranslatorService_DecryptionPoisonRecord(t *testing.T) {
 		// reset all .On registered callbacks
 		keyStorage.ExpectedCalls = nil
 		keyStorage.On("GetPoisonSymmetricKeys").Return(func() [][]byte { return [][]byte{append([]byte{}, poisonSymKey...)} }, nil)
+		keyStorage.On("GetPoisonSymmetricKey").Return(func() []byte { return append([]byte{}, poisonSymKey...) }, nil)
 		keyStorage.On("GetZoneIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
 			func([]byte) [][]byte {
 				return [][]byte{append([]byte{}, someSymKey...)}
 			},
 			nil)
+		keyStorage.On("GetZoneIDSymmetricKey", mock.MatchedBy(func([]byte) bool { return true })).Return(
+			func([]byte) []byte {
+				return append([]byte{}, someSymKey...)
+			},
+			nil)
 		keyStorage.On("GetClientIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
 			func([]byte) [][]byte {
 				return [][]byte{append([]byte{}, someSymKey...)}
+			},
+			nil)
+		keyStorage.On("GetClientIDSymmetricKey", mock.MatchedBy(func([]byte) bool { return true })).Return(
+			func([]byte) []byte {
+				return append([]byte{}, someSymKey...)
 			},
 			nil)
 		for _, tcase := range testCases {
@@ -530,23 +562,6 @@ func getgRPCUnixDialer() grpc.DialOption {
 		return net.Dial("unix", addr)
 	})
 }
-func getSecureSessionDialer(wrapper *network.SecureSessionConnectionWrapper) grpc.DialOption {
-	return grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
-		conn, err := net.Dial("unix", addr)
-		if err != nil {
-			return nil, err
-		}
-		conn, err = wrapper.WrapClient(context.Background(), conn)
-		if err != nil {
-			return nil, err
-		}
-		ctx, _ = trace.StartSpan(ctx, "WrapClient")
-		if err := network.SendTrace(ctx, conn); err != nil {
-			return nil, err
-		}
-		return conn, err
-	})
-}
 
 func (server *testgRPCServer) NewConnection(opts []grpc.DialOption, t *testing.T) *grpc.ClientConn {
 	ctx, _ := context.WithTimeout(context.Background(), connectionTimeout)
@@ -632,6 +647,11 @@ func testgRPCServiceFlow(ctx context.Context, expectedClientID []byte, conn *grp
 			return [][]byte{append([]byte{}, testSymmetricKey...)}
 		},
 		nil)
+	keystorage.On("GetClientIDSymmetricKey", mock.Anything).Return(
+		func([]byte) []byte {
+			return append([]byte{}, testSymmetricKey...)
+		},
+		nil)
 	symWriterClient := NewWriterSymClient(conn)
 	symEncryptResponse, err := symWriterClient.EncryptSym(ctx, &EncryptSymRequest{Data: testData})
 	if err != nil {
@@ -667,35 +687,6 @@ func testgRPCServiceFlow(ctx context.Context, expectedClientID []byte, conn *grp
 		nil)
 	searchableClient := NewSearchableEncryptionClient(conn)
 	_, _ = searchableClient.GenerateQueryHash(ctx, &QueryHashRequest{Data: testData})
-}
-
-func TestNewFactoryWithClientIDFromSecureSessionConnectionSuccess(t *testing.T) {
-	expectedClientID := []byte("some id")
-	testKeypair, err := keys.New(keys.TypeEC)
-	if err != nil {
-		t.Fatal(err)
-	}
-	keystorage := &mocks.TranslationKeyStore{}
-
-	ctx, cancel := context.WithTimeout(context.Background(), connectionTimeout*5)
-	defer cancel()
-
-	data := &translatorCommon.TranslatorData{UseConnectionClientID: true, Keystorage: keystorage, Tokenizer: newTokenizer(t)}
-	secureSessionWrapper, err := network.NewSecureSessionConnectionWrapper(expectedClientID, keystorage)
-	if err != nil {
-		t.Fatal(err)
-	}
-	secureSessionWrapper.AddOnServerHandshakeCallback(network.TraceConnectionCallback{})
-	server := newServer(data, secureSessionWrapper, t)
-	defer server.Stop()
-	clientOpts := []grpc.DialOption{getSecureSessionDialer(secureSessionWrapper), grpc.WithInsecure()}
-
-	keystorage.On("GetPrivateKey", mock.Anything).Return(testKeypair.Private, nil)
-	keystorage.On("GetPeerPublicKey", mock.Anything).Return(testKeypair.Public, nil)
-	conn := server.NewConnection(clientOpts, t)
-	defer conn.Close()
-
-	testgRPCServiceFlow(ctx, expectedClientID, conn, keystorage, t)
 }
 
 func TestNewFactoryWithClientIDFromSecureSessionConnectionInvalidAuthInfo(t *testing.T) {

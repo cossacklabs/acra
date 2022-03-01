@@ -2,11 +2,11 @@ package crypto
 
 import (
 	"errors"
+	"fmt"
 	"github.com/cossacklabs/acra/acrablock"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
-	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
@@ -44,10 +44,11 @@ func (handler AcraBlockHandler) MatchDataSignature(bytes []byte) bool {
 
 // Decrypt implementation of ContainerHandler method
 func (handler AcraBlockHandler) Decrypt(data []byte, context *base.DataProcessorContext) ([]byte, error) {
-	logrus.Debugln("Process: Decrypt AcraBlock")
+	logger := logging.GetLoggerFromContext(context.Context).WithField("handler", handler.Name())
+	logger.Debugln("Process: Decrypt AcraBlock")
 	acraBlock, err := acrablock.NewAcraBlockFromData(data)
 	if err != nil {
-		logrus.WithError(err).Debugln("AcraBlockHandler.Process: AcraBlock not found, exit")
+		logger.WithError(err).Debugln("AcraBlockHandler.Process: AcraBlock not found, exit")
 		return data, err
 	}
 	var privateKeys [][]byte
@@ -66,16 +67,20 @@ func (handler AcraBlockHandler) Decrypt(data []byte, context *base.DataProcessor
 	}
 	defer utils.ZeroizeSymmetricKeys(privateKeys)
 	if err != nil {
-		logging.GetLoggerFromContext(context.Context).WithError(err).WithFields(
-			logrus.Fields{"client_id": string(accessContext.GetClientID()), "zone_id": string(accessContext.GetZoneID())}).Warningln("Can't read private key for matched client_id/zone_id")
-		return []byte{}, err
+		logger.WithError(err).WithFields(
+			logrus.Fields{
+				logging.FieldKeyEventCode: logging.EventCodeErrorCantReadKeys,
+				"client_id":               string(accessContext.GetClientID()),
+				"zone_id":                 string(accessContext.GetZoneID()),
+			}).
+			Debugln("Probably error occurred because: 1. used not appropriate TLS certificate or acra-server configured with inappropriate --client_id=<client_id>; 2. forgot to generate keys for your TLS certificate (or with specified client_id); 3. incorrectly configured keystore: incorrect path to folder or Redis database's number")
+		return []byte{}, fmt.Errorf("can't read private key for matched client_id/zone_id to decrypt AcraBlock: %w", err)
 	}
 	decrypted, err := acraBlock.Decrypt(privateKeys, zoneID)
 	if err != nil {
-		logging.GetLoggerFromContext(context.Context).WithError(err).Errorln("Can't decrypt AcraBlock")
-		return nil, ErrDecryptionError
+		return nil, fmt.Errorf("can't decrypt AcraBlock: %w", ErrDecryptionError)
 	}
-	logrus.WithField("context", string(zoneID)).Debugln("Decrypted Acrablock")
+	logger.WithField("context", string(zoneID)).Debugln("Decrypted AcraBlock")
 	return decrypted, nil
 }
 
@@ -85,18 +90,13 @@ func (handler AcraBlockHandler) EncryptWithClientID(clientID, data []byte, conte
 	if _, _, err := acrablock.ExtractAcraBlockFromData(data); err == nil {
 		return data, nil
 	}
-
-	keys, err := context.Keystore.GetClientIDSymmetricKeys(clientID)
+	key, err := context.Keystore.GetClientIDSymmetricKey(clientID)
 	if err != nil {
-		logrus.WithError(err).WithField("client_id", clientID).WithField("handler", handler.Name()).Warningln("Can't read private key for matched client_id")
-		return data, err
+		return data, fmt.Errorf("can't read private key for matched client_id to encrypt with AcraBlock: %w", err)
 	}
-	defer utils.ZeroizeSymmetricKeys(keys)
+	defer utils.ZeroizeSymmetricKey(key)
 
-	if len(keys) == 0 {
-		return data, keystore.ErrKeysNotFound
-	}
-	return acrablock.CreateAcraBlock(data, keys[0], nil)
+	return acrablock.CreateAcraBlock(data, key, nil)
 }
 
 // EncryptWithZoneID implementation of ContainerHandler method
@@ -104,16 +104,11 @@ func (handler AcraBlockHandler) EncryptWithZoneID(zoneID, data []byte, context *
 	if _, _, err := acrablock.ExtractAcraBlockFromData(data); err == nil {
 		return data, nil
 	}
-
-	keys, err := context.Keystore.GetZoneIDSymmetricKeys(zoneID)
+	key, err := context.Keystore.GetZoneIDSymmetricKey(zoneID)
 	if err != nil {
-		logrus.WithError(err).WithField("zone_id", zoneID).WithField("handler", handler.Name()).Warningln("Can't read private key for matched zone_id")
-		return data, err
+		return data, fmt.Errorf("can't read private key for matched zone_id to encrypt with AcraBlock: %w", err)
 	}
-	defer utils.ZeroizeSymmetricKeys(keys)
+	defer utils.ZeroizeSymmetricKey(key)
 
-	if len(keys) == 0 {
-		return data, keystore.ErrKeysNotFound
-	}
-	return acrablock.CreateAcraBlock(data, keys[0], zoneID)
+	return acrablock.CreateAcraBlock(data, key, zoneID)
 }

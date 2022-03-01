@@ -19,7 +19,8 @@ package logging
 // Event codes for different events in Acra services, splitted by groups and service.
 const (
 	// 100 .. 200 some events
-	EventCodeGeneral = 100
+	EventCodeGeneral                      = 100
+	EventCodePoisonRecordDetectionMessage = 101
 
 	// 500 .. 600 errors
 	EventCodeErrorGeneral         = 500
@@ -38,6 +39,7 @@ const (
 	EventCodeErrorCantReadKeys                 = 511
 	EventCodeErrorCantLoadMasterKey            = 512
 	EventCodeErrorCantInitPrivateKeysEncryptor = 513
+	EventCodeErrorCacheIssues                  = 514
 
 	// system events
 	EventCodeErrorCantGetFileDescriptor     = 520

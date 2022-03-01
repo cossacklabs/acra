@@ -139,7 +139,7 @@ func (manager *ArrayQueryObservableManager) OnQuery(ctx context.Context, query O
 	for _, observer := range manager.subscribers {
 		newQuery, changed, err := observer.OnQuery(ctx, currentQuery)
 		if err != nil {
-			manager.logger.WithField("observer", observer.ID()).WithError(err).Errorln("OnQuery failed")
+			manager.logger.WithField("observer", observer.ID()).WithError(err).Debugln("OnQuery failed")
 			return query, false, err
 		}
 		if changed {

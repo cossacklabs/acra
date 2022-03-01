@@ -80,3 +80,32 @@ To run test with HashiCorp Vault ACRA_MASTER_KEY loader
 ```console
 VAULT_API_TOKEN=root_token TEST_WITH_VAULT=on VAULT_KV_ENGINE_VERSION={v1/v2} python3 tests/test.py
 ```
+
+# Speed up local test runs
+
+## Re-use generated test data
+
+Set path to empty or not existing folder into `TEST_RANDOM_DATA_FOLDER` env variable where script will generate test data once 
+and re-use everytime if folder exists. 
+You can call generate data manually:
+```
+export TEST_RANDOM_DATA_FOLDER=/tmp/test_data
+python3 tests/generate_random_data.py
+```
+
+# Skip cleaning built binaries to re-use not changed already compiled binaries
+
+Before start testCases, test script build all acra binaries from `cmd/` folder into folder set in `TEST_BINARY_OUTPUT_FOLDER`
+env variable (default: `/tmp`). When all tests finished, script delete all compiled binaries.
+To turn off cleaning you can set `TEST_CLEAN_BINARIES=false` env variable. After that, next test run will re-use existing
+binaries from folder or compile if they not exists. Script forks `go build` command, so golang's compiler tracks changes
+in source code by itself and skip re-compilation if sources wasn't changed between compilations and test runs. You should
+not clean folder or recompile manually after changing acra sources.
+
+```
+export TEST_BINARY_OUTPUT_FOLDER=/tmp/acra-binaries
+export TEST_CLEAN_BINARIES=false
+# after that this script will not delete compiled binaries
+# and will compile them to "/tmp/acra-binaries" folder
+python3 tests/test.py
+```

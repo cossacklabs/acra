@@ -1,4 +1,4 @@
-version: 0.91.0
+version: 0.92.0
 # Client ID
 client_id: client
 
@@ -7,15 +7,6 @@ config_file:
 
 # dump config
 dump_config: false
-
-# Create keypair for AcraConnector only (deprecated since 0.91.0, will be ignored soon)
-generate_acraconnector_keys: false
-
-# Create keypair for AcraServer only (deprecated since 0.91.0, will be ignored soon)
-generate_acraserver_keys: false
-
-# Create keypair for AcraTranslator only (deprecated since 0.91.0, will be ignored soon)
-generate_acratranslator_keys: false
 
 # Create keypair for data encryption/decryption
 generate_acrawriter_keys: false

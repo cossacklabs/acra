@@ -114,7 +114,7 @@ func (p *ReadKeySubcommand) Parse(arguments []string) error {
 		return err
 	}
 	switch coarseKind {
-	case KeyTransportConnector, KeyTransportServer, KeyTransportTranslator, KeySymmetric, KeyZoneSymmetric:
+	case KeySymmetric, KeyZoneSymmetric:
 		p.readKeyKind = coarseKind
 		p.contextID = id
 
@@ -244,28 +244,20 @@ func ReadKeyBytes(params ReadKeyParams, keyStore keystore.ServerKeyStore) ([]byt
 		return key.Value, nil
 
 	case KeySymmetric:
-		keys, err := keyStore.GetClientIDSymmetricKeys(params.ClientID())
+		key, err := keyStore.GetClientIDSymmetricKey(params.ClientID())
 		if err != nil {
 			log.WithError(err).Error("Cannot read client symmetric key")
 			return nil, err
 		}
-		if len(keys) == 0 {
-			log.WithError(err).Error("Empty symmetric keys list")
-			return nil, keystore.ErrKeysNotFound
-		}
-		return keys[0], nil
+		return key, nil
 
 	case KeyZoneSymmetric:
-		keys, err := keyStore.GetZoneIDSymmetricKeys(params.ZoneID())
+		key, err := keyStore.GetZoneIDSymmetricKey(params.ZoneID())
 		if err != nil {
 			log.WithError(err).Error("Cannot read client symmetric key")
 			return nil, err
 		}
-		if len(keys) == 0 {
-			log.WithError(err).Error("Empty symmetric keys list")
-			return nil, keystore.ErrKeysNotFound
-		}
-		return keys[0], nil
+		return key, nil
 
 	default:
 		log.WithField("expected", SupportedReadKeyKinds).Errorf("Unknown key kind: %s", kind)

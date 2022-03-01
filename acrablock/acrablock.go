@@ -25,6 +25,7 @@ import (
 	"github.com/cossacklabs/acra/acrastruct"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/cell"
+	"github.com/cossacklabs/themis/gothemis/keys"
 )
 
 // SymmetricBackend interface abstract backend for key and data encryption
@@ -55,14 +56,20 @@ type SecureCellSymmetricBackend struct{}
 
 // Encrypt SecureCellSymmetricBackend implementation of SymmetricBackend interface for key and data encryption
 func (s SecureCellSymmetricBackend) Encrypt(key []byte, data []byte, context []byte) (out []byte, err error) {
-	out, _, err = cell.New(key, cell.ModeSeal).Protect(data, context)
-	return
+	seal, err := cell.SealWithKey(&keys.SymmetricKey{Value: key})
+	if err != nil {
+		return nil, err
+	}
+	return seal.Encrypt(data, context)
 }
 
 // Decrypt SecureCellSymmetricBackend implementation of SymmetricBackend interface for key and data decryption
 func (s SecureCellSymmetricBackend) Decrypt(key []byte, data []byte, context []byte) (out []byte, err error) {
-	out, err = cell.New(key, cell.ModeSeal).Unprotect(data, nil, context)
-	return
+	seal, err := cell.SealWithKey(&keys.SymmetricKey{Value: key})
+	if err != nil {
+		return nil, err
+	}
+	return seal.Decrypt(data, context)
 }
 
 // KeyEncryptionBackendType used as storage for known backends to encrypt symmetric keys in AcraBLock

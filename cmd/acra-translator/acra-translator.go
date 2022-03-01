@@ -115,11 +115,10 @@ func realMain() error {
 	incomingConnectionGRPCString := flag.String("incoming_connection_grpc_string", "", "Default option: connection string for gRPC transport like grpc://0.0.0.0:9696")
 
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
-	keysCacheSize := flag.Int("keystore_cache_size", keystore.InfiniteCacheSize, "Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
+	cacheKeystoreOnStart := flag.Bool("keystore_cache_on_start_enable", true, "Load all keys to cache on start")
+	keysCacheSize := flag.Int("keystore_cache_size", keystore.DefaultCacheSize, fmt.Sprintf("Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache. Default is %d", keystore.DefaultCacheSize))
 
-	secureSessionID := flag.String("securesession_id", "acra_translator", "Id that will be sent in secure session (deprecated since 0.91.0, will be removed soon)")
-
-	detectPoisonRecords := flag.Bool("poison_detect_enable", true, "Turn on poison record detection, if server shutdown is disabled, AcraTranslator logs the poison record detection and returns error")
+	detectPoisonRecords := flag.Bool("poison_detect_enable", false, "Turn on poison record detection, if server shutdown is disabled, AcraTranslator logs the poison record detection and returns error")
 	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "On detecting poison record: log about poison record detection, stop and shutdown")
 	scriptOnPoison := flag.String("poison_run_script_file", "", "On detecting poison record: log about poison record detection, execute script, return decrypted data")
 
@@ -130,10 +129,8 @@ func realMain() error {
 	cmd.RegisterRedisKeyStoreParameters()
 	cmd.RegisterRedisTokenStoreParameters()
 
-	useTLS := flag.Bool("acratranslator_tls_transport_enable", false, "Use TLS to encrypt transport between AcraTranslator and AcraConnector/client app (deprecated since 0.91.0, will be removed soon).")
 	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
 	useClientIDFromConnection := flag.Bool("acratranslator_client_id_from_connection_enable", false, "Use clientID from TLS certificates or secure session handshake instead directly passed values in gRPC methods")
-	noEncryptionTransport := flag.Bool("acraconnector_transport_encryption_disable", false, "Use raw transport (tcp/unix socket) between AcraTranslator and client app. It turns off reading trace from client app's side which usually sent by AcraConnector (deprecated since 0.91.0, will be removed soon).")
 	enableAuditLog := flag.Bool("audit_log_enable", false, "Enable audit log functionality")
 
 	hashicorp.RegisterVaultCLIParameters()
@@ -180,7 +177,6 @@ func realMain() error {
 
 	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
 	log.Infof("Validating service configuration...")
-	cmd.ValidateClientID(*secureSessionID)
 	if len(*incomingConnectionHTTPString) == 0 && len(*incomingConnectionGRPCString) == 0 {
 		*incomingConnectionGRPCString = network.BuildConnectionString(network.GRPCScheme, cmd.DefaultAcraTranslatorGRPCHost, cmd.DefaultAcraTranslatorGRPCPort, "")
 		log.Infof("No incoming connection string is set: by default gRPC connections are being listen %v", *incomingConnectionGRPCString)
@@ -191,14 +187,12 @@ func realMain() error {
 	config.SetStopOnPoison(*stopOnPoison)
 	config.SetScriptOnPoison(*scriptOnPoison)
 	config.SetKeysDir(*keysDir)
-	config.SetServerID([]byte(*secureSessionID))
 	config.SetIncomingConnectionHTTPString(*incomingConnectionHTTPString)
 	config.SetIncomingConnectionGRPCString(*incomingConnectionGRPCString)
 	config.SetConfigPath(DefaultConfigPath)
 	config.SetDebug(*debug)
 	config.SetTraceToLog(cmd.IsTraceToLogOn())
 	config.SetUseClientIDFromConnection(*useClientIDFromConnection)
-	config.SetWithConnector(!*noEncryptionTransport)
 
 	cmd.SetupTracing(ServiceName)
 
@@ -212,7 +206,7 @@ func realMain() error {
 	var keyStore keystore.ServerKeyStore
 	var transportKeystore keystore.TranslationKeyStore
 	if filesystem2.IsKeyDirectory(*keysDir) {
-		keyStore, transportKeystore, err = openKeyStoreV2(*keysDir, keyLoader)
+		keyStore, transportKeystore, err = openKeyStoreV2(*keysDir, *keysCacheSize, keyLoader)
 	} else {
 		keyStore, transportKeystore, err = openKeyStoreV1(*keysDir, *keysCacheSize, keyLoader)
 	}
@@ -220,6 +214,24 @@ func realMain() error {
 		log.WithError(err).Errorln("Can't open keyStore")
 		return err
 	}
+
+	if *cacheKeystoreOnStart {
+		if *keysCacheSize == keystore.WithoutCache {
+			log.Errorln("Can't cache on start with disabled cache")
+			os.Exit(1)
+		}
+		if err := keyStore.CacheOnStart(); err != nil {
+			log.WithError(err).Errorln("Failed to cache keystore on start")
+			return err
+		}
+
+		if err := transportKeystore.CacheOnStart(); err != nil {
+			log.WithError(err).Errorln("Failed to cache transport keystore on start")
+			return err
+		}
+		log.Info("Cached keystore on start successfully")
+	}
+
 	log.Infof("Keystore init OK")
 	if err := crypto.InitRegistry(keyStore); err != nil {
 		log.WithError(err).Errorln("Can't initialize crypto registry")
@@ -272,64 +284,46 @@ func realMain() error {
 	var httpTransportCallback network.ConnectionCallback
 	// --------- Config  -----------
 	log.Infof("Configuring transport...")
-	if *useTLS {
-		log.WithField("client_id_from_connection", *useClientIDFromConnection).Infoln("Selecting transport: use TLS transport wrapper")
-		tlsConfig, err := network.NewTLSConfigFromBaseArgs()
-		if err != nil {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
-				Errorln("Configuration error: can't create AcraConnector TLS config")
-			os.Exit(1)
-		}
-		var clientIDExtractor network.TLSClientIDExtractor
 
-		idConverter, err := network.NewDefaultHexIdentifierConverter()
-		if err != nil {
-			log.WithError(err).Errorln("Can't initialize identifier converter")
-			os.Exit(1)
-		}
-		identifierExtractor, err := network.NewIdentifierExtractorByType(*tlsIdentifierExtractorType)
-		if err != nil {
-			log.WithField("type", *tlsIdentifierExtractorType).WithError(err).Errorln("Can't initialize identifier extractor")
-			os.Exit(1)
-		}
-		clientIDExtractor, err = network.NewTLSClientIDExtractor(identifierExtractor, idConverter)
-		if err != nil {
-			log.WithError(err).Errorln("Can't initialize clientID extractor")
-			os.Exit(1)
-		}
-		config.SetTLSClientIDExtractor(clientIDExtractor)
-
-		// client's config nil because we don't need to establish tls connection with database or any third side
-		tlsWrapper, err := network.NewTLSAuthenticationConnectionWrapper(*useClientIDFromConnection, nil, tlsConfig, clientIDExtractor)
-		if err != nil {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).Errorln("Can't initialize TLS connection wrapper")
-			os.Exit(1)
-		}
-		httpTransportCallback = tlsWrapper
-		config.GRPCConnectionWrapper = tlsWrapper
-		config.SetTLSConfig(tlsConfig)
-	} else {
-		log.WithField("client_id_from_connection", *useClientIDFromConnection).Infof("Selecting transport: use Secure Session transport wrapper")
-		secureSessionWrapper, err := network.NewSecureSessionConnectionWrapper([]byte(*secureSessionID), transportKeystore)
-		if err != nil {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
-				Errorln("Configuration error: can't initialize secure session connection wrapper")
-			os.Exit(1)
-		}
-		httpTransportCallback = secureSessionWrapper
-		config.GRPCConnectionWrapper = secureSessionWrapper
+	log.WithField("client_id_from_connection", *useClientIDFromConnection).Infoln("Selecting transport: use TLS transport wrapper")
+	tlsConfig, err := network.NewTLSConfigFromBaseArgs()
+	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
+			Errorln("Configuration error: can't create TLS config")
+		os.Exit(1)
 	}
+	var clientIDExtractor network.TLSClientIDExtractor
+
+	idConverter, err := network.NewDefaultHexIdentifierConverter()
+	if err != nil {
+		log.WithError(err).Errorln("Can't initialize identifier converter")
+		os.Exit(1)
+	}
+	identifierExtractor, err := network.NewIdentifierExtractorByType(*tlsIdentifierExtractorType)
+	if err != nil {
+		log.WithField("type", *tlsIdentifierExtractorType).WithError(err).Errorln("Can't initialize identifier extractor")
+		os.Exit(1)
+	}
+	clientIDExtractor, err = network.NewTLSClientIDExtractor(identifierExtractor, idConverter)
+	if err != nil {
+		log.WithError(err).Errorln("Can't initialize clientID extractor")
+		os.Exit(1)
+	}
+	config.SetTLSClientIDExtractor(clientIDExtractor)
+
+	// client's config nil because we don't need to establish tls connection with database or any third side
+	tlsWrapper, err := network.NewTLSAuthenticationConnectionWrapper(*useClientIDFromConnection, nil, tlsConfig, clientIDExtractor)
+	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).Errorln("Can't initialize TLS connection wrapper")
+		os.Exit(1)
+	}
+	httpTransportCallback = tlsWrapper
+	config.GRPCConnectionWrapper = tlsWrapper
+	config.SetTLSConfig(tlsConfig)
+
 	safeCloseConnectionCallback := network.SafeCloseConnectionCallback{}
 	httpWrapper.AddCallback(safeCloseConnectionCallback)
 	config.GRPCConnectionWrapper.AddOnServerHandshakeCallback(safeCloseConnectionCallback)
-
-	// should be added only after registering transport wrappers and with Connector on other side that will send trace info
-	if !*noEncryptionTransport {
-		log.Infoln("Register trace receiver")
-		traceConnectionCallback := network.TraceConnectionCallback{}
-		config.HTTPConnectionWrapper.AddConnectionContextCallback(traceConnectionCallback)
-		config.GRPCConnectionWrapper.AddOnServerHandshakeCallback(traceConnectionCallback)
-	}
 
 	encryptor, err := storage.NewSCellEncryptor(keyStore)
 	if err != nil {
@@ -380,14 +374,17 @@ func realMain() error {
 	config.SetTokenizer(tokenizer)
 	poisonCallbacks := poison.NewCallbackStorage()
 	if config.DetectPoisonRecords() {
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodePoisonRecordDetectionMessage).Infoln("Turned on poison record detection")
 		// used to turn off poison record detection which rely on HasCallbacks
 		poisonCallbacks.AddCallback(poison.EmptyCallback{})
 		if config.ScriptOnPoison() != "" {
 			poisonCallbacks.AddCallback(poison.NewExecuteScriptCallback(config.ScriptOnPoison()))
+			log.WithField("poison_run_script_file", *scriptOnPoison).Infoln("Turned on script execution for on detected poison record")
 		}
 		// should setup "stopOnPoison" as last poison record callback"
 		if config.StopOnPoison() {
 			poisonCallbacks.AddCallback(&poison.StopCallback{})
+			log.Infoln("Turned on poison record callback that stops acra-server after poison record detection")
 		}
 	}
 	translatorData := &common.TranslatorData{
@@ -700,7 +697,11 @@ func openKeyStoreV1(keysDir string, cacheSize int, loader keyloader.MasterKeyLoa
 	return keyStoreV1, transportKeyStoreV1, nil
 }
 
-func openKeyStoreV2(keysDir string, loader keyloader.MasterKeyLoader) (keystore.ServerKeyStore, keystore.TranslationKeyStore, error) {
+func openKeyStoreV2(keysDir string, cacheSize int, loader keyloader.MasterKeyLoader) (keystore.ServerKeyStore, keystore.TranslationKeyStore, error) {
+	if cacheSize != keystore.WithoutCache {
+		return nil, nil, keystore.ErrCacheIsNotSupportedV2
+	}
+
 	encryption, signature, err := loader.LoadMasterKeys()
 	if err != nil {
 		log.WithError(err).

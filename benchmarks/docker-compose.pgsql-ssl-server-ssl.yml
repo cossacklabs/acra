@@ -1,0 +1,112 @@
+version: "3"
+
+volumes:
+    keys:
+
+services:
+    acra-keymaker_client:
+        image: "cossacklabs/acra-keymaker:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+        network_mode: "none"
+        environment:
+            ACRA_MASTER_KEY: ${ACRA_SERVER_MASTER_KEY:-N0MyZEVCRGY1cHA4ODRSVHp3c3BNeGtDekxaV3BhTHI=}
+        volumes:
+            - keys:/keys
+            - ../docker/ssl/acra-client:/ssl:ro
+        command: >-
+            --client_id=""
+            --tls_cert=/ssl/acra-client.crt
+            --keys_output_dir=/keys/acra-server
+            --keys_public_output_dir=/keys/acra-server
+            --keystore=v1
+
+    acra-keymaker_redis_client:
+        image: "cossacklabs/acra-keymaker:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+        network_mode: "host"
+        environment:
+            ACRA_MASTER_KEY: ${ACRA_SERVER_MASTER_KEY:-N0MyZEVCRGY1cHA4ODRSVHp3c3BNeGtDekxaV3BhTHI=}
+        volumes:
+            - keys:/keys
+            - ../docker/ssl/acra-client:/ssl:ro
+        command: >-
+            --client_id=""
+            --tls_cert=/ssl/acra-client.crt
+            --keys_output_dir=/keys/acra-server
+            --keys_public_output_dir=/keys/acra-server
+            --redis_host_port=localhost:6379
+            --redis_db_keys=1
+            --keystore=v1
+
+    postgresql:
+        build:
+            context: ../
+            dockerfile: docker/postgresql-ssl.dockerfile
+        network_mode: host
+        environment:
+            POSTGRES_DB: ${POSTGRES_DB:-test}
+            POSTGRES_USER: ${POSTGRES_USER:-test}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-test}
+            PGDATA: /var/lib/postgresql/data/pgdata
+        tmpfs:
+            - "/var/lib/postgresql/data"
+        ports:
+            - "5432:5432"
+
+    create_db:
+        image: postgres:13
+        volumes:
+            - ../docker/ssl:/ssl:ro
+        depends_on:
+            - postgresql
+        restart: on-failure
+        network_mode: host
+        environment:
+            PGDBNAME: benchmark
+            PGUSER: test
+            PGPASSWORD: test
+            PGHOST: postgresql
+            PGPORT: 5432
+            PGSSLMODE: require
+            PGSSLKEY: /ssl/acra-client/acra-client.key
+            PGSSLCERT: /ssl/acra-client/acra-client.crt
+            PGSSLROOTCERT: /ssl/ca/example.cossacklabs.com.crt
+            # #psql -c 'drop database benchmark; create database benchmark'
+        command: >-
+            createdb benchmark         
+
+    redis:
+        image: redis:6.2.6-alpine
+        network_mode: host
+
+    acra-server:
+        build:
+            context: ../
+            dockerfile: docker/acra-build.dockerfile
+            args:
+                DOCKER_REGISTRY_PATH: ${DOCKER_REGISTRY_PATH:-cossacklabs}
+                VCS_REF: ${VCS_REF:-master}
+                APP_NAME: ${APP_NAME:-acra-server}
+                VERSION: ${VERSION:-0.0.0}
+                VCS_URL: ${VCS_URL:-https://github.com/cossacklabs/acra}
+                VCS_BRANCH: ${VCS_BRANCH:-master}
+                BUILD_DATE: ${BUILD_DATE:-0000-00-00}
+        entrypoint: /container.acra-server/acra-server
+        restart: on-failure
+        depends_on:
+            - acra-keymaker_client
+            - postgresql
+            - redis
+        # need because debug server listens 127.0.0.1
+        network_mode: host
+        ports:
+            - "9393:9393"
+            # debug server for profiling
+            - "6060:6060"
+        environment:
+            ACRA_MASTER_KEY: ${ACRA_SERVER_MASTER_KEY:-N0MyZEVCRGY1cHA4ODRSVHp3c3BNeGtDekxaV3BhTHI=}
+        volumes:
+            - keys:/keys:ro
+            - ../docker/ssl/ca:/ssl.ca:ro
+            - ../docker/ssl/acra-server:/ssl.server:ro
+            - ./config:/config
+        command: >-
+            --config_file=/config/acra-server.yaml

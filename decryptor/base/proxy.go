@@ -172,7 +172,7 @@ type Cursor interface {
 
 const (
 	acraDBProxyErrSide     = "AcraServer-Database"
-	acraClientProxyErrSide = "Client/Connector-Database"
+	acraClientProxyErrSide = "Client-AcraServer"
 )
 
 // ProxyError custom error type for handling all related errors on Client/DB proxies

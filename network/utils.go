@@ -28,7 +28,7 @@ import (
 	"sync"
 )
 
-// Custom connection schemes, used in AcraConnector and AcraTranslator
+// Custom connection schemes, used in AcraTranslator
 const (
 	GRPCScheme = "grpc"
 	HTTPScheme = "http"

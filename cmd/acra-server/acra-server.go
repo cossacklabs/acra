@@ -15,15 +15,15 @@ limitations under the License.
 */
 
 // Package main is entry point for AcraServer utility. AcraServer is the server responsible for decrypting all
-// the database responses and forwarding them back to clients. AcraServer waits to connection from AcraConnector.
-// When the first AcraConnector connection arrives, AcraServer initialises secure communication via TLS or
-// Themis Secure Session. After a successful initialisation of the session, AcraServer creates a database connection
-// and starts forwarding all the requests coming from AcraConnector into the database.
+// the database responses and forwarding them back to clients. AcraServer waits to connection from application.
+// When the first connection arrives, AcraServer initialises secure communication via TLS.
+// After a successful initialisation of the session, AcraServer creates a database connection
+// and starts forwarding all the requests coming from application into the database.
 // Every incoming request to AcraServer is passed through AcraCensor (Acra's firewall). AcraCensor will pass allowed
 // queries and return error on forbidden ones.
 // Upon receiving the answer, AcraServer attempts to unpack the AcraStruct and to decrypt the payload. After that,
 // AcraServer will replace the AcraStruct with the decrypted payload, change the packet's length, and return
-// the answer to the application via AcraConnector.
+// the answer to the application.
 // If AcraServer detects a poison record within the AcraStruct's decryption stream, AcraServer will either
 // shut down the decryption, run an alarm script, or do both, depending on the pre-set parameters.
 //
@@ -37,8 +37,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/cossacklabs/acra/crypto"
-	"github.com/cossacklabs/acra/poison"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -50,6 +48,7 @@ import (
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/cmd/acra-server/common"
+	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/mysql"
 	"github.com/cossacklabs/acra/decryptor/postgresql"
@@ -62,6 +61,7 @@ import (
 	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/acra/pseudonymization"
 	pseudonymizationCommon "github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/pseudonymization/storage"
@@ -127,7 +127,8 @@ func realMain() error {
 	apiPort := flag.Int("incoming_connection_api_port", cmd.DefaultAcraServerAPIPort, "Port for AcraServer for HTTP API")
 
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
-	keysCacheSize := flag.Int("keystore_cache_size", keystore.InfiniteCacheSize, "Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
+	cacheKeystoreOnStart := flag.Bool("keystore_cache_on_start_enable", true, "Load all keys to cache on start")
+	keysCacheSize := flag.Int("keystore_cache_size", keystore.DefaultCacheSize, fmt.Sprintf("Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache. Default is %d", keystore.DefaultCacheSize))
 
 	cmd.RegisterRedisKeyStoreParameters()
 	cmd.RegisterRedisTokenStoreParameters()
@@ -135,40 +136,36 @@ func realMain() error {
 	_ = flag.Bool("pgsql_hex_bytea", false, "Hex format for Postgresql bytea data (deprecated, ignored)")
 	flag.Bool("pgsql_escape_bytea", false, "Escape format for Postgresql bytea data (deprecated, ignored)")
 
-	secureSessionID := flag.String("securesession_id", "acra_server", "Id that will be sent in secure session (deprecated since 0.91.0, will be removed soon)")
-
 	flag.Bool("acrastruct_wholecell_enable", false, "Acrastruct will stored in whole data cell (deprecated, ignored)")
 	flag.Bool("acrastruct_injectedcell_enable", false, "Acrastruct may be injected into any place of data cell (deprecated, ignored)")
 
 	debugServer := flag.Bool("ds", false, "Turn on HTTP debug server")
 	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DefaultAcraServerWaitTimeout, "Time that AcraServer will wait (in seconds) on restart before closing all connections")
 
-	detectPoisonRecords := flag.Bool("poison_detect_enable", true, "Turn on poison record detection, if server shutdown is disabled, AcraServer logs the poison record detection and returns decrypted data")
+	detectPoisonRecords := flag.Bool("poison_detect_enable", false, "Turn on poison record detection, if server shutdown is disabled, AcraServer logs the poison record detection and returns decrypted data")
 	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "On detecting poison record: log about poison record detection, stop and shutdown")
 	scriptOnPoison := flag.String("poison_run_script_file", "", "On detecting poison record: log about poison record detection, execute script, return decrypted data")
 
 	withZone := flag.Bool("zonemode_enable", false, "Turn on zone mode")
 	enableHTTPAPI := flag.Bool("http_api_enable", false, "Enable HTTP API")
 
-	tlsWithConnector := flag.Bool("acraconnector_tls_transport_enable", false, "Use tls to encrypt transport between AcraServer and AcraConnector/application (deprecated since 0.91.0, will be removed soon)")
-	tlsKey := flag.String("tls_key", "", "Path to private key that will be used in AcraServer's TLS handshake with AcraConnector as server's key and database as client's key")
+	tlsKey := flag.String("tls_key", "", "Path to tls private key")
 	tlsCert := flag.String("tls_cert", "", "Path to tls certificate")
-	tlsCA := flag.String("tls_ca", "", "Path to additional CA certificate for application/AcraConnector and database certificate validation")
-	tlsAuthType := flag.Int("tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection with application/AcraConnector and database. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
-	tlsClientAuthType := flag.Int("tls_client_auth", tlsAuthNotSet, "Set authentication mode that will be used in TLS connection with application/AcraConnector. Overrides the \"tls_auth\" setting.")
-	tlsClientCA := flag.String("tls_client_ca", "", "Path to additional CA certificate for application's/AcraConnector's certificate validation (setup if application/AcraConnector certificate CA is different from database certificate CA)")
-	tlsClientCert := flag.String("tls_client_cert", "", "Path to server TLS certificate presented to applications/AcraConnectors (overrides \"tls_cert\")")
-	tlsClientKey := flag.String("tls_client_key", "", "Path to private key of the TLS certificate presented to applications/AcraConnectors (see \"tls_client_cert\")")
+	tlsCA := flag.String("tls_ca", "", "Path to additional CA certificate for application and database certificate validation")
+	tlsAuthType := flag.Int("tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection with application and database. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
+	tlsClientAuthType := flag.Int("tls_client_auth", tlsAuthNotSet, "Set authentication mode that will be used in TLS connection with application Overrides the \"tls_auth\" setting.")
+	tlsClientCA := flag.String("tls_client_ca", "", "Path to additional CA certificate for application's certificate validation (setup if application certificate CA is different from database certificate CA)")
+	tlsClientCert := flag.String("tls_client_cert", "", "Path to server TLS certificate presented to applications (overrides \"tls_cert\")")
+	tlsClientKey := flag.String("tls_client_key", "", "Path to private key of the TLS certificate presented to applications (see \"tls_client_cert\")")
 	tlsDbAuthType := flag.Int("tls_database_auth", tlsAuthNotSet, "Set authentication mode that will be used in TLS connection with database. Overrides the \"tls_auth\" setting.")
-	tlsDbCA := flag.String("tls_database_ca", "", "Path to additional CA certificate for database certificate validation (setup if database certificate CA is different from application/AcraConnector certificate CA)")
+	tlsDbCA := flag.String("tls_database_ca", "", "Path to additional CA certificate for database certificate validation (setup if database certificate CA is different from application certificate CA)")
 	tlsDbSNI := flag.String("tls_database_sni", "", "Expected Server Name (SNI) from database")
 	tlsDbSNIOld := flag.String("tls_db_sni", "", "Expected Server Name (SNI) from database (deprecated, use \"tls_database_sni\" instead)")
 	tlsDbCert := flag.String("tls_database_cert", "", "Path to client TLS certificate shown to database during TLS handshake (overrides \"tls_cert\")")
 	tlsDbKey := flag.String("tls_database_key", "", "Path to private key of the TLS certificate used to connect to database (see \"tls_database_cert\")")
-	tlsUseClientIDFromCertificate := flag.Bool("tls_client_id_from_cert", false, "Extract clientID from TLS certificate. Take TLS certificate from application/AcraConnector's connection if acraconnector_tls_transport_enable is TRUE; otherwise take TLS certificate from application's connection if acraconnector_transport_encryption_disable is TRUE. Can't be used with --tls_client_auth=0 or --tls_auth=0")
+	tlsUseClientIDFromCertificate := flag.Bool("tls_client_id_from_cert", true, "Extract clientID from TLS certificate from application connection. Can't be used with --tls_client_auth=0 or --tls_auth=0")
 	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
 	network.RegisterCertVerifierArgsWithSeparateClientAndDatabase()
-	noEncryptionTransport := flag.Bool("acraconnector_transport_encryption_disable", false, "Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/application. Don't use this flag if you not connect to database with SSL/TLS. (deprecated since 0.91.0, will be removed soon)")
 	clientID := flag.String("client_id", "", "Static ClientID used by AcraServer for data protection operations")
 	acraConnectionString := flag.String("incoming_connection_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerPort, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraAPIConnectionString := flag.String("incoming_connection_api_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerAPIPort, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
@@ -242,7 +239,6 @@ func realMain() error {
 	cmd.SetupTracing(ServiceName)
 
 	log.Infof("Validating service configuration...")
-	cmd.ValidateClientID(*secureSessionID)
 	cmd.ValidateRedisCLIOptions()
 
 	serverConfig.SetAcraConnectionString(*acraConnectionString)
@@ -300,7 +296,7 @@ func realMain() error {
 	log.Infof("Initialising keystore...")
 	var keyStore keystore.ServerKeyStore
 	if filesystemV2.IsKeyDirectory(*keysDir) {
-		keyStore, err = openKeyStoreV2(*keysDir, keyLoader)
+		keyStore, err = openKeyStoreV2(*keysDir, *keysCacheSize, keyLoader)
 	} else {
 		keyStore, err = openKeyStoreV1(*keysDir, *keysCacheSize, keyLoader)
 	}
@@ -308,6 +304,19 @@ func realMain() error {
 		log.WithError(err).Errorln("Can't open keyStore")
 		return err
 	}
+
+	if *cacheKeystoreOnStart {
+		if *keysCacheSize == keystore.WithoutCache {
+			log.Errorln("Can't cache on start with disabled cache")
+			os.Exit(1)
+		}
+		if err := keyStore.CacheOnStart(); err != nil {
+			log.WithError(err).Errorln("Failed to cache keystore on start")
+			return err
+		}
+		log.Info("Cached keystore on start successfully")
+	}
+
 	serverConfig.SetKeyStore(keyStore)
 	log.Infof("Keystore init OK")
 
@@ -369,7 +378,7 @@ func realMain() error {
 	appSideTLSConfig, err := network.NewTLSConfig("", *tlsClientCA, *tlsClientKey, *tlsClientCert, tls.ClientAuthType(*tlsClientAuthType), clientCertVerifier)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
-			Errorln("Configuration error: can't create AcraConnector TLS config")
+			Errorln("Configuration error: can't create application TLS config")
 		os.Exit(1)
 	}
 	// Use common TLS settings, unless the user requests specific ones.
@@ -423,59 +432,27 @@ func realMain() error {
 		log.WithError(err).Errorln("Can't initialize clientID extractor")
 		os.Exit(1)
 	}
-	// configured TLS wrapper which may be used for communication with connector or app or database
+	// configured TLS wrapper which may be used for communication with app or database
 	tlsWrapper, err := network.NewTLSAuthenticationConnectionWrapper(
 		*tlsUseClientIDFromCertificate, dbTLSConfig, appSideTLSConfig, clientIDExtractor)
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize TLS connection wrapper")
 		os.Exit(1)
 	}
-	// if server configured to communicate with Connector than we ignore certificate which may be provided from app
-	// to database. otherwise app connects to Server without Connector and Server will not ignore provided certificate
-	// for clientID extraction
-	useClientIDFromAppsTLSCertificate := *tlsUseClientIDFromCertificate && !*tlsWithConnector
-	proxyTLSWrapper := base.NewTLSConnectionWrapper(useClientIDFromAppsTLSCertificate, tlsWrapper)
-	log.WithField("use_client_id_from_cert", *tlsUseClientIDFromCertificate).Infoln("Loaded TLS configuration")
 
-	if *tlsWithConnector {
-		if *tlsUseClientIDFromCertificate {
-			serverConfig.ConnectionWrapper = tlsWrapper
-			log.Println("Selecting transport: use TLS transport wrapper, extract clientID from TLS certificate")
-		} else {
-			log.Println("Selecting transport: use TLS transport wrapper with static clientID, provided as parameter")
-			if *clientID == "" {
-				log.Errorln("You must provide non-empty --client_id parameter with --acraconnector_tls_transport_enable.")
-				os.Exit(1)
-			}
-			serverConfig.ConnectionWrapper, err = network.NewTLSConnectionWrapper([]byte(*clientID), appSideTLSConfig)
-			if err != nil {
-				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
-					Errorln("Configuration error: can't initialise TLS connection wrapper")
-				os.Exit(1)
-			}
-		}
-	} else if *noEncryptionTransport {
-		// here ConnectionWrapper used to establish connection with app and here we don't expect Connector with custom protocol
-		// where connector sends TraceID after handshake, just pure net.Conn with known static clientID on server side
-		// which ClientID will be used in next steps depends on --use_client_id_from_cert parameter. If --use_client_id_from_cert=false
-		// then will be used static --client_id otherwise will be extracted from TLS certificate and override static variant
-		serverConfig.SetWithConnector(false)
-		if (*clientID == "" && !*withZone) && !*tlsUseClientIDFromCertificate {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
-				Errorln("Configuration error: without zone mode and without encryption you must set <client_id> which will be used to connect from AcraConnector to AcraServer")
-			return err
-		}
-		log.Infof("Selecting transport: use raw transport wrapper")
-		serverConfig.ConnectionWrapper = &network.RawConnectionWrapper{ClientID: []byte(*clientID)}
-	} else {
-		log.Infof("Selecting transport: use Secure Session transport wrapper")
-		serverConfig.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper([]byte(*secureSessionID), keyStore)
-		if err != nil {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
-				Errorln("Configuration error: can't initialize secure session connection wrapper")
-			return err
-		}
+	proxyTLSWrapper := base.NewTLSConnectionWrapper(*tlsUseClientIDFromCertificate, tlsWrapper)
+	log.WithField("tls_client_id_from_cert", *tlsUseClientIDFromCertificate).Infoln("Loaded TLS configuration")
+
+	// here ConnectionWrapper used to establish connection with app via pure net.Conn with known static clientID on server side
+	// which ClientID will be used in next steps depends on --tls_client_id_from_cert parameter. If --tls_client_id_from_cert=false
+	// then will be used static --client_id otherwise will be extracted from TLS certificate and override static variant
+	if (*clientID == "" && !*withZone) && !*tlsUseClientIDFromCertificate {
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
+			Errorln("Configuration error: without zone mode and without encryption you must set <client_id> which will be used to connect to AcraServer")
+		return err
 	}
+	log.Infof("Selecting transport: use raw transport wrapper")
+	serverConfig.ConnectionWrapper = &network.RawConnectionWrapper{ClientID: []byte(*clientID)}
 
 	log.Debugf("Registering process signal handlers")
 	sigHandlerSIGTERM, err := cmd.NewSignalHandler([]os.Signal{os.Interrupt, syscall.SIGTERM})
@@ -519,16 +496,19 @@ func realMain() error {
 
 	poisonCallbacks := poison.NewCallbackStorage()
 	if *detectPoisonRecords {
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodePoisonRecordDetectionMessage).Infoln("Turned on poison record detection")
 		// used to turn off poison record detection which rely on HasCallbacks
 		poisonCallbacks.AddCallback(poison.EmptyCallback{})
 		if *scriptOnPoison != "" {
 			poisonCallbacks.AddCallback(poison.NewExecuteScriptCallback(*scriptOnPoison))
 			serverConfig.SetScriptOnPoison(*scriptOnPoison)
+			log.WithField("poison_run_script_file", *scriptOnPoison).Infoln("Turned on script execution for on detected poison record")
 		}
 		// should setup "stopOnPoison" as last poison record callback"
 		if *stopOnPoison {
 			poisonCallbacks.AddCallback(&poison.StopCallback{})
 			serverConfig.SetStopOnPoison(*stopOnPoison)
+			log.Infoln("Turned on poison record callback that stops acra-server after poison record detection")
 		}
 	}
 
@@ -892,7 +872,11 @@ func openKeyStoreV1(output string, cacheSize int, loader keyloader.MasterKeyLoad
 	return keyStoreV1, nil
 }
 
-func openKeyStoreV2(keyDirPath string, loader keyloader.MasterKeyLoader) (keystore.ServerKeyStore, error) {
+func openKeyStoreV2(keyDirPath string, cacheSize int, loader keyloader.MasterKeyLoader) (keystore.ServerKeyStore, error) {
+	if cacheSize != keystore.WithoutCache {
+		return nil, keystore.ErrCacheIsNotSupportedV2
+	}
+
 	encryption, signature, err := loader.LoadMasterKeys()
 	if err != nil {
 		log.WithError(err).Errorln("Cannot load master key")

@@ -1,0 +1,18 @@
+version: 0.92.0
+encryptor_config_file: /config/encryptor_config.yaml
+tls_ca: /ssl.ca/example.cossacklabs.com.crt
+tls_cert: /ssl.server/acra-server.crt
+tls_key: /ssl.server/acra-server.key
+tls_client_id_from_cert: true
+db_port: 5432
+db_host: postgresql
+v: true
+keys_dir: /keys/acra-server
+tls_ocsp_from_cert: ignore
+tls_crl_from_cert: ignore
+ds: true
+acraconnector_transport_encryption_disable: true
+
+# redis
+#redis_db_keys: 1
+#redis_host_port: "localhost:6379"

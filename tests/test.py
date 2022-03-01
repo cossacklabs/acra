@@ -16,7 +16,6 @@ import asyncio
 import collections
 import collections.abc
 import contextlib
-import hashlib
 import http
 import json
 import logging
@@ -34,6 +33,7 @@ import tempfile
 import traceback
 import unittest
 from base64 import b64decode, b64encode
+from distutils.dir_util import copy_tree
 from tempfile import NamedTemporaryFile
 from urllib.parse import urlparse
 from urllib.request import urlopen
@@ -45,15 +45,13 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import pymysql
-import requests
 import redis
+import requests
 import semver
 import sqlalchemy as sa
 import sys
 import time
 import yaml
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
 from ddt import ddt, data
 from hvac import Client
 from prometheus_client.parser import text_string_to_metric_families
@@ -69,12 +67,12 @@ from random_utils import random_bytes, random_email, random_int32, random_int64,
 from utils import (read_storage_public_key, read_storage_private_key,
                    read_zone_public_key, read_zone_private_key,
                    read_poison_public_key, read_poison_private_key,
-                   destroy_connector_transport, destroy_server_storage_key, destroy_server_transport,
+                   destroy_server_storage_key,
                    decrypt_acrastruct, deserialize_and_decrypt_acrastruct,
                    load_random_data_config, get_random_data_files,
                    clean_test_data, safe_string, prepare_encryptor_config,
                    get_encryptor_config, abs_path, get_test_encryptor_config, send_signal_by_process_name,
-                   load_yaml_config, dump_yaml_config)
+                   load_yaml_config, dump_yaml_config, BINARY_OUTPUT_FOLDER)
 
 # add to path our wrapper until not published to PYPI
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'wrappers/python'))
@@ -101,14 +99,17 @@ TEST_TLS_SERVER_KEY = abs_path(os.environ.get('TEST_TLS_SERVER_KEY', os.path.joi
 # db drivers prevent usage of keys with global rights
 TEST_TLS_CLIENT_CERT = abs_path(os.environ.get('TEST_TLS_CLIENT_CERT', os.path.join(os.path.dirname(__file__), 'ssl/acra-writer/acra-writer.crt')))
 TEST_TLS_CLIENT_KEY = abs_path(os.environ.get('TEST_TLS_CLIENT_KEY', os.path.join(os.path.dirname(__file__), 'ssl/acra-writer/acra-writer.key')))
-TEST_TLS_CLIENT_2_CERT = abs_path(os.environ.get('TEST_TLS_CLIENT_CERT', os.path.join(os.path.dirname(__file__), 'ssl/acra-writer-2/acra-writer-2.crt')))
-TEST_TLS_CLIENT_2_KEY = abs_path(os.environ.get('TEST_TLS_CLIENT_KEY', os.path.join(os.path.dirname(__file__), 'ssl/acra-writer-2/acra-writer-2.key')))
+TEST_TLS_CLIENT_2_CERT = abs_path(os.environ.get('TEST_TLS_CLIENT_2_CERT', os.path.join(os.path.dirname(__file__), 'ssl/acra-writer-2/acra-writer-2.crt')))
+TEST_TLS_CLIENT_2_KEY = abs_path(os.environ.get('TEST_TLS_CLIENT_2_KEY', os.path.join(os.path.dirname(__file__), 'ssl/acra-writer-2/acra-writer-2.key')))
 TEST_TLS_OCSP_CA = abs_path(os.environ.get('TEST_TLS_OCSP_CA', os.path.join(os.path.dirname(__file__), 'ssl/ca/ca.crt')))
 TEST_TLS_OCSP_CERT = abs_path(os.environ.get('TEST_TLS_OCSP_CERT', os.path.join(os.path.dirname(__file__), 'ssl/ocsp-responder/ocsp-responder.crt')))
 TEST_TLS_OCSP_KEY = abs_path(os.environ.get('TEST_TLS_OCSP_KEY', os.path.join(os.path.dirname(__file__), 'ssl/ocsp-responder/ocsp-responder.key')))
 TEST_TLS_OCSP_INDEX = abs_path(os.environ.get('TEST_TLS_OCSP_INDEX', os.path.join(os.path.dirname(__file__), 'ssl/ca/index.txt')))
 TEST_TLS_CRL_PATH = abs_path(os.environ.get('TEST_TLS_CRL_PATH', os.path.join(os.path.dirname(__file__), 'ssl/ca')))
 TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
+
+OCSP_SERVER_PORT = int(os.environ.get('TEST_OCSP_SERVER_PORT', 8888))
+CRL_HTTP_SERVER_PORT = int(os.environ.get('TEST_HTTP_SERVER_PORT', 8889))
 
 TEST_WITH_TRACING = os.environ.get('TEST_TRACE', 'off').lower() == 'on'
 TEST_WITH_REDIS = os.environ.get('TEST_REDIS', 'off').lower() == 'on'
@@ -155,14 +156,24 @@ TEST_VAULT_TLS_CA = abs_path(os.environ.get('TEST_VAULT_TLS_CA', 'tests/ssl/ca/c
 VAULT_KV_ENGINE_VERSION=os.environ.get('VAULT_KV_ENGINE_VERSION', 'v1')
 CRYPTO_ENVELOPE_HEADER = b'%%%'
 
+# TLS_CERT_CLIENT_* represent two different ClientIDs are used in tests, initialized in setupModule function
+TLS_CERT_CLIENT_ID_1 = None
+TLS_CERT_CLIENT_ID_2 = None
+
+TLS_CLIENT_ID_SOURCE_DN = 'distinguished_name'
+TLS_CLIENT_ID_SOURCE_SERIAL = 'serial_number'
+
 POISON_KEY_PATH = '.poison_key/poison_key'
 
 STATEMENT_TIMEOUT = 5 * 1000 # 5 sec
 SETUP_SQL_COMMAND_TIMEOUT = 0.1
-FORK_FAIL_SLEEP = 0.5
+# how long wait forked process to respond
+FORK_TIMEOUT = 2
+# seconds for sleep call after failed polling forked process
+FORK_FAIL_SLEEP = 0.1
 CONNECTION_FAIL_SLEEP = 0.1
 SOCKET_CONNECT_TIMEOUT = 3
-KILL_WAIT_TIMEOUT = 10
+KILL_WAIT_TIMEOUT = 2
 CONNECT_TRY_COUNT = 3
 SQL_EXECUTE_TRY_COUNT = 5
 # http://docs.python-requests.org/en/master/user/advanced/#timeouts
@@ -223,10 +234,6 @@ else:
             'sslrootcert': TEST_TLS_CA,
             'sslmode': 'require',
         })
-        ssl_context = ssl.create_default_context(cafile=TEST_TLS_CA)
-        ssl_context.load_cert_chain(TEST_TLS_CLIENT_CERT, TEST_TLS_CLIENT_KEY)
-        ssl_context.check_hostname = False
-        asyncpg_connect_args['ssl'] = ssl_context
 
 
 def get_tls_connection_args(client_key, client_cert, for_mysql=TEST_MYSQL):
@@ -309,7 +316,7 @@ def get_pregenerated_random_data():
         return f.read()
 
 
-def create_acrastruct_with_client_id(data, client_id='keypair1'):
+def create_acrastruct_with_client_id(data, client_id):
     server_public1 = read_storage_public_key(client_id, KEYS_FOLDER.name)
     if isinstance(data, str):
         data = data.encode('utf-8')
@@ -364,7 +371,7 @@ def get_master_key():
         master_key = os.environ.get(ACRA_MASTER_KEY_VAR_NAME)
         if not master_key:
             subprocess.check_output([
-                './acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
                 '--generate_master_key={}'.format(MASTER_KEY_PATH)])
             with open(MASTER_KEY_PATH, 'rb') as f:
                 master_key = b64encode(f.read()).decode('ascii')
@@ -377,7 +384,7 @@ def get_poison_record():
     global poison_record
     if not poison_record:
         poison_record = b64decode(subprocess.check_output([
-            './acra-poisonrecordmaker', '--keys_dir={}'.format(KEYS_FOLDER.name),
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-poisonrecordmaker'), '--keys_dir={}'.format(KEYS_FOLDER.name),
             ],
             timeout=PROCESS_CALL_TIMEOUT))
     return poison_record
@@ -389,23 +396,19 @@ def get_poison_record_with_acrablock():
     global poison_record_acrablock
     if not poison_record_acrablock:
         poison_record_acrablock = b64decode(subprocess.check_output([
-            './acra-poisonrecordmaker', '--keys_dir={}'.format(KEYS_FOLDER.name), '--type=acrablock',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-poisonrecordmaker'), '--keys_dir={}'.format(KEYS_FOLDER.name), '--type=acrablock',
         ],
             timeout=PROCESS_CALL_TIMEOUT))
     return poison_record_acrablock
 
 
-def create_client_keypair(name, only_server=False, only_connector=False, only_storage=False, keys_dir=None, extra_kwargs: dict=None):
+def create_client_keypair(name, only_storage=False, keys_dir=None, extra_kwargs: dict=None):
     if not keys_dir:
         keys_dir = KEYS_FOLDER.name
-    args = ['./acra-keymaker', '-client_id={}'.format(name),
+    args = [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '-client_id={}'.format(name),
             '-keys_output_dir={}'.format(keys_dir),
             '--keys_public_output_dir={}'.format(keys_dir),
             '--keystore={}'.format(KEYSTORE_VERSION)]
-    if only_server:
-        args.append('--generate_acraserver_keys')
-    if only_connector:
-        args.append('--generate_acraconnector_keys')
     if only_storage:
         args.append('--generate_acrawriter_keys')
 
@@ -416,52 +419,26 @@ def create_client_keypair(name, only_server=False, only_connector=False, only_st
     return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
 
-def exchange_client_public_keys(client, server_keys_dir, connector_keys_dir):
-    if KEYSTORE_VERSION == 'v1':
-        # Older keystores expect the administrator to manually copy
-        # the following public key files. They are not encrypted or
-        # authenticated in any way.
-        connector_key = '{}.pub'.format(client)
-        server_key = '{}_server.pub'.format(client)
+def create_client_keypair_from_certificate(tls_cert, extractor=TLS_CLIENT_ID_SOURCE_DN, only_storage=False, keys_dir=None, extra_kwargs: dict=None):
+    if not keys_dir:
+        keys_dir = KEYS_FOLDER.name
+    args = [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),  '--client_id=',
+            '--tls_cert={}'.format(tls_cert),
+            '--tls_identifier_extractor_type={}'.format(extractor),
+            '-keys_output_dir={}'.format(keys_dir),
+            '--keys_public_output_dir={}'.format(keys_dir),
+            '--keystore={}'.format(KEYSTORE_VERSION)]
+    if only_storage:
+        args.append('--generate_acrawriter_keys')
 
-        # Transfer AcraServer public key to AcraConnector
-        shutil.copy(os.path.join(server_keys_dir, server_key),
-                    connector_keys_dir)
+    if extra_kwargs:
+        for key, value in extra_kwargs.items():
+            param = '-{0}={1}'.format(key, value)
+            args.append(param)
+    return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
-        # Transfer AcraConnector public key to AcraServer
-        shutil.copy(os.path.join(connector_keys_dir, connector_key),
-                    server_keys_dir)
-    else:
-        # Newer keystores have a bit more involved key transfer process.
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            bundle = os.path.join(tmp_dir, 'key-bundle')
-            secret = os.path.join(tmp_dir, 'key-bundle-secret')
 
-            # Transfer AcraServer public key to AcraConnector
-            subprocess.call(['./acra-keys', 'export',
-                             '--keys_dir={}'.format(server_keys_dir),
-                             '--key_bundle_file={}'.format(bundle),
-                             '--key_bundle_secret={}'.format(secret),
-                             'client/{}/transport/server'.format(client)],
-                            timeout=PROCESS_CALL_TIMEOUT)
-            subprocess.call(['./acra-keys', 'import',
-                             '--keys_dir={}'.format(connector_keys_dir),
-                             '--key_bundle_file={}'.format(bundle),
-                             '--key_bundle_secret={}'.format(secret)],
-                            timeout=PROCESS_CALL_TIMEOUT)
-
-            # Transfer AcraConnector public key to AcraServer
-            subprocess.call(['./acra-keys', 'export',
-                             '--keys_dir={}'.format(connector_keys_dir),
-                             '--key_bundle_file={}'.format(bundle),
-                             '--key_bundle_secret={}'.format(secret),
-                             'client/{}/transport/connector'.format(client)],
-                            timeout=PROCESS_CALL_TIMEOUT)
-            subprocess.call(['./acra-keys', 'import',
-                             '--keys_dir={}'.format(server_keys_dir),
-                             '--key_bundle_file={}'.format(bundle),
-                             '--key_bundle_secret={}'.format(secret)],
-                            timeout=PROCESS_CALL_TIMEOUT)
+WAIT_CONNECTION_ERROR_MESSAGE = "can't wait connection"
 
 
 def wait_connection(port, count=1000, sleep=0.001):
@@ -478,7 +455,8 @@ def wait_connection(port, count=1000, sleep=0.001):
             pass
         count -= 1
         time.sleep(sleep)
-    raise Exception("can't wait connection")
+    raise Exception(WAIT_CONNECTION_ERROR_MESSAGE)
+
 
 def wait_command_success(command, count=10, sleep=0.200):
     """try executing `command` using `os.system()`
@@ -492,6 +470,7 @@ def wait_command_success(command, count=10, sleep=0.200):
         count -= 1
         time.sleep(sleep)
     raise Exception(f"can't wait command success: {command}")
+
 
 def wait_unix_socket(socket_path, count=1000, sleep=0.005):
     last_exc = Exception("can't wait unix socket")
@@ -529,29 +508,18 @@ def get_engine_connection_string(connection_string, dbname):
             port = port.group(1)
         return get_postgresql_unix_connection_string(port, dbname)
 
+
 def get_postgresql_unix_connection_string(port, dbname):
     return '{}:///{}?host={}&port={}'.format(DB_DRIVER, dbname, PG_UNIX_HOST, port)
+
 
 def get_postgresql_tcp_connection_string(port, dbname):
     return '{}://localhost:{}/{}'.format(DB_DRIVER, port, dbname)
 
-def get_acraserver_unix_connection_string(port):
-    return "unix://{}".format("{}/unix_socket_{}".format(PG_UNIX_HOST, port))
-
-def get_acraserver_tcp_connection_string(port):
-    return get_tcp_connection_string(port)
-
-def get_connector_connection_string(port):
-    if TEST_MYSQL:
-        return get_tcp_connection_string(port)
-    else:
-        if TEST_WITH_TLS:
-            return get_tcp_connection_string(port)
-        else:
-            return 'unix://{}/.s.PGSQL.{}'.format(PG_UNIX_HOST, port)
 
 def get_tcp_connection_string(port):
     return 'tcp://localhost:{}'.format(port)
+
 
 def socket_path_from_connection_string(connection_string):
     if '://' in connection_string:
@@ -559,8 +527,119 @@ def socket_path_from_connection_string(connection_string):
     else:
         return connection_string
 
+
 def acra_api_connection_string(port):
-    return "unix://{}".format("{}/acra_api_unix_socket_{}".format(PG_UNIX_HOST, port+1))
+    return "tcp://localhost:{}".format(port)
+
+
+def get_ocsp_server_connection_string(port=None):
+    if not port:
+        port = OCSP_SERVER_PORT
+    return 'http://127.0.0.1:{}'.format(port)
+
+def get_crl_http_server_connection_string(port=None):
+    if not port:
+        port = CRL_HTTP_SERVER_PORT
+    return 'http://127.0.0.1:{}'.format(port)
+
+
+def fork(func):
+    process = func()
+    count = 0
+    step = FORK_TIMEOUT / FORK_FAIL_SLEEP
+    while count <= FORK_TIMEOUT:
+        if process.poll() is None:
+            logging.info("forked %s [%s]", process.args[0], process.pid)
+            return process
+        count += step
+        time.sleep(FORK_FAIL_SLEEP)
+    stop_process(process)
+    raise Exception("Can't fork")
+
+
+def fork_ocsp_server(port: int, check_connection: bool=True):
+    logging.info("fork OpenSSL OCSP server with port {}".format(port))
+
+    ocsp_server_connection = get_ocsp_server_connection_string(port)
+
+    args = {
+        'port': port,
+        'index': TEST_TLS_OCSP_INDEX,
+        'rsigner': TEST_TLS_OCSP_CERT,
+        'rkey': TEST_TLS_OCSP_KEY,
+        'CA': TEST_TLS_CA,
+        'ignore_err': None,
+    }
+
+    cli_args = sorted([f'-{k}={v}' if v is not None else f'-{k}' for k, v in args.items()])
+    print('openssl ocsp args: {}'.format(' '.join(cli_args)))
+
+    process = fork(lambda: subprocess.Popen(['openssl', 'ocsp'] + cli_args))
+
+    check_cmd = f"openssl ocsp -CAfile {TEST_TLS_CA} -issuer {TEST_TLS_CA} -cert {TEST_TLS_CLIENT_CERT} -url {ocsp_server_connection}"
+
+    if check_connection:
+        print('check OCSP server connection {}'.format(ocsp_server_connection))
+        try:
+            wait_command_success(check_cmd)
+        except:
+            stop_process(process)
+            raise
+
+    logging.info("fork openssl ocsp finished [pid={}]".format(process.pid))
+    return process
+
+
+def fork_crl_http_server(port: int, check_connection: bool=True):
+    logging.info("fork HTTP server with port {}".format(port))
+
+    http_server_connection = get_crl_http_server_connection_string(port)
+    # use cwd= parameter for Popen instead of --directory parameter to support 3.6 that doesn't accept --directory
+    cli_args = ['--bind', '127.0.0.1', str(port)]
+    print('python HTTP server args: {}'.format(' '.join(cli_args)))
+
+    process = fork(lambda: subprocess.Popen(['python3', '-m', 'http.server'] + cli_args, cwd=TEST_TLS_CRL_PATH))
+
+    if check_connection:
+        print('check HTTP server connection {}'.format(http_server_connection))
+        try:
+            wait_connection(port)
+        except:
+            stop_process(process)
+            raise
+
+    logging.info("fork HTTP server finished [pid={}]".format(process.pid))
+    return process
+
+
+class ProcessStub(object):
+    pid = 'stub'
+    def kill(self, *args, **kwargs):
+        pass
+    def wait(self, *args, **kwargs):
+        pass
+    def terminate(self, *args, **kwargs):
+        pass
+    def poll(self, *args, **kwargs):
+        pass
+
+# declare global variables with ProcessStub by default to clean them in tearDownModule without extra checks with
+# stop_process
+OCSP_SERVER = ProcessStub()
+CRL_HTTP_SERVER = ProcessStub()
+
+
+def fork_certificate_validation_services():
+    global OCSP_SERVER, CRL_HTTP_SERVER
+    if TEST_WITH_TLS:
+        OCSP_SERVER = fork_ocsp_server(OCSP_SERVER_PORT)
+        CRL_HTTP_SERVER = fork_crl_http_server(CRL_HTTP_SERVER_PORT)
+
+
+def kill_certificate_validation_services():
+    if TEST_WITH_TLS:
+        processes = [OCSP_SERVER, CRL_HTTP_SERVER]
+        stop_process(processes)
 
 
 
@@ -572,9 +651,6 @@ Binary = collections.namedtuple(
 
 
 BINARIES = [
-    Binary(name='acra-connector', from_version=DEFAULT_VERSION,
-           build_args=DEFAULT_BUILD_ARGS),
-    # compile with Test=true to disable golang tls client server verification
     Binary(name='acra-server', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-backup', from_version=DEFAULT_VERSION,
@@ -603,10 +679,13 @@ BINARIES = [
 
 BUILD_TAGS = os.environ.get("TEST_BUILD_TAGS", '')
 
+
 def build_binaries():
     """Build Acra CE binaries for testing."""
     builds = [
-        (binary.from_version, ['go', 'build', '-tags={}'.format(BUILD_TAGS)] + binary.build_args + ['github.com/cossacklabs/acra/cmd/{}'.format(binary.name)])
+        (binary.from_version, ['go', 'build', '-o={}'.format(os.path.join(BINARY_OUTPUT_FOLDER, binary.name)),  '-tags={}'.format(BUILD_TAGS)] +
+         binary.build_args +
+         ['github.com/cossacklabs/acra/cmd/{}'.format(binary.name)])
         for binary in BINARIES
     ]
     go_version = get_go_version()
@@ -629,9 +708,10 @@ def build_binaries():
 def clean_binaries():
     for i in BINARIES:
         try:
-            os.remove(i.name)
+            os.remove(os.path.join(BINARY_OUTPUT_FOLDER, i.name))
         except:
             pass
+
 
 def clean_misc():
     pass
@@ -666,6 +746,8 @@ BUILD_BINARIES = True
 def setUpModule():
     global zones
     global KEYS_FOLDER
+    global TLS_CERT_CLIENT_ID_1
+    global TLS_CERT_CLIENT_ID_2
     clean_misc()
     KEYS_FOLDER = tempfile.TemporaryDirectory()
     if CLEAN_BINARIES:
@@ -677,17 +759,34 @@ def setUpModule():
     os.environ.setdefault(ACRA_MASTER_KEY_VAR_NAME, get_master_key())
 
     # first keypair for using without zones
-    assert create_client_keypair('keypair1') == 0
-    assert create_client_keypair('keypair2') == 0
+    assert create_client_keypair_from_certificate(TEST_TLS_CLIENT_CERT) == 0
+    assert create_client_keypair_from_certificate(TEST_TLS_CLIENT_2_CERT) == 0
+
+    TLS_CERT_CLIENT_ID_1 = extract_client_id_from_cert(TEST_TLS_CLIENT_CERT)
+    TLS_CERT_CLIENT_ID_2 = extract_client_id_from_cert(TEST_TLS_CLIENT_2_CERT)
     # add two zones
     zones.append(json.loads(subprocess.check_output(
-        ['./acra-addzone', '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
+        [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
         cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
     zones.append(json.loads(subprocess.check_output(
-        ['./acra-addzone', '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
+        [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
         cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
     socket.setdefaulttimeout(SOCKET_CONNECT_TIMEOUT)
     drop_tables()
+
+    fork_certificate_validation_services()
+
+
+def extract_client_id_from_cert(tls_cert, extractor=TLS_CLIENT_ID_SOURCE_DN):
+    res = json.loads(subprocess.check_output([
+        os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
+        'extract-client-id',
+        '--tls_identifier_extractor_type={}'.format(extractor),
+        '--tls_cert={}'.format(tls_cert),
+        '--print_json'
+    ],
+        cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8'))
+    return res['client_id']
 
 
 def tearDownModule():
@@ -705,25 +804,29 @@ def tearDownModule():
         except:
             pass
     drop_tables()
+    kill_certificate_validation_services()
 
 
-class ProcessStub(object):
-    pid = 'stub'
-    def kill(self, *args, **kwargs):
-        pass
-    def wait(self, *args, **kwargs):
-        pass
-    def terminate(self, *args, **kwargs):
-        pass
-    def poll(self, *args, **kwargs):
-        pass
-
-
-ConnectionArgs = collections.namedtuple("ConnectionArgs",
-    field_names=["user", "password", "host", "port", "dbname",
-                 "ssl_ca", "ssl_key", "ssl_cert", "format"],
-    # 'format' is optional, other fields are required.
-    defaults=[None])
+if sys.version_info[1] > 6:
+    ConnectionArgs = collections.namedtuple(
+        "ConnectionArgs",
+        field_names=["user", "password", "host", "port", "dbname",
+                     "ssl_ca", "ssl_key", "ssl_cert", "format"],
+        # 'format' is optional, other fields are required.
+        defaults=[None])
+else:
+    class ConnectionArgs:
+        def __init__(self, user=None, password=None, host=None, port=None, dbname=None,
+                     ssl_ca=None, ssl_key=None, ssl_cert=None, format=None):
+            self.user = user
+            self.password = password
+            self.host = host
+            self.port = port
+            self.dbname = dbname
+            self.ssl_ca = ssl_ca
+            self.ssl_key = ssl_key
+            self.ssl_cert = ssl_cert
+            self.format = format
 
 
 class QueryExecutor(object):
@@ -844,11 +947,14 @@ class AsyncpgExecutor(QueryExecutor):
     BinaryFormat = 'binary'
 
     def _connect(self, loop):
+        ssl_context = ssl.create_default_context(cafile=self.connection_args.ssl_ca)
+        ssl_context.load_cert_chain(self.connection_args.ssl_cert, self.connection_args.ssl_key)
+        ssl_context.check_hostname = True
         return loop.run_until_complete(
             asyncpg.connect(
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user, password=self.connection_args.password,
-                database=self.connection_args.dbname,
+                database=self.connection_args.dbname, ssl=ssl_context,
                 **asyncpg_connect_args))
 
     def _set_text_format(self, conn):
@@ -958,21 +1064,21 @@ class KeyMakerTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaises(subprocess.CalledProcessError) as exc:
                 subprocess.check_output(
-                    ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
                      '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder)],
                     env=random_keys(key_size - 1))
 
         with tempfile.TemporaryDirectory() as folder:
             subprocess.check_output(
-                    ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
                      '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder)],
                     env=random_keys(key_size))
 
         with tempfile.TemporaryDirectory() as folder:
             subprocess.check_output(
-                    ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
                      '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder)],
                     env=random_keys(key_size * 2))
@@ -981,21 +1087,22 @@ class KeyMakerTest(unittest.TestCase):
         #keys not needed client_id for generation
         with tempfile.TemporaryDirectory() as folder:
             subprocess.check_output(
-                ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
                  '--keys_output_dir={}'.format(folder),
                  "--client_id=''",
                  '--generate_poisonrecord_keys',
                  '--generate_log_key',
                  '--keys_public_output_dir={}'.format(folder)])
 
-        with tempfile.TemporaryDirectory() as folder:
-            with self.assertRaises(subprocess.CalledProcessError) as exc:
-                subprocess.check_output(
-                    ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
-                     '--keys_output_dir={}'.format(folder),
-                     "--client_id=''",
-                     '--generate_acratranslator_keys',
-                     '--keys_public_output_dir={}'.format(folder)])
+            #check that keymaker will no fail on case of not created directory
+            subprocess.check_output(
+                [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
+                 '--client_id=',
+                 '--tls_cert={}'.format(TEST_TLS_CLIENT_CERT),
+                 '--keystore={}'.format(KEYSTORE_VERSION),
+                 '--generate_symmetric_storage_key',
+                 '--keys_output_dir={}'.format('/tmp/.testkeys')])
+            shutil.rmtree('/tmp/.testkeys')
 
 
 class PrometheusMixin(object):
@@ -1032,40 +1139,18 @@ class PrometheusMixin(object):
 
 class TLSAuthenticationByDistinguishedNameMixin(object):
     def get_acraserver_connection_string(self, port=None):
-        """use similar to connector unix socket connection string to allow connect directory to acra by db driver"""
+        """unix socket connection string to allow connect directory to acra by db driver"""
         if not port:
             port = self.ACRASERVER_PORT
-        return self.get_connector_connection_string(port)
+        return get_tcp_connection_string(port)
 
     def get_identifier_extractor_type(self):
-        return "distinguished_name"
-
-    def get_valid_certificate_identifier(self, certificate_file=None):
-        if certificate_file is None:
-            certificate_file = TEST_TLS_CLIENT_CERT
-        # converted data from certificate "CN=Test leaf certificate (acra-writer),OU=IT,O=Global Security,L=London,ST=London,C=GB"
-        with open(certificate_file, 'rb') as f:
-            pem = f.read()
-        cert = x509.load_pem_x509_certificate(pem, default_backend())
-        sha512 = hashlib.sha512()
-        sha512.update(cert.subject.rfc4514_string().encode('utf-8'))
-        return sha512.hexdigest().lower()
+        return TLS_CLIENT_ID_SOURCE_DN
 
 
 class TLSAuthenticationBySerialNumberMixin(TLSAuthenticationByDistinguishedNameMixin):
     def get_identifier_extractor_type(self):
-        return "serial_number"
-
-    def get_valid_certificate_identifier(self, certificate_file=None):
-        if certificate_file is None:
-            certificate_file = TEST_TLS_CLIENT_CERT
-        # converted data from certificate "CN=Test leaf certificate (acra-writer),OU=IT,O=Global Security,L=London,ST=London,C=GB"
-        with open(certificate_file, 'rb') as f:
-            pem = f.read()
-        cert = x509.load_pem_x509_certificate(pem, default_backend())
-        sha512 = hashlib.sha512()
-        sha512.update(cert.serial_number.to_bytes(20, 'big'))
-        return sha512.hexdigest().lower()
+        return TLS_CLIENT_ID_SOURCE_SERIAL
 
 
 class VaultClient:
@@ -1128,47 +1213,21 @@ class VaultClient:
 
 class BaseTestCase(PrometheusMixin, unittest.TestCase):
     DEBUG_LOG = os.environ.get('DEBUG_LOG', True)
-
-    CONNECTOR_PORT_1 = int(os.environ.get('TEST_CONNECTOR_PORT', 9595))
-    CONNECTOR_PROMETHEUS_PORT_1 = int(os.environ.get('TEST_CONNECTOR_PORT', CONNECTOR_PORT_1+1))
-
-    CONNECTOR_PORT_2 = CONNECTOR_PORT_1 + 200
-    CONNECTOR_PROMETHEUS_PORT_2 = int(os.environ.get('TEST_CONNECTOR_PORT', CONNECTOR_PORT_2+1))
-
-    CONNECTOR_API_PORT_1 = int(os.environ.get('TEST_CONNECTOR_API_PORT', 9696))
     # for debugging with manually runned acra-server
     EXTERNAL_ACRA = False
     ACRASERVER_PORT = int(os.environ.get('TEST_ACRASERVER_PORT', 10003))
-    OCSP_SERVER_PORT = int(os.environ.get('TEST_OCSP_SERVER_PORT', 8888))
-    CRL_HTTP_SERVER_PORT = int(os.environ.get('TEST_HTTP_SERVER_PORT', 8889))
-    ACRASERVER_PROMETHEUS_PORT = int(os.environ.get('TEST_ACRASERVER_PROMETHEUS_PORT', 10004))
+    ACRASERVER_PROMETHEUS_PORT = int(os.environ.get('TEST_ACRASERVER_PROMETHEUS_PORT', 11004))
     ACRA_BYTEA = 'pgsql_hex_bytea'
     DB_BYTEA = 'hex'
     WHOLECELL_MODE = False
     ZONE = False
     TEST_DATA_LOG = False
-    CONNECTOR_TLS_TRANSPORT = False
 
-    # hack to simplify handling errors on forks and don't check `if hasattr(self, 'connector_1')`
-    connector_1 = ProcessStub()
-    connector_2 = ProcessStub()
     acra = ProcessStub()
 
     def checkSkip(self):
-        if TEST_WITH_TLS:
+        if not TEST_WITH_TLS:
             self.skipTest("running tests with TLS")
-
-    def fork(self, func):
-        process = func()
-        count = 0
-        while count <= 3:
-            if process.poll() is None:
-                logging.info("forked %s [%s]", process.args[0], process.pid)
-                return process
-            count += 1
-            time.sleep(FORK_FAIL_SLEEP)
-        stop_process(process)
-        raise Exception("Can't fork")
 
     def wait_acraserver_connection(self, connection_string: str, *args, **kwargs):
         if connection_string.startswith('unix'):
@@ -1178,182 +1237,20 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         else:
             return wait_connection(connection_string.split(':')[-1])
 
-    def get_connector_tls_params(self):
-        return {
-            'acraserver_tls_transport_enable': True,
-            'tls_acraserver_sni': 'localhost',
-            'tls_ca': TEST_TLS_CA,
-            'tls_key': TEST_TLS_CLIENT_KEY,
-            'tls_cert': TEST_TLS_CLIENT_CERT,
-            'tls_ocsp_url': 'http://localhost:{}'.format(self.OCSP_SERVER_PORT),
-            'tls_ocsp_from_cert': 'use',
-            'tls_crl_url': 'http://localhost:{}/crl.pem'.format(self.CRL_HTTP_SERVER_PORT),
-            'tls_crl_from_cert': 'use',
-        }
-
-    def get_connector_prometheus_port(self, port):
-        return port+1
-
-    def fork_connector(self, connector_port: int, acraserver_port: int,
-                       client_id: str, api_port: int=None,
-                       zone_mode: bool=False, check_connection: bool=True,
-                       popen_kwargs: dict=None,
-                       **extra_options: dict):
-        logging.info("fork connector with port {} and client_id={}".format(connector_port, client_id))
-
-        acraserver_connection = self.get_acraserver_connection_string(acraserver_port)
-        acraserver_api_connection = self.get_acraserver_api_connection_string(acraserver_port)
-        connector_connection = self.get_connector_connection_string(connector_port)
-        if zone_mode:
-            # because standard library can send http requests only through tcp and cannot through unix socket
-            connector_api_connection = "tcp://localhost:{}".format(api_port)
-        else:
-            # now it's no matter, so just +100
-            connector_api_connection = self.get_connector_api_connection_string(api_port if api_port else connector_port + 100)
-
-        for path in [socket_path_from_connection_string(connector_connection), socket_path_from_connection_string(connector_api_connection)]:
-            try:
-                os.remove(path)
-            except:
-                pass
-        args = {
-            'acraserver_connection_string': acraserver_connection,
-            'acraserver_api_connection_string': acraserver_api_connection,
-            'client_id': client_id,
-            'incoming_connection_string': connector_connection,
-            'incoming_connection_api_string': connector_api_connection,
-            'user_check_disable': 'true',
-            'keys_dir': KEYS_FOLDER.name,
-            'logging_format': 'cef',
-            # Explicitly disable certificate validation by default since otherwise we may end up
-            # in a situation when some certificate contains OCSP or CRL URI while corresponding
-            # services were not started by this script (because TLS testing was disabled)
-            # This behavior will be overridden with args.update(self.get_connector_tls_params())
-            'tls_ocsp_from_cert': 'ignore',
-            'tls_crl_from_cert': 'ignore',
-        }
-        if self.LOG_METRICS:
-            args['incoming_connection_prometheus_metrics_string'] = \
-                self.get_prometheus_address(
-                    self.get_connector_prometheus_port(connector_port))
-        if TEST_WITH_TRACING:
-            args['tracing_log_enable'] = True
-            if TEST_TRACE_TO_JAEGER:
-                args['tracing_jaeger_enable'] = True
-        if self.DEBUG_LOG:
-            args['d'] = True
-        if zone_mode:
-            args['http_api_enable'] = True
-        if self.CONNECTOR_TLS_TRANSPORT:
-            args.update(self.get_connector_tls_params())
-        if extra_options:
-            args.update(extra_options)
-
-        cli_args = sorted(['--{}={}'.format(k, v) for k, v in args.items()])
-        print('connector args: {}'.format(' '.join(cli_args)))
-
-        if not popen_kwargs:
-            popen_kwargs = {}
-        process = self.fork(lambda: subprocess.Popen(['./acra-connector'] + cli_args,
-                                                     **popen_kwargs))
-        if check_connection:
-            print('check connection {}'.format(connector_connection))
-            try:
-                if connector_connection.startswith('tcp'):
-                    wait_connection(connector_port)
-                else:
-                    wait_unix_socket(socket_path_from_connection_string(connector_connection))
-            except:
-                stop_process(process)
-                raise
-        logging.info("fork connector finished [pid={}]".format(process.pid))
-        return process
-
-    def fork_ocsp_server(self, port: int, check_connection: bool=True):
-        logging.info("fork OpenSSL OCSP server with port {}".format(port))
-
-        ocsp_server_connection = self.get_ocsp_server_connection_string(port)
-
-        args = {
-            'port': port,
-            'index': TEST_TLS_OCSP_INDEX,
-            'rsigner': TEST_TLS_OCSP_CERT,
-            'rkey': TEST_TLS_OCSP_KEY,
-            'CA': TEST_TLS_CA,
-            'ignore_err': None,
-        }
-
-        cli_args = sorted([f'-{k}={v}' if v is not None else f'-{k}' for k, v in args.items()])
-        print('openssl ocsp args: {}'.format(' '.join(cli_args)))
-
-        process = self.fork(lambda: subprocess.Popen(['openssl', 'ocsp'] + cli_args))
-
-        check_cmd = f"openssl ocsp -CAfile {TEST_TLS_CA} -issuer {TEST_TLS_CA} -cert {TEST_TLS_CLIENT_CERT} -url {ocsp_server_connection}"
-
-        if check_connection:
-            print('check OCSP server connection {}'.format(ocsp_server_connection))
-            try:
-                wait_command_success(check_cmd)
-            except:
-                stop_process(process)
-                raise
-
-        logging.info("fork openssl ocsp finished [pid={}]".format(process.pid))
-        return process
-
-    def fork_crl_http_server(self, port: int, check_connection: bool=True):
-        logging.info("fork HTTP server with port {}".format(port))
-
-        http_server_connection = self.get_crl_http_server_connection_string(port)
-        # use explicitly 127.0.0.1 instead of localhost to avoid ipv6 usage by python http server
-        cli_args = ['--bind', '127.0.0.1', '--directory', TEST_TLS_CRL_PATH, str(port)]
-        print('python HTTP server args: {}'.format(' '.join(cli_args)))
-
-        process = self.fork(lambda: subprocess.Popen(['python3', '-m', 'http.server'] + cli_args))
-
-        if check_connection:
-            print('check HTTP server connection {}'.format(http_server_connection))
-            try:
-                wait_connection(port)
-            except:
-                stop_process(process)
-                raise
-
-        logging.info("fork HTTP server finished [pid={}]".format(process.pid))
-        return process
-
     def get_acraserver_connection_string(self, port=None):
         if not port:
             port = self.ACRASERVER_PORT
-        return get_acraserver_unix_connection_string(port)
+        return get_tcp_connection_string(port)
 
     def get_acraserver_api_connection_string(self, port=None):
         if not port:
-            port = self.ACRASERVER_PORT
+            port = self.ACRASERVER_PORT + 1
+        elif port == self.ACRASERVER_PORT:
+            port = port + 1
         return acra_api_connection_string(port)
 
-    def get_connector_connection_string(self, port=None):
-        if not port:
-            port = self.CONNECTOR_PORT_1
-        return get_connector_connection_string(port)
-
-    def get_connector_api_connection_string(self, port=None):
-        if not port:
-            port = self.CONNECTOR_API_PORT_1
-        return get_connector_connection_string(port)
-
-    def get_ocsp_server_connection_string(self, port=None):
-        if not port:
-            port = self.OCSP_SERVER_PORT
-        return 'http://localhost:{}'.format(port)
-
-    def get_crl_http_server_connection_string(self, port=None):
-        if not port:
-            port = self.CRL_HTTP_SERVER_PORT
-        return 'http://localhost:{}'.format(port)
-
     def get_acraserver_bin_path(self):
-        return './acra-server'
+        return os.path.join(BINARY_OUTPUT_FOLDER, 'acra-server')
 
     def with_tls(self):
         return TEST_WITH_TLS
@@ -1378,6 +1275,8 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             # we doesn't need in tests waiting closing connections
             'incoming_connection_close_timeout': 0,
             self.ACRA_BYTEA: 'true',
+            'tls_ocsp_from_cert': 'ignore',
+            'tls_crl_from_cert': 'ignore',
             'incoming_connection_string': connection_string,
             'incoming_connection_api_string': api_connection_string,
             'acrastruct_wholecell_enable': 'true' if self.WHOLECELL_MODE else 'false',
@@ -1385,8 +1284,12 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             'd': 'true' if self.DEBUG_LOG else 'false',
             'zonemode_enable': 'true' if self.ZONE else 'false',
             'http_api_enable': 'true' if self.ZONE else 'true',
+            'keystore_cache_on_start_enable': 'false',
             'keys_dir': KEYS_FOLDER.name,
         }
+        # keystore v2 doest not support caching, disable it for now
+        if KEYSTORE_VERSION == 'v2':
+            args['keystore_cache_size'] = -1
         if TEST_WITH_TRACING:
             args['tracing_log_enable'] = 'true'
             if TEST_TRACE_TO_JAEGER:
@@ -1394,16 +1297,14 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         if self.LOG_METRICS:
             args['incoming_connection_prometheus_metrics_string'] = self.get_prometheus_address(
                 self.ACRASERVER_PROMETHEUS_PORT)
-        if self.CONNECTOR_TLS_TRANSPORT:
-            args['acraconnector_tls_transport_enable'] = 'true'
         if self.with_tls():
             args['tls_key'] = TEST_TLS_SERVER_KEY
             args['tls_cert'] = TEST_TLS_SERVER_CERT
             args['tls_ca'] = TEST_TLS_CA
             args['tls_auth'] = ACRA_TLS_AUTH
-            args['tls_ocsp_url'] = 'http://localhost:{}'.format(self.OCSP_SERVER_PORT)
+            args['tls_ocsp_url'] = 'http://localhost:{}'.format(OCSP_SERVER_PORT)
             args['tls_ocsp_from_cert'] = 'use'
-            args['tls_crl_url'] = 'http://localhost:{}/crl.pem'.format(self.CRL_HTTP_SERVER_PORT)
+            args['tls_crl_url'] = 'http://localhost:{}/crl.pem'.format(CRL_HTTP_SERVER_PORT)
             args['tls_crl_from_cert'] = 'use'
         else:
             # Explicitly disable certificate validation by default since otherwise we may end up
@@ -1420,7 +1321,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         cli_args = sorted(['--{}={}'.format(k, v) for k, v in args.items() if v is not None])
         print("acra-server args: {}".format(' '.join(cli_args)))
 
-        process = self.fork(lambda: subprocess.Popen([self.get_acraserver_bin_path()] + cli_args,
+        process = fork(lambda: subprocess.Popen([self.get_acraserver_bin_path()] + cli_args,
                                                      **popen_kwargs))
         try:
             self.wait_acraserver_connection(connection_string)
@@ -1441,6 +1342,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             'incoming_connection_close_timeout': 0,
             'keys_dir': KEYS_FOLDER.name,
             'logging_format': 'cef',
+            'keystore_cache_on_start_enable': 'false',
         }
         default_config.update(default_args)
         default_config.update(translator_kwargs)
@@ -1448,6 +1350,9 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             popen_kwargs = {}
         if self.DEBUG_LOG:
             default_config['d'] = 1
+        # keystore v2 doest not support caching, disable it for now
+        if KEYSTORE_VERSION == 'v2':
+            default_config['keystore_cache_size'] = -1
         if TEST_WITH_TRACING:
             default_config['tracing_log_enable'] = 1
             if TEST_TRACE_TO_JAEGER:
@@ -1455,8 +1360,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
 
         cli_args = ['--{}={}'.format(k, v) for k, v in default_config.items()]
 
-        translator = self.fork(lambda: subprocess.Popen(['./acra-translator'] + cli_args,
-                                                     **popen_kwargs))
+        translator = fork(lambda: subprocess.Popen([os.path.join(BINARY_OUTPUT_FOLDER, 'acra-translator')] + cli_args, **popen_kwargs))
         try:
             if default_config['incoming_connection_grpc_string']:
                 wait_connection(urlparse(default_config['incoming_connection_grpc_string']).port)
@@ -1467,33 +1371,26 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             raise
         return translator
 
-    def fork_certificate_validation_services(self):
-        if self.with_tls():
-            self.ocsp_server = self.fork_ocsp_server(self.OCSP_SERVER_PORT)
-            self.crl_http_server = self.fork_crl_http_server(self.CRL_HTTP_SERVER_PORT)
-
-    def kill_certificate_validation_services(self):
-        if self.with_tls():
-            processes = [getattr(self, 'ocsp_server', ProcessStub()),
-                         getattr(self, 'crl_http_server', ProcessStub())]
-
-            stop_process(processes)
-
     def setUp(self):
         self.checkSkip()
         try:
-            self.fork_certificate_validation_services()
-
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra()
-            self.connector_1 = self.fork_connector(self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, 'keypair1')
-            self.connector_2 = self.fork_connector(self.CONNECTOR_PORT_2, self.ACRASERVER_PORT, 'keypair2')
 
-            self.engine1 = sa.create_engine(
-                get_engine_connection_string(self.get_connector_connection_string(self.CONNECTOR_PORT_1), DB_NAME), connect_args=get_connect_args(port=self.CONNECTOR_PORT_1))
+            base_args = get_connect_args(port=self.ACRASERVER_PORT, sslmode='require')
+
+            tls_args_1 = base_args.copy()
+            tls_args_1.update(get_tls_connection_args(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT))
+            connect_str = get_engine_connection_string(
+                self.get_acraserver_connection_string(self.ACRASERVER_PORT), DB_NAME)
+            self.engine1 = sa.create_engine(connect_str, connect_args=tls_args_1)
+
+            tls_args_2 = base_args.copy()
+            tls_args_2.update(get_tls_connection_args(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT))
             self.engine2 = sa.create_engine(
                 get_engine_connection_string(
-                    self.get_connector_connection_string(self.CONNECTOR_PORT_2), DB_NAME), connect_args=get_connect_args(port=self.CONNECTOR_PORT_2))
+                    self.get_acraserver_connection_string(self.ACRASERVER_PORT), DB_NAME), connect_args=tls_args_2)
+
             self.engine_raw = sa.create_engine(
                 '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
                 connect_args=connect_args)
@@ -1535,14 +1432,8 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             pass
         for engine in getattr(self, 'engines', []):
             engine.dispose()
-        processes = [getattr(self, 'connector_1', ProcessStub()),
-                     getattr(self, 'connector_2', ProcessStub()),
-                     getattr(self, 'acra', ProcessStub())]
-        stop_process(processes)
+        stop_process([getattr(self, 'acra', ProcessStub())])
         send_signal_by_process_name('acra-server', signal.SIGKILL)
-        send_signal_by_process_name('acra-connector', signal.SIGKILL)
-
-        self.kill_certificate_validation_services()
 
     def log(self, data, expected=b'<no expected value>',
             storage_client_id=None, zone_id=None,
@@ -1592,12 +1483,133 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         logging.debug("test log: {}".format(json.dumps(log_entry)))
 
 
+class AcraCatchLogsMixin(object):
+    def __init__(self, *args, **kwargs):
+        self.log_files = {}
+        super(AcraCatchLogsMixin, self).__init__(*args, **kwargs)
+
+    def read_log(self, process):
+        with open(self.log_files[process].name, 'r', errors='replace',
+                  encoding='utf-8') as f:
+            log = f.read()
+            print(log.encode(encoding='utf-8', errors='replace'))
+            return log
+
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        log_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
+        popen_args = {
+            'stderr': subprocess.STDOUT,
+            'stdout': log_file,
+            'close_fds': True,
+            'bufsize': 0,
+        }
+        process = super(AcraCatchLogsMixin, self).fork_acra(
+            popen_args, **acra_kwargs
+        )
+        assert process
+        # register process to not forget close all descriptors
+        self.log_files[process] = log_file
+        return process
+
+    def tearDown(self, *args, **kwargs):
+        super(AcraCatchLogsMixin, self).tearDown(*args, **kwargs)
+        for process, log_file in self.log_files.items():
+            log_file.close()
+            try:
+                os.remove(log_file.name)
+            except:
+                pass
+            stop_process(process)
+
+
+class AcraTranslatorMixin(object):
+    def get_identifier_extractor_type(self):
+        return TLS_CLIENT_ID_SOURCE_DN
+
+    def get_http_schema(self):
+        return 'https'
+
+    def get_http_default_kwargs(self):
+        return {
+            'timeout': REQUEST_TIMEOUT,
+            'verify': TEST_TLS_CA,
+            # https://requests.readthedocs.io/en/master/user/advanced/#client-side-certificates
+            # first crt, second key
+            'cert': (TEST_TLS_CLIENT_CERT, TEST_TLS_CLIENT_KEY),
+        }
+
+    def http_decrypt_request(self, port, client_id, zone_id, acrastruct):
+        api_url = '{}://localhost:{}/v1/decrypt'.format(self.get_http_schema(), port)
+        if zone_id:
+            api_url = '{}?zone_id={}'.format(api_url, zone_id)
+        kwargs = self.get_http_default_kwargs()
+        kwargs['data'] = acrastruct
+        with requests.post(api_url, **kwargs) as response:
+            return response.content
+
+    def http_encrypt_request(self, port, client_id, zone_id, data):
+        api_url = '{}://localhost:{}/v1/encrypt'.format(self.get_http_schema(), port)
+        if zone_id:
+            api_url = '{}?zone_id={}'.format(api_url, zone_id)
+        kwargs = self.get_http_default_kwargs()
+        kwargs['data'] = data
+        with requests.post(api_url, **kwargs) as response:
+            return response.content
+
+    def get_grpc_channel(self, port):
+        '''setup grpc to use tls client authentication'''
+        with open(TEST_TLS_CA, 'rb') as ca_file, open(TEST_TLS_CLIENT_KEY, 'rb') as key_file, open(TEST_TLS_CLIENT_CERT, 'rb') as cert_file:
+            ca_bytes = ca_file.read()
+            key_bytes = key_file.read()
+            cert_bytes = cert_file.read()
+        tls_credentials = grpc.ssl_channel_credentials(ca_bytes, key_bytes, cert_bytes)
+        return grpc.secure_channel('localhost:{}'.format(port), tls_credentials)
+
+    def grpc_encrypt_request(self, port, client_id, zone_id, data):
+        with self.get_grpc_channel(port) as channel:
+            stub = api_pb2_grpc.WriterStub(channel)
+            try:
+                if zone_id:
+                    response = stub.Encrypt(api_pb2.EncryptRequest(
+                        zone_id=zone_id.encode('ascii'), data=data,
+                        client_id=client_id.encode('ascii')),
+                        timeout=SOCKET_CONNECT_TIMEOUT)
+                else:
+                    response = stub.Encrypt(api_pb2.EncryptRequest(
+                        client_id=client_id.encode('ascii'), data=data),
+                        timeout=SOCKET_CONNECT_TIMEOUT)
+            except grpc.RpcError as exc:
+                logging.info(exc)
+                return b''
+            return response.acrastruct
+
+    def grpc_decrypt_request(self, port, client_id, zone_id, acrastruct, raise_exception_on_failure=False):
+        with self.get_grpc_channel(port) as channel:
+            stub = api_pb2_grpc.ReaderStub(channel)
+            try:
+                if zone_id:
+                    response = stub.Decrypt(api_pb2.DecryptRequest(
+                        zone_id=zone_id.encode('ascii'), acrastruct=acrastruct,
+                        client_id=client_id.encode('ascii')),
+                        timeout=SOCKET_CONNECT_TIMEOUT)
+                else:
+                    response = stub.Decrypt(api_pb2.DecryptRequest(
+                        client_id=client_id.encode('ascii'), acrastruct=acrastruct),
+                        timeout=SOCKET_CONNECT_TIMEOUT)
+            except grpc.RpcError as exc:
+                logging.info(exc)
+                if raise_exception_on_failure:
+                    raise
+                return b''
+            return response.data
+
+
 class HexFormatTest(BaseTestCase):
 
-    def testConnectorRead(self):
-        """test decrypting with correct acra-connector and not decrypting with
-        incorrect acra-connector or using direct connection to db"""
-        client_id = 'keypair1'
+    def testClientIDRead(self):
+        """test decrypting with correct clientID and not decrypting with
+        incorrect clientID or using direct connection to db"""
+        client_id = TLS_CERT_CLIENT_ID_1
         server_public1 = read_storage_public_key(client_id, KEYS_FOLDER.name)
         data = get_pregenerated_random_data()
         acra_struct = create_acrastruct(
@@ -1636,7 +1648,7 @@ class HexFormatTest(BaseTestCase):
     def testReadAcrastructInAcrastruct(self):
         """test correct decrypting acrastruct when acrastruct concatenated to
         partial another acrastruct"""
-        client_id = 'keypair1'
+        client_id = TLS_CERT_CLIENT_ID_1
         server_public1 = read_storage_public_key(client_id, KEYS_FOLDER.name)
         incorrect_data = get_pregenerated_random_data()
         correct_data = get_pregenerated_random_data()
@@ -1701,19 +1713,19 @@ class BaseBinaryPostgreSQLTestCase(BaseTestCase):
     def setUp(self):
         super().setUp()
 
-        def executor_with_port(port):
+        def executor_with_ssl(ssl_key, ssl_cert):
             args = ConnectionArgs(
-                host=get_db_host(), port=port, dbname=DB_NAME,
+                host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
                 user=DB_USER, password=DB_USER_PASSWORD,
                 ssl_ca=TEST_TLS_CA,
-                ssl_key=TEST_TLS_CLIENT_KEY,
-                ssl_cert=TEST_TLS_CLIENT_CERT,
+                ssl_key=ssl_key,
+                ssl_cert=ssl_cert,
                 format=self.FORMAT,
             )
             return AsyncpgExecutor(args)
 
-        self.executor1 = executor_with_port(self.CONNECTOR_PORT_1)
-        self.executor2 = executor_with_port(self.CONNECTOR_PORT_2)
+        self.executor1 = executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
+        self.executor2 = executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
 
     def compileQuery(self, query, parameters={}, literal_binds=False):
         """
@@ -1803,18 +1815,18 @@ class BaseBinaryMySQLTestCase(BaseTestCase):
     def setUp(self):
         super().setUp()
 
-        def executor_with_port(port):
+        def executor_with_ssl(ssl_key, ssl_cert):
             args = ConnectionArgs(
-                host=get_db_host(), port=port, dbname=DB_NAME,
+                host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
                 user=DB_USER, password=DB_USER_PASSWORD,
                 ssl_ca=TEST_TLS_CA,
-                ssl_key=TEST_TLS_CLIENT_KEY,
-                ssl_cert=TEST_TLS_CLIENT_CERT,
+                ssl_key=ssl_key,
+                ssl_cert=ssl_cert,
             )
             return MysqlExecutor(args)
 
-        self.executor1 = executor_with_port(self.CONNECTOR_PORT_1)
-        self.executor2 = executor_with_port(self.CONNECTOR_PORT_2)
+        self.executor1 = executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
+        self.executor2 = executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
 
     def compileInsertQuery(self, query, parameters={}, literal_binds=False):
         """
@@ -1924,11 +1936,11 @@ class FailedRunProcessMixin(object):
 
 class TestCensorVersionChecks(BaseCensorTest, FailedRunProcessMixin):
     def setUp(self):
-        # doesn't need to start acra-server/acra-connector and connections
+        # doesn't need to start acra-server and connections
         pass
 
     def tearDown(self):
-        # doesn't need to stop acra-server/acra-connector and connections
+        # doesn't need to stop acra-server and connections
         pass
 
     def checkErrorMessage(self, configFile, expectedMessage):
@@ -1956,7 +1968,7 @@ class TestCensorVersionChecks(BaseCensorTest, FailedRunProcessMixin):
 class CensorBlacklistTest(BaseCensorTest):
     CENSOR_CONFIG_FILE = abs_path('tests/acra-censor_configs/acra-censor_blacklist.yaml')
     def testBlacklist(self):
-        connection_args = ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
+        connection_args = ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
                            user=DB_USER, password=DB_USER_PASSWORD,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                            ssl_key=TEST_TLS_CLIENT_KEY,
@@ -1994,7 +2006,7 @@ class CensorBlacklistTest(BaseCensorTest):
 class CensorWhitelistTest(BaseCensorTest):
     CENSOR_CONFIG_FILE = abs_path('tests/acra-censor_configs/acra-censor_whitelist.yaml')
     def testWhitelist(self):
-        connection_args = ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
+        connection_args = ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
                            user=DB_USER, password=DB_USER_PASSWORD,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                            ssl_key=TEST_TLS_CLIENT_KEY,
@@ -2031,7 +2043,7 @@ class CensorWhitelistTest(BaseCensorTest):
 class ZoneHexFormatTest(BaseTestCase):
     ZONE = True
 
-    def testConnectorRead(self):
+    def testRead(self):
         data = get_pregenerated_random_data()
         zone_public = b64decode(zones[0][ZONE_PUBLIC_KEY].encode('ascii'))
         acra_struct = create_acrastruct(
@@ -2052,7 +2064,7 @@ class ZoneHexFormatTest(BaseTestCase):
         self.assertEqual(row['data'], row['raw_data'].encode('utf-8'))
         self.assertEqual(row['empty'], b'')
 
-        # without zone in another connector, in the same connector and without any connector
+        # without zone in another acra-server, in the same acra-server and without any acra-server
         for engine in self.engines:
             result = engine.execute(
                 sa.select([test_table])
@@ -2105,6 +2117,105 @@ class ZoneHexFormatTest(BaseTestCase):
         self.assertEqual(row['empty'], b'')
 
 
+class TestEnableCachedOnStartupTest(HexFormatTest):
+
+    def checkSkip(self):
+        super().checkSkip()
+        if KEYSTORE_VERSION == 'v2':
+            self.skipTest("test only for keystore Version v1")
+
+    def setUp(self):
+        self.cached_dir = tempfile.TemporaryDirectory()
+        # fill temp dir with all keys
+        copy_tree(KEYS_FOLDER.name, self.cached_dir.name)
+        super().setUp()
+
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        acra_kwargs['keystore_cache_on_start_enable'] = 'true'
+        acra_kwargs['keys_dir'] = self.cached_dir.name
+        return super(TestEnableCachedOnStartupTest, self).fork_acra(
+            popen_kwargs, **acra_kwargs)
+
+    def testReadAcrastructInAcrastruct(self):
+        self.cached_dir.cleanup()
+        super().testReadAcrastructInAcrastruct()
+
+    def testClientIDRead(self):
+        self.cached_dir.cleanup()
+        super().testClientIDRead()
+
+
+class TestEnableCachedOnStartupServerV2ErrorExit(BaseTestCase):
+    def checkSkip(self):
+        if KEYSTORE_VERSION == 'v1':
+            self.skipTest("test only for keystore Version v2")
+
+    def setUp(self):
+        self.log_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
+
+    def testRun(self):
+        self.checkSkip()
+        acra_kwargs = {
+            'log_to_file': self.log_file.name,
+            'keystore_cache_on_start_enable': 'true',
+        }
+        try:
+            self.fork_acra(**acra_kwargs)
+        except Exception as exc:
+            self.assertEqual(str(exc), WAIT_CONNECTION_ERROR_MESSAGE)
+            with open(self.log_file.name, 'r') as f:
+                log = f.read()
+                self.assertIn("Can't cache on start with disabled cache", log)
+            self.tearDown()
+
+
+class TestEnableCachedOnStartupTranslatorSV2ErrorExit(AcraTranslatorMixin, BaseTestCase):
+    def checkSkip(self):
+        if KEYSTORE_VERSION == 'v1':
+            self.skipTest("test only for keystore Version v2")
+
+    def setUp(self):
+        self.log_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
+
+    def testRun(self):
+        translator_kwargs = {
+            'log_to_file': self.log_file.name,
+            'keystore_cache_on_start_enable': 'true',
+        }
+
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            with self.assertRaises(Exception):
+                with open(self.log_file.name, 'r') as f:
+                    log = f.read()
+                    self.assertIn("Can't cache on start with disabled cache", log)
+                self.tearDown()
+
+
+class TestDisableCachedOnStartupTest(HexFormatTest):
+
+    def setUp(self):
+        self.non_cached_dir = tempfile.TemporaryDirectory()
+        # fill temp dir with all keys
+        copy_tree(KEYS_FOLDER.name, self.non_cached_dir.name)
+        super().setUp()
+
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        # keystore_cache_on_start_enable is false by default in super().fork_acra()
+        acra_kwargs['keys_dir'] = self.non_cached_dir.name
+        return super(TestDisableCachedOnStartupTest, self).fork_acra(
+            popen_kwargs, **acra_kwargs)
+
+    def testReadAcrastructInAcrastruct(self):
+        self.non_cached_dir.cleanup()
+        with self.assertRaises(Exception):
+            super().testReadAcrastructInAcrastruct()
+
+    def testClientIDRead(self):
+        self.non_cached_dir.cleanup()
+        with self.assertRaises(Exception):
+            super().testClientIDRead()
+
+
 class EscapeFormatTest(HexFormatTest):
     ACRA_BYTEA = 'pgsql_escape_bytea'
     DB_BYTEA = 'escape'
@@ -2112,32 +2223,13 @@ class EscapeFormatTest(HexFormatTest):
     def checkSkip(self):
         if TEST_MYSQL:
             self.skipTest("useful only for postgresql")
+        elif not TEST_WITH_TLS:
+            self.skipTest("running tests only with TLS")
 
 
 class ZoneEscapeFormatTest(ZoneHexFormatTest):
     ACRA_BYTEA = 'pgsql_escape_bytea'
     DB_BYTEA = 'escape'
-
-
-class WholeCellMixinTest(object):
-    def testReadAcrastructInAcrastruct(self):
-        return
-
-
-class HexFormatWholeCellTest(WholeCellMixinTest, HexFormatTest):
-    WHOLECELL_MODE = True
-
-
-class ZoneHexFormatWholeCellTest(WholeCellMixinTest, ZoneHexFormatTest):
-    WHOLECELL_MODE = True
-
-
-class EscapeFormatWholeCellTest(WholeCellMixinTest, EscapeFormatTest):
-    WHOLECELL_MODE = True
-
-
-class ZoneEscapeFormatWholeCellTest(WholeCellMixinTest, ZoneEscapeFormatTest):
-    WHOLECELL_MODE = True
 
 
 class TestConnectionClosing(BaseTestCase):
@@ -2157,10 +2249,13 @@ class TestConnectionClosing(BaseTestCase):
     def setUp(self):
         self.checkSkip()
         try:
-            self.connector_1 = self.fork_connector(
-                self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, 'keypair1')
             if not self.EXTERNAL_ACRA:
-                self.acra = self.fork_acra()
+                self.acra = self.fork_acra(
+                    tls_ocsp_from_cert='ignore',
+                    tls_crl_from_cert='ignore',
+                    tls_ocsp_url='',
+                    tls_crl_url='',
+                )
         except:
             self.tearDown()
             raise
@@ -2171,10 +2266,10 @@ class TestConnectionClosing(BaseTestCase):
             try:
                 if TEST_MYSQL:
                     return TestConnectionClosing.mysql_closing(
-                        pymysql.connect(**get_connect_args(port=self.CONNECTOR_PORT_1)))
+                        pymysql.connect(**get_connect_args(port=self.ACRASERVER_PORT)))
                 else:
                     return TestConnectionClosing.mysql_closing(psycopg2.connect(
-                        host=get_db_host(), **get_connect_args(port=self.CONNECTOR_PORT_1)))
+                        host=get_db_host(), **get_connect_args(port=self.ACRASERVER_PORT)))
             except:
                 count -= 1
                 if count == 0:
@@ -2183,13 +2278,10 @@ class TestConnectionClosing(BaseTestCase):
 
     def tearDown(self):
         procs = []
-        if hasattr(self, 'connector_1'):
-            procs.append(self.connector_1)
         if not self.EXTERNAL_ACRA and hasattr(self, 'acra'):
             procs.append(self.acra)
         stop_process(procs)
         send_signal_by_process_name('acra-server', signal.SIGKILL)
-        send_signal_by_process_name('acra-connector', signal.SIGKILL)
 
     def getActiveConnectionCount(self, cursor):
         if TEST_MYSQL:
@@ -2232,16 +2324,18 @@ class TestConnectionClosing(BaseTestCase):
         # give a time to close connections via postgresql
         # because performance where tests will run not always constant,
         # we wait try_count times. in best case it will not need to sleep
-        try_count = SQL_EXECUTE_TRY_COUNT
-        for i in range(try_count):
+        timeout = 3
+        step = 0.1
+        iterations = timeout / step
+        for i in range(int(iterations)):
             try:
                 self.assertEqual(self.getActiveConnectionCount(cursor), expected)
                 break
             except AssertionError:
-                if i == (try_count - 1):
+                if i == (iterations - 1):
                     raise
                 # some wait for closing. chosen manually
-                time.sleep(1)
+                time.sleep(step)
 
     def checkConnectionLimit(self, connection_limit):
         connections = []
@@ -2311,150 +2405,7 @@ class TestConnectionClosing(BaseTestCase):
                 self.check_count(cursor, current_connection_count)
 
 
-class TestKeyNonExistence(BaseTestCase):
-    def setUp(self):
-        self.checkSkip()
-        try:
-            self.init_key_stores()
-            if not self.EXTERNAL_ACRA:
-                self.acra = self.fork_acra(keys_dir=self.server_keys_dir)
-            self.dsn = get_connect_args(port=self.CONNECTOR_PORT_1, host=get_db_host())
-        except:
-            self.tearDown()
-            raise
-
-    def tearDown(self):
-        if hasattr(self, 'acra'):
-            stop_process(self.acra)
-        send_signal_by_process_name('acra-server', signal.SIGKILL)
-        send_signal_by_process_name('acra-connector', signal.SIGKILL)
-        self.server_keystore.cleanup()
-        self.connector_keystore.cleanup()
-
-    def init_key_stores(self):
-        self.client_id = 'test_client_ID'
-        self.server_keystore = tempfile.TemporaryDirectory()
-        self.server_keys_dir = os.path.join(self.server_keystore.name, '.acrakeys')
-        self.connector_keystore = tempfile.TemporaryDirectory()
-        self.connector_keys_dir = os.path.join(self.connector_keystore.name, '.acrakeys')
-
-        create_client_keypair(name=self.client_id, keys_dir=self.server_keys_dir,
-                              only_server=True, only_storage=True)
-        create_client_keypair(name=self.client_id, keys_dir=self.connector_keys_dir,
-                              only_connector=True)
-        exchange_client_public_keys(client=self.client_id,
-                                    server_keys_dir=self.server_keys_dir,
-                                    connector_keys_dir=self.connector_keys_dir)
-
-    def test_without_acraconnector_public(self):
-        """acra-server without acra-connector public key should drop connection
-        from acra-connector than acra-connector should drop connection from psycopg2"""
-        destroy_connector_transport(client_id=self.client_id,
-                                    keys_dir=self.server_keys_dir)
-        engine = None
-        if TEST_MYSQL:
-            expected_exception = pymysql.err.OperationalError
-        elif TEST_POSTGRESQL:
-            expected_exception = psycopg2.OperationalError
-
-        try:
-            self.connector = self.fork_connector(
-                connector_port=self.CONNECTOR_PORT_1,
-                acraserver_port=self.ACRASERVER_PORT,
-                client_id=self.client_id,
-                keys_dir=self.connector_keys_dir)
-            self.assertIsNone(self.connector.poll())
-            with self.assertRaises(sa.exc.OperationalError) as exc:
-                engine = sa.create_engine(
-                    get_engine_connection_string(self.get_connector_connection_string(self.CONNECTOR_PORT_1), DB_NAME),
-                    connect_args=get_connect_args(port=self.CONNECTOR_PORT_1))
-                with engine.connect() as connection:
-                    connection.execute('select 1 from dual')
-
-            self.assertTrue(isinstance(exc.exception.orig, expected_exception))
-        finally:
-            if engine:
-                engine.dispose()
-            stop_process(self.connector)
-
-    def checkShutdownAcraConnector(self, process):
-        total_wait_time = 2  # sec
-        poll_interval = 0.1
-        retry = total_wait_time / poll_interval
-        while retry:
-            retry -= 1
-            if process.poll() == 1:
-                return
-            time.sleep(poll_interval)
-
-    def test_without_acraconnector_private(self):
-        """acra-connector shouldn't start without private key"""
-        destroy_connector_transport(client_id=self.client_id,
-                                    keys_dir=self.connector_keys_dir)
-        try:
-            self.connector = self.fork_connector(
-                connector_port=self.CONNECTOR_PORT_1,
-                acraserver_port=self.ACRASERVER_PORT,
-                client_id=self.client_id,
-                check_connection=False,
-                keys_dir=self.connector_keys_dir)
-            self.checkShutdownAcraConnector(self.connector)
-        finally:
-            try:
-                stop_process(self.connector)
-            except OSError:  # pid not found
-                pass
-
-    def test_without_acraserver_private(self):
-        """acra-server without private key should drop connection
-        from acra-connector than acra-connector should drop connection from psycopg2"""
-        destroy_server_transport(client_id=self.client_id,
-                                 keys_dir=self.server_keys_dir)
-        if TEST_MYSQL:
-            expected_exception = pymysql.err.OperationalError
-        elif TEST_POSTGRESQL:
-            expected_exception = psycopg2.OperationalError
-        engine = None
-        try:
-            self.connector = self.fork_connector(
-                connector_port=self.CONNECTOR_PORT_1,
-                acraserver_port=self.ACRASERVER_PORT,
-                client_id=self.client_id,
-                keys_dir=self.connector_keys_dir)
-            self.assertIsNone(self.connector.poll())
-            with self.assertRaises(sa.exc.OperationalError) as exc:
-                engine = sa.create_engine(
-                    get_engine_connection_string(self.get_connector_connection_string(self.CONNECTOR_PORT_1), DB_NAME),
-                    connect_args=get_connect_args(port=self.CONNECTOR_PORT_1))
-                with engine.connect() as connection:
-                    connection.execute('select 1 from dual')
-            self.assertTrue(isinstance(exc.exception.orig, expected_exception))
-        finally:
-            if engine:
-                engine.dispose()
-            stop_process(self.connector)
-
-    def test_without_acraserver_public(self):
-        """acra-connector shouldn't start without acra-server public key"""
-        destroy_server_transport(client_id=self.client_id,
-                                 keys_dir=self.connector_keys_dir)
-        try:
-            self.connector = self.fork_connector(
-                connector_port=self.CONNECTOR_PORT_1,
-                acraserver_port=self.ACRASERVER_PORT,
-                client_id=self.client_id,
-                check_connection=False,
-                keys_dir=self.connector_keys_dir)
-            # time for start up connector and validation file existence.
-            self.checkShutdownAcraConnector(self.connector)
-        finally:
-            try:
-                stop_process(self.connector)
-            except OSError:  # pid not found
-                pass
-
-
-class BasePoisonRecordTest(BaseTestCase):
+class BasePoisonRecordTest(AcraCatchLogsMixin, AcraTranslatorMixin, BaseTestCase):
     SHUTDOWN = True
     TEST_DATA_LOG = True
     DETECT_POISON_RECORDS = True
@@ -2474,18 +2425,53 @@ class BasePoisonRecordTest(BaseTestCase):
         args = {
             'poison_shutdown_enable': 'true' if self.SHUTDOWN else 'false',
             'poison_detect_enable': 'true' if self.DETECT_POISON_RECORDS else 'false',
+            # use text format to simplify check some error messages in logs, for example code=XXX instead of '|XXX|' in
+            # CEF format
+            'logging_format': 'text',
         }
 
         if hasattr(self, 'poisonscript'):
             args['poison_run_script_file'] = self.poisonscript
+        acra_kwargs.update(args)
 
-        return super(BasePoisonRecordTest, self).fork_acra(popen_kwargs, **args)
+        return super(BasePoisonRecordTest, self).fork_acra(popen_kwargs, **acra_kwargs)
+
+    def fork_translator(self, translator_kwargs, popen_kwargs=None):
+        args = {
+            'poison_shutdown_enable': 'true' if self.SHUTDOWN else 'false',
+            'poison_detect_enable': 'true' if self.DETECT_POISON_RECORDS else 'false',
+            # use text format to simplify check some error messages in logs, for example code=XXX instead of '|XXX|' in
+            # CEF format
+            'logging_format': 'text',
+        }
+
+        if hasattr(self, 'poisonscript'):
+            args['poison_run_script_file'] = self.poisonscript
+        translator_kwargs.update(args)
+
+        return super(BasePoisonRecordTest, self).fork_translator(translator_kwargs, popen_kwargs)
+
+    def get_base_translator_args(self):
+        return {
+            'tls_ocsp_from_cert': 'ignore',
+            'tls_crl_from_cert': 'ignore',
+            'tls_key': abs_path(TEST_TLS_SERVER_KEY),
+            'tls_cert': abs_path(TEST_TLS_SERVER_CERT),
+            'tls_ca': TEST_TLS_CA,
+            'tls_identifier_extractor_type': self.get_identifier_extractor_type(),
+            'acratranslator_client_id_from_connection_enable': 'true',
+        }
 
 
 class TestPoisonRecordShutdown(BasePoisonRecordTest):
     SHUTDOWN = True
 
     def testShutdown(self):
+        """fetch data from table by specifying row id
+
+        this method works with ZoneMode ON and OFF because in both cases acra-server should find poison record
+        on data decryption failure
+        """
         row_id = get_random_id()
         data = self.get_poison_record_data()
         self.engine1.execute(
@@ -2498,9 +2484,17 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
             row = result.fetchone()
             if row['data'] == data:
                 self.fail("unexpected response")
+        log = self.read_log(self.acra)
+        self.assertIn('code=101', log)
+        self.assertIn('Detected poison record, exit', log)
+        self.assertNotIn('executed code after os.Exit', log)
 
     def testShutdown2(self):
-        """check working poison record callback on full select"""
+        """check working poison record callback on full select
+
+        this method works with ZoneMode ON and OFF because in both cases acra-server should find poison record
+        on data decryption failure
+        """
         row_id = get_random_id()
         data = self.get_poison_record_data()
         self.engine1.execute(
@@ -2513,9 +2507,17 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
             for row in rows:
                 if row['id'] == row_id and row['data'] == data:
                     self.fail("unexpected response")
+        log = self.read_log(self.acra)
+        self.assertIn('code=101', log)
+        self.assertIn('Detected poison record, exit', log)
+        self.assertNotIn('executed code after os.Exit', log)
 
     def testShutdown3(self):
-        """check working poison record callback on full select inside another data"""
+        """check working poison record callback on full select inside another data
+
+        this method works with ZoneMode ON and OFF because in both cases acra-server should find poison record
+        on data decryption failure
+        """
         row_id = get_random_id()
         poison_record = get_poison_record()
         begin_tag = poison_record[:4]
@@ -2531,6 +2533,81 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
             for row in rows:
                 if row['id'] == row_id and row['data'] == data:
                     self.fail("unexpected response")
+        log = self.read_log(self.acra)
+        self.assertIn('code=101', log)
+        self.assertIn('Detected poison record, exit', log)
+        self.assertNotIn('executed code after os.Exit', log)
+
+    def testShutdownWithExplicitZone(self):
+        """check callback with select by id and specify zone id in select query
+
+        This method works with ZoneMode ON and OFF because in both cases acra-server should find poison record
+        on data decryption failure. Plus in ZoneMode OFF acra-server will ignore ZoneID
+        """
+        row_id = get_random_id()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': self.get_poison_record_data(), 'raw_data': 'poison_record'})
+        with self.assertRaises(DatabaseError):
+            zone = zones[0][ZONE_ID].encode('ascii')
+            result = self.engine1.execute(
+                sa.select([sa.cast(zone, BYTEA), test_table])
+                    .where(test_table.c.id == row_id))
+            print(result.fetchall())
+        log = self.read_log(self.acra)
+        self.assertIn('code=101', log)
+        self.assertIn('Detected poison record, exit', log)
+        self.assertNotIn('executed code after os.Exit', log)
+
+    def testShutdownTranslatorHTTP(self):
+        """check poison record decryption via acra-translator using HTTP v1 API
+
+        This method works with ZoneMode ON and OFF because in both cases acra-translator should match poison record
+        on data decryption failure
+        """
+        http_port = 3356
+        http_connection_string = 'tcp://127.0.0.1:{}'.format(http_port)
+        translator_kwargs = self.get_base_translator_args()
+        translator_kwargs.update({
+            'incoming_connection_http_string': http_connection_string,
+        })
+
+        data = self.get_poison_record_data()
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            with self.assertRaises(requests.exceptions.ConnectionError) as exc:
+                response = self.http_decrypt_request(http_port, TLS_CERT_CLIENT_ID_1, None, data)
+        self.assertEqual(exc.exception.args[0].args[0], 'Connection aborted.')
+
+        # check that port not listening anymore
+        with self.assertRaises(Exception) as exc:
+            wait_connection(http_port, count=1, sleep=0)
+        self.assertEqual(exc.exception.args[0], WAIT_CONNECTION_ERROR_MESSAGE)
+
+    def testShutdownTranslatorgRPC(self):
+        """check poison record decryption via acra-translator using gRPC API
+
+        This method works with ZoneMode ON and OFF because in both cases acra-translator should match poison record
+        on data decryption failure
+        """
+        grpc_port = 3357
+        grpc_connection_string = 'tcp://127.0.0.1:{}'.format(grpc_port)
+        translator_kwargs = self.get_base_translator_args()
+        translator_kwargs.update({
+            'incoming_connection_grpc_string': grpc_connection_string,
+        })
+
+        data = self.get_poison_record_data()
+
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            with self.assertRaises(grpc.RpcError) as exc:
+                response = self.grpc_decrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, None, data,
+                                                     raise_exception_on_failure=True)
+        self.assertEqual(exc.exception.code(), grpc.StatusCode.UNAVAILABLE)
+
+        # check that port not listening anymore
+        with self.assertRaises(Exception) as exc:
+            wait_connection(grpc_port, count=1, sleep=0)
+        self.assertEqual(exc.exception.args[0], WAIT_CONNECTION_ERROR_MESSAGE)
 
 
 class TestPoisonRecordShutdownWithAcraBlock(TestPoisonRecordShutdown):
@@ -2543,6 +2620,11 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
     DETECT_POISON_RECORDS = False
 
     def testShutdown(self):
+        """case with select by specifying row id, checks that acra-server doesn't initialize poison record detection
+        and any callbacks, and returns data as is on decryption failure even if it's valid poison record
+
+        Works with ZoneMode On/OFF
+        """
         row_id = get_random_id()
         data = self.get_poison_record_data()
         self.engine1.execute(
@@ -2557,8 +2639,17 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
         if row['data'] != data:
             self.fail("unexpected response")
 
+        log = self.read_log(self.acra)
+        self.assertNotIn('Recognized poison record', log)
+        self.assertNotIn('Turned on poison record detection', log)
+        self.assertNotIn('code=101', log)
+
     def testShutdown2(self):
-        """check working poison record callback on full select"""
+        """case with select full table, checks that acra-server doesn't initialize poison record detection
+        and any callbacks, and returns data as is on decryption failure even if it's valid poison record
+
+        Works with ZoneMode On/OFF
+        """
         row_id = get_random_id()
         data = self.get_poison_record_data()
         self.engine1.execute(
@@ -2573,8 +2664,18 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
             if row['id'] == row_id and row['data'] != data:
                 self.fail("unexpected response")
 
+        log = self.read_log(self.acra)
+        self.assertNotIn('Recognized poison record', log)
+        self.assertNotIn('Turned on poison record detection', log)
+        self.assertNotIn('code=101', log)
+
     def testShutdown3(self):
-        """check working poison record callback on full select inside another data"""
+        """case with select full table and inlined poison record, checks that acra-server doesn't initialize poison
+        record detection and any callbacks, and returns data as is on decryption failure even if it's valid poison
+        record
+
+        Works with ZoneMode On/OFF
+        """
         row_id = get_random_id()
         poison_record = self.get_poison_record_data()
         begin_tag = poison_record[:4]
@@ -2592,6 +2693,93 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
             if row['id'] == row_id and row['data'] != data:
                 self.fail("unexpected response")
 
+        log = self.read_log(self.acra)
+        self.assertNotIn('Recognized poison record', log)
+        self.assertNotIn('Turned on poison record detection', log)
+        self.assertNotIn('code=101', log)
+
+    def testShutdownWithExplicitZone(self):
+        """case with explicitly specified ZoneID in SELECT query, checks that acra-server doesn't initialize poison
+        record detection and any callbacks, and returns data as is on decryption failure even if it's valid poison
+        record
+
+        Works with ZoneMode On/OFF
+        """
+        row_id = get_random_id()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': self.get_poison_record_data(), 'raw_data': 'poison_record'})
+        zone = zones[0][ZONE_ID].encode('ascii')
+        result = self.engine1.execute(
+            sa.select([sa.cast(zone, BYTEA), test_table])
+                .where(test_table.c.id == row_id))
+        rows = result.fetchall()
+        for zone, _, data, raw_data, _, _ in result:
+            self.assertEqual(zone, zone)
+            self.assertEqual(data, poison_record)
+
+        log = self.read_log(self.acra)
+        self.assertNotIn('Recognized poison record', log)
+        self.assertNotIn('Turned on poison record detection', log)
+        self.assertNotIn('code=101', log)
+
+    def testShutdownTranslatorHTTP(self):
+        """check poison record ignoring via acra-translator using HTTP v1 API, omitting initialization poison
+        record detection and any callbacks, returning data as is on decryption failure even if it's valid poison
+        record
+
+        Works with ZoneMode On/OFF
+        """
+        http_port = 3356
+        http_connection_string = 'tcp://127.0.0.1:{}'.format(http_port)
+        with tempfile.NamedTemporaryFile('w+', encoding='utf-8') as log_file:
+            translator_kwargs = self.get_base_translator_args()
+            translator_kwargs.update({
+                'incoming_connection_http_string': http_connection_string,
+                'log_to_file': log_file.name,
+            })
+
+            data = self.get_poison_record_data()
+            with ProcessContextManager(self.fork_translator(translator_kwargs)) as translator:
+                response = self.http_decrypt_request(http_port, TLS_CERT_CLIENT_ID_1, None, data)
+                self.assertEqual(response, b"Can't decrypt AcraStruct")
+
+            with open(log_file.name, 'r') as f:
+                log = f.read()
+            self.assertNotIn('Recognized poison record', log)
+            self.assertNotIn('Turned on poison record detection', log)
+            self.assertNotIn('code=101', log)
+
+    def testShutdownTranslatorgRPC(self):
+        """check poison record ignoring via acra-translator using gRPC API, omitting initialization poison
+            record detection and any callbacks, returning data as is on decryption failure even if it's valid poison
+            record
+
+            Works with ZoneMode On/OFF
+            """
+        grpc_port = 3357
+        grpc_connection_string = 'tcp://127.0.0.1:{}'.format(grpc_port)
+        with tempfile.NamedTemporaryFile('w+', encoding='utf-8') as log_file:
+            translator_kwargs = self.get_base_translator_args()
+            translator_kwargs.update({
+                'incoming_connection_grpc_string': grpc_connection_string,
+                'log_to_file': log_file.name,
+            })
+
+            data = self.get_poison_record_data()
+
+            with ProcessContextManager(self.fork_translator(translator_kwargs)):
+                with self.assertRaises(grpc.RpcError) as exc:
+                    response = self.grpc_decrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, None, data,
+                                                         raise_exception_on_failure=True)
+                self.assertEqual(exc.exception.code(), grpc.StatusCode.UNKNOWN)
+                self.assertEqual(exc.exception.details(), "can't decrypt data")
+            with open(log_file.name, 'r') as f:
+                log = f.read()
+            self.assertNotIn('Recognized poison record', log)
+            self.assertNotIn('Turned on poison record detection', log)
+            self.assertNotIn('code=101', log)
+
 
 class TestPoisonRecordOffStatusWithAcraBlock(TestPoisonRecordOffStatus):
     def get_poison_record_data(self):
@@ -2603,130 +2791,17 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
     WHOLECELL_MODE = False
     SHUTDOWN = True
 
-    def testShutdown(self):
-        """check callback with select by id and zone"""
-        row_id = get_random_id()
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': self.get_poison_record_data(), 'raw_data': 'poison_record'})
-        with self.assertRaises(DatabaseError):
-            zone = zones[0][ZONE_ID].encode('ascii')
-            result = self.engine1.execute(
-                sa.select([sa.cast(zone, BYTEA), test_table])
-                    .where(test_table.c.id == row_id))
-            print(result.fetchall())
-
-    def testShutdown2(self):
-        """check callback with select by id and without zone"""
-        row_id = get_random_id()
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': self.get_poison_record_data(), 'raw_data': 'poison_record'})
-        with self.assertRaises(DatabaseError):
-            result = self.engine1.execute(
-                sa.select([test_table]).where(test_table.c.id == row_id))
-            print(result.fetchall())
-
-    def testShutdown3(self):
-        """check working poison record callback on full select"""
-        row_id = get_random_id()
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': self.get_poison_record_data(), 'raw_data': 'poison_record'})
-        with self.assertRaises(DatabaseError):
-            result = self.engine1.execute(
-                sa.select([test_table]))
-            print(result.fetchall())
-
-    def testShutdown4(self):
-        """check working poison record callback on full select inside another data"""
-        row_id = get_random_id()
-        poison_record = self.get_poison_record_data()
-        begin_tag = poison_record[:4]
-        # test with extra long begin tag
-        data = os.urandom(100) + begin_tag + poison_record + os.urandom(100)
-        self.log(poison_key=True, data=data, expected=data)
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
-
-        with self.assertRaises(DatabaseError):
-            result = self.engine1.execute(
-                sa.select([test_table]))
-            # here shouldn't execute code and it's debug info
-            print(result.fetchall())
-
 
 class TestShutdownPoisonRecordWithZoneAcraBlock(TestShutdownPoisonRecordWithZone):
     def get_poison_record_data(self):
         return get_poison_record_with_acrablock()
 
 
-class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordShutdown):
+class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordOffStatus):
     ZONE = True
     WHOLECELL_MODE = False
     SHUTDOWN = True
     DETECT_POISON_RECORDS = False
-
-    def testShutdown(self):
-        """check callback with select by id and zone"""
-        row_id = get_random_id()
-        poison_record = self.get_poison_record_data()
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': poison_record, 'raw_data': 'poison_record'})
-
-        zone = zones[0][ZONE_ID].encode('ascii')
-        result = self.engine1.execute(
-            sa.select([sa.cast(zone, BYTEA), test_table])
-                .where(test_table.c.id == row_id))
-        for zone, _, data, raw_data, _, _ in result:
-            self.assertEqual(zone, zone)
-            self.assertEqual(data, poison_record)
-
-    def testShutdown2(self):
-        """check callback with select by id and without zone"""
-        row_id = get_random_id()
-        poison_record = self.get_poison_record_data()
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': poison_record, 'raw_data': 'poison_record'})
-
-        result = self.engine1.execute(
-            sa.select([test_table])
-                .where(test_table.c.id == row_id))
-        for _, data, raw_data, _, _ in result:
-            self.assertEqual(data, poison_record)
-
-    def testShutdown3(self):
-        """check working poison record callback on full select"""
-        row_id = get_random_id()
-        poison_record = self.get_poison_record_data()
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': poison_record, 'raw_data': 'poison_record'})
-
-        result = self.engine1.execute(
-            sa.select([test_table]))
-        for _, data, raw_data, _, _ in result:
-            self.assertEqual(data, poison_record)
-
-    def testShutdown4(self):
-        """check working poison record callback on full select inside another data"""
-        row_id = get_random_id()
-        poison_record = self.get_poison_record_data()
-        begin_tag = poison_record[:4]
-        # test with extra long begin tag
-        testData = os.urandom(100) + begin_tag + poison_record + os.urandom(100)
-        self.log(poison_key=True, data=testData, expected=testData)
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': testData, 'raw_data': 'poison_record'})
-
-        result = self.engine1.execute(
-            sa.select([test_table]))
-        for _, data, raw_data, _, _ in result:
-            self.assertEqual(testData, data)
 
 
 class TestShutdownPoisonRecordWithZoneOffStatusWithAcraBlock(TestShutdownPoisonRecordWithZoneOffStatus):
@@ -2734,110 +2809,7 @@ class TestShutdownPoisonRecordWithZoneOffStatusWithAcraBlock(TestShutdownPoisonR
         return get_poison_record_with_acrablock()
 
 
-class TestPoisonRecordWholeCell(TestPoisonRecordShutdown):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown3(self):
-        return
-
-
-class TestPoisonRecordWholeCellWithAcraBlock(TestPoisonRecordShutdownWithAcraBlock):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown3(self):
-        return
-
-
-class TestPoisonRecordWholeCellStatusOff(TestPoisonRecordOffStatus):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown3(self):
-        return
-
-
-class TestPoisonRecordWholeCellStatusOffWithAcraBlock(TestPoisonRecordOffStatusWithAcraBlock):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown3(self):
-        return
-
-
-class TestShutdownPoisonRecordWithZoneWholeCell(TestShutdownPoisonRecordWithZone):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown4(self):
-        return
-
-
-class TestShutdownPoisonRecordWithZoneWholeCellWithAcraBlock(TestShutdownPoisonRecordWithZoneAcraBlock):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown4(self):
-        return
-
-
-class TestShutdownPoisonRecordWithZoneWholeCellOffStatus(TestShutdownPoisonRecordWithZoneOffStatus):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown4(self):
-        return
-
-
-class TestShutdownPoisonRecordWithZoneWholeCellOffStatusWithAcraBlock(TestShutdownPoisonRecordWithZoneOffStatusWithAcraBlock):
-    WHOLECELL_MODE = True
-    SHUTDOWN = True
-
-    def testShutdown4(self):
-        return
-
-
-class AcraCatchLogsMixin(object):
-    def __init__(self, *args, **kwargs):
-        self.log_files = {}
-        super(AcraCatchLogsMixin, self).__init__(*args, **kwargs)
-
-    def read_log(self, process):
-        with open(self.log_files[process].name, 'r', errors='replace',
-                  encoding='utf-8') as f:
-            log = f.read()
-            print(log.encode(encoding='utf-8', errors='replace'))
-            return log
-
-    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
-        log_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
-        popen_args = {
-            'stderr': subprocess.STDOUT,
-            'stdout': log_file,
-            'close_fds': True,
-            'bufsize': 0,
-        }
-        process = super(AcraCatchLogsMixin, self).fork_acra(
-            popen_args, **acra_kwargs
-        )
-        assert process
-        # register process to not forget close all descriptors
-        self.log_files[process] = log_file
-        return process
-
-    def tearDown(self, *args, **kwargs):
-        super(AcraCatchLogsMixin, self).tearDown(*args, **kwargs)
-        for process, log_file in self.log_files.items():
-            log_file.close()
-            try:
-                os.remove(log_file.name)
-            except:
-                pass
-            stop_process(process)
-
-
-class TestNoCheckPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
+class TestNoCheckPoisonRecord(BasePoisonRecordTest):
     WHOLECELL_MODE = False
     SHUTDOWN = False
     DEBUG_LOG = True
@@ -2852,7 +2824,9 @@ class TestNoCheckPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
         result = self.engine1.execute(test_table.select())
         result.fetchall()
         log = self.read_log(self.acra)
-        self.assertNotIn('Check poison records', log)
+        self.assertNotIn('Recognized poison record', log)
+        self.assertNotIn('Turned on poison record detection', log)
+        self.assertNotIn('code=101', log)
         result = self.engine1.execute(
             sa.select([test_table]))
         for _, data, raw_data, _, _ in result:
@@ -2863,15 +2837,7 @@ class TestNoCheckPoisonRecordWithZone(TestNoCheckPoisonRecord):
     ZONE = True
 
 
-class TestNoCheckPoisonRecordWholeCell(TestNoCheckPoisonRecord):
-    WHOLECELL_MODE = True
-
-
-class TestNoCheckPoisonRecordWithZoneWholeCell(TestNoCheckPoisonRecordWithZone):
-    WHOLECELL_MODE = True
-
-
-class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
+class TestCheckLogPoisonRecord(BasePoisonRecordTest):
     SHUTDOWN = True
     DEBUG_LOG = True
     TEST_DATA_LOG = True
@@ -2896,7 +2862,10 @@ class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
         with self.assertRaises(DatabaseError):
             self.engine1.execute(test_table.select())
 
-        self.assertIn('Check poison records', self.read_log(self.acra))
+        log = self.read_log(self.acra)
+        self.assertIn('Recognized poison record', log)
+        self.assertIn('Turned on poison record detection', log)
+        self.assertIn('code=101', log)
 
 
 class TestKeyStorageClearing(BaseTestCase):
@@ -2904,22 +2873,23 @@ class TestKeyStorageClearing(BaseTestCase):
         self.checkSkip()
         try:
             self.init_key_stores()
-            self.connector_1 = self.fork_connector(
-                connector_port=self.CONNECTOR_PORT_1,
-                acraserver_port=self.ACRASERVER_PORT,
-                client_id=self.client_id,
-                api_port=self.CONNECTOR_API_PORT_1,
-                zone_mode=True,
-                keys_dir=self.connector_keys_dir)
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra(
                     zonemode_enable='true',
                     http_api_enable='true',
+                    tls_ocsp_from_cert='ignore',
+                    tls_crl_from_cert='ignore',
+                    tls_ocsp_url='',
+                    tls_crl_url='',
                     keys_dir=self.server_keys_dir)
 
+            args = get_connect_args(port=self.ACRASERVER_PORT, sslmode='require')
+            args.update(get_tls_connection_args(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT))
             self.engine1 = sa.create_engine(
-                get_engine_connection_string(self.get_connector_connection_string(self.CONNECTOR_PORT_1), DB_NAME),
-                connect_args=get_connect_args(port=self.CONNECTOR_PORT_1))
+                get_engine_connection_string(
+                    self.get_acraserver_connection_string(),
+                    DB_NAME),
+                connect_args=args)
 
             self.engine_raw = sa.create_engine(
                 '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
@@ -2943,46 +2913,25 @@ class TestKeyStorageClearing(BaseTestCase):
             engine.dispose()
 
         processes = []
-        if hasattr(self, 'connector_1'):
-            processes.append(self.connector_1)
         if not self.EXTERNAL_ACRA and hasattr(self, 'acra'):
             processes.append(self.acra)
 
         stop_process(processes)
         send_signal_by_process_name('acra-server', signal.SIGKILL)
-        send_signal_by_process_name('acra-connector', signal.SIGKILL)
         self.server_keystore.cleanup()
-        self.connector_keystore.cleanup()
 
     def init_key_stores(self):
-        self.client_id = 'clearing_keypair'
         self.server_keystore = tempfile.TemporaryDirectory()
         self.server_keys_dir = os.path.join(self.server_keystore.name, '.acrakeys')
-        self.connector_keystore = tempfile.TemporaryDirectory()
-        self.connector_keys_dir = os.path.join(self.connector_keystore.name, '.acrakeys')
 
-        create_client_keypair(name=self.client_id, keys_dir=self.server_keys_dir,
-                              only_server=True, only_storage=True)
-        create_client_keypair(name=self.client_id, keys_dir=self.connector_keys_dir,
-                              only_connector=True)
-        exchange_client_public_keys(client=self.client_id,
-                                    server_keys_dir=self.server_keys_dir,
-                                    connector_keys_dir=self.connector_keys_dir)
+        create_client_keypair_from_certificate(tls_cert=TEST_TLS_CLIENT_CERT, keys_dir=self.server_keys_dir, only_storage=True)
 
     def test_clearing(self):
         # execute any query for loading key by acra
         result = self.engine1.execute(sa.select([1]).limit(1))
         result.fetchone()
-        with urlopen('http://localhost:{}/resetKeyStorage'.format(self.CONNECTOR_API_PORT_1)) as response:
+        with urlopen('http://localhost:{}/resetKeyStorage'.format(self.ACRASERVER_PORT+1)) as response:
             self.assertEqual(response.status, 200)
-        # delete key for excluding reloading from FS
-        destroy_connector_transport(client_id=self.client_id,
-                                    keys_dir=self.server_keys_dir)
-        # close connections in pool and reconnect to reinitiate secure session
-        self.engine1.dispose()
-        # acra-server should close connection when doesn't find key
-        with self.assertRaises(DatabaseError):
-            result = self.engine1.execute(test_table.select().limit(1))
 
 
 class HashiCorpVaultMasterKeyLoaderMixin:
@@ -3006,21 +2955,6 @@ class HashiCorpVaultMasterKeyLoaderMixin:
         args = self.vault_client.get_vault_cli_args(self.DEFAULT_MOUNT_PATH, self.secret_path)
         acra_kwargs.update(args)
         return self._fork_acra(acra_kwargs, popen_kwargs)
-
-    def fork_connector(self, connector_port: int, acraserver_port: int,
-                       client_id: str, api_port: int = None,
-                       zone_mode: bool = False, check_connection: bool = True,
-                       popen_kwargs: dict = None,
-                       **extra_options: dict):
-        args = self.vault_client.get_vault_cli_args(self.DEFAULT_MOUNT_PATH,self.secret_path)
-        return super().fork_connector(connector_port, acraserver_port, client_id, api_port, zone_mode, check_connection,
-                                      popen_kwargs, **args)
-
-    def fork_connector_for_translator(self, connector_port: int, server_port: int,
-                                      client_id: str, check_connection: bool=True, **extra_options: dict):
-
-        args = self.vault_client.get_vault_cli_args(self.DEFAULT_MOUNT_PATH,self.secret_path)
-        return super().fork_connector_for_translator(connector_port, server_port, client_id, check_connection, **args)
 
     def fork_translator(self, translator_kwargs, popen_kwargs=None):
         args = self.vault_client.get_vault_cli_args(self.DEFAULT_MOUNT_PATH,self.secret_path)
@@ -3071,7 +3005,7 @@ class TestKeyStoreMigration(BaseTestCase):
             temp_file = os.path.join(self.test_dir.name, 'master.key')
 
             subprocess.check_output([
-                './acra-keymaker', '--keystore={}'.format(version),
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(version),
                 '--generate_master_key={}'.format(temp_file)])
 
             with open(temp_file, 'rb') as f:
@@ -3086,11 +3020,9 @@ class TestKeyStoreMigration(BaseTestCase):
     def create_key_store(self, version):
         """Create new keystore of given version."""
         # Start with service transport keys and client storage keys.
-        self.client_id = 'test-client-please-ignore'
+        self.client_id = TLS_CERT_CLIENT_ID_1
         subprocess.check_call([
-                './acra-keymaker',
-                '--generate_acraconnector_keys',
-                '--generate_acraserver_keys',
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
                 '--generate_acrawriter_keys',
                 '--client_id={}'.format(self.client_id),
                 '--keys_output_dir={}'.format(self.current_key_store_path()),
@@ -3102,7 +3034,7 @@ class TestKeyStoreMigration(BaseTestCase):
 
         # Then add some zones that we're going to test with.
         zone_output = subprocess.check_output([
-                './acra-addzone',
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'),
                 '--keys_output_dir={}'.format(self.current_key_store_path()),
             ],
             env={ACRA_MASTER_KEY_VAR_NAME: self.get_master_key(version)},
@@ -3117,7 +3049,7 @@ class TestKeyStoreMigration(BaseTestCase):
         """Migrate keystore from current to given new version."""
         # Run the migration tool. New keystore is in a new directory.
         subprocess.check_call([
-                './acra-keys', 'migrate',
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'), 'migrate',
                 '--src_keys_dir={}'.format(self.current_key_store_path()),
                 '--src_keys_dir_public={}'.format(self.current_key_store_path()),
                 '--src_keystore={}'.format(self.keystore_version),
@@ -3156,22 +3088,20 @@ class TestKeyStoreMigration(BaseTestCase):
         self.acra_server = self.fork_acra(
             zonemode_enable='true' if zone_mode else 'false',
             keys_dir=self.current_key_store_path(),
+            tls_ocsp_from_cert='ignore',
+            tls_crl_from_cert='ignore',
+            tls_ocsp_url='',
+            tls_crl_url='',
+            keystore_cache_size=-1,
             popen_kwargs={'env': master_key_env})
 
-        self.acra_connector = self.fork_connector(
-            client_id=self.client_id,
-            zone_mode=zone_mode,
-            api_port=self.CONNECTOR_API_PORT_1,
-            connector_port=self.CONNECTOR_PORT_1,
-            acraserver_port=self.ACRASERVER_PORT,
-            keys_dir=self.current_key_store_path(),
-            popen_kwargs={'env': master_key_env})
-
+        args = get_connect_args(port=self.ACRASERVER_PORT, sslmode='require')
+        args.update(get_tls_connection_args(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT))
         self.engine = sa.create_engine(
             get_engine_connection_string(
-                self.get_connector_connection_string(self.CONNECTOR_PORT_1),
+                self.get_acraserver_connection_string(),
                 DB_NAME),
-            connect_args=get_connect_args(port=self.CONNECTOR_PORT_1))
+            connect_args=args)
 
         # Remember whether we're running in zone mode. We need to know this
         # to store and retrieve the data correctly.
@@ -3180,7 +3110,6 @@ class TestKeyStoreMigration(BaseTestCase):
     def stop_services(self):
         """Gracefully stop Acra services being tested."""
         self.engine.dispose()
-        stop_process(self.acra_connector)
         stop_process(self.acra_server)
 
     @contextlib.contextmanager
@@ -3191,8 +3120,8 @@ class TestKeyStoreMigration(BaseTestCase):
         finally:
             self.stop_services()
 
-    def insert_via_connector(self, data):
-        """Encrypt and insert data via Acra Connector."""
+    def insert_as_client(self, data):
+        """Encrypt and insert data via AcraServer."""
         # It's too bothersome to thread through the master key setting.
         # Set it here and reset it back after reading the public key.
         new_master_key = self.get_master_key(self.keystore_version)
@@ -3222,8 +3151,8 @@ class TestKeyStoreMigration(BaseTestCase):
         })
         return row_id
 
-    def select_via_connector(self, row_id):
-        """Select decrypted data via Acra Connector."""
+    def select_as_client(self, row_id):
+        """Select decrypted data via AcraServer."""
         # If we're using zones, zone ID should precede the encrypted data.
         if self.zone_mode:
             cols = [sa.cast(self.zone_id.encode('ascii'), BYTEA),
@@ -3261,10 +3190,10 @@ class TestKeyStoreMigration(BaseTestCase):
 
         # Try saving some data with default zone
         with self.running_services():
-            row_id_1 = self.insert_via_connector(data_1)
+            row_id_1 = self.insert_as_client(data_1)
 
-            # Check that we're able to put and get data via Connector.
-            selected = self.select_via_connector(row_id_1)
+            # Check that we're able to put and get data via AcraServer.
+            selected = self.select_as_client(row_id_1)
             self.assertEquals(selected['data'], data_1.encode('ascii'))
             self.assertEquals(selected['raw_data'], data_1)
 
@@ -3274,10 +3203,10 @@ class TestKeyStoreMigration(BaseTestCase):
 
         # Now do the same with a specific zone
         with self.running_services(zone_mode=True):
-            row_id_1_zoned = self.insert_via_connector(data_1)
+            row_id_1_zoned = self.insert_as_client(data_1)
 
-            # Check that we're able to put and get data via Connector.
-            selected = self.select_via_connector(row_id_1_zoned)
+            # Check that we're able to put and get data via AcraServer.
+            selected = self.select_as_client(row_id_1_zoned)
             self.assertEquals(selected['data'], data_1.encode('ascii'))
             self.assertEquals(selected['raw_data'], data_1)
 
@@ -3291,8 +3220,8 @@ class TestKeyStoreMigration(BaseTestCase):
 
         # After we have migrated the keys, check the setup again.
         with self.running_services():
-            # Old data should still be there, accessible via Connector.
-            selected = self.select_via_connector(row_id_1)
+            # Old data should still be there, accessible via AcraServer.
+            selected = self.select_as_client(row_id_1)
             self.assertEquals(selected['data'], data_1.encode('ascii'))
             self.assertEquals(selected['raw_data'], data_1)
 
@@ -3302,15 +3231,15 @@ class TestKeyStoreMigration(BaseTestCase):
                               encrypted_1['data'])
 
             # We're able to put some new data into the table and get it back.
-            row_id_2 = self.insert_via_connector(data_2)
-            selected = self.select_via_connector(row_id_2)
+            row_id_2 = self.insert_as_client(data_2)
+            selected = self.select_as_client(row_id_2)
             self.assertEquals(selected['data'], data_2.encode('ascii'))
             self.assertEquals(selected['raw_data'], data_2)
 
         # And again, this time with zones.
         with self.running_services(zone_mode=True):
-            # Old data should still be there, accessible via Connector.
-            selected = self.select_via_connector(row_id_1_zoned)
+            # Old data should still be there, accessible via AcraServer.
+            selected = self.select_as_client(row_id_1_zoned)
             self.assertEquals(selected['data'], data_1.encode('ascii'))
             self.assertEquals(selected['raw_data'], data_1)
 
@@ -3320,8 +3249,8 @@ class TestKeyStoreMigration(BaseTestCase):
                               encrypted_1_zoned['data'])
 
             # We're able to put some new data into the table and get it back.
-            row_id_2_zoned = self.insert_via_connector(data_2)
-            selected = self.select_via_connector(row_id_2_zoned)
+            row_id_2_zoned = self.insert_as_client(data_2)
+            selected = self.select_as_client(row_id_2_zoned)
             self.assertEquals(selected['data'], data_2.encode('ascii'))
             self.assertEquals(selected['raw_data'], data_2)
 
@@ -3332,8 +3261,8 @@ class TestKeyStoreMigration(BaseTestCase):
         # Save some data, do a sanity check.
         data = get_pregenerated_random_data()
         with self.running_services():
-            row_id = self.insert_via_connector(data)
-            selected = self.select_via_connector(row_id)
+            row_id = self.insert_as_client(data)
+            selected = self.select_as_client(row_id)
             self.assertEquals(selected['data'], data.encode('ascii'))
 
         # Move the keystore to a different (still temporary) location.
@@ -3343,7 +3272,7 @@ class TestKeyStoreMigration(BaseTestCase):
         # We should still be able to access the data with the same keystore
         # but located at different path.
         with self.running_services():
-            selected = self.select_via_connector(row_id)
+            selected = self.select_as_client(row_id)
             self.assertEquals(selected['data'], data.encode('ascii'))
 
 
@@ -3355,6 +3284,8 @@ class RedisMixin:
         super().checkSkip()
         if not TEST_WITH_REDIS:
             self.skipTest("test only with Redis")
+        elif not TEST_WITH_TLS:
+            self.skipTest("running tests only with TLS")
 
     def setUp(self):
         self.redis_keys_client = redis.Redis(host='localhost', port=6379, db=self.TEST_REDIS_KEYS_DB)
@@ -3375,11 +3306,11 @@ class TestAcraKeysWithZoneIDGeneration(unittest.TestCase):
 
     def test_rotate_symmetric_zone_key(self):
         zone = json.loads(subprocess.check_output(
-            ['./acra-addzone', '--keys_output_dir={}'.format(self.zone_dir.name)],
+            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.zone_dir.name)],
             cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8'))
 
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'generate',
             '--zone_symmetric_key',
             '--keys_dir={}'.format(self.zone_dir.name),
@@ -3398,16 +3329,16 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
         self.dir_with_distinguished_name_client_id = tempfile.TemporaryDirectory()
         self.dir_with_serial_number_client_id = tempfile.TemporaryDirectory()
 
-        self.create_key_store_with_client_id_from_cert('distinguished_name', self.dir_with_distinguished_name_client_id.name)
-        self.create_key_store_with_client_id_from_cert('serial_number', self.dir_with_serial_number_client_id.name)
+        self.create_key_store_with_client_id_from_cert(TLS_CLIENT_ID_SOURCE_DN, self.dir_with_distinguished_name_client_id.name)
+        self.create_key_store_with_client_id_from_cert(TLS_CLIENT_ID_SOURCE_SERIAL, self.dir_with_serial_number_client_id.name)
 
     def test_generate_client_id_from_distinguished_name(self):
-        readKey = self.read_key_by_client_id('distinguished_name', self.dir_with_distinguished_name_client_id.name)
+        readKey = self.read_key_by_client_id(TLS_CLIENT_ID_SOURCE_DN, self.dir_with_distinguished_name_client_id.name)
         self.assertTrue(readKey)
 
     def test_non_client_id_keys_generation(self):
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'generate',
             '--audit_log_symmetric_key',
             '--poison_record_keys',
@@ -3421,10 +3352,8 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
     def test_keys_generation_without_client_id(self):
         with self.assertRaises(subprocess.CalledProcessError) as exc:
             subprocess.check_output([
-                './acra-keys',
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
                 'generate',
-                '--acraserver_transport_key',
-                '--acratranslator_transport_key',
                 '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
                 '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
                 '--keystore={}'.format(KEYSTORE_VERSION),
@@ -3436,11 +3365,9 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
 
         with self.assertRaises(subprocess.CalledProcessError) as exc:
             subprocess.check_output([
-                './acra-keys',
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
                 'generate',
                 "--client_id='test'",
-                '--acraserver_transport_key',
-                '--acratranslator_transport_key',
                 '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
                 '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
                 '--keystore={}'.format(KEYSTORE_VERSION),
@@ -3452,7 +3379,7 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
 
     def test_read_keys_symmetric(self):
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'generate',
             '--client_id={}'.format("testclientid"),
             '--client_storage_symmetric_key',
@@ -3464,7 +3391,7 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
             timeout=PROCESS_CALL_TIMEOUT)
 
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'read',
             '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
             '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
@@ -3475,11 +3402,11 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
 
     def test_read_keys_symmetric_zone(self):
         zone = json.loads(subprocess.check_output(
-            ['./acra-addzone', '--keys_output_dir={}'.format(self.dir_with_distinguished_name_client_id.name)],
+            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.dir_with_distinguished_name_client_id.name)],
             cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8'))
 
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'read',
             '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
             '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
@@ -3488,32 +3415,14 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
             env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
             timeout=PROCESS_CALL_TIMEOUT)
 
-    def test_keys_generation_for_mixed_keys(self):
-        with self.assertRaises(subprocess.CalledProcessError) as exc:
-            subprocess.check_output([
-                './acra-keys',
-                'generate',
-                '--acraserver_transport_key',
-                '--acratranslator_transport_key',
-                '--poison_record_keys',
-                '--audit_log_symmetric_key',
-                '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
-                '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
-                '--keystore={}'.format(KEYSTORE_VERSION),
-            ],
-                env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
-                stderr=subprocess.STDOUT)
-        self.assertIn("--client_id or --tls_cert is required to generate keys".lower(), exc.exception.output.decode('utf8').lower())
-        self.assertEqual(exc.exception.returncode, 1)
-
 
     def test_generate_client_id_from_serial_number(self):
-        readKey = self.read_key_by_client_id('serial_number', self.dir_with_serial_number_client_id.name)
+        readKey = self.read_key_by_client_id(TLS_CLIENT_ID_SOURCE_SERIAL, self.dir_with_serial_number_client_id.name)
         self.assertTrue(readKey)
 
     def read_key_by_client_id(self, extractor, dir_name):
         cmd_output = json.loads(subprocess.check_output([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'extract-client-id',
             '--tls_identifier_extractor_type={}'.format(extractor),
             '--tls_cert={}'.format(TEST_TLS_SERVER_CERT),
@@ -3523,7 +3432,7 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
 
         client_id = cmd_output['client_id']
         readKey = subprocess.check_output([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'read',
             '--keys_dir={}'.format(dir_name),
             '--keys_dir_public={}'.format(dir_name),
@@ -3536,7 +3445,7 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
     def create_key_store_with_client_id_from_cert(self, extractor, dir_name):
         """Create new keystore of given version using acra-keys tool."""
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'generate',
             '--tls_cert={}'.format(TEST_TLS_SERVER_CERT),
             '--tls_identifier_extractor_type={}'.format(extractor),
@@ -3563,7 +3472,7 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
         client_id = 'keypair1'
 
         subprocess.check_call(
-            ['./acra-keymaker',
+            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
              '--client_id={}'.format(client_id),
              '--generate_acrawriter_keys',
              '--generate_symmetric_storage_key',
@@ -3574,7 +3483,7 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
             timeout=PROCESS_CALL_TIMEOUT)
 
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'read',
             '--public',
             '--redis_host_port=localhost:6379',
@@ -3584,7 +3493,7 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
             timeout=PROCESS_CALL_TIMEOUT)
 
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'read',
             '--redis_host_port=localhost:6379',
             'client/keypair1/symmetric'
@@ -3593,7 +3502,7 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
             timeout=PROCESS_CALL_TIMEOUT)
 
         subprocess.check_call([
-            './acra-keys',
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'read',
             '--private',
             '--redis_host_port=localhost:6379',
@@ -3602,11 +3511,10 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
             env={ACRA_MASTER_KEY_VAR_NAME: master_key},
             timeout=PROCESS_CALL_TIMEOUT)
 
+
 class TestPostgreSQLParseQueryErrorSkipExit(AcraCatchLogsMixin, BaseTestCase):
     """By default AcraServer skip any errors connected SQL parse queries failures.
         It can be changed by --sql_parse_error_exit=true cmd param."""
-
-    client_id = 'keypair1'
 
     def checkSkip(self):
         if not TEST_POSTGRESQL:
@@ -3615,7 +3523,7 @@ class TestPostgreSQLParseQueryErrorSkipExit(AcraCatchLogsMixin, BaseTestCase):
 
     def executePreparedStatement(self, query):
         return AsyncpgExecutor(ConnectionArgs(
-            host=get_db_host(), port=self.CONNECTOR_PORT_1, dbname=DB_NAME,
+            host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
             user=DB_USER, password=DB_USER_PASSWORD,
             format=AsyncpgExecutor.BinaryFormat,
             ssl_ca=TEST_TLS_CA,
@@ -3624,7 +3532,7 @@ class TestPostgreSQLParseQueryErrorSkipExit(AcraCatchLogsMixin, BaseTestCase):
         )).execute_prepared_statement(query=query)
 
     def read_public_key(self,  extra_kwargs: dict = None):
-        return read_storage_public_key(self.client_id, KEYS_FOLDER.name, extra_kwargs=extra_kwargs)
+        return read_storage_public_key(TLS_CERT_CLIENT_ID_1, KEYS_FOLDER.name, extra_kwargs=extra_kwargs)
 
     def insert_random_data(self):
         row_id = get_random_id()
@@ -3641,7 +3549,7 @@ class TestPostgreSQLParseQueryErrorSkipExit(AcraCatchLogsMixin, BaseTestCase):
         row_id_1, raw_data_1 = self.insert_random_data()
 
         query = 'WITH test_with AS (SELECT 1) SELECT * FROM test'
-        # Request via AcraConnector should be successful.
+        # Request should be successful.
         # It should return encrypted data because of parse skipping.
         result = self.executePreparedStatement(query=query)
         row = result[0]
@@ -3664,7 +3572,7 @@ class TestPostgreSQLParseQueryErrorExit(AcraCatchLogsMixin, BaseTestCase):
 
     def executePreparedStatement(self, query):
         return AsyncpgExecutor(ConnectionArgs(
-            host=get_db_host(), port=self.CONNECTOR_PORT_1, dbname=DB_NAME,
+            host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
             user=DB_USER, password=DB_USER_PASSWORD,
             ssl_ca=TEST_TLS_CA,
             ssl_key=TEST_TLS_CLIENT_KEY,
@@ -3684,15 +3592,14 @@ class TestKeyRotation(BaseTestCase):
     """Verify key rotation without data reencryption."""
     # TODO(ilammy, 2020-03-13): test with rotated zone keys as well
     # That is, as soon as it is possible to rotate them (T1581)
-    client_id = 'keypair1'
 
     def read_rotation_public_key(self,  extra_kwargs: dict = None):
-        return read_storage_public_key(self.client_id, KEYS_FOLDER.name, extra_kwargs=extra_kwargs)
+        return read_storage_public_key(TLS_CERT_CLIENT_ID_1, KEYS_FOLDER.name, extra_kwargs=extra_kwargs)
 
     def create_keypair(self, extra_kwargs: dict = None):
-        create_client_keypair(self.client_id, only_storage=True, extra_kwargs=extra_kwargs)
+        create_client_keypair(TLS_CERT_CLIENT_ID_1, only_storage=True, extra_kwargs=extra_kwargs)
 
-    def test_read_via_connector_after_rotation(self):
+    def test_read_after_rotation(self):
         """Verify that AcraServer can decrypt data with old keys."""
 
         def insert_random_data():
@@ -3714,7 +3621,6 @@ class TestKeyRotation(BaseTestCase):
         # Insert some more data encrypted with the new key.
         row_id_2, raw_data_2 = insert_random_data()
 
-        # Request via AcraConnector should be successful.
         # It should return expected decrypted data.
         result = self.engine1.execute(
             sa.select([test_table])
@@ -3802,7 +3708,7 @@ class TestAcraRollback(BaseTestCase):
             os.remove(self.output_filename)
 
     def run_acrarollback(self, extra_args):
-        args = ['./acra-rollback'] + self.default_acrarollback_args + extra_args
+        args = [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-rollback')] + self.default_acrarollback_args + extra_args
         try:
             subprocess.check_call(
                 args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
@@ -3814,7 +3720,7 @@ class TestAcraRollback(BaseTestCase):
             raise
 
     def test_without_zone_to_file(self):
-        server_public1 = read_storage_public_key('keypair1', KEYS_FOLDER.name)
+        server_public1 = read_storage_public_key(TLS_CERT_CLIENT_ID_1, KEYS_FOLDER.name)
 
         rows = []
         for _ in range(self.DATA_COUNT):
@@ -3884,7 +3790,7 @@ class TestAcraRollback(BaseTestCase):
             self.assertIn(data[0], source_data)
 
     def test_without_zone_execute(self):
-        server_public1 = read_storage_public_key('keypair1', KEYS_FOLDER.name)
+        server_public1 = read_storage_public_key(TLS_CERT_CLIENT_ID_1, KEYS_FOLDER.name)
 
         rows = []
         for _ in range(self.DATA_COUNT):
@@ -3948,7 +3854,7 @@ class TestAcraRollback(BaseTestCase):
             self.assertIn(data[0], source_data)
 
     def test_without_placeholder(self):
-        args = ['./acra-rollback',
+        args = [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-rollback'),
             '--execute=true',
             '--select=select data from {};'.format(test_table.name),
             '--insert=query without placeholders;',
@@ -3974,7 +3880,7 @@ class TestAcraRollback(BaseTestCase):
 
         def insert_random_data():
             rows = []
-            public_key = read_storage_public_key('keypair1', KEYS_FOLDER.name)
+            public_key = read_storage_public_key(TLS_CERT_CLIENT_ID_1, KEYS_FOLDER.name)
             for _ in range(self.DATA_COUNT):
                 data = get_pregenerated_random_data()
                 row = {
@@ -4052,7 +3958,7 @@ class SSLPostgresqlMixin(AcraCatchLogsMixin):
 
     def setUp(self):
         self.checkSkip()
-        """don't fork connector, connect directly to acra, use sslmode=require in connections and tcp protocol on acra side
+        """connect directly to acra, use sslmode=require in connections and tcp protocol on acra side
         because postgresql support tls only over tcp
         """
         try:
@@ -4061,11 +3967,12 @@ class SSLPostgresqlMixin(AcraCatchLogsMixin):
                     tls_key=abs_path(TEST_TLS_SERVER_KEY),
                     tls_cert=abs_path(TEST_TLS_SERVER_CERT),
                     tls_ca=TEST_TLS_CA,
-                    acraconnector_transport_encryption_disable=True, client_id='keypair1')
+                    client_id=TLS_CERT_CLIENT_ID_1)
                 # create second acra without settings for tls to check that
                 # connection will be closed on tls handshake
                 self.acra2 = self.fork_acra(
-                    acraconnector_transport_encryption_disable=True, client_id='keypair1',
+                    client_id=TLS_CERT_CLIENT_ID_1,
+                    incoming_connection_api_string=self.get_acraserver_api_connection_string(port=self.ACRASERVER2_PORT+5),
                     incoming_connection_port=self.ACRASERVER2_PORT,
                     incoming_connection_prometheus_metrics_string=self.get_prometheus_address(self.ACRASERVER2_PROMETHEUS_PORT))
             self.engine1 = sa.create_engine(
@@ -4127,32 +4034,6 @@ class SSLPostgresqlConnectionWithZoneTest(SSLPostgresqlMixin, ZoneHexFormatTest)
     pass
 
 
-class TLSBetweenConnectorAndServerMixin(object):
-    TLS_ON = True
-    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
-        return self._fork_acra({'client_id': 'keypair1'}, popen_kwargs)
-
-    def get_connector_tls_params(self):
-        base_params = super(TLSBetweenConnectorAndServerMixin, self).get_connector_tls_params()
-        # client side need CA cert to verify server's
-        base_params.update('tls_ca', TEST_TLS_CA)
-        return base_params
-
-    def setUp(self):
-        super(TLSBetweenConnectorAndServerMixin, self).setUp()
-        # acra works with one client id and no matter from which proxy connection come
-        self.engine2.dispose()
-        self.engine2 = self.engine_raw
-
-
-class TLSBetweenConnectorAndServerTest(TLSBetweenConnectorAndServerMixin, HexFormatTest):
-    pass
-
-
-class TLSBetweenConnectorAndServerWithZonesTest(TLSBetweenConnectorAndServerMixin, ZoneHexFormatTest):
-    pass
-
-
 class SSLMysqlMixin(SSLPostgresqlMixin):
     def checkSkip(self):
         if not (TEST_WITH_TLS and TEST_MYSQL):
@@ -4166,7 +4047,7 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
 
     def setUp(self):
         self.checkSkip()
-        """don't fork connector, connect directly to acra, use ssl for connections and tcp protocol on acra side
+        """connect directly to acra, use ssl for connections and tcp protocol on acra side
         because postgresql support tls only over tcp
         """
         try:
@@ -4177,12 +4058,13 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
                     tls_ca=TEST_TLS_CA,
                     tls_auth=ACRA_TLS_AUTH,
                     #tls_db_sni="127.0.0.1",
-                    acraconnector_transport_encryption_disable=True, client_id='keypair1')
+                    client_id=TLS_CERT_CLIENT_ID_1)
                 # create second acra without settings for tls to check that
                 # connection will be closed on tls handshake
                 self.acra2 = self.fork_acra(
-                    acraconnector_transport_encryption_disable=True, client_id='keypair1',
+                    client_id=TLS_CERT_CLIENT_ID_1,
                     incoming_connection_port=self.ACRASERVER2_PORT,
+                    incoming_connection_api_string=self.get_acraserver_api_connection_string(port=self.ACRASERVER2_PORT+5),
                     incoming_connection_prometheus_metrics_string=self.get_prometheus_address(
                         self.ACRASERVER2_PROMETHEUS_PORT))
             self.driver_to_acraserver_ssl_settings = {
@@ -4243,10 +4125,10 @@ class BasePrepareStatementMixin:
     def executePreparedStatement(self, query):
         raise NotImplementedError
 
-    def testConnectorRead(self):
-        """test decrypting with correct acra-connector and not decrypting with
-        incorrect acra-connector or using direct connection to db"""
-        client_id = 'keypair1'
+    def testClientRead(self):
+        """test decrypting with correct client_id and not decrypting with
+        incorrect client_id or using direct connection to db"""
+        client_id = TLS_CERT_CLIENT_ID_1
         server_public1 = read_storage_public_key(client_id, KEYS_FOLDER.name)
         data = get_pregenerated_random_data()
         acra_struct = create_acrastruct(
@@ -4285,7 +4167,7 @@ class BasePrepareStatementMixin:
     def testReadAcrastructInAcrastruct(self):
         """test correct decrypting acrastruct when acrastruct concatenated to
         partial another acrastruct"""
-        client_id = 'keypair1'
+        client_id = TLS_CERT_CLIENT_ID_1
         server_public1 = read_storage_public_key(client_id, KEYS_FOLDER.name)
         incorrect_data = get_pregenerated_random_data()
         correct_data = get_pregenerated_random_data()
@@ -4343,10 +4225,12 @@ class TestMysqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
     def checkSkip(self):
         if not TEST_MYSQL:
             self.skipTest("run test only for mysql")
+        elif not TEST_WITH_TLS:
+            self.skipTest("running tests only with TLS")
 
     def executePreparedStatement(self, query):
         return PyMysqlExecutor(
-            ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
+            ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
                            user=DB_USER, password=DB_USER_PASSWORD,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                            ssl_key=TEST_TLS_CLIENT_KEY,
@@ -4362,10 +4246,12 @@ class TestMysqlBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
     def checkSkip(self):
         if not TEST_MYSQL:
             self.skipTest("run test only for mysql")
+        elif not TEST_WITH_TLS:
+            self.skipTest("running tests only with TLS")
 
     def executePreparedStatement(self, query, args=None):
         return MysqlExecutor(
-            ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
+            ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
                            user=DB_USER, password=DB_USER_PASSWORD,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                            ssl_key=TEST_TLS_CLIENT_KEY,
@@ -4381,11 +4267,13 @@ class TestPostgresqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCas
     def checkSkip(self):
         if not TEST_POSTGRESQL:
             self.skipTest("run test only for postgresql")
+        elif not TEST_WITH_TLS:
+            self.skipTest("running tests only with TLS")
 
     def executePreparedStatement(self, query, args=None):
         if not args:
             args = []
-        return Psycopg2Executor(ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
+        return Psycopg2Executor(ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
                            user=DB_USER, password=DB_USER_PASSWORD,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                            ssl_key=TEST_TLS_CLIENT_KEY,
@@ -4421,105 +4309,6 @@ class ProcessContextManager(object):
         stop_process(self.process)
 
 
-class AcraTranslatorMixin(object):
-
-    def get_http_default_kwargs(self):
-        return {
-            'timeout': REQUEST_TIMEOUT,
-        }
-
-    def get_http_schema(self):
-        return 'http'
-
-    def http_decrypt_request(self, port, client_id, zone_id, acrastruct):
-        api_url = '{}://localhost:{}/v1/decrypt'.format(self.get_http_schema(), port)
-        if zone_id:
-            api_url = '{}?zone_id={}'.format(api_url, zone_id)
-        kwargs = self.get_http_default_kwargs()
-        kwargs['data'] = acrastruct
-        with requests.post(api_url, **kwargs) as response:
-            return response.content
-
-    def http_encrypt_request(self, port, client_id, zone_id, data):
-        api_url = '{}://localhost:{}/v1/encrypt'.format(self.get_http_schema(), port)
-        if zone_id:
-            api_url = '{}?zone_id={}'.format(api_url, zone_id)
-        kwargs = self.get_http_default_kwargs()
-        kwargs['data'] = data
-        with requests.post(api_url, **kwargs) as response:
-            return response.content
-
-    def get_grpc_channel(self, port):
-        return grpc.insecure_channel('localhost:{}'.format(port))
-
-    def grpc_encrypt_request(self, port, client_id, zone_id, data):
-        with self.get_grpc_channel(port) as channel:
-            stub = api_pb2_grpc.WriterStub(channel)
-            try:
-                if zone_id:
-                    response = stub.Encrypt(api_pb2.EncryptRequest(
-                        zone_id=zone_id.encode('ascii'), data=data,
-                        client_id=client_id.encode('ascii')),
-                        timeout=SOCKET_CONNECT_TIMEOUT)
-                else:
-                    response = stub.Encrypt(api_pb2.EncryptRequest(
-                        client_id=client_id.encode('ascii'), data=data),
-                        timeout=SOCKET_CONNECT_TIMEOUT)
-            except grpc.RpcError as exc:
-                logging.info(exc)
-                return b''
-            return response.acrastruct
-
-    def grpc_decrypt_request(self, port, client_id, zone_id, acrastruct):
-        with self.get_grpc_channel(port) as channel:
-            stub = api_pb2_grpc.ReaderStub(channel)
-            try:
-                if zone_id:
-                    response = stub.Decrypt(api_pb2.DecryptRequest(
-                        zone_id=zone_id.encode('ascii'), acrastruct=acrastruct,
-                        client_id=client_id.encode('ascii')),
-                        timeout=SOCKET_CONNECT_TIMEOUT)
-                else:
-                    response = stub.Decrypt(api_pb2.DecryptRequest(
-                        client_id=client_id.encode('ascii'), acrastruct=acrastruct),
-                        timeout=SOCKET_CONNECT_TIMEOUT)
-            except grpc.RpcError as exc:
-                logging.info(exc)
-                return b''
-            return response.data
-
-    def fork_connector_for_translator(self, connector_port: int, server_port: int, client_id: str, check_connection: bool=True, **extra_options: dict):
-        logging.info("fork connector for translator")
-        server_connection = get_tcp_connection_string(server_port)
-        connector_connection = get_tcp_connection_string(connector_port)
-        args = [
-            './acra-connector',
-            '-d',
-            '-logging_format=cef',
-            '-acratranslator_connection_string={}'.format(server_connection),
-            '-mode=acratranslator',
-            '-client_id={}'.format(client_id),
-            '-incoming_connection_string={}'.format(connector_connection),
-            '-user_check_disable=true',
-            '-keys_dir={}'.format(KEYS_FOLDER.name),
-        ]
-        if self.DEBUG_LOG:
-            args.append('-v=true')
-        if extra_options:
-            for key, value in extra_options.items():
-                param = '-{0}={1}'.format(key, value)
-                args.append(param)
-        process = self.fork(lambda: subprocess.Popen(args))
-        assert process
-        if check_connection:
-            try:
-                wait_connection(connector_port)
-            except:
-                stop_process(process)
-                raise
-        return process
-
-
 class TestClientIDDecryptionWithVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoaderMixin, HexFormatTest):
     pass
 
@@ -4530,49 +4319,41 @@ class TestZoneIDDecryptionWithVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoader
 
 class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
 
-    def checkSkip(self):
-        return
-
-    def setUp(self):
-        self.checkSkip()
-
     def apiEncryptionTest(self, request_func, use_http=False, use_grpc=False):
         # one is set
         self.assertTrue(use_http or use_grpc)
         # two is not acceptable
         self.assertFalse(use_http and use_grpc)
         translator_port = 3456
-        connector_port = 12345
-        connector_port2 = connector_port+1
-        client_id = "keypair1"
-        data = get_pregenerated_random_data().encode('ascii')
-        client_id_private_key = read_storage_private_key(KEYS_FOLDER.name, 'keypair1')
-        zone = zones[0]
-        zone_private_key = read_zone_private_key(KEYS_FOLDER.name, zone['id'])
-        connection_string = 'tcp://localhost:{}'.format(translator_port)
-        translator_kwargs = {
-            'incoming_connection_http_string': connection_string if use_http else '',
-            # turn off grpc to avoid check connection to it without acra-connector
-            'incoming_connection_grpc_string': connection_string if use_grpc else '',}
+        key_folder = tempfile.TemporaryDirectory()
+        try:
+            client_id = extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_CERT, extractor=self.get_identifier_extractor_type())
+            self.assertEqual(create_client_keypair_from_certificate(tls_cert=TEST_TLS_CLIENT_CERT,
+                                                                    extractor=self.get_identifier_extractor_type(), keys_dir=key_folder.name), 0)
+            data = get_pregenerated_random_data().encode('ascii')
+            client_id_private_key = read_storage_private_key(key_folder.name, client_id)
+            connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
+            translator_kwargs = {
+                'incoming_connection_http_string': connection_string if use_http else '',
+                # turn off grpc to avoid check connection to it
+                'incoming_connection_grpc_string': connection_string if use_grpc else '',
+                'tls_key': abs_path(TEST_TLS_SERVER_KEY),
+                'tls_cert': abs_path(TEST_TLS_SERVER_CERT),
+                'tls_ca': TEST_TLS_CA,
+                'keys_dir': key_folder.name,
+                'tls_identifier_extractor_type': self.get_identifier_extractor_type(),
+                'acratranslator_client_id_from_connection_enable': 'true',
+                'tls_ocsp_from_cert': 'ignore',
+                'tls_crl_from_cert': 'ignore',
+            }
 
-        correct_client_id = 'keypair1'
-        incorrect_client_id = 'keypair2'
-        with ProcessContextManager(self.fork_translator(translator_kwargs)):
-            with ProcessContextManager(self.fork_connector_for_translator(connector_port, translator_port, client_id)):
-                response = request_func(connector_port, correct_client_id, None, data)
-                decrypted = deserialize_and_decrypt_acrastruct(response, client_id_private_key, 'keypair1')
+            incorrect_client_id = TLS_CERT_CLIENT_ID_2
+            with ProcessContextManager(self.fork_translator(translator_kwargs)):
+                response = request_func(translator_port, incorrect_client_id, None, data)
+                decrypted = deserialize_and_decrypt_acrastruct(response, client_id_private_key, client_id)
                 self.assertEqual(data, decrypted)
-                # test with correct zone id
-                print("encrypt with zone {}".format(zone['id']))
-                response = request_func(
-                    connector_port, client_id, zone['id'], data)
-                print("decrypt with zone {}".format(zone['id']))
-                decrypted = deserialize_and_decrypt_acrastruct(response, zone_private_key, zone_id=zone['id'].encode('ascii'))
-                self.assertEqual(data, decrypted)
-            # wait decryption error with incorrect client id
-            with ProcessContextManager(self.fork_connector_for_translator(connector_port2, translator_port, incorrect_client_id)):
-                response = request_func(connector_port2, incorrect_client_id, None, None)
-                self.assertNotEqual(data, response)
+        finally:
+            shutil.rmtree(key_folder.name)
 
     def apiDecryptionTest(self, request_func, use_http=False, use_grpc=False):
         # one is set
@@ -4580,64 +4361,60 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
         # two is not acceptable
         self.assertFalse(use_http and use_grpc)
         translator_port = 3456
-        connector_port = 12345
-        connector_port2 = connector_port+1
-        client_id = "keypair1"
-        data = get_pregenerated_random_data().encode('ascii')
-        encryption_key = read_storage_public_key(
-            client_id, keys_dir=KEYS_FOLDER.name)
-        acrastruct = create_acrastruct(data, encryption_key)
+        key_folder = tempfile.TemporaryDirectory()
+        try:
+            client_id = extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_CERT, extractor=self.get_identifier_extractor_type())
+            self.assertEqual(create_client_keypair_from_certificate(tls_cert=TEST_TLS_CLIENT_CERT,
+                                                                    extractor=self.get_identifier_extractor_type(), keys_dir=key_folder.name), 0)
+            data = get_pregenerated_random_data().encode('ascii')
+            encryption_key = read_storage_public_key(client_id, keys_dir=key_folder.name)
+            acrastruct = create_acrastruct(data, encryption_key)
+            connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
+            translator_kwargs = {
+                'incoming_connection_http_string': connection_string if use_http else '',
+                # turn off grpc to avoid check connection to it
+                'incoming_connection_grpc_string': connection_string if use_grpc else '',
+                'tls_key': abs_path(TEST_TLS_SERVER_KEY),
+                'tls_cert': abs_path(TEST_TLS_SERVER_CERT),
+                'tls_ca': TEST_TLS_CA,
+                'keys_dir': key_folder.name,
+                'tls_identifier_extractor_type': self.get_identifier_extractor_type(),
+                'acratranslator_client_id_from_connection_enable': 'true',
+                'tls_ocsp_from_cert': 'ignore',
+                'tls_crl_from_cert': 'ignore',
+            }
 
-        zone = zones[0]
-        incorrect_zone = zones[1]
-        zone_public = b64decode(zone['public_key'].encode('ascii'))
-        acrastruct_with_zone = create_acrastruct(
-            data, zone_public, context=zone['id'].encode('ascii'))
-        connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
-        translator_kwargs = {
-            'incoming_connection_http_string': connection_string if use_http else '',
-            # turn off grpc to avoid check connection to it without acra-connector
-            'incoming_connection_grpc_string': connection_string if use_grpc else '',}
-
-        correct_client_id = 'keypair1'
-        incorrect_client_id = 'keypair2'
-        with ProcessContextManager(self.fork_translator(translator_kwargs)):
-            with ProcessContextManager(self.fork_connector_for_translator(connector_port, translator_port, client_id)):
-                response = request_func(connector_port, correct_client_id, None, acrastruct)
+            incorrect_client_id = TLS_CERT_CLIENT_ID_2
+            with ProcessContextManager(self.fork_translator(translator_kwargs)):
+                response = request_func(translator_port, incorrect_client_id, None, acrastruct)
                 self.assertEqual(data, response)
+        finally:
+            shutil.rmtree(key_folder.name)
 
-                # test with correct zone id
-                response = request_func(
-                    connector_port, client_id, zone['id'], acrastruct_with_zone)
-                self.assertEqual(data, response)
-
-                # test with incorrect zone id
-                response = request_func(
-                    connector_port, client_id, incorrect_zone['id'],
-                    acrastruct_with_zone)
-                self.assertNotEqual(data, response)
-
-            # wait decryption error with incorrect client id
-            with ProcessContextManager(self.fork_connector_for_translator(connector_port2, translator_port, incorrect_client_id)):
-                response = request_func(connector_port2, incorrect_client_id, None, acrastruct)
-                self.assertNotEqual(data, response)
-
-    def testHTTPApiResponses(self):
+    def testHTTPSApiResponses(self):
         translator_port = 3456
-        connector_port = 8000
         data = get_pregenerated_random_data().encode('ascii')
         encryption_key = read_storage_public_key(
-            'keypair1', keys_dir=KEYS_FOLDER.name)
+            TLS_CERT_CLIENT_ID_1, keys_dir=KEYS_FOLDER.name)
         acrastruct = create_acrastruct(data, encryption_key)
         connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
         translator_kwargs = {
-            'incoming_connection_http_string': connection_string ,
+            'incoming_connection_http_string': connection_string,
+            'tls_key': abs_path(TEST_TLS_SERVER_KEY),
+            'tls_cert': abs_path(TEST_TLS_SERVER_CERT),
+            'tls_ca': TEST_TLS_CA,
+            'tls_identifier_extractor_type': TLS_CLIENT_ID_SOURCE_DN,
+            'acratranslator_client_id_from_connection_enable': 'true',
+            'tls_ocsp_from_cert': 'ignore',
+            'tls_crl_from_cert': 'ignore',
         }
-        api_url = 'http://localhost:{}/v1/decrypt'.format(connector_port)
+
+        api_url = 'https://localhost:{}/v1/decrypt'.format(translator_port)
         with ProcessContextManager(self.fork_translator(translator_kwargs)):
-            with ProcessContextManager(self.fork_connector_for_translator(connector_port, translator_port, 'keypair1')):
+                cert = (TEST_TLS_CLIENT_CERT, TEST_TLS_CLIENT_KEY)
+
                 # test incorrect HTTP method
-                response = requests.get(api_url, data=acrastruct,
+                response = requests.get(api_url, data=acrastruct, cert=cert, verify=TEST_TLS_CA,
                                         timeout=REQUEST_TIMEOUT)
                 self.assertEqual(
                     response.status_code, http.HTTPStatus.METHOD_NOT_ALLOWED)
@@ -4648,7 +4425,7 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
                 # test without api version
                 without_version_api_url = api_url.replace('v1/', '')
                 response = requests.post(
-                    without_version_api_url, data=acrastruct,
+                    without_version_api_url, data=acrastruct, cert=cert, verify=TEST_TLS_CA,
                     timeout=REQUEST_TIMEOUT)
                 self.assertEqual(response.status_code, http.HTTPStatus.NOT_FOUND)
                 self.assertIn('404 Page Not Found'.lower(), response.text.lower())
@@ -4657,7 +4434,7 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
                 # incorrect version
                 without_version_api_url = api_url.replace('v1/', 'v3/')
                 response = requests.post(
-                    without_version_api_url, data=acrastruct,
+                    without_version_api_url, data=acrastruct, cert=cert, verify=TEST_TLS_CA,
                     timeout=REQUEST_TIMEOUT)
                 self.assertEqual(response.status_code,
                                  http.HTTPStatus.NOT_FOUND)
@@ -4665,9 +4442,9 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
                 self.assertEqual(response.headers['Content-Type'], 'text/plain')
 
                 # incorrect url
-                incorrect_url = 'http://localhost:{}/v1/someurl'.format(connector_port)
+                incorrect_url = 'https://localhost:{}/v1/someurl'.format(translator_port)
                 response = requests.post(
-                    incorrect_url, data=acrastruct, timeout=REQUEST_TIMEOUT)
+                    incorrect_url, data=acrastruct, cert=cert, verify=TEST_TLS_CA, timeout=REQUEST_TIMEOUT)
                 self.assertEqual(
                     response.status_code, http.HTTPStatus.NOT_FOUND)
                 self.assertEqual('404 Page Not Found'.lower(), response.text.lower())
@@ -4675,7 +4452,7 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
 
 
                 # without acrastruct (http body), pass empty byte array as data
-                response = requests.post(api_url, data=b'',
+                response = requests.post(api_url, data=b'', cert=cert, verify=TEST_TLS_CA,
                                          timeout=REQUEST_TIMEOUT)
                 self.assertEqual(response.status_code,
                                  http.HTTPStatus.UNPROCESSABLE_ENTITY)
@@ -4683,9 +4460,8 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
                               response.text.lower())
                 self.assertEqual(response.headers['Content-Type'], 'text/plain; charset=utf-8')
 
-
                 # test with correct acrastruct
-                response = requests.post(api_url, data=acrastruct,
+                response = requests.post(api_url, data=acrastruct, cert=cert, verify=TEST_TLS_CA,
                                          timeout=REQUEST_TIMEOUT)
                 self.assertEqual(data, response.content)
                 self.assertEqual(response.status_code, http.HTTPStatus.OK)
@@ -4701,175 +4477,118 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
         self.apiEncryptionTest(self.http_encrypt_request, use_http=True)
 
 
-class TestAcraTranslatorWithVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoaderMixin, AcraTranslatorTest):
+class TestTranslatorDisableCachedOnStartup(AcraTranslatorMixin, BaseTestCase):
+    def checkSkip(self):
+        super().checkSkip()
+        if KEYSTORE_VERSION == 'v2':
+            self.skipTest("test only for keystore Version v1")
+
+    def setUp(self):
+        self.cached_dir = tempfile.TemporaryDirectory()
+        # fill temp dir with all keys
+        copy_tree(KEYS_FOLDER.name, self.cached_dir.name)
+        super().setUp()
+
+    def fork_translator(self, translator_kwargs, popen_kwargs=None):
+        args = {
+            'keystore_cache_on_start_enable': 'false',
+            'keys_dir': self.cached_dir.name
+        }
+        translator_kwargs.update(args)
+        return super().fork_translator(translator_kwargs, popen_kwargs)
+
+    def testApiEncryptionDisableCacheWithoutKeysDir(self):
+        translator_port = 3456
+
+        client_id = extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_CERT, extractor=self.get_identifier_extractor_type())
+        self.assertEqual(create_client_keypair_from_certificate(tls_cert=TEST_TLS_CLIENT_CERT,
+                                                                extractor=self.get_identifier_extractor_type(), keys_dir=self.cached_dir.name), 0)
+        data = get_pregenerated_random_data().encode('ascii')
+        client_id_private_key = read_storage_private_key(self.cached_dir.name, client_id)
+        connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
+        translator_kwargs = {
+            'incoming_connection_http_string': connection_string,
+            'tls_key': abs_path(TEST_TLS_SERVER_KEY),
+            'tls_cert': abs_path(TEST_TLS_SERVER_CERT),
+            'tls_ca': TEST_TLS_CA,
+            'keys_dir': self.cached_dir.name,
+            'tls_identifier_extractor_type': self.get_identifier_extractor_type(),
+            'acratranslator_client_id_from_connection_enable': 'true',
+            'tls_ocsp_from_cert': 'ignore',
+            'tls_crl_from_cert': 'ignore',
+        }
+
+        incorrect_client_id = TLS_CERT_CLIENT_ID_2
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            self.cached_dir.cleanup()
+            response = self.http_encrypt_request(translator_port, incorrect_client_id, None, data)
+            # we cant encrypt data because AcraServer doest have access to encryption key with disabled keystore caching
+            self.assertEqual(response, b"Can't encrypt data")
+            with self.assertRaises(ValueError):
+                deserialize_and_decrypt_acrastruct(response, client_id_private_key, client_id)
+
+
+class TestTranslatorEnableCachedOnStartup(AcraTranslatorMixin, BaseTestCase):
+    def checkSkip(self):
+        super().checkSkip()
+        if KEYSTORE_VERSION == 'v2':
+            self.skipTest("test only for keystore Version v1")
+
+    def setUp(self):
+        self.cached_dir = tempfile.TemporaryDirectory()
+        # fill temp dir with all keys
+        copy_tree(KEYS_FOLDER.name, self.cached_dir.name)
+        super().setUp()
+
+    def fork_translator(self, translator_kwargs, popen_kwargs=None):
+        args = {
+            'keystore_cache_on_start_enable': 'true',
+            'keys_dir': self.cached_dir.name
+        }
+        translator_kwargs.update(args)
+        return super().fork_translator(translator_kwargs, popen_kwargs)
+
+    def testApiEncryptionEnabledCacheWithoutKeysDir(self):
+        translator_port = 3456
+
+        client_id = extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_CERT, extractor=self.get_identifier_extractor_type())
+        self.assertEqual(create_client_keypair_from_certificate(tls_cert=TEST_TLS_CLIENT_CERT,
+                                                                    extractor=self.get_identifier_extractor_type(), keys_dir=self.cached_dir.name), 0)
+        data = get_pregenerated_random_data().encode('ascii')
+        client_id_private_key = read_storage_private_key(self.cached_dir.name, client_id)
+        connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
+        translator_kwargs = {
+                'incoming_connection_http_string': connection_string,
+                'tls_key': abs_path(TEST_TLS_SERVER_KEY),
+                'tls_cert': abs_path(TEST_TLS_SERVER_CERT),
+                'tls_ca': TEST_TLS_CA,
+                'keys_dir': self.cached_dir.name,
+                'tls_identifier_extractor_type': self.get_identifier_extractor_type(),
+                'acratranslator_client_id_from_connection_enable': 'true',
+                'tls_ocsp_from_cert': 'ignore',
+                'tls_crl_from_cert': 'ignore',
+            }
+
+        incorrect_client_id = TLS_CERT_CLIENT_ID_2
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            self.cached_dir.cleanup()
+            response = self.http_encrypt_request(translator_port, incorrect_client_id, None, data)
+            decrypted = deserialize_and_decrypt_acrastruct(response, client_id_private_key, client_id)
+            self.assertEqual(data, decrypted)
+
+
+class TestAcraTranslatorWithVaultMasterKeyLoaderByDistinguishedName(HashiCorpVaultMasterKeyLoaderMixin,
+                                                 TLSAuthenticationByDistinguishedNameMixin, AcraTranslatorTest):
     pass
 
 
-class TestAcraTranslatorGRPCClientIDFromSecureSession(AcraTranslatorTest):
-    def testHTTPApi(self):
-        self.skipTest("not allowable")
-
-    def testHTTPApiResponses(self):
-        self.skipTest("not allowable")
-
-    def apiEncryptionTest(self, request_func, use_http=False, use_grpc=False):
-        # one is set
-        self.assertTrue(use_http or use_grpc)
-        # two is not acceptable
-        self.assertFalse(use_http and use_grpc)
-        translator_port = 3456
-        connector_port = 12345
-        client_id = "keypair1"
-        data = get_pregenerated_random_data().encode('ascii')
-        client_id_private_key = read_storage_private_key(KEYS_FOLDER.name, client_id)
-        connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
-        translator_kwargs = {
-            'incoming_connection_http_string': connection_string if use_http else '',
-            # turn off grpc to avoid check connection to it without acra-connector
-            'incoming_connection_grpc_string': connection_string if use_grpc else '',
-            'acratranslator_client_id_from_connection_enable': 'true',
-        }
-
-        correct_client_id = 'keypair1'
-        incorrect_client_id = 'keypair2'
-        with ProcessContextManager(self.fork_translator(translator_kwargs)):
-            with ProcessContextManager(self.fork_connector_for_translator(connector_port, translator_port, client_id)):
-                # use incorrect client id in request
-                response = request_func(connector_port, incorrect_client_id, None, data)
-                decrypted = deserialize_and_decrypt_acrastruct(response, client_id_private_key, correct_client_id)
-                self.assertEqual(data, decrypted)
-
-    def apiDecryptionTest(self, request_func, use_http=False, use_grpc=False):
-        # one is set
-        self.assertTrue(use_http or use_grpc)
-        # two is not acceptable
-        self.assertFalse(use_http and use_grpc)
-        translator_port = 3456
-        connector_port = 12345
-        client_id = "keypair1"
-        data = get_pregenerated_random_data().encode('ascii')
-        encryption_key = read_storage_public_key(
-            client_id, keys_dir=KEYS_FOLDER.name)
-        acrastruct = create_acrastruct(data, encryption_key)
-        connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
-        translator_kwargs = {
-            'incoming_connection_http_string': connection_string if use_http else '',
-            # turn off grpc to avoid check connection to it without acra-connector
-            'incoming_connection_grpc_string': connection_string if use_grpc else '',
-            'acratranslator_client_id_from_connection_enable': 'true',
-        }
-
-        correct_client_id = 'keypair1'
-        incorrect_client_id = 'keypair2'
-        with ProcessContextManager(self.fork_translator(translator_kwargs)):
-            with ProcessContextManager(self.fork_connector_for_translator(connector_port, translator_port, client_id)):
-                # use incorrect client id in request
-                response = request_func(connector_port, incorrect_client_id, None, acrastruct)
-                self.assertEqual(data, response)
-
-
-class TestAcraTranslatorGRPCClientIDFromSecureSessionVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoaderMixin, TestAcraTranslatorGRPCClientIDFromSecureSession):
+class TestAcraTranslatorWithVaultMasterKeyLoaderBySerialNumber(HashiCorpVaultMasterKeyLoaderMixin,
+                                                                    TLSAuthenticationBySerialNumberMixin, AcraTranslatorTest):
     pass
 
 
 class TestAcraTranslatorClientIDFromTLSByDistinguishedName(TLSAuthenticationByDistinguishedNameMixin, AcraTranslatorTest):
-    def testHTTPApiResponses(self):
-        self.skipTest("unnecessary")
-
-    def get_http_schema(self):
-        return 'https'
-
-    def get_grpc_channel(self, port):
-        '''setup grpc to use tls client authentication'''
-        with open(TEST_TLS_CA, 'rb') as ca_file, open(TEST_TLS_CLIENT_KEY, 'rb') as key_file, open(TEST_TLS_CLIENT_CERT, 'rb') as cert_file:
-            ca_bytes = ca_file.read()
-            key_bytes = key_file.read()
-            cert_bytes = cert_file.read()
-        tls_credentials = grpc.ssl_channel_credentials(ca_bytes, key_bytes, cert_bytes)
-        return grpc.secure_channel('localhost:{}'.format(port), tls_credentials)
-
-    def get_http_default_kwargs(self):
-        '''setup requests to use client's certificates'''
-        kwargs = super().get_http_default_kwargs()
-        kwargs['verify'] = TEST_TLS_CA
-        # https://requests.readthedocs.io/en/master/user/advanced/#client-side-certificates
-        # first crt, second key
-        kwargs['cert'] = (TEST_TLS_CLIENT_CERT, TEST_TLS_CLIENT_KEY)
-        return kwargs
-
-    def apiEncryptionTest(self, request_func, use_http=False, use_grpc=False):
-        # one is set
-        self.assertTrue(use_http or use_grpc)
-        # two is not acceptable
-        self.assertFalse(use_http and use_grpc)
-        translator_port = 3456
-        key_folder = tempfile.TemporaryDirectory()
-        try:
-            client_id = self.get_valid_certificate_identifier()
-            self.assertEqual(create_client_keypair(name=client_id, keys_dir=key_folder.name), 0)
-            data = get_pregenerated_random_data().encode('ascii')
-            client_id_private_key = read_storage_private_key(key_folder.name, client_id)
-            connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
-            translator_kwargs = {
-                'incoming_connection_http_string': connection_string if use_http else '',
-                # turn off grpc to avoid check connection to it without acra-connector
-                'incoming_connection_grpc_string': connection_string if use_grpc else '',
-                'tls_key': abs_path(TEST_TLS_SERVER_KEY),
-                'tls_cert': abs_path(TEST_TLS_SERVER_CERT),
-                'tls_ca': TEST_TLS_CA,
-                'keys_dir': key_folder.name,
-                'tls_identifier_extractor_type': self.get_identifier_extractor_type(),
-                'acratranslator_client_id_from_connection_enable': 'true',
-                'acratranslator_tls_transport_enable': 'true',
-                'tls_ocsp_from_cert': 'ignore',
-                'tls_crl_from_cert': 'ignore',
-                'acraconnector_transport_encryption_disable': 'true',
-            }
-
-            incorrect_client_id = 'keypair2'
-            with ProcessContextManager(self.fork_translator(translator_kwargs)):
-                    response = request_func(translator_port, incorrect_client_id, None, data)
-                    decrypted = deserialize_and_decrypt_acrastruct(response, client_id_private_key, client_id)
-                    self.assertEqual(data, decrypted)
-        finally:
-            shutil.rmtree(key_folder.name)
-
-    def apiDecryptionTest(self, request_func, use_http=False, use_grpc=False):
-        # one is set
-        self.assertTrue(use_http or use_grpc)
-        # two is not acceptable
-        self.assertFalse(use_http and use_grpc)
-        translator_port = 3456
-        key_folder = tempfile.TemporaryDirectory()
-        try:
-            client_id = self.get_valid_certificate_identifier()
-            self.assertEqual(create_client_keypair(name=client_id, keys_dir=key_folder.name), 0)
-            data = get_pregenerated_random_data().encode('ascii')
-            encryption_key = read_storage_public_key(client_id, keys_dir=key_folder.name)
-            acrastruct = create_acrastruct(data, encryption_key)
-            connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
-            translator_kwargs = {
-                'incoming_connection_http_string': connection_string if use_http else '',
-                # turn off grpc to avoid check connection to it without acra-connector
-                'incoming_connection_grpc_string': connection_string if use_grpc else '',
-                'tls_key': abs_path(TEST_TLS_SERVER_KEY),
-                'tls_cert': abs_path(TEST_TLS_SERVER_CERT),
-                'tls_ca': TEST_TLS_CA,
-                'keys_dir': key_folder.name,
-                'tls_identifier_extractor_type': self.get_identifier_extractor_type(),
-                'acratranslator_client_id_from_connection_enable': 'true',
-                'acratranslator_tls_transport_enable': 'true',
-                'tls_ocsp_from_cert': 'ignore',
-                'tls_crl_from_cert': 'ignore',
-                'acraconnector_transport_encryption_disable': 'true',
-            }
-
-            incorrect_client_id = 'keypair2'
-            with ProcessContextManager(self.fork_translator(translator_kwargs)):
-                    response = request_func(translator_port, incorrect_client_id, None, acrastruct)
-                    self.assertEqual(data, response)
-        finally:
-            shutil.rmtree(key_folder.name)
+    pass
 
 
 class TestAcraTranslatorClientIDFromTLSByDistinguishedNameVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoaderMixin, TestAcraTranslatorClientIDFromTLSByDistinguishedName):
@@ -4890,9 +4609,6 @@ class TestAcraTranslatorClientIDFromTLSBySerialNumberVaultMasterKeyLoader(HashiC
 
 class TestAcraRotateWithZone(BaseTestCase):
     ZONE = True
-
-    def checkSkip(self):
-        return
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         acra_kwargs['keystore_cache_size'] = -1  # no cache
@@ -4935,7 +4651,7 @@ class TestAcraRotateWithZone(BaseTestCase):
             for i in range(zone_id_count):
                 zone_data = json.loads(
                     subprocess.check_output(
-                        ['./acra-addzone',
+                        [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'),
                          '--keys_output_dir={}'.format(keys_folder)],
                         cwd=os.getcwd(),
                         timeout=PROCESS_CALL_TIMEOUT).decode('utf-8'))
@@ -4964,7 +4680,7 @@ class TestAcraRotateWithZone(BaseTestCase):
                     json.dump(zone_map, zone_map_file)
                     zone_map_file.close()
                     result = subprocess.check_output(
-                        ['./acra-rotate', '--keys_dir={}'.format(keys_folder),
+                        [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-rotate'), '--keys_dir={}'.format(keys_folder),
                          '--file_map_config={}'.format(zone_map_file.name),
                          '--dry-run={}'.format(1 if dryRun else 0)])
                     if not isinstance(result, str):
@@ -5041,7 +4757,7 @@ class TestAcraRotateWithZone(BaseTestCase):
         for i in range(zone_count):
             zones.append(
                 json.loads(subprocess.check_output(
-                    ['./acra-addzone',
+                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'),
                      '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
                     cwd=os.getcwd(),
                     timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
@@ -5091,7 +4807,7 @@ class TestAcraRotateWithZone(BaseTestCase):
                 self.fail("unsupported settings of tested db")
 
             default_args = [
-                './acra-rotate',
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-rotate'),
                 '--keys_dir={}'.format(KEYS_FOLDER.name),
                 '--db_connection_string={}'.format(connection_string),
                 '--dry-run={}'.format(1 if dry_run else 0),
@@ -5208,7 +4924,7 @@ class TestAcraRotate(TestAcraRotateWithZone):
             # generate keys in separate folder
 
             subprocess.check_output(
-                ['./acra-keymaker',
+                [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
                  '--client_id={}'.format(client_id),
                  '--keys_output_dir={}'.format(keys_folder),
                  '--keys_public_output_dir={}'.format(keys_folder),
@@ -5239,7 +4955,7 @@ class TestAcraRotate(TestAcraRotateWithZone):
                     json.dump(keys_map, keys_map_file)
                     keys_map_file.close()
                     result = subprocess.check_output(
-                        ['./acra-rotate', '--keys_dir={}'.format(keys_folder),
+                        [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-rotate'), '--keys_dir={}'.format(keys_folder),
                          '--file_map_config={}'.format(keys_map_file.name),
                          '--dry-run={}'.format(1 if dryRun else 0),
                          '--zonemode_enable=false'])
@@ -5316,7 +5032,7 @@ class TestAcraRotate(TestAcraRotateWithZone):
         data_before_rotate = {}
 
         data = get_pregenerated_random_data()
-        client_id = 'keypair1'
+        client_id = TLS_CERT_CLIENT_ID_1
         acra_struct = create_acrastruct_with_client_id(data.encode('ascii'), client_id)
         row_id = get_random_id()
         data_before_rotate[row_id] = acra_struct
@@ -5358,7 +5074,7 @@ class TestAcraRotate(TestAcraRotateWithZone):
                 self.fail("unsupported settings of tested db")
 
             default_args = [
-                './acra-rotate',
+                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-rotate'),
                 '--keys_dir={}'.format(KEYS_FOLDER.name),
                 '--db_connection_string={}'.format(connection_string),
                 '--dry-run={}'.format(1 if dry_run else 0),
@@ -5434,9 +5150,6 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
     # some small value but greater than 0 to compare with metrics value of time of processing
     MIN_EXECUTION_TIME = 0.0000001
 
-    def checkSkip(self):
-        return
-
     def checkMetrics(self, url, labels=None):
         """
         check that output of prometheus exporter contains all labels
@@ -5485,9 +5198,9 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
 
     def testAcraServer(self):
         # run some queries to set some values for counters
-        HexFormatTest.testConnectorRead(self)
+        HexFormatTest.testClientIDRead(self)
         labels = {
-            # acra-connector keypair1 + keypair2
+            # TEST_TLS_CLIENT_CERT + TEST_TLS_CLIENT_2_CERT
             'acraserver_connections_total': {'min_value': 2},
 
             'acraserver_connections_processing_seconds_bucket': {'min_value': 0},
@@ -5513,24 +5226,6 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
         self.checkMetrics('http://localhost:{}/metrics'.format(
             self.ACRASERVER_PROMETHEUS_PORT), labels)
 
-    def testAcraConnector(self):
-        # connector should has some values in counter after connections checks
-        # on setUp
-        labels = {
-            'acraconnector_connections_total': {'min_value': 2},
-
-            'acraconnector_connections_processing_seconds_bucket': {'min_value': 0},
-            'acraconnector_connections_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
-            'acraconnector_connections_processing_seconds_count': {'min_value': 1},
-
-            'acraconnector_version_major': {'min_value': 0},
-            'acraconnector_version_minor': {'min_value': 0},
-            'acraconnector_version_patch': {'min_value': 0},
-
-            'acraconnector_build_info': {'min_value': 1},
-        }
-        self.checkMetrics('http://localhost:{}/metrics'.format(
-            self.get_connector_prometheus_port(self.CONNECTOR_PORT_1)), labels)
 
     def testAcraTranslator(self):
         labels = {
@@ -5556,37 +5251,44 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
         }
         translator_port = 3456
         metrics_port = translator_port+1
-        connector_port = 8000
         data = get_pregenerated_random_data().encode('ascii')
-        client_id = 'keypair1'
+        client_id = TLS_CERT_CLIENT_ID_1
         encryption_key = read_storage_public_key(
             client_id, keys_dir=KEYS_FOLDER.name)
         acrastruct = create_acrastruct(data, encryption_key)
 
         prometheus_metrics_address = 'tcp://localhost:{}'.format(metrics_port)
         connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
-        translator_kwargs = {
+        base_translator_kwargs = {
             'incoming_connection_http_string': connection_string,
             'incoming_connection_prometheus_metrics_string': prometheus_metrics_address,
+            'tls_key': abs_path(TEST_TLS_SERVER_KEY),
+            'tls_cert': abs_path(TEST_TLS_SERVER_CERT),
+            'tls_ca': TEST_TLS_CA,
+            'tls_identifier_extractor_type': TLS_CLIENT_ID_SOURCE_DN,
+            'acratranslator_client_id_from_connection_enable': 'true',
+            'tls_ocsp_from_cert': 'ignore',
+            'tls_crl_from_cert': 'ignore',
         }
         metrics_url = 'http://localhost:{}/metrics'.format(metrics_port)
-        api_url = 'http://localhost:{}/v1/decrypt'.format(connector_port)
-        with ProcessContextManager(self.fork_translator(translator_kwargs)):
-            with ProcessContextManager(self.fork_connector_for_translator(connector_port, translator_port, client_id)):
+        api_url = 'https://localhost:{}/v1/decrypt'.format(translator_port)
+        with ProcessContextManager(self.fork_translator(base_translator_kwargs)):
                 # test with correct acrastruct
-                response = requests.post(api_url, data=acrastruct,
+                cert = (TEST_TLS_CLIENT_CERT, TEST_TLS_CLIENT_KEY)
+                response = requests.post(api_url, data=acrastruct, cert=cert, verify=TEST_TLS_CA,
                                          timeout=REQUEST_TIMEOUT)
                 self.assertEqual(response.status_code, http.HTTPStatus.OK)
                 self.checkMetrics(metrics_url, labels)
 
-        translator_kwargs = {
+        grpc_translator_kwargs = {
             'incoming_connection_grpc_string': connection_string,
+            'incoming_connection_http_string': '',
             'incoming_connection_prometheus_metrics_string': prometheus_metrics_address,
         }
-        with ProcessContextManager(self.fork_translator(translator_kwargs)):
-            with ProcessContextManager(self.fork_connector_for_translator(connector_port, translator_port, client_id)):
+        base_translator_kwargs.update(grpc_translator_kwargs)
+        with ProcessContextManager(self.fork_translator(base_translator_kwargs)):
                 AcraTranslatorTest.grpc_decrypt_request(
-                    self, connector_port, client_id, None, acrastruct)
+                    self, translator_port, client_id, None, acrastruct)
                 self.checkMetrics(metrics_url, labels)
 
 
@@ -5607,11 +5309,8 @@ class TestTransparentEncryption(BaseTestCase):
     )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_config.yaml')
 
-    def checkSkip(self):
-        return
-
     def setUp(self):
-        self.prepare_encryptor_config(client_id='keypair1')
+        self.prepare_encryptor_config(client_id=TLS_CERT_CLIENT_ID_1)
         super(TestTransparentEncryption, self).setUp()
 
     def prepare_encryptor_config(self, client_id=None):
@@ -5666,7 +5365,7 @@ class TestTransparentEncryption(BaseTestCase):
     def checkSpecifiedIdEncryption(
             self, id, default_client_id, specified_client_id, zone_id,
             zone, raw_data, *args, **kwargs):
-        # fetch using another acra-connector that will authenticated as keypair1
+        # fetch using another client_id that will authenticated as TEST_TLS_CLIENT_2_CERT
         result = self.engine1.execute(
             sa.select([self.encryptor_table])
             .where(self.encryptor_table.c.id == id))
@@ -5683,7 +5382,7 @@ class TestTransparentEncryption(BaseTestCase):
         self.assertEqual(row['empty'], b'')
 
     def insertRow(self, data):
-        # send through acra-connector that authenticates as client_id=keypair2
+        # send through acra-server that authenticates as client_id=keypair2
         self.engine2.execute(self.encryptor_table.insert(), data)
 
     def check_all_decryptions(self, **context):
@@ -5772,44 +5471,25 @@ class TransparentEncryptionNoKeyMixin(AcraCatchLogsMixin):
         if hasattr(self, 'acra'):
             stop_process(self.acra)
         send_signal_by_process_name('acra-server', signal.SIGKILL)
-        send_signal_by_process_name('acra-connector', signal.SIGKILL)
         self.server_keystore.cleanup()
-        self.connector_keystore.cleanup()
         super().tearDown()
 
     def init_key_stores(self):
         self.client_id = 'test_client_ID'
         self.server_keystore = tempfile.TemporaryDirectory()
         self.server_keys_dir = os.path.join(self.server_keystore.name, '.acrakeys')
-        self.connector_keystore = tempfile.TemporaryDirectory()
-        self.connector_keys_dir = os.path.join(self.connector_keystore.name, '.acrakeys')
 
-        create_client_keypair(name=self.client_id, keys_dir=self.server_keys_dir,
-                              only_server=True, only_storage=True)
-        create_client_keypair(name=self.client_id, keys_dir=self.connector_keys_dir,
-                              only_connector=True)
+        create_client_keypair(name=self.client_id, keys_dir=self.server_keys_dir, only_storage=True)
 
         zones.append(json.loads(subprocess.check_output(
-            ['./acra-addzone', '--keys_output_dir={}'.format(self.server_keys_dir)],
+            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.server_keys_dir)],
             cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
 
-        exchange_client_public_keys(client=self.client_id,
-                                    server_keys_dir=self.server_keys_dir,
-                                    connector_keys_dir=self.connector_keys_dir)
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         args = {'keys_dir': self.server_keys_dir, 'client_id': self.client_id}
         acra_kwargs.update(args)
         return super().fork_acra(popen_kwargs, **acra_kwargs)
-
-    def fork_connector(self, connector_port: int, acraserver_port: int,
-                       client_id: str, api_port: int=None,
-                       zone_mode: bool=False, check_connection: bool=True,
-                       popen_kwargs: dict=None,
-                       **extra_options: dict):
-        args = {'keys_dir': self.connector_keys_dir}
-        return super().fork_connector(connector_port, acraserver_port, self.client_id, api_port, zone_mode, check_connection,
-                               popen_kwargs, **args)
 
     def testEncryptedInsert(self):
         destroy_server_storage_key(client_id=self.client_id, keys_dir=self.server_keys_dir, keystore_version=KEYSTORE_VERSION)
@@ -5819,7 +5499,7 @@ class TransparentEncryptionNoKeyMixin(AcraCatchLogsMixin):
         except:
             log = self.read_log(self.acra)
             if KEYSTORE_VERSION == 'v1':
-                no_key_error_msg = 'open {}/.acrakeys/{}_storage.pub: no such file or directory'.format(self.server_keystore.name, self.client_id)
+                no_key_error_msg = 'open {}/.acrakeys/{}_storage_sym: no such file or directory'.format(self.server_keystore.name, self.client_id)
             else:
                 no_key_error_msg = 'key path does not exist'
             self.assertIn(no_key_error_msg, log)
@@ -5989,7 +5669,7 @@ class TestEncryptionWithIntFields(BaseTestCase):
 
         data_encrypted = create_acrastruct(
             data,
-            read_storage_public_key('keypair1', KEYS_FOLDER.name)
+            read_storage_public_key(TLS_CERT_CLIENT_ID_1, KEYS_FOLDER.name)
         )
 
         # insert some data
@@ -6060,20 +5740,19 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             # generate configs for tests
-            subprocess.check_output(['configs/regenerate.sh', tmp_dir])
+            subprocess.check_output(['configs/regenerate.sh', tmp_dir], env={'BINARY_FOLDER': BINARY_OUTPUT_FOLDER})
 
             for service in services:
                 self.remove_version_from_config(os.path.join(tmp_dir, service + '.yaml'))
 
             default_args = {
                 'acra-server': ['-db_host=127.0.0.1'],
-                'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
                 'acra-keys': [],
                 'acra-heartbeat': ['--logging_format=plaintext'],
             }
             for service in services:
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
-                args = ['./' + service, config_param] + default_args.get(service, [])
+                args = [os.path.join(BINARY_OUTPUT_FOLDER, service), config_param] + default_args.get(service, [])
                 stderr = self.getOutputFromProcess(args)
                 self.assertIn('error="config hasn\'t version key"', stderr)
 
@@ -6084,20 +5763,19 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             # generate configs for tests
-            subprocess.check_output(['configs/regenerate.sh', tmp_dir])
+            subprocess.check_output(['configs/regenerate.sh', tmp_dir], env={'BINARY_FOLDER': BINARY_OUTPUT_FOLDER})
 
             for service in services:
                 self.replace_version_in_config('0.0.0', os.path.join(tmp_dir, service + '.yaml'))
 
             default_args = {
                 'acra-server': ['-db_host=127.0.0.1'],
-                'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
                 'acra-keys': [],
                 'acra-heartbeat': ['--logging_format=plaintext'],
             }
             for service in services:
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
-                args = ['./' + service, config_param] + default_args.get(service, [])
+                args = [os.path.join(BINARY_OUTPUT_FOLDER, service), config_param] + default_args.get(service, [])
                 stderr = self.getOutputFromProcess(args)
                 self.assertRegexpMatches(stderr, r'code=508 error="config version \\"0.0.0\\" is not supported, expects \\"[\d.]+\\" version')
 
@@ -6108,7 +5786,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             # generate configs for tests
-            subprocess.check_output(['configs/regenerate.sh', tmp_dir])
+            subprocess.check_output(['configs/regenerate.sh', tmp_dir], env={'BINARY_FOLDER': BINARY_OUTPUT_FOLDER})
 
             for service in services:
                 config_path = os.path.join(tmp_dir, service + '.yaml')
@@ -6120,9 +5798,6 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
 
             default_args = {
                 'acra-addzone': ['-keys_output_dir={}'.format(KEYS_FOLDER.name)],
-                'acra-connector': {'connection': 'connection_string',
-                                   'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
-                                   'status': 1},
                 'acra-heartbeat': {'args': ['--logging_format=plaintext',
                                             '--connection_string=please-fail'],
                                    'status': 1},
@@ -6154,7 +5829,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                     service_args = test_data
 
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
-                args = ['./' + service, config_param] + service_args
+                args = [os.path.join(BINARY_OUTPUT_FOLDER, service), config_param] + service_args
                 stderr = self.getOutputFromProcess(args)
                 self.assertNotRegex(stderr, r'code=508 error="config version \\"[\d.+]\\" is not supported, expects \\"[\d.]+\\" version')
 
@@ -6166,9 +5841,6 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
         with tempfile.TemporaryDirectory() as tmp_dir:
             default_args = {
                 'acra-addzone': ['-keys_output_dir={}'.format(KEYS_FOLDER.name)],
-                'acra-connector': {'connection': 'connection_string',
-                                   'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
-                                   'status': 1},
                 'acra-heartbeat': {'args': ['--logging_format=plaintext',
                                             '--connection_string=please-fail'],
                                    'status': 1},
@@ -6199,7 +5871,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                 else:
                     service_args = test_data
 
-                args = ['./' + service, '-config_file=""'] + service_args
+                args = [os.path.join(BINARY_OUTPUT_FOLDER, service), '-config_file=""'] + service_args
                 stderr = self.getOutputFromProcess(args)
                 self.assertNotRegex(stderr, r'code=508 error="config version \\"[\d.]\\" is not supported, expects \\"[\d.]+\\" version')
 
@@ -6208,9 +5880,11 @@ class TestPgPlaceholders(BaseTestCase):
     def checkSkip(self):
         if TEST_MYSQL or not TEST_POSTGRESQL:
             self.skipTest("test only for postgresql")
+        elif not TEST_WITH_TLS:
+            self.skipTest("running tests only with TLS")
 
     def testPgPlaceholders(self):
-        connection_args = ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
+        connection_args = ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
                                          user=DB_USER, password=DB_USER_PASSWORD,
                                          dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                                          ssl_key=TEST_TLS_CLIENT_KEY,
@@ -6233,41 +5907,42 @@ class TestPgPlaceholders(BaseTestCase):
         self.assertEqual(data[0][0], test_data)
 
 
-class TestTLSAuthenticationWithConnectorByDistinguishedName(TLSAuthenticationByDistinguishedNameMixin, BaseTestCase):
-    """
-    Tests environment when connector and acra connected with tls and acra-server extracts clientID from connector's certificate
-    instead using from --clientID CLI param
-    """
-    CONNECTOR_TLS_TRANSPORT = True
-
+class TLSAuthenticationDirectlyToAcraMixin:
+    """Start acra-server TLS mode and use clientID from certificates
+    self.engine1 uses TEST_TLS_CLIENT_* and self.engine2 uses TEST_TLS_CLIENT_2_* values as TLS credentials"""
     def setUp(self):
         if not TEST_WITH_TLS:
             self.skipTest("Test works only with TLS support on db side")
-        self.acra_writer_id = self.get_valid_certificate_identifier()
-        self.assertEqual(create_client_keypair(name=self.acra_writer_id, keys_dir=KEYS_FOLDER.name), 0)
+        self.acra_writer_id = extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_CERT, extractor=self.get_identifier_extractor_type())
+        self.assertEqual(create_client_keypair_from_certificate(tls_cert=TEST_TLS_CLIENT_CERT,
+                                                                extractor=self.get_identifier_extractor_type(), keys_dir=KEYS_FOLDER.name), 0)
+        # generate encryption keys for second certificate too
+        self.assertEqual(create_client_keypair_from_certificate(tls_cert=TEST_TLS_CLIENT_2_CERT,
+                                                                extractor=self.get_identifier_extractor_type(), keys_dir=KEYS_FOLDER.name), 0)
         try:
-            self.fork_certificate_validation_services()
-
             if not self.EXTERNAL_ACRA:
-                self.acra = self.fork_acra(tls_client_id_from_cert=True,
-                                           tls_key=abs_path(TEST_TLS_SERVER_KEY),
-                                           tls_cert=abs_path(TEST_TLS_SERVER_CERT),
-                                           tls_ca=TEST_TLS_CA,
-                                           keys_dir=KEYS_FOLDER.name,
-                                           tls_identifier_extractor_type=self.get_identifier_extractor_type())
-            # use different tls key/certificate for connectors
-            self.connector_1 = self.fork_connector(self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, 'keypair1',
-                                                   tls_cert=TEST_TLS_CLIENT_CERT, tls_key=TEST_TLS_CLIENT_KEY)
-            self.connector_2 = self.fork_connector(self.CONNECTOR_PORT_2, self.ACRASERVER_PORT, 'keypair2',
-                                                   tls_cert=TEST_TLS_CLIENT_2_CERT, tls_key=TEST_TLS_CLIENT_2_KEY)
+                # start acra with configured TLS
+                self.acra = self.fork_acra(
+                    tls_key=abs_path(TEST_TLS_SERVER_KEY),
+                    tls_cert=abs_path(TEST_TLS_SERVER_CERT),
+                    tls_ca=TEST_TLS_CA,
+                    keys_dir=KEYS_FOLDER.name,
+                    tls_identifier_extractor_type=self.get_identifier_extractor_type())
 
+            # create two engines which should use different client's certificates for authentication
+            base_args = get_connect_args(port=self.ACRASERVER_PORT, sslmode='require')
+            tls_args_1 = base_args.copy()
+            tls_args_1.update(get_tls_connection_args(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT))
             self.engine1 = sa.create_engine(
-                get_engine_connection_string(self.get_connector_connection_string(self.CONNECTOR_PORT_1), DB_NAME),
-                connect_args=get_connect_args(port=self.CONNECTOR_PORT_1))
+                get_engine_connection_string(self.get_acraserver_connection_string(self.ACRASERVER_PORT), DB_NAME),
+                connect_args=tls_args_1)
+
+            tls_args_2 = base_args.copy()
+            tls_args_2.update(get_tls_connection_args(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT))
             self.engine2 = sa.create_engine(
-                get_engine_connection_string(
-                    self.get_connector_connection_string(self.CONNECTOR_PORT_2), DB_NAME),
-                connect_args=get_connect_args(port=self.CONNECTOR_PORT_2))
+                get_engine_connection_string(self.get_acraserver_connection_string(self.ACRASERVER_PORT), DB_NAME),
+                connect_args=tls_args_2)
+
             self.engine_raw = sa.create_engine(
                 '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
                 connect_args=connect_args)
@@ -6309,19 +5984,86 @@ class TestTLSAuthenticationWithConnectorByDistinguishedName(TLSAuthenticationByD
             pass
         for engine in getattr(self, 'engines', []):
             engine.dispose()
-        processes = [getattr(self, 'connector_1', ProcessStub()),
-                     getattr(self, 'connector_2', ProcessStub()),
-                     getattr(self, 'acra', ProcessStub())]
+        processes = [getattr(self, 'acra', ProcessStub())]
         stop_process(processes)
         send_signal_by_process_name('acra-server', signal.SIGKILL)
-        send_signal_by_process_name('acra-connector', signal.SIGKILL)
 
-        self.kill_certificate_validation_services()
 
-    def testConnectorRead(self):
-        """test decrypting with correct acra-connector and not decrypting with
-        incorrect acra-connector or using direct connection to db"""
-        self.assertEqual(create_client_keypair(name=self.acra_writer_id, keys_dir=KEYS_FOLDER.name), 0)
+class TestDirectTLSAuthenticationFailures(TLSAuthenticationBySerialNumberMixin, BaseTestCase):
+    # override setUp/tearDown from BaseTestCase to avoid extra initialization
+    def setUp(self):
+        if not TEST_WITH_TLS:
+            self.skipTest("Test works only with TLS support on db side")
+
+    def tearDown(self):
+        pass
+
+    def testInvalidClientAuthConfiguration(self):
+        # try to start server with --tls_auth=0 and extracting client_id from TLS which is invalid together
+        # because tls_auth=0 doesn't require client's certificate on handshake
+        self.assertEqual(create_client_keypair_from_certificate(tls_cert=TEST_TLS_CLIENT_CERT, keys_dir=KEYS_FOLDER.name), 0)
+        # generate encryption keys for second certificate too
+        self.assertEqual(create_client_keypair_from_certificate(tls_cert=TEST_TLS_CLIENT_2_CERT, keys_dir=KEYS_FOLDER.name), 0)
+        with self.assertRaises(Exception) as exc:
+            self.fork_acra(
+                tls_key=abs_path(TEST_TLS_SERVER_KEY),
+                tls_cert=abs_path(TEST_TLS_SERVER_CERT),
+                tls_ca=TEST_TLS_CA,
+                tls_auth=0,
+                keys_dir=KEYS_FOLDER.name,
+                tls_identifier_extractor_type=self.get_identifier_extractor_type())
+        # sometimes process start so fast that fork returns PID and between CLI checks and returning os.Exit(1)
+        # python code starts connection loop even after process interruption
+        self.assertIn(exc.exception.args[0], ('Can\'t fork', WAIT_CONNECTION_ERROR_MESSAGE))
+
+    def testDirectConnectionWithoutCertificate(self):
+        # try to start server with --tls_auth >= 1 and extracting client_id from TLS and connect directly without
+        # providing any certificate
+        self.assertEqual(create_client_keypair_from_certificate(tls_cert=TEST_TLS_CLIENT_CERT, keys_dir=KEYS_FOLDER.name), 0)
+        # generate encryption keys for second certificate too
+        self.assertEqual(create_client_keypair_from_certificate(tls_cert=TEST_TLS_CLIENT_2_CERT, keys_dir=KEYS_FOLDER.name), 0)
+        acra = ProcessStub()
+        for tls_auth in range(1, 5):
+            try:
+                acra = self.fork_acra(
+                    tls_key=abs_path(TEST_TLS_SERVER_KEY),
+                    tls_cert=abs_path(TEST_TLS_SERVER_CERT),
+                    tls_ca=TEST_TLS_CA,
+                    tls_auth=tls_auth,
+                    keys_dir=KEYS_FOLDER.name,
+                    tls_identifier_extractor_type=self.get_identifier_extractor_type())
+
+                base_args = get_connect_args(port=self.ACRASERVER_PORT, sslmode='require')
+                tls_args_1 = base_args.copy()
+                tls_args_1.update(get_tls_connection_args_without_certificate())
+                if TEST_POSTGRESQL:
+                    expected_exception = psycopg2.OperationalError
+                else:
+                    expected_exception = pymysql.err.OperationalError
+                print(expected_exception)
+                engine1 = sa.create_engine(
+                    get_engine_connection_string(
+                        self.get_acraserver_connection_string(self.ACRASERVER_PORT), DB_NAME),
+                    connect_args=tls_args_1)
+                with self.assertRaises(expected_exception) as exc:
+                    # test query
+                    engine1.execute('select 1')
+            except Exception as exc2:
+                pass
+            finally:
+                stop_process(acra)
+
+
+class TestTLSAuthenticationDirectlyToAcraByDistinguishedName(TLSAuthenticationDirectlyToAcraMixin, TLSAuthenticationByDistinguishedNameMixin, BaseTestCase):
+    """
+    Tests environment when client's app connect to db through acra-server with TLS and acra-server extracts clientID from client's certificate
+    instead using from --clientID CLI param
+    """
+    def testServerRead(self):
+        """test decrypting with correct client_id and not decrypting with
+        incorrect client_id or using direct connection to db"""
+        self.assertEqual(create_client_keypair_from_certificate(tls_cert=TEST_TLS_CLIENT_CERT,
+                                                                extractor=self.get_identifier_extractor_type(), keys_dir=KEYS_FOLDER.name), 0)
         server_public1 = read_storage_public_key(self.acra_writer_id, KEYS_FOLDER.name)
         data = get_pregenerated_random_data()
         acra_struct = create_acrastruct(
@@ -6412,179 +6154,6 @@ class TestTLSAuthenticationWithConnectorByDistinguishedName(TLSAuthenticationByD
         self.assertEqual(row['empty'], b'')
 
 
-class TestTLSAuthenticationWithConnectorBySerialNumber(TLSAuthenticationBySerialNumberMixin,
-                                                       TestTLSAuthenticationWithConnectorByDistinguishedName):
-    pass
-
-
-class TLSAuthenticationDirectlyToAcraMixin:
-    """Start acra-server without acra-connector in TLS mode and use clientID from certificates
-    self.engine1 uses TEST_TLS_CLIENT_* and self.engine2 uses TEST_TLS_CLIENT_2_* values as TLS credentials
-    Should be used in pair with mixins which implements get_valid_certificate_identifier() method"""
-    def setUp(self):
-        if not TEST_WITH_TLS:
-            self.skipTest("Test works only with TLS support on db side")
-        self.acra_writer_id = self.get_valid_certificate_identifier()
-        self.assertEqual(create_client_keypair(name=self.acra_writer_id, keys_dir=KEYS_FOLDER.name), 0)
-        # generate encryption keys for second certificate too
-        self.assertEqual(create_client_keypair(name=self.get_valid_certificate_identifier(TEST_TLS_CLIENT_2_CERT), keys_dir=KEYS_FOLDER.name), 0)
-        try:
-            self.fork_certificate_validation_services()
-
-            if not self.EXTERNAL_ACRA:
-                # start acra without acra-connector with configured TLS
-                self.acra = self.fork_acra(
-                    tls_key=abs_path(TEST_TLS_SERVER_KEY),
-                    tls_cert=abs_path(TEST_TLS_SERVER_CERT),
-                    tls_ca=TEST_TLS_CA,
-                    keys_dir=KEYS_FOLDER.name,
-                    tls_client_id_from_cert=True,
-                    acraconnector_transport_encryption_disable=True,
-                    tls_identifier_extractor_type=self.get_identifier_extractor_type())
-
-            # create two engines which should use different client's certificates for authentication
-            base_args = get_connect_args(port=self.ACRASERVER_PORT, sslmode='require')
-            tls_args_1 = base_args.copy()
-            tls_args_1.update(get_tls_connection_args(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT))
-            self.engine1 = sa.create_engine(
-                get_engine_connection_string(self.get_acraserver_connection_string(self.ACRASERVER_PORT), DB_NAME),
-                connect_args=tls_args_1)
-
-            tls_args_2 = base_args.copy()
-            tls_args_2.update(get_tls_connection_args(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT))
-            self.engine2 = sa.create_engine(
-                get_engine_connection_string(self.get_acraserver_connection_string(self.ACRASERVER_PORT), DB_NAME),
-                connect_args=tls_args_2)
-
-            self.engine_raw = sa.create_engine(
-                '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
-                connect_args=connect_args)
-
-            self.engines = [self.engine1, self.engine2, self.engine_raw]
-
-            metadata.create_all(self.engine_raw)
-            self.engine_raw.execute('delete from test;')
-            for engine in self.engines:
-                count = 0
-                # try with sleep if acra not up yet
-                while True:
-                    try:
-                        if TEST_MYSQL:
-                            engine.execute("select 1;")
-                        else:
-                            engine.execute(
-                                "UPDATE pg_settings SET setting = '{}' "
-                                "WHERE name = 'bytea_output'".format(self.DB_BYTEA))
-                        break
-                    except Exception as e:
-                        time.sleep(SETUP_SQL_COMMAND_TIMEOUT)
-                        count += 1
-                        if count == SQL_EXECUTE_TRY_COUNT:
-                            raise
-        except:
-            self.tearDown()
-            raise
-
-    def tearDown(self):
-        try:
-            self.log_prometheus_metrics()
-            self.clear_prometheus_addresses()
-        except:
-            pass
-        try:
-            self.engine_raw.execute('delete from test;')
-        except:
-            pass
-        for engine in getattr(self, 'engines', []):
-            engine.dispose()
-        processes = [getattr(self, 'acra', ProcessStub())]
-        stop_process(processes)
-        send_signal_by_process_name('acra-server', signal.SIGKILL)
-
-        self.kill_certificate_validation_services()
-
-
-class TestDirectTLSAuthenticationFailures(TLSAuthenticationBySerialNumberMixin, BaseTestCase):
-    # override setUp/tearDown from BaseTestCase to avoid extra initialization
-    def setUp(self):
-        if not TEST_WITH_TLS:
-            self.skipTest("Test works only with TLS support on db side")
-
-    def tearDown(self):
-        pass
-
-    def testInvalidClientAuthConfiguration(self):
-        # try to start server with --tls_auth=0 and extracting client_id from TLS which is invalid together
-        # because tls_auth=0 doesn't require client's certificate on handshake
-        acra_writer_id = self.get_valid_certificate_identifier()
-        self.assertEqual(create_client_keypair(name=acra_writer_id, keys_dir=KEYS_FOLDER.name), 0)
-        # generate encryption keys for second certificate too
-        self.assertEqual(create_client_keypair(
-            name=self.get_valid_certificate_identifier(TEST_TLS_CLIENT_2_CERT), keys_dir=KEYS_FOLDER.name), 0)
-        with self.assertRaises(Exception) as exc:
-            self.fork_acra(
-                tls_key=abs_path(TEST_TLS_SERVER_KEY),
-                tls_cert=abs_path(TEST_TLS_SERVER_CERT),
-                tls_ca=TEST_TLS_CA,
-                tls_auth=0,
-                keys_dir=KEYS_FOLDER.name,
-                tls_client_id_from_cert=True,
-                acraconnector_transport_encryption_disable=True,
-                tls_identifier_extractor_type=self.get_identifier_extractor_type())
-        # sometimes process start so fast that fork returns PID and between CLI checks and returning os.Exit(1)
-        # python code starts connection loop even after process interruption
-        self.assertIn(exc.exception.args[0], ('Can\'t fork', "can't wait connection"))
-
-    def testDirectConnectionWithoutCertificate(self):
-        # try to start server with --tls_auth >= 1 and extracting client_id from TLS and connect directly without
-        # providing any certificate
-        acra_writer_id = self.get_valid_certificate_identifier()
-        self.assertEqual(create_client_keypair(name=acra_writer_id, keys_dir=KEYS_FOLDER.name), 0)
-        # generate encryption keys for second certificate too
-        self.assertEqual(create_client_keypair(
-            name=self.get_valid_certificate_identifier(TEST_TLS_CLIENT_2_CERT), keys_dir=KEYS_FOLDER.name), 0)
-        acra = ProcessStub()
-        for tls_auth in range(1, 5):
-            try:
-                acra = self.fork_acra(
-                    tls_key=abs_path(TEST_TLS_SERVER_KEY),
-                    tls_cert=abs_path(TEST_TLS_SERVER_CERT),
-                    tls_ca=TEST_TLS_CA,
-                    tls_auth=tls_auth,
-                    keys_dir=KEYS_FOLDER.name,
-                    tls_client_id_from_cert=True,
-                    acraconnector_transport_encryption_disable=True,
-                    tls_identifier_extractor_type=self.get_identifier_extractor_type())
-
-                base_args = get_connect_args(port=self.ACRASERVER_PORT, sslmode='require')
-                tls_args_1 = base_args.copy()
-                tls_args_1.update(get_tls_connection_args_without_certificate())
-                if TEST_POSTGRESQL:
-                    expected_exception = psycopg2.OperationalError
-                else:
-                    expected_exception = pymysql.err.OperationalError
-                print(expected_exception)
-                engine1 = sa.create_engine(
-                    get_engine_connection_string(
-                        self.get_acraserver_connection_string(self.ACRASERVER_PORT), DB_NAME),
-                    connect_args=tls_args_1)
-                with self.assertRaises(expected_exception) as exc:
-                    # test query
-                    engine1.execute('select 1')
-            except Exception as exc2:
-                pass
-            finally:
-                stop_process(acra)
-
-
-class TestTLSAuthenticationDirectlyToAcraByDistinguishedName(TLSAuthenticationDirectlyToAcraMixin, TestTLSAuthenticationWithConnectorByDistinguishedName):
-    """
-    Tests environment without connector, when client's app connect to db through acra-server with TLS and acra-server extracts clientID from client's certificate
-    instead using from --clientID CLI param
-    """
-    CONNECTOR_TLS_TRANSPORT = False
-
-
 class TestTLSAuthenticationDirectlyToAcraBySerialNumber(TLSAuthenticationBySerialNumberMixin,
                                                         TestTLSAuthenticationDirectlyToAcraByDistinguishedName):
     pass
@@ -6600,8 +6169,8 @@ class TestTLSAuthenticationDirectlyToAcraBySerialNumberConnectionsClosed(AcraCat
         super().testReadAcrastructInAcrastruct()
         self.assertIn("Finished processing client's connection", self.read_log(self.acra))
 
-    def testConnectorRead(self):
-        super().testConnectorRead()
+    def testServerRead(self):
+        super().testServerRead()
         self.assertIn("Finished processing client's connection", self.read_log(self.acra))
 
 
@@ -6698,11 +6267,11 @@ class BaseSearchableTransparentEncryption(TestTransparentEncryption):
                 count -= 1
 
     def executeSelect2(self, query, parameters):
-        """Execute a SELECT query with parameters via AcraConnector for "keypair2"."""
+        """Execute a SELECT query with parameters via AcraServer for "keypair2"."""
         return self.engine2.execute(query, parameters).fetchall()
 
     def executeBulkInsert(self, query, values):
-        """Execute a Bulk Insert query with list of values via AcraConnector for "keypair2"."""
+        """Execute a Bulk Insert query with list of values via AcraServer for "TEST_TLS_CLIENT_2_CERT"."""
         return self.engine2.execute(query.values(values))
 
 
@@ -6712,7 +6281,7 @@ class BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin(BaseBinaryPostgre
         return self.executor2.execute_prepared_statement(query, parameters)
 
     def executeBulkInsert(self, query, values):
-        """Execute a Bulk Insert query with list of values via AcraConnector for "keypair2"."""
+        """Execute a Bulk Insert query with list of values via AcraServer for "TEST_TLS_CLIENT_2_CERT"."""
         query, parameters = self.compileBulkInsertQuery(query.values(values), values)
         return self.executor2.execute_prepared_statement(query, parameters)
 
@@ -6723,7 +6292,7 @@ class BaseSearchableTransparentEncryptionBinaryMySQLMixin(BaseBinaryMySQLTestCas
         return self.executor2.execute_prepared_statement(query, parameters)
 
     def executeBulkInsert(self, query, values):
-        """Execute a Bulk Insert query with list of values via AcraConnector for "keypair2"."""
+        """Execute a Bulk Insert query with list of values via AcraServer for "TEST_TLS_CLIENT_2_CERT"."""
         query, parameters = self.compileBulkInsertQuery(query.values(values), values)
         return self.executor2.execute_prepared_statement_no_result(query, parameters)
 
@@ -6831,7 +6400,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
                 .where(self.encryptor_table.c.id == row_id)).fetchall()
         self.assertTrue(rows)
 
-        temp_acrastruct = create_acrastruct_with_client_id(b'somedata', 'keypair1')
+        temp_acrastruct = create_acrastruct_with_client_id(b'somedata', TLS_CERT_CLIENT_ID_1)
         # AcraBlock should have half of AcraStruct begin tag. Check that searchable_acrablock is not AcraStruct
         self.assertNotEqual(rows[0]['searchable_acrablock'][:8], temp_acrastruct[:8])
         # skip 33 bytes of hash
@@ -6851,7 +6420,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         not_encrypted_term = context['raw_data']
         search_term = context['searchable']
         encrypted_term = create_acrastruct_with_client_id(
-            search_term, 'keypair2')
+            search_term, TLS_CERT_CLIENT_ID_2)
         context['searchable'] = encrypted_term
 
         # Insert searchable data and some additional different rows
@@ -6887,7 +6456,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         not_encrypted_term = context['raw_data']
         search_term = context['searchable_acrablock']
         encrypted_term = create_acrastruct_with_client_id(
-            search_term, 'keypair2')
+            search_term, TLS_CERT_CLIENT_ID_2)
         context['searchable_acrablock'] = encrypted_term
 
         # Insert searchable data and some additional different rows
@@ -6933,7 +6502,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         # Encrypt searchable data with epoch 1 key
         search_term = context['searchable']
         encrypted_term = create_acrastruct_with_client_id(
-            search_term, 'keypair2')
+            search_term, TLS_CERT_CLIENT_ID_2)
         context['searchable'] = encrypted_term
 
         # Insert searchable data and some additional different rows
@@ -6944,7 +6513,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         # Encrypt the search term again with the same epoch 1 key,
         # this will result in different encrypted data on outside
         encrypted_term_1 = create_acrastruct_with_client_id(
-            search_term, 'keypair2')
+            search_term, TLS_CERT_CLIENT_ID_2)
         self.assertNotEqual(encrypted_term_1, encrypted_term)
 
         # However, searchable encryption should still work with that
@@ -6957,11 +6526,11 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         self.assertEqual(rows[0]['searchable'], search_term)
 
         # Now, rotate the encryption keys
-        create_client_keypair('keypair2', only_storage=True)
+        create_client_keypair(TLS_CERT_CLIENT_ID_2, only_storage=True)
 
         # Encrypt the search term again, now with the epoch 2 key
         encrypted_term_2 = create_acrastruct_with_client_id(
-            search_term, 'keypair2')
+            search_term, TLS_CERT_CLIENT_ID_2)
         self.assertNotEqual(encrypted_term_2, encrypted_term)
         self.assertNotEqual(encrypted_term_2, encrypted_term_1)
 
@@ -6990,7 +6559,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         # Encrypt searchable data with epoch 1 key
         search_term = context['searchable_acrablock']
         encrypted_term = create_acrastruct_with_client_id(
-            search_term, 'keypair2')
+            search_term, TLS_CERT_CLIENT_ID_2)
         context['searchable_acrablock'] = encrypted_term
 
         # Insert searchable data and some additional different rows
@@ -7011,7 +6580,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         # Encrypt the search term again with the same epoch 1 key,
         # this will result in different encrypted data on outside
         encrypted_term_1 = create_acrastruct_with_client_id(
-            search_term, 'keypair2')
+            search_term, TLS_CERT_CLIENT_ID_2)
         self.assertNotEqual(encrypted_term_1, encrypted_term)
 
         # However, searchable encryption should still work with that
@@ -7024,11 +6593,11 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         self.assertEqual(rows[0]['searchable_acrablock'], search_term)
 
         # Now, rotate the encryption keys
-        create_client_keypair('keypair2', only_storage=True)
+        create_client_keypair(TLS_CERT_CLIENT_ID_2, only_storage=True)
 
         # Encrypt the search term again, now with the epoch 2 key
         encrypted_term_2 = create_acrastruct_with_client_id(
-            search_term, 'keypair2')
+            search_term, TLS_CERT_CLIENT_ID_2)
         self.assertNotEqual(encrypted_term_2, encrypted_term)
         self.assertNotEqual(encrypted_term_2, encrypted_term_1)
 
@@ -7100,11 +6669,8 @@ class BaseTokenization(BaseTestCase):
     WHOLECELL_MODE = True
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_tokenization_config.yaml')
 
-    def checkSkip(self):
-        pass
-
     def get_specified_client_id(self):
-        return 'keypair2'
+        return TLS_CERT_CLIENT_ID_2
 
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
         prepare_encryptor_config(
@@ -7113,19 +6679,19 @@ class BaseTokenization(BaseTestCase):
         return super(BaseTokenization, self).fork_acra(popen_kwargs, **acra_kwargs)
 
     def insert_via_1(self, query, values):
-        """Execute SQLAlchemy INSERT query via AcraConnector with "keypair1"."""
+        """Execute SQLAlchemy INSERT query via AcraServer with "TEST_TLS_CLIENT_CERT"."""
         return self.engine1.execute(query, values)
 
     def insert_via_1_bulk(self, query, values):
-        """Execute SQLAlchemy Bulk INSERT query via AcraConnector with "keypair1"."""
+        """Execute SQLAlchemy Bulk INSERT query via AcraServer with "TEST_TLS_CLIENT_CERT"."""
         self.engine1.execute(query.values(values))
 
     def fetch_from_1(self, query):
-        """Execute SQLAlchemy SELECT query via AcraConnector with "keypair1"."""
+        """Execute SQLAlchemy SELECT query via AcraServer with "TEST_TLS_CLIENT_CERT"."""
         return self.engine1.execute(query).fetchall()
 
     def fetch_from_2(self, query):
-        """Execute SQLAlchemy SELECT query via AcraConnector with "keypair2"."""
+        """Execute SQLAlchemy SELECT query via AcraServer with "TEST_TLS_CLIENT_2_CERT"."""
         return self.engine2.execute(query).fetchall()
 
 
@@ -7160,7 +6726,7 @@ class BaseTokenizationWithBinaryBindMySQL(BaseTokenization, BaseBinaryMySQLTestC
         self.executor1.execute_prepared_statement_no_result(query, parameters)
 
     def insert_via_1_bulk(self, query, values):
-        """Execute SQLAlchemy Bulk INSERT query via AcraConnector with "keypair1"."""
+        """Execute SQLAlchemy Bulk INSERT query via AcraServer with "TEST_TLS_CLIENT_CERT"."""
         query, parameters = self.compileBulkInsertQuery(query.values(values), values)
         return self.executor1.execute_prepared_statement_no_result(query, parameters)
 
@@ -7187,7 +6753,7 @@ class BaseTokenizationWithBinaryPostgreSQL(BaseTokenization, BaseBinaryPostgreSQ
         self.executor1.execute_prepared_statement(query, parameters)
 
     def insert_via_1_bulk(self, query, values):
-        """Execute SQLAlchemy Bulk INSERT query via AcraConnector with "keypair1"."""
+        """Execute SQLAlchemy Bulk INSERT query via AcraServer with "TEST_TLS_CLIENT_CERT"."""
         query, parameters = self.compileBulkInsertQuery(query.values(values), values)
         return self.executor1.execute_prepared_statement(query, parameters)
 
@@ -7219,24 +6785,26 @@ class BaseTokenizationWithBinaryMySQL(BaseTokenization):
     def checkSkip(self):
         if not TEST_MYSQL:
             self.skipTest('this test is only for MySQL')
+        elif not TEST_WITH_TLS:
+            self.skipTest("running tests only with TLS")
 
     def fetch_from_1(self, query):
-        return self.execute(query, port=self.CONNECTOR_PORT_1)
+        return self.execute(query, TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
 
     def fetch_from_2(self, query):
-        return self.execute(query, port=self.CONNECTOR_PORT_2)
+        return self.execute(query, TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
 
-    def execute(self, query, port):
+    def execute(self, query, ssl_key, ssl_cert):
         # We need a rendered SQL query here. It will be converted into
         # a prepared statement (without arguments) to use MySQL binary
         # protocol on the wire.
         query = query.compile(compile_kwargs={"literal_binds": True}).string
         args = ConnectionArgs(
-            host=get_db_host(), port=port, dbname=DB_NAME,
+            host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
             user=DB_USER, password=DB_USER_PASSWORD,
             ssl_ca=TEST_TLS_CA,
-            ssl_key=TEST_TLS_CLIENT_KEY,
-            ssl_cert=TEST_TLS_CLIENT_CERT)
+            ssl_key=ssl_key,
+            ssl_cert=ssl_cert)
         result = MysqlExecutor(args).execute_prepared_statement(query)
         # For some weird reason MySQL connector in prepared statement mode
         # does not decode TEXT columns into Python strings. In text mode
@@ -7284,7 +6852,7 @@ class TestTokenizationWithoutZone(BaseTokenization):
         # insert data data
         self.insert_via_1(default_client_id_table.insert(), data)
 
-        # expect that data was encrypted with client_id from connector which used to insert (client_id==keypair1)
+        # expect that data was encrypted with client_id which used to insert (client_id==keypair1)
         source_data = self.fetch_from_1(
             sa.select([default_client_id_table])
                 .where(default_client_id_table.c.id == data['id']))
@@ -7337,7 +6905,7 @@ class TestTokenizationWithoutZone(BaseTokenization):
         # bulk insert data
         self.insert_via_1_bulk(default_client_id_table.insert(), values)
 
-        # expect that data was encrypted with client_id from connector which used to insert (client_id==keypair1)
+        # expect that data was encrypted with client_id which used to insert (client_id==TEST_TLS_CLIENT_CERT)
         source_data = self.fetch_from_1(sa.select([default_client_id_table]))
 
         hidden_data = self.fetch_from_2(sa.select([default_client_id_table]))
@@ -7380,10 +6948,10 @@ class TestTokenizationWithoutZone(BaseTokenization):
         metadata.create_all(self.engine_raw, [specific_client_id_table])
         self.engine1.execute(specific_client_id_table.delete())
 
-        # insert data data using connector client_id==keypair1
+        # insert data data using client_id==TEST_TLS_CLIENT_CERT
         self.insert_via_1(specific_client_id_table.insert(), data)
 
-        # expect that source data return from connector client_id==keypair2 which defined in config
+        # expect that source data return client_id==TEST_TLS_CLIENT_2_CERT which defined in config
         source_data = self.fetch_from_2(
             sa.select([specific_client_id_table])
                 .where(specific_client_id_table.c.id == data['id']))
@@ -7432,7 +7000,7 @@ class TestTokenizationWithoutZone(BaseTokenization):
         # insert data data
         self.insert_via_1(default_client_id_table.insert(), data)
 
-        # expect that data was encrypted with client_id from connector which used to insert (client_id==keypair1)
+        # expect that data was encrypted with client_id which used to insert (client_id==TEST_TLS_CLIENT_CERT)
         source_data = self.fetch_from_1(
             sa.select(['*'], from_obj=default_client_id_table)
                 .where(default_client_id_table.c.id == data['id']))
@@ -7630,10 +7198,10 @@ class TestTokenizationWithZone(BaseTokenization):
             'token_email': random_email(),
         }
 
-        # insert data data using connector client_id==keypair1
+        # insert data data using client_id==TEST_TLS_CLIENT_CERT
         self.insert_via_1(specific_zone_id_table.insert(), data)
 
-        # expect that source data will returned from all connectors with correct zone id
+        # expect that source data will returned from acra-servers with all client_id with correct zone id
         source_data = self.fetch_from_2(
             sa.select([specific_zone_id_table])
                 .where(specific_zone_id_table.c.id == data['id']))
@@ -7655,7 +7223,7 @@ class TestTokenizationWithZone(BaseTokenization):
                 self.assertEqual(source_data[0][k], data[k])
                 self.assertEqual(hidden_data[0][k], data[k])
 
-        # expect that source data will not returned from all connectors with incorrect zone id
+        # expect that source data will not returned from acra-servers with all client_id with incorrect zone id
         columns = [sa.cast(zones[1][ZONE_ID].encode('ascii'), BYTEA)]
         # all columns except zone id
         columns.extend([i for i in list(specific_zone_id_table.c) if i.name != 'zone_id'])
@@ -7695,17 +7263,17 @@ class TestTokenizationWithZone(BaseTokenization):
             'token_email': random_email(),
         }
 
-        # insert data data using connector client_id==keypair1
+        # insert data data using client_id==keypair1
         self.insert_via_1(specific_zone_id_table.insert(), data)
 
         CORRECT_ZONE, INCORRECT_ZONE = range(2)
-        # expect that source data will not returned from all connectors with incorrect zone id
+        # expect that source data will not returned from all acra-servers with incorrect zone id
         columns = [
             sa.literal(zones[CORRECT_ZONE][ZONE_ID]),
             # mysql doesn't support query like `select 'string', * from table1`, only qualified StarExpr like `select 'string', t1.* from table1 as t1`
             sa.text('{}.*'.format(specific_zone_id_table.name))
         ]
-        # expect that source data will returned from all connectors with correct zone id
+        # expect that source data will returned from all acra-servers with correct zone id
         source_data = self.fetch_from_2(
             sa.select(columns, from_obj=specific_zone_id_table)
                 .where(specific_zone_id_table.c.id == data['id']))
@@ -7727,7 +7295,7 @@ class TestTokenizationWithZone(BaseTokenization):
                 self.assertEqual(utils.memoryview_to_bytes(source_data[0][k]), data[k])
                 self.assertEqual(utils.memoryview_to_bytes(hidden_data[0][k]), data[k])
 
-        # expect that source data will not returned from all connectors with incorrect zone id
+        # expect that source data will not returned from all acra-servers with incorrect zone id
         columns = [
             sa.literal(zones[INCORRECT_ZONE][ZONE_ID]),
             sa.text('{}.*'.format(specific_zone_id_table.name))
@@ -7793,19 +7361,21 @@ class BaseMasking(BaseTokenization):
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_masking_config.yaml')
 
     def check_crypto_envelope(self, table, row_id):
-        temp_acrastruct = create_acrastruct_with_client_id(b'somedata', 'keypair1')
-        # expect that data was encrypted with client_id from connector which used to insert (client_id==keypair1)
+        temp_acrastruct = create_acrastruct_with_client_id(b'somedata', TLS_CERT_CLIENT_ID_1)
+        # expect that data was encrypted with client_id from acra-server which used to insert (client_id==TEST_TLS_CLIENT_CERT)
         source_data = self.engine_raw.execute(
             sa.select([table])
                 .where(table.c.id == row_id))
         source_data = source_data.fetchone()
         for i in ('masked_prefix', 'masked_suffix', 'masked_without_plaintext', 'exact_plaintext_length',
                   'shorter_plaintext'):
-            # check that data contains AcraStruct tag begin
-            self.assertIn(temp_acrastruct[:8], source_data[i])
+            # check that data not contains AcraStruct tag begin
+            self.assertNotIn(temp_acrastruct[:8], source_data[i])
+            # and check that data contains AcraBlock tag begin
+            self.assertIn(temp_acrastruct[:4], source_data[i])
 
     def get_specified_client_id(self):
-        return 'keypair2'
+        return TLS_CERT_CLIENT_ID_2
 
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
         prepare_encryptor_config(
@@ -7815,11 +7385,11 @@ class BaseMasking(BaseTokenization):
         return super(BaseTokenization, self).fork_acra(popen_kwargs, **acra_kwargs)
 
     def executeInsert(self, query, values):
-        """Execute a Bulk Insert query with list of values via AcraConnector for "keypair1"."""
+        """Execute a Bulk Insert query with list of values via AcraServer for "TEST_TLS_CLIENT_CERT"."""
         return self.engine1.execute(query.values(values))
 
     def executeBulkInsert(self, query, values):
-        """Execute a Bulk Insert query with list of values via AcraConnector for "keypair1"."""
+        """Execute a Bulk Insert query with list of values via AcraServer for "TEST_TLS_CLIENT_CERT"."""
         return self.engine1.execute(query.values(values))
 
     def tearDown(self):
@@ -7829,24 +7399,24 @@ class BaseMasking(BaseTokenization):
 
 class BaseMaskingBinaryPostgreSQLMixin(BaseBinaryPostgreSQLTestCase, BaseTestCase):
     def executeInsert(self, query, values):
-        """Execute a Insert query with list of values via AcraConnector for "keypair1"."""
+        """Execute a Insert query with list of values via AcraServer for "TEST_TLS_CLIENT_CERT"."""
         query, parameters = self.compileInsertQuery(query, values)
         return self.executor1.execute_prepared_statement(query, parameters)
 
     def executeBulkInsert(self, query, values):
-        """Execute a Bulk Insert query with list of values via AcraConnector for "keypair1"."""
+        """Execute a Bulk Insert query with list of values via AcraServer for "TEST_TLS_CLIENT_CERT"."""
         query, parameters = self.compileBulkInsertQuery(query.values(values), values)
         return self.executor1.execute_prepared_statement(query, parameters)
 
 
 class BaseMaskingBinaryMySQLMixin(BaseBinaryMySQLTestCase, BaseTestCase):
     def executeInsert(self, query, values):
-        """Execute a Insert query with list of values via AcraConnector for "keypair1"."""
+        """Execute a Insert query with list of values via AcraServer for "TEST_TLS_CLIENT_CERT"."""
         query, parameters = self.compileInsertQuery(query, values)
         return self.executor1.execute_prepared_statement_no_result(query, parameters)
 
     def executeBulkInsert(self, query, values):
-        """Execute a Bulk Insert query with list of values via AcraConnector for "keypair1"."""
+        """Execute a Bulk Insert query with list of values via AcraServer for "TEST_TLS_CLIENT_CERT"."""
         query, parameters = self.compileBulkInsertQuery(query.values(values), values)
         return self.executor1.execute_prepared_statement_no_result(query, parameters)
 
@@ -7883,7 +7453,7 @@ class TestMaskingWithoutZone(BaseMasking):
 
         self.check_crypto_envelope(default_client_id_table, data['id'])
 
-        # expect that data was encrypted with client_id from connector which used to insert (client_id==keypair1)
+        # expect that data was encrypted with client_id from acra-server which used to insert (client_id==TEST_TLS_CLIENT_CERT)
         source_data = self.engine1.execute(
             sa.select([default_client_id_table])
                 .where(default_client_id_table.c.id == data['id']))
@@ -7958,7 +7528,7 @@ class TestMaskingWithoutZone(BaseMasking):
 
         self.check_crypto_envelope(specific_client_id_table, data['id'])
 
-        # expect that data was encrypted with client_id from connector which used to insert (client_id==keypair2)
+        # expect that data was encrypted with client_id from acra-server which used to insert (client_id==TEST_TLS_CLIENT_2_CERT)
         source_data = self.engine2.execute(
             sa.select([specific_client_id_table])
                 .where(specific_client_id_table.c.id == data['id']))
@@ -8049,9 +7619,9 @@ class TestMaskingWithZonePerValue(BaseMasking):
         for value in values:
             self.check_crypto_envelope(specific_zone_id_table, value['id'])
 
-            # check that using any connector with correct zone we fetch decrypted data
+            # check that using any acra-server with correct zone we fetch decrypted data
             for engine in (self.engine1, self.engine2):
-                # expect that data was encrypted with client_id from connector which used to insert (client_id==keypair2)
+                # expect that data was encrypted with client_id from acra-server which used to insert (client_id==TEST_TLS_CLIENT_2_CERT)
                 response = engine.execute(
                     sa.select(columns)
                         .where(specific_zone_id_table.c.id == value['id']))
@@ -8063,7 +7633,7 @@ class TestMaskingWithZonePerValue(BaseMasking):
                     self.assertEqual(source_data[0][i], value[i])
 
             incorrect_zone = sa.literal(zones[1][ZONE_ID])
-            # check that using any connector with incorrect zone we fetch masked data
+            # check that using any acra-server with incorrect zone we fetch masked data
             for engine in (self.engine1, self.engine2):
                 hidden_data = engine.execute(
                     sa.select([incorrect_zone, specific_zone_id_table])
@@ -8141,9 +7711,9 @@ class TestMaskingWithZonePerValue(BaseMasking):
             columns.append(correct_zone)
             columns.append(getattr(specific_zone_id_table.c, i))
 
-        # check that using any connector with correct zone we fetch decrypted data
+        # check that using any acra-server with correct zone we fetch decrypted data
         for engine in (self.engine1, self.engine2):
-            # expect that data was encrypted with client_id from connector which used to insert (client_id==keypair2)
+            # expect that data was encrypted with client_id from acra-server which used to insert (client_id==TEST_TLS_CLIENT_2_CERT)
             response = engine.execute(
                 sa.select(columns)
                     .where(specific_zone_id_table.c.id == data['id']))
@@ -8155,7 +7725,7 @@ class TestMaskingWithZonePerValue(BaseMasking):
                 self.assertEqual(source_data[0][i], data[i])
 
         incorrect_zone = sa.literal(zones[1][ZONE_ID])
-        # check that using any connector with incorrect zone we fetch masked data
+        # check that using any acra-server with incorrect zone we fetch masked data
         for engine in (self.engine1, self.engine2):
             hidden_data = engine.execute(
                 sa.select([incorrect_zone, specific_zone_id_table])
@@ -8244,9 +7814,9 @@ class TestMaskingWithZonePerRow(BaseMasking):
             # create in loop to generate new objects of literal and avoid removing in select clause by sqlalchemy
             columns.append(getattr(specific_zone_id_table.c, i))
 
-        # check that using any connector with correct zone we fetch decrypted data
+        # check that using any acra-server with correct zone we fetch decrypted data
         for engine in (self.engine1, self.engine2):
-            # expect that data was encrypted with client_id from connector which used to insert (client_id==keypair2)
+            # expect that data was encrypted with client_id from acra-server which used to insert (client_id==TEST_TLS_CLIENT_2_CERT)
             response = engine.execute(
                 sa.select(columns)
                     .where(specific_zone_id_table.c.id == data['id']))
@@ -8258,7 +7828,7 @@ class TestMaskingWithZonePerRow(BaseMasking):
                 self.assertEqual(source_data[0][i], data[i])
 
         incorrect_zone = sa.literal(zones[1][ZONE_ID])
-        # check that using any connector with incorrect zone we fetch masked data
+        # check that using any acra-server with incorrect zone we fetch masked data
         for engine in (self.engine1, self.engine2):
             hidden_data = engine.execute(
                 sa.select([incorrect_zone, specific_zone_id_table])
@@ -8303,8 +7873,8 @@ class BaseAcraBlockMasking:
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_masking_acrablock_config.yaml')
 
     def check_crypto_envelope(self, table, row_id):
-        temp_acrastruct = create_acrastruct_with_client_id(b'somedata', 'keypair1')
-        # expect that data was encrypted with client_id from connector which used to insert (client_id==keypair1)
+        temp_acrastruct = create_acrastruct_with_client_id(b'somedata', TLS_CERT_CLIENT_ID_1)
+        # expect that data was encrypted with client_id from acra-server which used to insert (client_id==TEST_TLS_CLIENT_CERT)
         source_data = self.engine_raw.execute(
             sa.select([table])
                 .where(table.c.id == row_id))
@@ -8355,22 +7925,22 @@ class TestMaskingAcraBlockWithZonePerRow(BaseAcraBlockMasking, TestMaskingWithZo
 
 class TestMaskingWithoutZoneConnectorlessWithTLSByDN(TLSAuthenticationByDistinguishedNameMixin, TLSAuthenticationDirectlyToAcraMixin, TestMaskingWithoutZone):
     def get_specified_client_id(self):
-        return self.get_valid_certificate_identifier(TEST_TLS_CLIENT_2_CERT)
+        return extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_2_CERT, extractor=self.get_identifier_extractor_type())
 
 
 class TestMaskingWithoutZoneConnectorlessWithTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin, TLSAuthenticationDirectlyToAcraMixin, TestMaskingWithoutZone):
     def get_specified_client_id(self):
-        return self.get_valid_certificate_identifier(TEST_TLS_CLIENT_2_CERT)
+        return extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_2_CERT, extractor=self.get_identifier_extractor_type())
 
 
 class TestMaskingWithZonePerValueConnectorlessWithTLSByDN(TLSAuthenticationByDistinguishedNameMixin, TLSAuthenticationDirectlyToAcraMixin, TestMaskingWithZonePerValue):
     def get_specified_client_id(self):
-        return self.get_valid_certificate_identifier(TEST_TLS_CLIENT_2_CERT)
+        return extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_2_CERT, extractor=self.get_identifier_extractor_type())
 
 
 class TestMaskingWithZonePerValueConnectorlessWithTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin, TLSAuthenticationDirectlyToAcraMixin, TestMaskingWithZonePerValue):
     def get_specified_client_id(self):
-        return self.get_valid_certificate_identifier(TEST_TLS_CLIENT_2_CERT)
+        return extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_2_CERT, extractor=self.get_identifier_extractor_type())
 
 
 class TestTransparentEncryptionConnectorlessWithTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin, TestTransparentEncryption, TLSAuthenticationDirectlyToAcraMixin):
@@ -8399,22 +7969,22 @@ class TestSearchableTransparentEncryptionWithZoneConnectorlessWithTLSBySerialNum
 
 class TestTokenizationConnectorlessWithTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin, TLSAuthenticationDirectlyToAcraMixin, TestTokenizationWithoutZone):
     def get_specified_client_id(self):
-        return self.get_valid_certificate_identifier(TEST_TLS_CLIENT_2_CERT)
+        return extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_2_CERT, extractor=self.get_identifier_extractor_type())
 
 
 class TestTokenizationConnectorlessWithTLSByDN(TLSAuthenticationByDistinguishedNameMixin, TLSAuthenticationDirectlyToAcraMixin, TestTokenizationWithoutZone):
     def get_specified_client_id(self):
-        return self.get_valid_certificate_identifier(TEST_TLS_CLIENT_2_CERT)
+        return extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_2_CERT, extractor=self.get_identifier_extractor_type())
 
 
 class TestTokenizationConnectorlessWithZoneWithTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin, TLSAuthenticationDirectlyToAcraMixin, TestTokenizationWithZone):
     def get_specified_client_id(self):
-        return self.get_valid_certificate_identifier(TEST_TLS_CLIENT_2_CERT)
+        return extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_2_CERT, extractor=self.get_identifier_extractor_type())
 
 
 class TestTokenizationConnectorlessWithZoneWithTLSByDN(TLSAuthenticationByDistinguishedNameMixin, TLSAuthenticationDirectlyToAcraMixin, TestTokenizationWithZone):
     def get_specified_client_id(self):
-        return self.get_valid_certificate_identifier(TEST_TLS_CLIENT_2_CERT)
+        return extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_2_CERT, extractor=self.get_identifier_extractor_type())
 
 
 class TestEmptyPreparedStatementQueryPostgresql(BaseTestCase):
@@ -8426,7 +7996,7 @@ class TestEmptyPreparedStatementQueryPostgresql(BaseTestCase):
     def testPassedEmptyQuery(self):
         # no matter which connector to use
         executor = AsyncpgExecutor(ConnectionArgs(
-            host=get_db_host(), port=self.CONNECTOR_PORT_1, dbname=DB_NAME,
+            host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
             user=DB_USER, password=DB_USER_PASSWORD,
             format=AsyncpgExecutor.BinaryFormat,
             ssl_ca=TEST_TLS_CA,
@@ -8440,7 +8010,7 @@ class TestEmptyPreparedStatementQueryPostgresql(BaseTestCase):
 
         # just check that Postgresql deny empty queries for SimpleQuery protocol of queries
         executor = Psycopg2Executor(ConnectionArgs(
-            host=get_db_host(), port=self.CONNECTOR_PORT_1, dbname=DB_NAME,
+            host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
             user=DB_USER, password=DB_USER_PASSWORD,
             ssl_ca=TEST_TLS_CA,
             ssl_key=TEST_TLS_CLIENT_KEY,
@@ -8461,9 +8031,9 @@ class TestEmptyPreparedStatementQueryMysql(BaseTestCase):
         super().checkSkip()
 
     def testNotPassedEmptyQuery(self):
-        # no matter which connector to use
+        # no matter which client_id to use
         executor = MysqlExecutor(ConnectionArgs(
-            host=get_db_host(), port=self.CONNECTOR_PORT_1, dbname=DB_NAME,
+            host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
             user=DB_USER, password=DB_USER_PASSWORD,
             ssl_ca=TEST_TLS_CA,
             ssl_key=TEST_TLS_CLIENT_KEY,
@@ -8481,7 +8051,7 @@ class TestKeymakerCertificateKeysFailures(unittest.TestCase):
             # by default --client_id=client, so we define only --tls_cert
             with self.assertRaises(subprocess.CalledProcessError) as exc:
                 subprocess.check_output(
-                    ['./acra-keymaker',
+                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
                      '--keystore={}'.format(KEYSTORE_VERSION),
                      '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder),
@@ -8495,7 +8065,7 @@ class TestKeymakerCertificateKeysFailures(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaises(subprocess.CalledProcessError) as exc:
                 subprocess.check_output(
-                    ['./acra-keymaker',
+                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
                      '--keystore={}'.format(KEYSTORE_VERSION),
                      '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder),
@@ -8512,7 +8082,7 @@ class BaseKeymakerCertificateKeys:
 
     def testSuccessKeyGeneration(self):
         with tempfile.TemporaryDirectory() as folder:
-            key_id = self.get_valid_certificate_identifier(TEST_TLS_CLIENT_CERT)
+            key_id = extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_CERT, extractor=self.get_identifier_extractor_type())
 
             # check that key not exists
             with self.assertRaises(subprocess.CalledProcessError) as exc:
@@ -8521,7 +8091,7 @@ class BaseKeymakerCertificateKeys:
 
 
             subprocess.check_output(
-                ['./acra-keymaker',
+                [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
                  '--keystore={}'.format(KEYSTORE_VERSION),
                  '--keys_output_dir={}'.format(folder),
                  '--keys_public_output_dir={}'.format(folder),
@@ -8566,8 +8136,8 @@ class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_config.yaml')
 
     def testAcraStructReEncryption(self):
-        specified_id = 'keypair1'
-        default_id = 'keypair2'
+        specified_id = TLS_CERT_CLIENT_ID_1
+        default_id = TLS_CERT_CLIENT_ID_2
         test_data = get_pregenerated_random_data().encode('utf-8')
         specified_acrastruct = create_acrastruct_with_client_id(test_data, specified_id)
         default_acrastruct = create_acrastruct_with_client_id(test_data, default_id)
@@ -8624,6 +8194,28 @@ class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
             self.assertEqual(decrypted_data[i], data[i])
 
 
+class TestTransparentAcraBlockEncryptionMissingExtraLog(TestTransparentAcraBlockEncryption):
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        self.log_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
+        acra_kwargs['log_to_file'] = self.log_file.name
+        acra_kwargs['poison_detect_enable'] = 'true'
+        return super().fork_acra(popen_kwargs, **acra_kwargs)
+
+    def testAcraStructReEncryption(self):
+        super().testAcraStructReEncryption()
+        with open(self.log_file.name, 'r') as f:
+            logs = f.read()
+        self.assertNotIn('invalid AcraBlock', logs)
+        self.assertNotIn("Can't decrypt AcraBlock", logs)
+
+    def testEncryptedInsert(self):
+        super().testEncryptedInsert()
+        with open(self.log_file.name, 'r') as f:
+            logs = f.read()
+        self.assertNotIn('invalid AcraBlock', logs)
+        self.assertNotIn("Can't decrypt AcraBlock", logs)
+
+
 class TestTransparentAcraBlockEncryptionWithDefaults(TestTransparentAcraBlockEncryption):
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_config_with_defaults.yaml')
 
@@ -8649,8 +8241,8 @@ class TestTransparentAcraBlockEncryptionWithZone(TestTransparentAcraBlockEncrypt
                                     )
 
     def testAcraStructReEncryption(self):
-        specified_id = 'keypair1'
-        default_id = 'keypair2'
+        specified_id = TLS_CERT_CLIENT_ID_1
+        default_id = TLS_CERT_CLIENT_ID_2
         test_data = get_pregenerated_random_data().encode('utf-8')
         specified_acrastruct = create_acrastruct_with_client_id(test_data, specified_id)
         default_acrastruct = create_acrastruct_with_client_id(test_data, default_id)
@@ -8728,15 +8320,7 @@ class TestInvalidCryptoEnvelope(unittest.TestCase):
 
         with self.assertRaises(Exception) as e:
             BaseTestCase().fork_acra(encryptor_config_file=get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
-        expected_exceptions = (
-            FileNotFoundError,  # exception from unix_wait_connection
-        )
-        found = False
-        for exception_cls in expected_exceptions:
-            if isinstance(e.exception, exception_cls):
-                found = True
-                break
-        self.assertTrue(found, "Not found any expected exception")
+        self.assertEqual(str(e.exception), WAIT_CONNECTION_ERROR_MESSAGE)
 
     def test_invalid_specified_values(self):
         with open(self.ENCRYPTOR_CONFIG, 'r') as f:
@@ -8751,15 +8335,7 @@ class TestInvalidCryptoEnvelope(unittest.TestCase):
 
         with self.assertRaises(Exception) as e:
             BaseTestCase().fork_acra(encryptor_config_file=get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
-        expected_exceptions = (
-            FileNotFoundError,  # exception from unix_wait_connection
-        )
-        found = False
-        for exception_cls in expected_exceptions:
-            if isinstance(e.exception, exception_cls):
-                found = True
-                break
-        self.assertTrue(found, "Not found any expected exception")
+        self.assertEqual(str(e.exception), WAIT_CONNECTION_ERROR_MESSAGE)
 
 
 class TestRegressionInvalidOctalEncoding(BaseTokenizationWithBinaryPostgreSQL):
@@ -8794,7 +8370,7 @@ class TestRegressionInvalidOctalEncoding(BaseTokenizationWithBinaryPostgreSQL):
         # insert data data
         self.insert_via_1(default_client_id_table.insert(), data)
 
-        # expect that data was encrypted with client_id from connector which used to insert (client_id==keypair1)
+        # expect that data was encrypted with client_id which used to insert (client_id==TEST_TLS_CLIENT_CERT)
         source_data = self.fetch_from_1(
             sa.select([default_client_id_table])
                 .where(default_client_id_table.c.id == data['id']))

@@ -1,4 +1,4 @@
-version: 0.91.0
+version: 0.92.0
 # path to config
 config_file: 
 
@@ -140,15 +140,6 @@ private: false
 # read public key of the keypair
 public: false
 
-# Generate transport keypair for AcraConnector (deprecated since 0.91.0, will be removed soon)
-acraconnector_transport_key: false
-
-# Generate transport keypair for AcraServer (deprecated since 0.91.0, will be removed soon)
-acraserver_transport_key: false
-
-# Generate transport keypair for AcraTranslator (deprecated since 0.91.0, will be removed soon)
-acratranslator_transport_key: false
-
 # Generate symmetric key for log integrity checks
 audit_log_symmetric_key: false
 
@@ -163,9 +154,6 @@ client_storage_symmetric_key: false
 
 # Keystore format: v1 (current), v2 (new)
 keystore: 
-
-# Generate new random master key and save to file
-master_key_path: 
 
 # Generate keypair and symmetric key for poison records
 poison_record_keys: false

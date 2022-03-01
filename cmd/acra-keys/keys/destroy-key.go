@@ -27,11 +27,7 @@ import (
 )
 
 // SupportedDestroyKeyKinds is a list of keys supported by `destroy-key` subcommand.
-var SupportedDestroyKeyKinds = []string{
-	KeyTransportConnector,
-	KeyTransportServer,
-	KeyTransportTranslator,
-}
+var SupportedDestroyKeyKinds = []string{}
 
 // DestroyKeyParams are parameters of "acra-keys destroy" subcommand.
 type DestroyKeyParams interface {
@@ -86,15 +82,11 @@ func (p *DestroyKeySubcommand) Parse(arguments []string) error {
 		log.Errorf("\"%s\" command does not support more than one key kind", CmdDestroyKey)
 		return ErrMultipleKeyKinds
 	}
-	coarseKind, id, err := ParseKeyKind(args[0])
+	coarseKind, _, err := ParseKeyKind(args[0])
 	if err != nil {
 		return err
 	}
 	switch coarseKind {
-	case KeyTransportConnector, KeyTransportServer, KeyTransportTranslator:
-		p.destroyKeyKind = coarseKind
-		p.contextID = id
-
 	default:
 		return ErrUnknownKeyKind
 	}
@@ -124,30 +116,7 @@ func (p *DestroyKeySubcommand) ClientID() []byte {
 func DestroyKey(params DestroyKeyParams, keyStore keystore.KeyMaking) error {
 	kind := params.DestroyKeyKind()
 	switch kind {
-	case KeyTransportConnector:
-		err := keyStore.DestroyConnectorKeypair(params.ClientID())
-		if err != nil {
-			log.WithError(err).Error("Cannot destroy AcraConnector transport key pair")
-			return err
-		}
-		return nil
-
-	case KeyTransportServer:
-		err := keyStore.DestroyServerKeypair(params.ClientID())
-		if err != nil {
-			log.WithError(err).Error("Cannot destroy AcraServer transport key pair")
-			return err
-		}
-		return nil
-
-	case KeyTransportTranslator:
-		err := keyStore.DestroyTranslatorKeypair(params.ClientID())
-		if err != nil {
-			log.WithError(err).Error("Cannot destroy AcraTranslator transport key pair")
-			return err
-		}
-		return nil
-
+	// TODO: without transport keys the command looks strange - update `destroy` to support other keys
 	default:
 		log.WithField("expected", SupportedDestroyKeyKinds).Errorf("Unknown key kind: %s", kind)
 		return ErrUnknownKeyKind

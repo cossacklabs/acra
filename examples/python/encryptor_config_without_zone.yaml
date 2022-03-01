@@ -1,3 +1,6 @@
+defaults:
+  crypto_envelope: acrastruct
+
 schemas:
   - table: test
     columns:

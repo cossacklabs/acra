@@ -36,7 +36,7 @@ type defaultValues struct {
 // GetCryptoEnvelope returns type of crypto envelope
 func (d defaultValues) GetCryptoEnvelope() CryptoEnvelopeType {
 	if d.CryptoEnvelope == nil {
-		return CryptoEnvelopeTypeAcraStruct
+		return CryptoEnvelopeTypeAcraBlock
 	}
 	return *d.CryptoEnvelope
 }

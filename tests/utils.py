@@ -11,7 +11,10 @@ from pythemis import smessage, scell
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 abs_path = lambda x: os.path.join(BASE_DIR, x)
+BINARY_OUTPUT_FOLDER = os.environ.get('TEST_BINARY_OUTPUT_FOLDER', '/tmp/')
 
+# used to mark case when user didn't declare explicitly variable and we generated new temporary folder
+# in this case we clean temporary folder, otherwise don't touch user specified path
 TEMP_DATA_GENERATED = 'TEST_RANDOM_DATA_FOLDER_GENERATE'
 TEMP_DATA_FOLDER_VARNAME = 'TEST_RANDOM_DATA_FOLDER'
 
@@ -105,7 +108,7 @@ def load_default_config(service_name):
 
 def read_key(key_id, public, keys_dir='.acrakeys', extra_kwargs: dict = None):
     """Reads key from keystore with acra-keys."""
-    args = ['./acra-keys', 'read', '--keys_dir={}'.format(keys_dir)]
+    args = [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'), 'read', '--keys_dir={}'.format(keys_dir)]
 
     if extra_kwargs:
         for key, value in extra_kwargs.items():
@@ -121,19 +124,9 @@ def read_key(key_id, public, keys_dir='.acrakeys', extra_kwargs: dict = None):
 
 def destroy_key(key_id, keys_dir='.acrakeys'):
     """Destroys key in the keystore with acra-keys."""
-    args = ['./acra-keys', 'destroy', '--keys_dir={}'.format(keys_dir)]
+    args = [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'), 'destroy', '--keys_dir={}'.format(keys_dir)]
     args.append(key_id)
     return subprocess.check_output(args)
-
-
-def destroy_connector_transport(client_id, keys_dir='.acrakeys'):
-    return destroy_key('client/{}/transport/connector'.format(client_id),
-                       keys_dir=keys_dir)
-
-
-def destroy_server_transport(client_id, keys_dir='.acrakeys'):
-    return destroy_key('client/{}/transport/connector'.format(client_id),
-                       keys_dir=keys_dir)
 
 
 def destroy_server_storage_key(client_id, public=True, keys_dir='.acrakeys', keystore_version='v1'):

@@ -131,6 +131,9 @@ func initKeyStore(clientID, zoneID []byte, keyStorage *mocks.ServerKeyStore, t *
 	keyStorage.On("GetClientIDSymmetricKeys", mock.MatchedBy(func(id []byte) bool {
 		return bytes.Equal(id, clientID)
 	})).Return(func([]byte) [][]byte { return [][]byte{append([]byte{}, acraBlockSymKey...)} }, nil)
+	keyStorage.On("GetClientIDSymmetricKey", mock.MatchedBy(func(id []byte) bool {
+		return bytes.Equal(id, clientID)
+	})).Return(func([]byte) []byte { return append([]byte{}, acraBlockSymKey...) }, nil)
 	keyStorage.On("GetHMACSecretKey", mock.MatchedBy(func(id []byte) bool {
 		return bytes.Equal(id, clientID)
 	})).Return(func([]byte) []byte { return append([]byte{}, hmacSymKey...) }, nil)
@@ -146,6 +149,9 @@ func initKeyStore(clientID, zoneID []byte, keyStorage *mocks.ServerKeyStore, t *
 	keyStorage.On("GetZoneIDSymmetricKeys", mock.MatchedBy(func(id []byte) bool {
 		return bytes.Equal(id, zoneID)
 	})).Return(func([]byte) [][]byte { return [][]byte{append([]byte{}, acraBlockZoneKey...)} }, nil)
+	keyStorage.On("GetZoneIDSymmetricKey", mock.MatchedBy(func(id []byte) bool {
+		return bytes.Equal(id, zoneID)
+	})).Return(func([]byte) []byte { return append([]byte{}, acraBlockZoneKey...) }, nil)
 	keyStorage.On("GetClientIDEncryptionPublicKey", mock.MatchedBy(func(id []byte) bool {
 		return bytes.Equal(id, clientID)
 	})).Return(AcraStructKeyPair.Public, nil)
@@ -191,65 +197,6 @@ func TestHTTPAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	zoneID := zone.GenerateZoneID()
-	t.Run("HTTP API with Secure Session", func(t *testing.T) {
-		testClientID := []byte("clientid")
-		initKeyStore(testClientID, zoneID, keyStorage, t)
-		secureSessionKeyPair, err := keys.New(keys.TypeEC)
-		if err != nil {
-			t.Fatal(err)
-		}
-		keyStorage.On("GetPrivateKey", mock.Anything).Return(secureSessionKeyPair.Private, nil)
-		keyStorage.On("GetPeerPublicKey", mock.Anything).Return(secureSessionKeyPair.Public, nil)
-		clientWrapper, err := network.NewSecureSessionConnectionWrapperWithServerID(testClientID, testClientID, keyStorage)
-		if err != nil {
-			t.Fatal(err)
-		}
-		serverWrapper, err := network.NewSecureSessionConnectionWrapper(testClientID, keyStorage)
-		if err != nil {
-			t.Fatal(err)
-		}
-		newListener, newDialer := getListenerAndDialer(clientWrapper, serverWrapper, t)
-		defer newListener.Close()
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		service, err := NewHTTPService(serviceImplementation, translatorData, WithContext(ctx), WithConnectionContextHandler(listenerWrapper.OnConnectionContext))
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		outErr := make(chan error)
-		go func(service *HTTPService, listener net.Listener, errCh chan error) {
-			errCh <- service.Start(listener)
-		}(service, newListener, outErr)
-
-		waitConnection(newListener.Addr().Network(), newListener.Addr().String(), t)
-		transport := http.DefaultTransport.(*http.Transport).Clone()
-		transport.DialContext = newDialer
-		// secure session has issue with connection re-usage by HTTP server
-		// @lagovas && @vixentael decided to leave it as it due to future
-		// plans to remove acra-connector and secure session as transport.
-		// disabling re-usage connections don't cause errors with deadlines
-		// and already closed connections
-		transport.DisableKeepAlives = true
-		client := &http.Client{Transport: transport, Timeout: time.Second * 2}
-		testContext := apiTestContext{
-			endpoint: fmt.Sprintf("http://%s", newListener.Addr()),
-			zoneID:   zoneID,
-			listener: newListener,
-			client:   client,
-		}
-		testHTTPAPIEndpoints(testContext, t)
-		// stop server
-		cancel()
-		select {
-		case err := <-outErr:
-			if err != http.ErrServerClosed {
-				t.Fatal(err)
-			}
-		case <-time.NewTimer(time.Millisecond * 10).C:
-			t.Fatal("Can't wait server stop")
-		}
-	})
 	t.Run("test with direct TLS connections", func(t *testing.T) {
 		serverTLSConfig, err := network.NewTLSConfig("localhost", "", "", "", tls.RequireAndVerifyClientCert, network.NewCertVerifierAll())
 		if err != nil {

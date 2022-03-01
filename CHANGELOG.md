@@ -1,5 +1,54 @@
 # Acra ChangeLog
 
+## [0.92.0](https://github.com/cossacklabs/acra/releases/tag/0.92.0), March 01th 2021
+
+This release brings stability and performance fixes to AcraServer and AcraTranslator. It officially deprecates usage 
+of AcraConnector in favour of TLS everywhere. Some default configuration params are changed in favour of more secure & 
+better performance settings.
+
+_Core_:
+- **AcraServer, AcraTranslator**:
+  - Improved TLS certificate validation performance with CRL. [#482](https://github.com/cossacklabs/acra/pull/482)
+  - Poison record detection turned off by default. Flag `--poison_detect_enable` changed default value from `true` to `false`. [#484](https://github.com/cossacklabs/acra/pull/484)
+  - Removed SecureSession and AcraConnector support as transport encryption. [#481](https://github.com/cossacklabs/acra/pull/481)
+  - Improved and clarified log messages. Removed messages with `error` level for success cases (not detected poison record),
+    clarified context of messages. [#487](https://github.com/cossacklabs/acra/pull/487)
+  - Added suggestions in log messages how to solve issues with TLS connections. [#493](https://github.com/cossacklabs/acra/pull/493)
+  - Improved in-memory caching keys:
+    - Added caching symmetric keys like asymmetric [#489](https://github.com/cossacklabs/acra/pull/489)
+    - Added caching metadata about rotated keys [#498](https://github.com/cossacklabs/acra/pull/498)
+    - Added new flag `--keystore_cache_on_start_enable` that turns on loading all keys into in-memory cache on startup. [#497](https://github.com/cossacklabs/acra/pull/497)
+    - Changed default value for `--keystore_cache_size` parameter from `-1` (which means no limits for cache) to 1000 (cache items). [#497](https://github.com/cossacklabs/acra/pull/497)
+- **AcraServer**:
+  - The default CryptoEnvelope has changed from `acrastruct` to `acrablock` in the encryptor_config. Now AcraServer 
+    will use faster encryption by default. You can select which CryptoEnvelope to use in encryptor_config. 
+    See [AcraStructs vs AcraBlocks documentation](https://docs.cossacklabs.com/acra/configuring-maintaining/optimizations/acrastructs_vs_acrablocks/), [#485](https://github.com/cossacklabs/acra/pull/485)
+  - Extended PostgreSQL's SQL syntax support with `null::<type>` type casts. [#479](https://github.com/cossacklabs/acra/pull/479)
+  - Changed the default values for next CLI parameters:
+    - `--tls_client_id_from_cert` changed from `false` to `true`. Now AcraServer require app's TLS certificates and map them to keys. [#481](https://github.com/cossacklabs/acra/pull/481)
+  - Improved performance for:
+    - `querycapture` handler in AcraCensor. [#483](https://github.com/cossacklabs/acra/pull/483)
+    - transparent encryption and poison record detection. [#487](https://github.com/cossacklabs/acra/pull/487), [#496](https://github.com/cossacklabs/acra/pull/496)
+    - searchable encryption. [#490](https://github.com/cossacklabs/acra/pull/490)
+  - Removed next CLI parameters due to removed AcraConnector support:
+    - `--securesession_id`, `--acraconnector_tls_transport_enable`, `--acraconnector_transport_encryption_disable`. [#481](https://github.com/cossacklabs/acra/pull/481)
+- **AcraTranslator**:
+  Now AcraTranslator works with TLS by default, it doesn't support AcraConnector anymore. [#481](https://github.com/cossacklabs/acra/pull/481)
+  - Removed next CLI parameters due to removed AcraConnector support:
+    - `--securesession_id`, `--acratranslator_tls_transport_enable`, `--acraconnector_transport_encryption_disable`. [#481](https://github.com/cossacklabs/acra/pull/481) 
+- **AcraKeymaker**:
+  - Now handle correctly generation symmetric keys into not existing folders. [#486](https://github.com/cossacklabs/acra/pull/486)
+  - Removed next CLI parameters due to removed AcraConnector support:
+    - `--generate_acraconnector_keys`, `--generate_acraserver_keys`, `--generate_acratranslator_keys`. [#481](https://github.com/cossacklabs/acra/pull/481)
+- **AcraKeys**:
+  - Removed next key types for all commands (generate, read, destroy): `transport-connector`, `transport-server`, `transport-translator`. [#481](https://github.com/cossacklabs/acra/pull/481)
+- **AcraConnector**:
+  - Removed everywhere and stopped support. Switch to TLS instead, see [Security controls > Transport Security > TLS](https://docs.cossacklabs.com/acra/security-controls/transport-security/tls/), [#481](https://github.com/cossacklabs/acra/pull/481)
+
+_Example projects and demos_:
+- [Python examples](https://github.com/cossacklabs/acra/tree/0.91.0/examples/python): now support MySQL database. [#476](https://github.com/cossacklabs/acra/pull/476)
+ 
+
 ## [0.91.0](https://github.com/cossacklabs/acra/releases/tag/0.91.0), December 16th 2021
 
 _Core_:

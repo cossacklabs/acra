@@ -1,3 +1,54 @@
+## 0.92.0 - 2022-02-21
+- Adapt python integration tests for python3.6 for tests on centos 7/8
+
+## 0.92.0 - 2022-02-17
+- Extend KeyStore interface to allow fetching single latest symmetric key for encryption purposes
+
+## 0.92.0 - 2022-02-16
+- Added cache keystore keys on start logic with `keystore_cache_on_start_enable` flag;
+- Changed the default flag value for `keystore_cache_size` flag. Default is 1000;
+- Added server halt for keystore `v2` and `keystore_cache_size` not -1;
+- Cache fetching rotated key filenames to decrease extra syscalls
+
+## 0.92.0 - 2022-02-14
+- Add new script `run_transparent.sh` to `benchmark` folder that collects data from debug server for `pprof` tool and
+  works with docker-compose file
+
+## 0.92.0 - 2022-02-09
+- Log messages that suggests how to fix problems related to TLS connection issues.
+
+## 0.92.0 - 2022-02-04
+- Cache symmetric keys in in-memory cache (if turned on) in same way as asymmetric
+- Improved hash extraction with working searchable encryption. Now it will not try to get encrypted HMAC key from a keystore
+  if matched valid hash header and remain data payload not matched to any CryptoEnvelope
+- Avoid race conditions on startup when register listeners in `SServer` object
+- Remove confusing logs about failed decryption after poison record checks in valid cases
+- Changed log level for couple of confusing log events from Warning/Error to Debug because they don't represent error 
+  cases and useful only for debugging
+- Removed extra subscription of decryptor on every CryptoEnvelope when poison record detection turned on
+- Speed up integration tests:
+  - Fork openssl and CRL servers at module level once instead of forking on every test case
+  - Allow to re-use already compiled binaries instead of compiling them on every test run. Same for `configs/regenerate.sh`
+- Speed up CircleCI tests: build and cache acra binaries for each go version and after that run test jobs
+- Updated Themis SecureCell API usage from old deprecated to new in `acrablock` package
+- Removed unused legacy code in `acrablock` package left after migrating to `CryptoEnvelopes`
+- Clarified log message for `AcraTranslator's` `DecryptSymSearchable` method
+
+## 0.92.0 - 2022-02-02
+- Change the default value for flag `--poison_detect_enable` from `true` to `false` for `acra-server` and `acra-translator`.
+- Add integration tests for `acra-translator` with poison record detection and refactored poison record tests.
+- Change the default port for prometheus handler in integration tests to fix port collisions during local testing.
+- Use AcraBlocks as default crypto envelope;
+- `acra-keymaker` fix ability to generate sym key into uncreated dir via `generate_symmetric_storage_key` flag;
+
+## 0.92.0 - 2022-02-01
+- `acra-connector` global removing from all its related components `acra-server`/`acra-translator`/`acra-keymaker`/`acra-keys`:
+  - updated `acra-server` to use TLS as default connection configuration/ Themis Secure Session connection support removal/ 
+    set `tls_client_id_from_cert=true` flag by default/ full usage removing of transport keys;
+  - updated `acra-translator` to use TLS as default connection configuration;
+  - updated `acra-keys` `read`, `generate`, `destroy` commands not to work with transport keys;
+- refactor all integration tests to use TLS by default;
+
 ## 0.92.0 - 2022-01-20
 - Improve TLS certificate validation performance with larger CRLs, check is now O(1) ops instead of O(N)
 
