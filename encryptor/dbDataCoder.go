@@ -121,7 +121,7 @@ func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 				// return value as is because it may be string with printable characters that wasn't encoded on client
 				return val.Val, nil
 			}
-			return binValue.Data(), nil
+			return binValue, nil
 		}
 	}
 	return nil, errUnsupportedExpression
@@ -138,7 +138,7 @@ func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, 
 			return output, nil
 		case sqlparser.IntVal:
 			// if data was just tokenized, so we return it as is because it is valid int literal
-			if _, err:= strconv.Atoi(string(data)); err == nil {
+			if _, err := strconv.Atoi(string(data)); err == nil {
 				return data, nil
 			}
 			// otherwise here we work with encrypted int literal and took binary data that we should pass forward

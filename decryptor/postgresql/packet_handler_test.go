@@ -127,7 +127,7 @@ func TestColumnData_readData(t *testing.T) {
 		columnLength uint32
 		format       base.BoundValueFormat
 	}
-	t.Run("Binary encoding", func(t *testing.T) {
+	t.Run("Binary data read", func(t *testing.T) {
 		testCases := []testCase{
 			// valid hex encoded value
 			{[]byte("\\xaabb"), []byte("\\xaabb"), []byte("\\xaabb"), 6, base.BinaryFormat},
@@ -137,11 +137,11 @@ func TestColumnData_readData(t *testing.T) {
 			{[]byte{1, 2, 3}, []byte{1, 2, 3}, []byte{1, 2, 3}, 3, base.BinaryFormat},
 
 			// valid hex encoded value decoded to 2 digits
-			{[]byte("\\xaabb"), []byte{170, 187}, []byte("\\xaabb"), 6, base.TextFormat},
+			{[]byte("\\xaabb"), []byte("\\xaabb"), []byte("\\xaabb"), 6, base.TextFormat},
 			// valid hex encoded value decoded to 2 digits
-			{[]byte("\\x"), []byte{}, []byte("\\x"), 2, base.TextFormat},
+			{[]byte("\\x"), []byte("\\x"), []byte("\\x"), 2, base.TextFormat},
 			// valid octal value decoded to 1 digit
-			{[]byte("\\001"), []byte{1}, []byte("\\001"), 4, base.TextFormat},
+			{[]byte("\\001"), []byte("\\001"), []byte("\\001"), 4, base.TextFormat},
 			// full binary value that should be as is
 			{[]byte{1, 2, 3}, []byte{1, 2, 3}, []byte{1, 2, 3}, 3, base.TextFormat},
 		}
@@ -151,12 +151,12 @@ func TestColumnData_readData(t *testing.T) {
 			if err := column.readData(bytes.NewReader(testcase.data), testcase.format); err != nil {
 				t.Fatal(i, "Error on read data by column", err)
 			}
-			if !bytes.Equal(column.data.Encoded(), testcase.expected) {
+			if !bytes.Equal(column.data, testcase.expected) {
 				t.Fatalf("Incorrectly encoded data, %v != %v\n",
-					column.data.Encoded(), testcase.expected)
+					column.data, testcase.expected)
 			}
-			if !bytes.Equal(column.data.Data(), testcase.decoded) {
-				t.Fatalf("Decoded data not equal to expected, %s != %s\n", column.data.Data(), testcase.decoded)
+			if !bytes.Equal(column.data, testcase.decoded) {
+				t.Fatalf("%d. Decoded data not equal to expected, %s != %s\n", i, column.data, testcase.decoded)
 			}
 		}
 	})
@@ -179,7 +179,7 @@ func TestParseColumns(t *testing.T) {
 	if len(handler.Columns) != 1 {
 		t.Fatal("Incorrect length of columns")
 	}
-	if !bytes.Equal(handler.Columns[0].data.Encoded(), testData) {
+	if !bytes.Equal(handler.Columns[0].data, testData) {
 		t.Fatal("Incorrect ")
 	}
 }

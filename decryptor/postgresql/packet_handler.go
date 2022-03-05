@@ -8,7 +8,6 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/utils"
 	"github.com/jackc/pgx/pgproto3"
 	"github.com/sirupsen/logrus"
 	"io"
@@ -77,9 +76,8 @@ func (packet *PacketHandler) updateDataFromColumns(queryDataItems []*encryptor.Q
 
 		for i := 0; i < packet.columnCount; i++ {
 			column := packet.Columns[i]
-			data := column.data.Data()
 			packet.descriptionBuf.Write(column.LengthBuf[:])
-			packet.descriptionBuf.Write(data)
+			packet.descriptionBuf.Write(column.data)
 		}
 		// column length buffer wasn't included to column length value and should be accumulated too
 		// + 2 is column count buffer
@@ -127,14 +125,14 @@ func (packet *PacketHandler) sendMessageType() error {
 // ColumnData hold column length and data
 type ColumnData struct {
 	LengthBuf [4]byte
-	data      *utils.DecodedData
+	data      []byte
 	changed   bool
 	isNull    bool
 }
 
 // GetData return raw data, decoded from db format to binary
 func (column *ColumnData) GetData() []byte {
-	return column.data.Data()
+	return column.data
 }
 
 // Length return column length converted from LengthBuf
@@ -169,13 +167,13 @@ const (
 func (column *ColumnData) readData(reader io.Reader, format base.BoundValueFormat) error {
 	length := column.Length()
 	if int32(length) == NullColumnValue {
-		column.data = utils.WrapRawDataAsDecoded(nil)
+		column.data = nil
 		column.isNull = true
 		return nil
 	}
 	column.isNull = false
 	if length == 0 {
-		column.data = utils.WrapRawDataAsDecoded(nil)
+		column.data = nil
 		return nil
 	}
 	data := make([]byte, length)
@@ -186,7 +184,7 @@ func (column *ColumnData) readData(reader io.Reader, format base.BoundValueForma
 	if err != nil {
 		return err
 	}
-	column.data = utils.WrapRawDataAsDecoded(data)
+	column.data = data
 
 	// ignore utils.ErrDecodeOctalString
 	err = nil
@@ -196,12 +194,10 @@ func (column *ColumnData) readData(reader io.Reader, format base.BoundValueForma
 // SetData to column and update LengthBuf with new size
 func (column *ColumnData) SetData(newData []byte) {
 	column.changed = true
-	if column.data == nil {
-		column.data = utils.WrapRawDataAsDecoded(newData)
-	}
-	column.data.Set(newData)
-	binary.BigEndian.PutUint32(column.LengthBuf[:], uint32(len(column.data.Encoded())))
+	column.data = newData
+	binary.BigEndian.PutUint32(column.LengthBuf[:], uint32(len(column.data)))
 }
+
 // SetDataLength set into LengthBuf
 func (column *ColumnData) SetDataLength(length uint32) {
 	binary.BigEndian.PutUint32(column.LengthBuf[:], length)
@@ -341,7 +337,7 @@ func (packet *PacketHandler) GetExecuteData() (*ExecutePacket, error) {
 }
 
 // GetRowDescriptionData return parsed RowDescription packet
-func (packet *PacketHandler) GetRowDescriptionData()(*pgproto3.RowDescription, error){
+func (packet *PacketHandler) GetRowDescriptionData() (*pgproto3.RowDescription, error) {
 	rowDescription := &pgproto3.RowDescription{}
 	if err := rowDescription.Decode(packet.descriptionBufferCopy()); err != nil {
 		return nil, err
@@ -350,7 +346,7 @@ func (packet *PacketHandler) GetRowDescriptionData()(*pgproto3.RowDescription, e
 }
 
 // GetParameterDescriptionData return parsed ParameterDescription packet
-func (packet *PacketHandler) GetParameterDescriptionData()(*pgproto3.ParameterDescription, error){
+func (packet *PacketHandler) GetParameterDescriptionData() (*pgproto3.ParameterDescription, error) {
 	parameterDescription := &pgproto3.ParameterDescription{}
 	if err := parameterDescription.Decode(packet.descriptionBufferCopy()); err != nil {
 		return nil, err
