@@ -153,6 +153,15 @@ type BasicColumnEncryptionSetting struct {
 	settingMask              SettingMask
 }
 
+// IsBinaryDataOperation return true if setting related to operation over binary data
+func IsBinaryDataOperation(setting ColumnEncryptionSetting) bool {
+	// tokenization for binary data or encryption/masking of binary data (not text)
+	hasBinaryOperation := setting.GetTokenType() == common.TokenType_Bytes
+	hasBinaryOperation = hasBinaryOperation || setting.OnlyEncryption() || setting.IsSearchable()
+	hasBinaryOperation = hasBinaryOperation || len(setting.GetMaskingPattern()) != 0
+	return hasBinaryOperation
+}
+
 // Init validate and initialize SettingMask
 func (s *BasicColumnEncryptionSetting) Init() error {
 	if len(s.Name) == 0 {
@@ -275,7 +284,7 @@ func (s *BasicColumnEncryptionSetting) IsConsistentTokenization() bool {
 func (s *BasicColumnEncryptionSetting) GetTokenType() common.TokenType {
 	// If the configuration file contains some unknown or unsupported token type,
 	// return some safe default.
-	const defaultTokenType = common.TokenType_Bytes
+	const defaultTokenType = common.TokenType_Unknown
 	tokenType, ok := tokenTypeNames[s.TokenType]
 	if !ok {
 		return defaultTokenType

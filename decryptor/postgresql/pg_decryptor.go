@@ -773,7 +773,7 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 			}
 			format = int(boundFormat)
 		}
-
+		logger.WithField("data_length", len(column.GetData())).WithField("column_index", i).Debugln("Process columns data")
 		newData, err := proxy.onColumnDecryption(ctx, i, column.GetData(), format == dataFormatBinary)
 		if err != nil {
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).

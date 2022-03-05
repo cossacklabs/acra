@@ -22,6 +22,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/cossacklabs/acra/acrastruct"
+	"github.com/cossacklabs/acra/logging"
+	"github.com/sirupsen/logrus"
 	"net"
 	"strings"
 	"testing"
@@ -829,5 +831,83 @@ func TestEncryptionSettingCollectionFailures(t *testing.T) {
 		if err != tcase.err {
 			t.Fatalf("Expect error %s, took %s\n", tcase.err, err)
 		}
+	}
+}
+
+func TestInsertWithIncorrectPlaceholdersAmount(t *testing.T) {
+	type testcase struct {
+		config      string
+		err         error
+		query       string
+		expectedLog string
+	}
+	testcases := []testcase{
+		// placeholders more than columns
+		{config: `schemas:
+  - table: test_table
+    columns:
+      - data1
+    encrypted:
+      - column: data1`,
+			query:       `insert into test_table(data1) values ($1, $2);`,
+			err:         nil,
+			expectedLog: "Amount of values in INSERT bigger than column count",
+		},
+		// placeholders more than columns with several data rows
+		{config: `schemas:
+  - table: test_table
+    columns:
+      - data1
+    encrypted:
+      - column: data1`,
+			query:       `insert into test_table(data1) values ($1), ($2, $3);`,
+			err:         nil,
+			expectedLog: "Amount of values in INSERT bigger than column count",
+		},
+		// placeholder with invalid index
+		{config: `schemas:
+  - table: test_table
+    columns:
+      - data1
+    encrypted:
+      - column: data1`,
+			query:       `insert into test_table(data1) values ($1), ($3);`,
+			err:         ErrInvalidPlaceholder,
+			expectedLog: "Invalid placeholder index",
+		},
+	}
+	parser := sqlparser.New(sqlparser.ModeDefault)
+	encryptor, err := NewPostgresqlQueryEncryptor(nil, parser, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// use custom output writer to check buffer for expected log entries
+	logger := logrus.New()
+	outBuffer := &bytes.Buffer{}
+	logger.SetOutput(outBuffer)
+	ctx := logging.SetLoggerToContext(context.Background(), logrus.NewEntry(logger))
+	ctx = base.SetClientSessionToContext(ctx, sessionStub{})
+	for i, tcase := range testcases {
+		outBuffer.Reset()
+		t.Logf("Test tcase %d\n", i)
+		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		if err != nil {
+			t.Fatal(err)
+		}
+		encryptor.schemaStore = schemaStore
+		statement, err := parser.Parse(tcase.query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		insertExpr, ok := statement.(*sqlparser.Insert)
+		if !ok {
+			t.Fatalf("[%d] Test query should be INSERT query, took %s\n", i, tcase.query)
+		}
+
+		_, err = encryptor.encryptInsertQuery(ctx, insertExpr)
+		if err != tcase.err {
+			t.Fatalf("Expect error %s, took %s\n", tcase.err, err)
+		}
+		strings.Contains(outBuffer.String(), tcase.expectedLog)
 	}
 }

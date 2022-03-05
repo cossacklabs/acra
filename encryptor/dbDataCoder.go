@@ -78,7 +78,7 @@ func (*MysqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, error
 }
 
 // PgEncodeToHexString return data as is if it's valid UTF string otherwise encode to hex with \x prefix
-func PgEncodeToHexString(data []byte)[]byte {
+func PgEncodeToHexString(data []byte) []byte {
 	if utf8.Valid(data) {
 		return data
 	}

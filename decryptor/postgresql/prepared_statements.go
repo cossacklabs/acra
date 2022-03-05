@@ -243,7 +243,7 @@ func (p *pgBoundValue) SetData(newData []byte, setting config.ColumnEncryptionSe
 
 	if setting.IsTokenized() {
 		return p.setTokenizedData(newData, setting)
-	} else if setting.OnlyEncryption() || setting.IsSearchable() {
+	} else if config.IsBinaryDataOperation(setting) {
 		return p.setEncryptedData(newData, setting)
 	}
 	return nil
@@ -253,7 +253,7 @@ func (p *pgBoundValue) setTokenizedData(newData []byte, setting config.ColumnEnc
 	p.data = newData
 	switch p.format {
 	case base.BinaryFormat:
-		switch setting.GetTokenType()  {
+		switch setting.GetTokenType() {
 		case tokens.TokenType_Int32:
 			newVal, err := strconv.ParseInt(string(newData), 10, 32)
 			if err != nil {
@@ -302,17 +302,17 @@ func (p *pgBoundValue) GetData(setting config.ColumnEncryptionSetting) ([]byte, 
 
 	switch p.format {
 	case base.TextFormat:
-		if setting.OnlyEncryption() || setting.IsSearchable(){
+		if setting.OnlyEncryption() || setting.IsSearchable() {
 			// binary data in TextFormat received as Hex/Octal encoded values
 			// so we should decode them before processing
-			switch setting.GetTokenType(){
+			switch setting.GetTokenType() {
 			case tokens.TokenType_String, tokens.TokenType_Email:
 				// TODO handle error
 				decoded, err := utils.DecodeEscaped(p.data)
 				if err != nil {
 					return p.data, err
 				}
-				return decoded.Data(), nil
+				return decoded, nil
 			}
 		}
 	// TODO(ilammy, 2020-10-19): handle non-bytes binary data

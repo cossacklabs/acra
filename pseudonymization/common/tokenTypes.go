@@ -30,6 +30,24 @@ var supportedTokenTypes = map[TokenType]bool{
 	TokenType_Email:  true,
 }
 
+// ToConfigString converts value to string used in encryptor_config
+func (x TokenType) ToConfigString() (val string, err error) {
+	err = ErrUnknownTokenType
+	switch x {
+	case TokenType_Int32:
+		return "int32", nil
+	case TokenType_Int64:
+		return "int64", nil
+	case TokenType_String:
+		return "str", nil
+	case TokenType_Bytes:
+		return "bytes", nil
+	case TokenType_Email:
+		return "email", nil
+	}
+	return
+}
+
 // Validation errors
 var (
 	ErrUnknownTokenType     = errors.New("unknown token type")

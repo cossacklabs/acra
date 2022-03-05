@@ -61,6 +61,7 @@ func (q *QueryDataItem) TableName() string {
 func (q *QueryDataItem) ColumnName() string {
 	return q.columnName
 }
+
 // ColumnAlias if matched as alias to any data item
 func (q *QueryDataItem) ColumnAlias() string {
 	return q.columnAlias
@@ -128,7 +129,7 @@ func (encryptor *QueryDataEncryptor) encryptInsertQuery(ctx context.Context, ins
 			for _, valTuple := range rows {
 				// collect values per column
 				for j, value := range valTuple {
-					columnName := columnsName[j]
+					columnName := columnsName[j%len(insert.Columns)]
 					if changedValue, err := encryptor.encryptExpression(ctx, value, schema, columnName); err != nil {
 						logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptorCantEncryptExpression).WithError(err).Errorln("Can't encrypt expression")
 						return changed, err
@@ -315,6 +316,7 @@ func (encryptor *QueryDataEncryptor) OnColumn(ctx context.Context, data []byte) 
 		if columnInfo.Index() < len(encryptor.querySelectSettings) {
 			selectSetting := encryptor.querySelectSettings[columnInfo.Index()]
 			if selectSetting != nil {
+				logging.GetLoggerFromContext(ctx).WithField("column_index", columnInfo.Index()).Debugln("Set encryption setting")
 				return NewContextWithEncryptionSetting(ctx, selectSetting.Setting()), data, nil
 			}
 		}
@@ -472,11 +474,12 @@ func (encryptor *QueryDataEncryptor) OnBind(ctx context.Context, statement sqlpa
 
 func (encryptor *QueryDataEncryptor) getInsertPlaceholders(ctx context.Context, insert *sqlparser.Insert) (map[int]string, error) {
 	tableName := insert.Table.Name
+	logger := logging.GetLoggerFromContext(ctx)
 	// Look for the schema of the table where the INSERT happens.
 	// If we don't have a schema then we don't know what to encrypt, so do nothing.
 	schema := encryptor.schemaStore.GetTableSchema(tableName.String())
 	if schema == nil {
-		logrus.WithField("table", tableName).Debugln("No encryption schema")
+		logger.WithField("table", tableName).Debugln("No encryption schema")
 		return nil, nil
 	}
 
@@ -493,7 +496,7 @@ func (encryptor *QueryDataEncryptor) getInsertPlaceholders(ctx context.Context, 
 	}
 	// If there is no column schema available, we can't encrypt values.
 	if len(columns) == 0 {
-		logrus.WithField("table", tableName).Debugln("No column information")
+		logger.WithField("table", tableName).Debugln("No column information")
 		return nil, nil
 	}
 
@@ -507,13 +510,20 @@ func (encryptor *QueryDataEncryptor) getInsertPlaceholders(ctx context.Context, 
 	// as inserted values. We don't support functions, casts, inserting query results, etc.
 	//
 	// Walk through the query to find out which placeholders stand for which columns.
+	// Also count amount of passed value to validate that placeholder's index doesn't go out of this number
+	valuesCount := 0
 	switch rows := insert.Rows.(type) {
 	case sqlparser.Values:
 		for _, row := range rows {
+			valuesCount += len(row)
 			for i, value := range row {
+				if i >= len(columns) {
+					logger.WithFields(logrus.Fields{"value_index": i, "column_count": len(columns)}).Warningln("Amount of values in INSERT bigger than column count")
+					continue
+				}
 				switch value := value.(type) {
 				case *sqlparser.SQLVal:
-					err := encryptor.updatePlaceholderMap(len(insert.Columns), placeholders, value, columns[i])
+					err := encryptor.updatePlaceholderMap(valuesCount, placeholders, value, columns[i])
 					if err != nil {
 						return nil, err
 					}
@@ -524,7 +534,7 @@ func (encryptor *QueryDataEncryptor) getInsertPlaceholders(ctx context.Context, 
 	return placeholders, nil
 }
 
-func (encryptor *QueryDataEncryptor) savePlaceholderSettingIntoClientSession(ctx context.Context, placeholders map[int]string, schema config.TableSchema){
+func (encryptor *QueryDataEncryptor) savePlaceholderSettingIntoClientSession(ctx context.Context, placeholders map[int]string, schema config.TableSchema) {
 	if schema == nil {
 		logrus.Debugln("No encryption schema")
 		return
@@ -537,16 +547,16 @@ func (encryptor *QueryDataEncryptor) savePlaceholderSettingIntoClientSession(ctx
 	needEncrypt := false
 	items := make([]*QueryDataItem, len(placeholders))
 	for i, columnName := range placeholders {
-		if !schema.NeedToEncrypt(columnName){
+		if !schema.NeedToEncrypt(columnName) {
 			items[i] = nil
 			continue
 		}
 		needEncrypt = true
 		setting := schema.GetColumnEncryptionSettings(columnName)
 		items[i] = &QueryDataItem{
-			setting: setting,
-			tableName: schema.Name(),
-			columnName: columnName,
+			setting:     setting,
+			tableName:   schema.Name(),
+			columnName:  columnName,
 			columnAlias: columnName,
 		}
 	}
@@ -739,17 +749,17 @@ func (encryptor *QueryDataEncryptor) encryptWithColumnSettings(ctx context.Conte
 const queryDataItemKey = "query_data_items"
 
 // SaveQueryDataItemsToClientSession save slice of QueryDataItem into ClientSession
-func SaveQueryDataItemsToClientSession(session base.ClientSession, items []*QueryDataItem){
+func SaveQueryDataItemsToClientSession(session base.ClientSession, items []*QueryDataItem) {
 	session.SetData(queryDataItemKey, items)
 }
 
 // DeleteQueryDataItemsToClientSession delete items from ClientSession
-func DeleteQueryDataItemsToClientSession(session base.ClientSession){
+func DeleteQueryDataItemsToClientSession(session base.ClientSession) {
 	session.DeleteData(queryDataItemKey)
 }
 
 // QueryDataItemsFromClientSession return QueryDataItems from ClientSession if saved otherwise nil
-func QueryDataItemsFromClientSession(session base.ClientSession) []*QueryDataItem{
+func QueryDataItemsFromClientSession(session base.ClientSession) []*QueryDataItem {
 	data, ok := session.GetData(queryDataItemKey)
 	if !ok {
 		return nil
