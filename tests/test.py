@@ -1213,6 +1213,7 @@ class VaultClient:
 
 class BaseTestCase(PrometheusMixin, unittest.TestCase):
     DEBUG_LOG = os.environ.get('DEBUG_LOG', True)
+    if DEBUG_LOG == 'False' or DEBUG_LOG == '0': DEBUG_LOG = False
     # for debugging with manually runned acra-server
     EXTERNAL_ACRA = False
     ACRASERVER_PORT = int(os.environ.get('TEST_ACRASERVER_PORT', 10003))

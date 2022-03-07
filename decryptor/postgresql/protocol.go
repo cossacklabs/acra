@@ -165,6 +165,11 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 	if packet.IsReadyForQuery() {
 		p.forgetPendingExecute()
 		p.forgetPendingQuery()
+
+		// Sensitive data in this bind was already cleared after processing BindComplete packet,
+		// so here we only set it to `nil`
+		p.pendingBind = nil
+
 		p.lastPacketType = OtherPacket
 		return nil
 	}
@@ -184,10 +189,12 @@ func (p *PgProtocolState) forgetPendingParse() {
 }
 
 func (p *PgProtocolState) forgetPendingBind() {
+	// We forget sensitive data here, but not the bind itself
+	// because it's needed in handleQueryDataPacket(),
+	// then we set `pendingBind` to `nil` after receiving ReadyForQuery
 	if p.pendingBind != nil {
 		p.pendingBind.Zeroize()
 	}
-	p.pendingBind = nil
 }
 
 func (p *PgProtocolState) forgetPendingExecute() {
