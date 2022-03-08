@@ -1,3 +1,6 @@
+## 0.92.0 - 2022-03-08
+- Fix bug with PostgreSQL + prepared statements that was discovered while using Rust `postgres` crate
+
 ## 0.92.0 - 2022-02-21
 - Adapt python integration tests for python3.6 for tests on centos 7/8
 
