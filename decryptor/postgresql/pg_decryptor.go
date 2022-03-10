@@ -626,11 +626,13 @@ func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHa
 	case ParseCompletePacket:
 		// Previously requested prepared statement has been confirmed by the database, register it.
 		preparedStatement := proxy.protocolState.PendingParse()
+		defer proxy.protocolState.forgetPendingParse()
 		return proxy.registerPreparedStatement(preparedStatement, logger)
 
 	case BindCompletePacket:
 		// Previously requested cursor has been confirmed by the database, register it.
 		bindPacket := proxy.protocolState.PendingBind()
+		defer proxy.protocolState.forgetPendingBind()
 		return proxy.registerCursor(bindPacket, logger)
 
 	default:
