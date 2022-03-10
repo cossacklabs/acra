@@ -344,21 +344,21 @@ func (proxy *PgProxy) handleQueryPacket(ctx context.Context, packet *PacketHandl
 
 func (proxy *PgProxy) handleBindPacket(ctx context.Context, packet *PacketHandler, logger *log.Entry) (bool, error) {
 	bind := proxy.protocolState.PendingBind()
-	log := logger.WithField("portal", bind.PortalName()).WithField("statement", bind.StatementName())
-	log.Debug("Bind packet")
+	logger = logger.WithField("portal", bind.PortalName()).WithField("statement", bind.StatementName())
+	logger.Debug("Bind packet")
 	// There must be previously registered prepared statement with requested name. If there isn't
 	// it's likely due to a client error. Print a warning and let the packet through as is.
 	// We can't do anything with it and the database should respond with an error.
 	registry := proxy.session.PreparedStatementRegistry()
 	statement, err := registry.StatementByName(bind.StatementName())
 	if err != nil {
-		log.WithError(err).Error("Failed to handle Bind packet: can't find prepared statement")
+		logger.WithError(err).Error("Failed to handle Bind packet: can't find prepared statement")
 		return false, nil
 	}
 	// Now, repackage the parameters for processing... If that fails, let the packet through too.
 	parameters, err := bind.GetParameters()
 	if err != nil {
-		log.WithError(err).Error("Failed to handle Bind packet: can't extract parameters")
+		logger.WithError(err).Error("Failed to handle Bind packet: can't extract parameters")
 		return false, nil
 	}
 	// Process parameter values. If we can't -- you guessed it -- leave the packet unchanged.
@@ -369,7 +369,7 @@ func (proxy *PgProxy) handleBindPacket(ctx context.Context, packet *PacketHandle
 			return false, err
 		}
 
-		log.WithError(err).Error("Failed to handle Bind packet")
+		logger.WithError(err).Error("Failed to handle Bind packet")
 		return false, nil
 	}
 	// Finally, if the parameter values have been changed, update the packet.
@@ -378,7 +378,7 @@ func (proxy *PgProxy) handleBindPacket(ctx context.Context, packet *PacketHandle
 		bind.SetParameters(newParameters)
 		err = packet.ReplaceBind(bind)
 		if err != nil {
-			log.WithError(err).Error("Failed to update Bind packet")
+			logger.WithError(err).Error("Failed to update Bind packet")
 		}
 		return false, nil
 	}
