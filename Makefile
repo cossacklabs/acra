@@ -161,7 +161,7 @@ endef
 
 ## Show this help
 help:
-	@echo "$(COLOR_MENU)Targets:$(COLOR_DEFAULT)"
+	@echo -e "$(COLOR_MENU)Targets:$(COLOR_DEFAULT)"
 	@awk 'BEGIN { FS = ":.*?" }\
 		/^## *--/ { print "" }\
 		/^## / { split($$0,a,/## /); comment = a[2] }\
@@ -170,7 +170,7 @@ help:
 			printf "  $(COLOR_TARGET)%-15s$(COLOR_DEFAULT) %s\n", $$1, comment;\
 			comment = "" }'\
 		$(MAKEFILE_LIST)
-	@echo "\n$(COLOR_MENU)Properties allowed for overriding:$(COLOR_DEFAULT)"
+	@echo -e "\n$(COLOR_MENU)Properties allowed for overriding:$(COLOR_DEFAULT)"
 	@awk 'BEGIN { FS = " *\\?= *" }\
 		/^## / { split($$0,a,/## /); comment = a[2] }\
 		/^[a-zA-Z][-_a-zA-Z]+ +\?=.*/ {\
@@ -179,7 +179,7 @@ help:
 			printf "%28s$(COLOR_COMMENT)'\''%s'\'' by default$(COLOR_DEFAULT)\n", "", $$2;\
 			comment = "" }'\
 		$(MAKEFILE_LIST)
-	@echo "$(COLOR_MENU)Usage example:$(COLOR_DEFAULT)\n\
+	@echo -e "$(COLOR_MENU)Usage example:$(COLOR_DEFAULT)\n\
 	  make DOCKER_EXTRA_BUILD_TAGS='staging' DOCKER_REGISTRY_HOST=registry.example.com docker-build"
 
 ##---- Application -------------------------------------------------------------
