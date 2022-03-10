@@ -3,13 +3,14 @@ package common
 import (
 	"bytes"
 	"fmt"
-	"github.com/cossacklabs/acra/sqlparser"
 	"io/ioutil"
 	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/cossacklabs/acra/sqlparser"
 )
 
 const testSerializationTime = 100 * time.Millisecond
@@ -264,9 +265,9 @@ func TestQueryCaptureOnDuplicates(t *testing.T) {
 	for _, query := range testQueries {
 		writer.WriteQuery(query)
 	}
-	expected := "{\"raw_query\":\"SELECT Student_ID FROM STUDENT;\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM STUDENT;\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM X;\",\"_blacklisted_by_web_config\":false}\n"
+	expected := "{\"raw_query\":\"SELECT Student_ID FROM STUDENT;\"}\n" +
+		"{\"raw_query\":\"SELECT * FROM STUDENT;\"}\n" +
+		"{\"raw_query\":\"SELECT * FROM X;\"}\n"
 	if writer.skippedQueryCount > 0 {
 		t.Fatal("Detected unexpected skipping queries")
 	}
@@ -283,10 +284,10 @@ func TestQueryCaptureOnDuplicates(t *testing.T) {
 	}
 	testQuery := "SELECT * FROM Z;"
 	writer.WriteQuery(testQuery)
-	expected = "{\"raw_query\":\"SELECT Student_ID FROM STUDENT;\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM STUDENT;\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM X;\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM Z;\",\"_blacklisted_by_web_config\":false}\n"
+	expected = "{\"raw_query\":\"SELECT Student_ID FROM STUDENT;\"}\n" +
+		"{\"raw_query\":\"SELECT * FROM STUDENT;\"}\n" +
+		"{\"raw_query\":\"SELECT * FROM X;\"}\n" +
+		"{\"raw_query\":\"SELECT * FROM Z;\"}\n"
 	if writer.skippedQueryCount > 0 {
 		t.Fatal("Detected unexpected skipping queries")
 	}
@@ -315,11 +316,11 @@ func TestQueryCaptureOnDuplicates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected = "{\"raw_query\":\"SELECT Student_ID FROM STUDENT;\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM STUDENT;\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM X;\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM Z;\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10\",\"_blacklisted_by_web_config\":false}\n"
+	expected = "{\"raw_query\":\"SELECT Student_ID FROM STUDENT;\"}\n" +
+		"{\"raw_query\":\"SELECT * FROM STUDENT;\"}\n" +
+		"{\"raw_query\":\"SELECT * FROM X;\"}\n" +
+		"{\"raw_query\":\"SELECT * FROM Z;\"}\n" +
+		"{\"raw_query\":\"select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10\"}\n"
 
 	if !strings.EqualFold(expected, string(result)) {
 		t.Fatal("Expected: ", expected, " | Got: ", string(result))
