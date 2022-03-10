@@ -279,6 +279,12 @@ schemas:
 	}
 	for i, tcase := range testcases {
 		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		u, ok := err.(interface {
+			Unwrap() error
+		})
+		if ok {
+			err = u.Unwrap()
+		}
 		if err == nil || err.Error() != tcase.err.Error() {
 			t.Fatalf("[%d] Expect %s, took %s\n", i, tcase.err.Error(), err)
 		}

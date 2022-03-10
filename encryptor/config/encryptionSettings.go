@@ -194,7 +194,7 @@ func (s *BasicColumnEncryptionSetting) Init() error {
 	if s.ReEncryptToAcraBlock != nil && *s.ReEncryptToAcraBlock {
 		s.settingMask |= SettingReEncryptionFlag
 	}
-	if s.TokenType != "" {
+	if s.TokenType != "" || s.Tokenized {
 		tokenType, ok := tokenTypeNames[s.TokenType]
 		if !ok {
 			return fmt.Errorf("%s: %w", s.TokenType, common.ErrUnknownTokenType)
