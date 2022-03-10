@@ -184,18 +184,18 @@ func (server *SServer) handleClientSession(clientID []byte, clientSession *Clien
 	accessContext := base.NewAccessContext(base.WithClientID(clientID), base.WithZoneMode(server.config.GetWithZone()))
 	// subscribe on clientID changes after switching connection to TLS and using ClientID from TLS certificates
 	proxy.AddClientIDObserver(accessContext)
-
+	clientSession.ctx = base.SetAccessContextToContext(clientSession.ctx, accessContext)
 	server.backgroundWorkersSync.Add(1)
 	go func() {
 		defer server.backgroundWorkersSync.Done()
 		defer recoverConnection(sessionLogger.WithField("function", "ProxyClientConnection"), sessionCloseToCloser(clientSession.Close))
-		proxy.ProxyClientConnection(base.SetAccessContextToContext(clientSession.ctx, accessContext), proxyErrCh)
+		proxy.ProxyClientConnection(clientSession.ctx, proxyErrCh)
 	}()
 	server.backgroundWorkersSync.Add(1)
 	go func() {
 		defer server.backgroundWorkersSync.Done()
 		defer recoverConnection(sessionLogger.WithField("function", "ProxyDatabaseConnection"), sessionCloseToCloser(clientSession.Close))
-		proxy.ProxyDatabaseConnection(base.SetAccessContextToContext(clientSession.ctx, accessContext), proxyErrCh)
+		proxy.ProxyDatabaseConnection(clientSession.ctx, proxyErrCh)
 	}()
 
 	proxyErr := <-proxyErrCh
