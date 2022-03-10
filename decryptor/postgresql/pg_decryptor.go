@@ -660,18 +660,14 @@ func (proxy *PgProxy) handleParameterDescription(ctx context.Context, packet *Pa
 			Errorln("Can't parse ParameterDescription packet")
 		return nil
 	}
-	if len(items) != len(parameterDescription.ParameterOIDs) {
-		log.Errorln("Parameter count in ParameterDescription packet not same as parsed query count of columns")
-		return nil
-	}
 	changed := false
 	for i := 0; i < len(parameterDescription.ParameterOIDs); i++ {
 		setting := items[i]
 		if setting == nil {
 			continue
 		}
-		if setting.Setting().OnlyEncryption() || setting.Setting().IsSearchable() {
-			newOID, ok := mapTokenTypeToOID(setting.Setting().GetTokenType())
+		if setting.OnlyEncryption() || setting.IsSearchable() {
+			newOID, ok := mapTokenTypeToOID(setting.GetTokenType())
 			if ok {
 				parameterDescription.ParameterOIDs[i] = newOID
 				changed = true

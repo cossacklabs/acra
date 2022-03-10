@@ -27,12 +27,12 @@ import (
 type PgProtocolState struct {
 	parser *sqlparser.Parser
 
-	lastPacketType PacketType
-	pendingQuery   base.OnQueryObject
-	pendingParse   *ParsePacket
-	pendingBind    *BindPacket
-	pendingExecute *ExecutePacket
-	pendingRowDescription *pgproto3.RowDescription
+	lastPacketType              PacketType
+	pendingQuery                base.OnQueryObject
+	pendingParse                *ParsePacket
+	pendingBind                 *BindPacket
+	pendingExecute              *ExecutePacket
+	pendingRowDescription       *pgproto3.RowDescription
 	pendingParameterDescription *pgproto3.ParameterDescription
 }
 

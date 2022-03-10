@@ -277,7 +277,6 @@ func (encryptor *HashQuery) replaceValuesWithHMACs(ctx context.Context, values [
 	bindData := queryEncryptor.PlaceholderSettingsFromClientSession(clientSession)
 
 	for _, valueIndex := range placeholders {
-		format := values[valueIndex].Format()
 		var encryptionSetting config.ColumnEncryptionSetting = nil
 		if bindData != nil {
 			setting, ok := bindData[valueIndex]

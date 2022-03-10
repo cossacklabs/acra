@@ -238,6 +238,7 @@ func (p *pgBoundValue) GetType() byte {
 // SetData set new value to BoundValue using ColumnEncryptionSetting if provided
 func (p *pgBoundValue) SetData(newData []byte, setting config.ColumnEncryptionSetting) error {
 	if setting == nil {
+		p.data = newData
 		return nil
 	}
 
@@ -305,15 +306,13 @@ func (p *pgBoundValue) GetData(setting config.ColumnEncryptionSetting) ([]byte, 
 		if setting.OnlyEncryption() || setting.IsSearchable() {
 			// binary data in TextFormat received as Hex/Octal encoded values
 			// so we should decode them before processing
-			switch setting.GetTokenType() {
-			case tokens.TokenType_String, tokens.TokenType_Email:
-				// TODO handle error
-				decoded, err := utils.DecodeEscaped(p.data)
-				if err != nil {
-					return p.data, err
-				}
-				return decoded, nil
+
+			decoded, err := utils.DecodeEscaped(p.data)
+			if err != nil {
+				return p.data, err
 			}
+			return decoded, nil
+
 		}
 	// TODO(ilammy, 2020-10-19): handle non-bytes binary data
 	// Encryptor expects binary data to be passed in raw bytes, but most non-byte-arrays

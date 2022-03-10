@@ -20,25 +20,16 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"reflect"
-	"strconv"
-	"strings"
-
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
+	"reflect"
+	"strconv"
+	"strings"
 )
-
-//// QueryDataItem store information about result item in Select queries
-//type QueryDataItem interface {
-//	Setting() config.ColumnEncryptionSetting
-//	TableName() string
-//	ColumnName() string
-//	ColumnAlias() string
-//}
 
 type QueryDataItem struct {
 	setting     config.ColumnEncryptionSetting
@@ -711,19 +702,19 @@ func (encryptor *QueryDataEncryptor) encryptValuesWithPlaceholders(ctx context.C
 			copy(values, oldValues)
 		}
 		changed = true
-		settings := schema.GetColumnEncryptionSettings(columnName)
-		valueData, err := values[valueIndex].GetData(settings)
+		setting := schema.GetColumnEncryptionSettings(columnName)
+		valueData, err := values[valueIndex].GetData(setting)
 		if err != nil {
 			return nil, false, err
 		}
-		encryptedData, err := encryptor.encryptWithColumnSettings(ctx, settings, valueData)
+		encryptedData, err := encryptor.encryptWithColumnSettings(ctx, setting, valueData)
 		if err != nil && err != ErrUpdateLeaveDataUnchanged {
 			logrus.WithError(err).WithFields(logrus.Fields{"index": valueIndex, "column": columnName}).
 				Debug("Failed to encrypt column")
 			return oldValues, false, err
 		}
 
-		err = values[valueIndex].SetData(encryptedData, settings)
+		err = values[valueIndex].SetData(encryptedData, setting)
 		if err != nil {
 			logrus.WithError(err).WithFields(logrus.Fields{"index": valueIndex, "column": columnName}).
 				Debug("Failed to set encrypted value")
