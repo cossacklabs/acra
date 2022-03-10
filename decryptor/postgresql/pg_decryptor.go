@@ -648,7 +648,7 @@ func (proxy *PgProxy) handleParameterDescription(ctx context.Context, packet *Pa
 		logger.Warningln("ParameterDescription packet without ClientSession in context")
 		return nil
 	}
-	items := encryptor.QueryDataItemsFromClientSession(clientSession)
+	items := encryptor.PlaceholderSettingsFromClientSession(clientSession)
 	if items == nil {
 		logger.Debugln("ParameterDescription packet without registered recognized encryption settings")
 		return nil

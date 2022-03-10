@@ -18,7 +18,13 @@ package encryptor
 
 import (
 	"errors"
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
+	"github.com/sirupsen/logrus"
+	"strconv"
+	"strings"
+	"sync"
 )
 
 var errNotFoundtable = errors.New("not found table for alias")
@@ -341,4 +347,88 @@ func mapColumnsToAliases(selectQuery *sqlparser.Select) ([]*columnInfo, error) {
 		out = append(out, nil)
 	}
 	return out, nil
+}
+
+// InvalidPlaceholderIndex value that represent invalid index for sql placeholders
+const InvalidPlaceholderIndex = -1
+
+// ParsePlaceholderIndex parse placeholder index if SQLVal is PgPlaceholder/ValArg otherwise return error and InvalidPlaceholderIndex
+func ParsePlaceholderIndex(placeholder *sqlparser.SQLVal) (int, error) {
+	updateMapByPlaceholderPart := func(part string) (int, error) {
+		text := string(placeholder.Val)
+		index, err := strconv.Atoi(strings.TrimPrefix(text, part))
+		if err != nil {
+			logrus.WithField("placeholder", text).WithError(err).Warning("Cannot parse placeholder")
+			return InvalidPlaceholderIndex, err
+		}
+		// Placeholders use 1-based indexing and "values" (Go slice) are 0-based.
+		index--
+		return index, nil
+	}
+
+	switch placeholder.Type {
+	case sqlparser.PgPlaceholder:
+		// PostgreSQL placeholders look like "$1". Parse the number out of them.
+		return updateMapByPlaceholderPart("$")
+	case sqlparser.ValArg:
+		// MySQL placeholders look like ":v1". Parse the number out of them.
+		return updateMapByPlaceholderPart(":v")
+	}
+	return InvalidPlaceholderIndex, ErrInvalidPlaceholder
+}
+
+const queryDataItemKey = "query_data_items"
+
+// SaveQueryDataItemsToClientSession save slice of QueryDataItem into ClientSession
+func SaveQueryDataItemsToClientSession(session base.ClientSession, items []*QueryDataItem) {
+	session.SetData(queryDataItemKey, items)
+}
+
+// DeleteQueryDataItemsFromClientSession delete items from ClientSession
+func DeleteQueryDataItemsFromClientSession(session base.ClientSession) {
+	session.DeleteData(queryDataItemKey)
+}
+
+// QueryDataItemsFromClientSession return QueryDataItems from ClientSession if saved otherwise nil
+func QueryDataItemsFromClientSession(session base.ClientSession) []*QueryDataItem {
+	data, ok := session.GetData(queryDataItemKey)
+	if !ok {
+		return nil
+	}
+	items, ok := data.([]*QueryDataItem)
+	if ok {
+		return items
+	}
+	return nil
+}
+
+var bindPlaceholdersPool = sync.Pool{New: func() interface{} {
+	return make(map[int]config.ColumnEncryptionSetting, 32)
+}}
+
+const placeholdersSettingKey = "bind_encryption_settings"
+
+// PlaceholderSettingsFromClientSession return stored in client session ColumnEncryptionSettings related to placeholders
+// or create new and save in session
+func PlaceholderSettingsFromClientSession(session base.ClientSession) map[int]config.ColumnEncryptionSetting {
+	data, ok := session.GetData(placeholdersSettingKey)
+	if !ok {
+		//logger := logging.GetLoggerFromContext(session.Context())
+		value := bindPlaceholdersPool.Get().(map[int]config.ColumnEncryptionSetting)
+		//logger.WithField("session", session).WithField("value", value).Debugln("Create placeholders")
+		session.SetData(placeholdersSettingKey, value)
+		return value
+	}
+	items, ok := data.(map[int]config.ColumnEncryptionSetting)
+	if ok {
+		return items
+	}
+	return nil
+}
+
+// DeletePlaceholderSettingsFromClientSession delete items from ClientSession
+func DeletePlaceholderSettingsFromClientSession(session base.ClientSession) {
+	data := PlaceholderSettingsFromClientSession(session)
+	bindPlaceholdersPool.Put(data)
+	session.DeleteData(placeholdersSettingKey)
 }
