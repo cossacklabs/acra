@@ -1,4 +1,4 @@
-## 0.92.0 - 2022-03-10
+## 0.93.0 - 2022-03-10
 - Remove `IsForbidden` field from acra-censor’s logs
 
 ## 0.92.0 - 2022-02-21
