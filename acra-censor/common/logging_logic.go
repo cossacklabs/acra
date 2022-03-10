@@ -3,8 +3,6 @@ package common
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/cossacklabs/acra/logging"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"os"
 	"os/signal"
@@ -13,6 +11,9 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/cossacklabs/acra/logging"
+	log "github.com/sirupsen/logrus"
 )
 
 const defaultSerializationTimeout = time.Second
@@ -27,8 +28,7 @@ var DefaultWriteQueryChannelSize = defaultWriteQueryChannelSize
 
 // QueryInfo defines format of exporting query into file
 type QueryInfo struct {
-	RawQuery    string `json:"raw_query"`
-	IsForbidden bool   `json:"_blacklisted_by_web_config"`
+	RawQuery string `json:"raw_query"`
 }
 
 // LogStorage defines basic storage that should be used by QueryWriter
@@ -224,7 +224,6 @@ func (queryWriter *QueryWriter) serializeQueries(queries []*QueryInfo) []byte {
 	var tempQueryInfo = QueryInfo{}
 	for _, queryInfo := range queries {
 		tempQueryInfo.RawQuery = queryInfo.RawQuery
-		tempQueryInfo.IsForbidden = queryInfo.IsForbidden
 		jsonQueryInfo, err := json.Marshal(tempQueryInfo)
 		if err != nil {
 			queryWriter.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQuerySerializeError).Errorln("Can't serialize stored queries")
@@ -249,6 +248,5 @@ func (queryWriter *QueryWriter) captureQuery(query string) {
 	}
 	queryInfo := &QueryInfo{}
 	queryInfo.RawQuery = query
-	queryInfo.IsForbidden = false
 	queryWriter.Queries = append(queryWriter.Queries, queryInfo)
 }
