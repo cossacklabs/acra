@@ -1,7 +1,10 @@
 package encryptor
 
 import (
+	"github.com/cossacklabs/acra/decryptor/base/mocks"
+	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
+	"github.com/stretchr/testify/mock"
 	"testing"
 )
 
@@ -265,4 +268,51 @@ from table1 join table2 as t2 on from_number = t2.number or to_number = t2.numbe
 			}
 		}
 	})
+}
+
+func TestPlaceholderSettings(t *testing.T) {
+	clientSession := &mocks.ClientSession{}
+	sessionData := make(map[string]interface{}, 2)
+	clientSession.On("GetData", mock.Anything).Return(func(key string) interface{} {
+		return sessionData[key]
+	}, func(key string) bool {
+		_, ok := sessionData[key]
+		return ok
+	})
+	clientSession.On("DeleteData", mock.Anything).Run(func(args mock.Arguments) {
+		delete(sessionData, args[0].(string))
+	})
+	clientSession.On("SetData", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		sessionData[args[0].(string)] = args[1]
+	})
+
+	sessionData[placeholdersSettingKey] = "trash"
+
+	data := PlaceholderSettingsFromClientSession(clientSession)
+	if data != nil {
+		t.Fatal("Expect nil for value with invalid type")
+	}
+	DeletePlaceholderSettingsFromClientSession(clientSession)
+
+	// get new initialized map
+	data = PlaceholderSettingsFromClientSession(clientSession)
+	// set some data
+	data[0] = &config.BasicColumnEncryptionSetting{}
+	data[1] = &config.BasicColumnEncryptionSetting{}
+
+	data_ := PlaceholderSettingsFromClientSession(clientSession)
+	if len(data_) != len(data) {
+		t.Fatal("Unexpected map with different size")
+	}
+	// clear data, force to return map to the pool cleared from data
+	DeletePlaceholderSettingsFromClientSession(clientSession)
+
+	// we expect that will be returned same value from sync.Pool and check that it's cleared
+	data_ = PlaceholderSettingsFromClientSession(clientSession)
+	if len(data_) != 0 {
+		t.Fatal("Map's data wasn't cleared")
+	}
+	if len(data_) != len(data) {
+		t.Fatal("Source map's data wasn't cleared")
+	}
 }

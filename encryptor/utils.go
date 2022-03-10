@@ -429,6 +429,15 @@ func PlaceholderSettingsFromClientSession(session base.ClientSession) map[int]co
 // DeletePlaceholderSettingsFromClientSession delete items from ClientSession
 func DeletePlaceholderSettingsFromClientSession(session base.ClientSession) {
 	data := PlaceholderSettingsFromClientSession(session)
+	if data == nil {
+		logrus.Warningln("Invalid type of PlaceholderSettings")
+		session.DeleteData(placeholdersSettingKey)
+		// do nothing because it's invalid
+		return
+	}
+	for key := range data {
+		delete(data, key)
+	}
 	bindPlaceholdersPool.Put(data)
 	session.DeleteData(placeholdersSettingKey)
 }

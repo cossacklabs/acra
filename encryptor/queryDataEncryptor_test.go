@@ -22,9 +22,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/cossacklabs/acra/acrastruct"
+	"github.com/cossacklabs/acra/decryptor/base/mocks"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/sirupsen/logrus"
-	"net"
+	"github.com/stretchr/testify/mock"
 	"strings"
 	"testing"
 
@@ -430,6 +431,13 @@ schemas:
 			}
 		}
 		ctx := base.SetAccessContextToContext(context.Background(), base.NewAccessContext(base.WithClientID(defaultClientID)))
+		clientSession := &mocks.ClientSession{}
+		sessionData := make(map[string]interface{}, 2)
+		clientSession.On("GetData", mock.Anything).Return(sessionData, true)
+		clientSession.On("SetData", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+			sessionData[args[0].(string)] = args[1]
+		})
+		ctx = base.SetClientSessionToContext(ctx, clientSession)
 		data, changed, err := mysqlParser.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
 		if err != nil {
 			t.Fatalf("%v. %s", i, err.Error())
@@ -482,7 +490,13 @@ schemas:
 	}
 
 	ctx := base.SetAccessContextToContext(context.Background(), base.NewAccessContext(base.WithClientID(defaultClientID)))
-
+	clientSession := &mocks.ClientSession{}
+	data := make(map[string]interface{}, 2)
+	clientSession.On("GetData", mock.Anything).Return(data, true)
+	clientSession.On("SetData", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		data[args[0].(string)] = args[1]
+	})
+	ctx = base.SetClientSessionToContext(ctx, clientSession)
 	t.Run("RETURNING *", func(t *testing.T) {
 		query := `INSERT INTO TableWithColumnSchema ('zone_id', 'specified_client_id', 'other_column', 'default_client_id') VALUES (1, 1, 1, 1) RETURNING *`
 
@@ -542,52 +556,6 @@ schemas:
 			}
 		}
 	})
-}
-
-type sessionStub struct{}
-
-func (s sessionStub) Context() context.Context {
-	panic("implement me")
-}
-
-func (s sessionStub) ClientConnection() net.Conn {
-	panic("implement me")
-}
-
-func (s sessionStub) DatabaseConnection() net.Conn {
-	panic("implement me")
-}
-
-func (s sessionStub) PreparedStatementRegistry() base.PreparedStatementRegistry {
-	panic("implement me")
-}
-
-func (s sessionStub) SetPreparedStatementRegistry(registry base.PreparedStatementRegistry) {
-	panic("implement me")
-}
-
-func (s sessionStub) ProtocolState() interface{} {
-	panic("implement me")
-}
-
-func (s sessionStub) SetProtocolState(state interface{}) {
-	panic("implement me")
-}
-
-func (s sessionStub) GetData(s2 string) (interface{}, bool) {
-	panic("implement me")
-}
-
-func (s sessionStub) SetData(s2 string, i interface{}) {
-	return
-}
-
-func (s sessionStub) DeleteData(s2 string) {
-	panic("implement me")
-}
-
-func (s sessionStub) HasData(s2 string) bool {
-	panic("implement me")
 }
 
 func TestEncryptionSettingCollection(t *testing.T) {
@@ -755,7 +723,14 @@ func TestEncryptionSettingCollection(t *testing.T) {
 		if !ok {
 			t.Fatalf("[%d] Test query should be SELECT query, took %s\n", i, tcase.query)
 		}
-		ctx := base.SetClientSessionToContext(context.Background(), sessionStub{})
+
+		clientSession := &mocks.ClientSession{}
+		data := make(map[string]interface{}, 2)
+		clientSession.On("GetData", mock.Anything).Return(data, true)
+		clientSession.On("SetData", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+			data[args[0].(string)] = args[1]
+		})
+		ctx := base.SetClientSessionToContext(context.Background(), clientSession)
 		_, err = encryptor.onSelect(ctx, selectExpr)
 		if err != nil {
 			t.Fatal(err)
@@ -864,20 +839,10 @@ func TestInsertWithIncorrectPlaceholdersAmount(t *testing.T) {
 			err:         nil,
 			expectedLog: "Amount of values in INSERT bigger than column count",
 		},
-		// placeholder with invalid index
-		{config: `schemas:
-  - table: test_table
-    columns:
-      - data1
-    encrypted:
-      - column: data1`,
-			query:       `insert into test_table(data1) values ($1), ($3);`,
-			err:         ErrInvalidPlaceholder,
-			expectedLog: "Invalid placeholder index",
-		},
 	}
 	parser := sqlparser.New(sqlparser.ModeDefault)
-	encryptor, err := NewPostgresqlQueryEncryptor(nil, parser, nil)
+
+	encryptor, err := NewPostgresqlQueryEncryptor(nil, parser, NewChainDataEncryptor())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -886,7 +851,21 @@ func TestInsertWithIncorrectPlaceholdersAmount(t *testing.T) {
 	outBuffer := &bytes.Buffer{}
 	logger.SetOutput(outBuffer)
 	ctx := logging.SetLoggerToContext(context.Background(), logrus.NewEntry(logger))
-	ctx = base.SetClientSessionToContext(ctx, sessionStub{})
+	clientSession := &mocks.ClientSession{}
+	sessionData := make(map[string]interface{}, 2)
+	clientSession.On("GetData", mock.Anything).Return(func(key string) interface{} {
+		return sessionData[key]
+	}, func(key string) bool {
+		_, ok := sessionData[key]
+		return ok
+	})
+	clientSession.On("DeleteData", mock.Anything).Run(func(args mock.Arguments) {
+		delete(sessionData, args[0].(string))
+	})
+	clientSession.On("SetData", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		sessionData[args[0].(string)] = args[1]
+	})
+	ctx = base.SetClientSessionToContext(ctx, clientSession)
 	for i, tcase := range testcases {
 		outBuffer.Reset()
 		t.Logf("Test tcase %d\n", i)
@@ -903,8 +882,9 @@ func TestInsertWithIncorrectPlaceholdersAmount(t *testing.T) {
 		if !ok {
 			t.Fatalf("[%d] Test query should be INSERT query, took %s\n", i, tcase.query)
 		}
-
-		_, err = encryptor.encryptInsertQuery(ctx, insertExpr)
+		DeletePlaceholderSettingsFromClientSession(clientSession)
+		bindData := PlaceholderSettingsFromClientSession(clientSession)
+		_, err = encryptor.encryptInsertQuery(ctx, insertExpr, bindData)
 		if err != tcase.err {
 			t.Fatalf("Expect error %s, took %s\n", tcase.err, err)
 		}
