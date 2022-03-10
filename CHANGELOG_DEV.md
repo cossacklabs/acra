@@ -1,5 +1,8 @@
-## 0.92.0 - 2022-03-08
+## 0.93.0 - 2022-03-10
 - Fix bug with PostgreSQL + prepared statements that was discovered while using Rust `postgres` crate
+
+## 0.93.0 - 2022-03-10
+- Remove `IsForbidden` field from acra-censor’s logs
 
 ## 0.92.0 - 2022-02-21
 - Adapt python integration tests for python3.6 for tests on centos 7/8
