@@ -18,6 +18,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	maskingCommon "github.com/cossacklabs/acra/masking/common"
 	"github.com/cossacklabs/acra/pseudonymization/common"
 )
@@ -193,16 +194,18 @@ func (s *BasicColumnEncryptionSetting) Init() error {
 	if s.ReEncryptToAcraBlock != nil && *s.ReEncryptToAcraBlock {
 		s.settingMask |= SettingReEncryptionFlag
 	}
-
-	if s.Tokenized {
-		s.settingMask |= SettingTokenizationFlag
+	if s.TokenType != "" {
 		tokenType, ok := tokenTypeNames[s.TokenType]
 		if !ok {
-			return common.ErrUnknownTokenType
+			return fmt.Errorf("%s: %w", s.TokenType, common.ErrUnknownTokenType)
 		}
 		if err := common.ValidateTokenType(tokenType); err != nil {
 			return err
 		}
+	}
+
+	if s.Tokenized {
+		s.settingMask |= SettingTokenizationFlag
 		s.settingMask |= SettingTokenTypeFlag
 		if s.ConsistentTokenization {
 			s.settingMask |= SettingConsistentTokenizationFlag
