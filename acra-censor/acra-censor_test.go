@@ -25,8 +25,6 @@ package acracensor
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/cossacklabs/acra/acra-censor/common"
-	"github.com/cossacklabs/acra/sqlparser"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -35,7 +33,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cossacklabs/acra/acra-censor/common"
+	"github.com/cossacklabs/acra/sqlparser"
+
 	"fmt"
+
 	"github.com/cossacklabs/acra/acra-censor/handlers"
 	"github.com/cossacklabs/acra/utils"
 )
@@ -1359,79 +1361,7 @@ func TestDenyStarPattern(t *testing.T) {
 		}
 	}
 }
-func TestAddingCapturedQueriesIntoBlacklist(t *testing.T) {
-	// Currently we support adding only non-redacted queries
-	testQueries := []string{
-		"SELECT Student_ID FROM STUDENT;",
-		"SELECT * FROM STUDENT;",
-		"select * FROM X;",
-		"SELECT * FROM Y;",
-	}
-	tmpFile, err := ioutil.TempFile("", "censor_log")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = tmpFile.Close(); err != nil {
-		t.Fatal(err)
-	}
 
-	parser := sqlparser.New(sqlparser.ModeStrict)
-	queryCaptureHandler, err := handlers.NewQueryCaptureHandler(tmpFile.Name(), parser)
-	if err != nil {
-		t.Fatal(err)
-	}
-	go queryCaptureHandler.Start()
-
-	blacklist := handlers.NewDenyHandler(parser)
-	acraCensor := NewAcraCensor()
-	defer func() {
-		acraCensor.ReleaseAll()
-		err = os.Remove(tmpFile.Name())
-		if err != nil {
-			t.Fatal(err)
-		}
-	}()
-
-	acraCensor.AddHandler(queryCaptureHandler)
-	acraCensor.AddHandler(blacklist)
-	for _, testQuery := range testQueries {
-		err = acraCensor.HandleQuery(testQuery)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	// need to wait extra time to be sure that queryCaptureHandler captured all input queries
-	time.Sleep(time.Millisecond * 100)
-
-	indexesOfForbiddenQueries := []int{0, 1, 2}
-	for _, forbiddenQueryIndex := range indexesOfForbiddenQueries {
-		err = queryCaptureHandler.MarkQueryAsForbidden(testQueries[indexesOfForbiddenQueries[forbiddenQueryIndex]])
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	err = queryCaptureHandler.DumpQueries()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	blacklist.AddQueries(queryCaptureHandler.GetForbiddenQueries())
-	for _, forbiddenQueryIndex := range indexesOfForbiddenQueries {
-		err = acraCensor.HandleQuery(testQueries[forbiddenQueryIndex])
-		if err != common.ErrDenyByQueryError {
-			t.Fatal(err)
-		}
-	}
-
-	//zero, first and second query are forbidden
-	for index := 3; index < len(testQueries); index++ {
-		err = acraCensor.HandleQuery(testQueries[index])
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-}
 func TestQueryIgnoring(t *testing.T) {
 	var err error
 	testQueries := []string{
