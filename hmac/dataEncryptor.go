@@ -79,7 +79,7 @@ func (e *SearchableDataEncryptor) EncryptWithClientID(clientID, data []byte, set
 				return nil, err
 			}
 		}
-		logrus.WithField("decryptor", e.decryptor).Debugln("Hash data")
+		logrus.Debugln("Hash data")
 		return append(hash, encryptedData...), nil
 	}
 	return data, nil

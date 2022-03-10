@@ -19,16 +19,13 @@ package decryptor
 import (
 	"context"
 	"fmt"
-	"github.com/cossacklabs/acra/utils"
-	"strconv"
-	"strings"
-
 	"github.com/cossacklabs/acra/decryptor/base"
 	queryEncryptor "github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/hmac"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/sqlparser"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
 )
 
@@ -62,7 +59,7 @@ func (encryptor *HashQuery) ID() string {
 	return "HashQuery"
 }
 
-func (encryptor *HashQuery) filterSearchableComparisons(statement sqlparser.Statement) []*sqlparser.ComparisonExpr {
+func (encryptor *HashQuery) filterSearchableComparisons(statement sqlparser.Statement) []searchableExprItem {
 	// We are interested only in SELECT statements which access at least one encryptable table.
 	// If that's not the case, we have nothing to do here.
 	defaultTable, aliasedTables := encryptor.filterInterestingTables(statement)
@@ -79,12 +76,12 @@ func (encryptor *HashQuery) filterSearchableComparisons(statement sqlparser.Stat
 	}
 	// And among those expressions, not all may refer to columns with searchable encryption
 	// enabled for them. Leave only those expressions which are searchable.
-	exprs = encryptor.filterSerchableComparisons(exprs, defaultTable, aliasedTables)
+	searchableExprs := encryptor.filterSerchableComparisons(exprs, defaultTable, aliasedTables)
 	if len(exprs) == 0 {
 		logrus.Debugln("No searchable comparisons in search query")
 		return nil
 	}
-	return exprs
+	return searchableExprs
 }
 
 func (encryptor *HashQuery) filterInterestingTables(statement sqlparser.Statement) (*queryEncryptor.AliasedTableName, queryEncryptor.AliasToTableMap) {
@@ -131,8 +128,13 @@ func (encryptor *HashQuery) filterComparisonExprs(statement sqlparser.Statement)
 	return exprs
 }
 
-func (encryptor *HashQuery) filterSerchableComparisons(exprs []*sqlparser.ComparisonExpr, defaultTable *queryEncryptor.AliasedTableName, aliasedTables queryEncryptor.AliasToTableMap) []*sqlparser.ComparisonExpr {
-	filtered := make([]*sqlparser.ComparisonExpr, 0, len(exprs))
+type searchableExprItem struct {
+	expr    *sqlparser.ComparisonExpr
+	setting config.ColumnEncryptionSetting
+}
+
+func (encryptor *HashQuery) filterSerchableComparisons(exprs []*sqlparser.ComparisonExpr, defaultTable *queryEncryptor.AliasedTableName, aliasedTables queryEncryptor.AliasToTableMap) []searchableExprItem {
+	filtered := make([]searchableExprItem, 0, len(exprs))
 	for _, expr := range exprs {
 		// Leave out comparisons of columns which do not have a schema after alias resolution.
 		column := expr.Left.(*sqlparser.ColName)
@@ -146,7 +148,7 @@ func (encryptor *HashQuery) filterSerchableComparisons(exprs []*sqlparser.Compar
 		if encryptionSetting == nil || !encryptionSetting.IsSearchable() {
 			continue
 		}
-		filtered = append(filtered, expr)
+		filtered = append(filtered, searchableExprItem{expr: expr, setting: encryptionSetting})
 	}
 	return filtered
 }
@@ -180,27 +182,40 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObjec
 	// Extract the subexpressions that we are interested in for searchable encryption.
 	// The list might be empty for non-SELECT queries or for non-eligible SELECTs.
 	// In that case we don't have any more work to do here.
-	exprs := encryptor.filterSearchableComparisons(stmt)
-	if len(exprs) == 0 {
+	items := encryptor.filterSearchableComparisons(stmt)
+	if len(items) == 0 {
 		return query, false, nil
 	}
+	clientSession := base.ClientSessionFromContext(ctx)
+	bindSettings := queryEncryptor.PlaceholderSettingsFromClientSession(clientSession)
 	// Now that we have condition expressions, perform rewriting in them.
 	hashSize := []byte(fmt.Sprintf("%d", hmac.GetDefaultHashSize()))
-	for _, expr := range exprs {
+	for _, item := range items {
 		// column = 'value' ===> substring(column, 1, <HMAC_size>) = 'value'
-		expr.Left = &sqlparser.SubstrExpr{
-			Name: expr.Left.(*sqlparser.ColName),
+		item.expr.Left = &sqlparser.SubstrExpr{
+			Name: item.expr.Left.(*sqlparser.ColName),
 			From: sqlparser.NewIntVal([]byte{'1'}),
 			To:   sqlparser.NewIntVal(hashSize),
 		}
 
 		// substring(column, 1, <HMAC_size>) = 'value' ===> substring(column, 1, <HMAC_size>) = <HMAC('value')>
 		// substring(column, 1, <HMAC_size>) = $1      ===> no changes
-		err := queryEncryptor.UpdateExpressionValue(ctx, expr.Right, encryptor.coder, encryptor.calculateHmac)
+		err := queryEncryptor.UpdateExpressionValue(ctx, item.expr.Right, encryptor.coder, encryptor.calculateHmac)
 		if err != nil {
 			logrus.WithError(err).Debugln("Failed to update expression")
 			return query, false, err
 		}
+		sqlVal, ok := item.expr.Right.(*sqlparser.SQLVal)
+		if !ok {
+			continue
+		}
+		placeholderIndex, err := queryEncryptor.ParsePlaceholderIndex(sqlVal)
+		if err == queryEncryptor.ErrInvalidPlaceholder {
+			continue
+		} else if err != nil {
+			return query, false, err
+		}
+		bindSettings[placeholderIndex] = item.setting
 	}
 	logrus.Debugln("HashQuery.OnQuery changed query")
 	return base.NewOnQueryObjectFromStatement(stmt, encryptor.parser), true, nil
@@ -223,55 +238,31 @@ func (encryptor *HashQuery) OnBind(ctx context.Context, statement sqlparser.Stat
 	// Extract the subexpressions that we are interested in for searchable encryption.
 	// The list might be empty for non-SELECT queries or for non-eligible SELECTs.
 	// In that case we don't have any more work to do here.
-	exprs := encryptor.filterSearchableComparisons(statement)
-	if len(exprs) == 0 {
+	items := encryptor.filterSearchableComparisons(statement)
+	if len(items) == 0 {
 		return values, false, nil
 	}
 	// Now that we have expressions, analyze them to look for involved placeholders
 	// and map them onto values that we need to update.
-	placeholders := make([]int, 0, len(values))
-	for _, expr := range exprs {
-		switch value := expr.Right.(type) {
+	indexes := make([]int, 0, len(values))
+	for _, item := range items {
+		switch value := item.expr.Right.(type) {
 		case *sqlparser.SQLVal:
 			var err error
-			placeholders, err = encryptor.updatePlaceholderList(placeholders, values, value)
+			index, err := queryEncryptor.ParsePlaceholderIndex(value)
 			if err != nil {
 				return values, false, err
 			}
+			if index >= len(values) {
+				logrus.WithFields(logrus.Fields{"placeholder": value.Val, "index": index, "values": len(values)}).
+					Warning("Invalid placeholder index")
+				return values, false, queryEncryptor.ErrInvalidPlaceholder
+			}
+			indexes = append(indexes, index)
 		}
 	}
 	// Finally, once we know which values to replace with HMACs, do this replacement.
-	return encryptor.replaceValuesWithHMACs(ctx, values, placeholders)
-}
-
-func (encryptor *HashQuery) updatePlaceholderList(placeholders []int, values []base.BoundValue, placeholder *sqlparser.SQLVal) ([]int, error) {
-	updateMapByPlaceholderPart := func(part string) ([]int, error) {
-		text := string(placeholder.Val)
-		index, err := strconv.Atoi(strings.TrimPrefix(text, part))
-		if err != nil {
-			logrus.WithField("placeholder", text).WithError(err).Warning("Cannot parse placeholder")
-			return nil, err
-		}
-		// Placeholders use 1-based indexing and "values" (Go slice) are 0-based.
-		index--
-		if index >= len(values) {
-			logrus.WithFields(logrus.Fields{"placeholder": text, "index": index, "values": len(values)}).
-				Warning("Invalid placeholder index")
-			return nil, queryEncryptor.ErrInvalidPlaceholder
-		}
-		placeholders = append(placeholders, index)
-		return placeholders, nil
-	}
-
-	switch placeholder.Type {
-	case sqlparser.PgPlaceholder:
-		// PostgreSQL placeholders look like "$1". Parse the number out of them.
-		return updateMapByPlaceholderPart("$")
-	case sqlparser.ValArg:
-		// MySQL placeholders look like ":v1". Parse the number out of them.
-		return updateMapByPlaceholderPart(":v")
-	}
-	return placeholders, nil
+	return encryptor.replaceValuesWithHMACs(ctx, values, indexes)
 }
 
 func (encryptor *HashQuery) replaceValuesWithHMACs(ctx context.Context, values []base.BoundValue, placeholders []int) ([]base.BoundValue, bool, error) {
@@ -282,34 +273,32 @@ func (encryptor *HashQuery) replaceValuesWithHMACs(ctx context.Context, values [
 	// Otherwise, decrypt values at positions indicated by placeholders and replace them with their HMACs.
 	newValues := make([]base.BoundValue, len(values))
 	copy(newValues, values)
+	clientSession := base.ClientSessionFromContext(ctx)
+	bindData := queryEncryptor.PlaceholderSettingsFromClientSession(clientSession)
 
 	for _, valueIndex := range placeholders {
 		format := values[valueIndex].Format()
+		var encryptionSetting config.ColumnEncryptionSetting = nil
+		if bindData != nil {
+			setting, ok := bindData[valueIndex]
+			if ok {
+				encryptionSetting = setting
+			}
+		}
 
-		data, err := values[valueIndex].GetData(nil)
+		data, err := values[valueIndex].GetData(encryptionSetting)
 		if err != nil {
 			return values, false, err
 		}
-		switch format {
-		case base.BinaryFormat:
-			// If we can't decrypt the data and compute its HMAC, searchable encryption failed to apply.
-			// Since we have already modified the query, it's likely to fail, but we can't do much about it.
-			hmacHash, err := encryptor.calculateHmac(ctx, data)
-			if err != nil {
-				logrus.WithError(err).WithField("index", valueIndex).Debug("Failed to encrypt column")
-				return values, false, err
-			}
-			// it is ok to ignore the error if not column setting provided
-			_ = newValues[valueIndex].SetData(hmacHash, nil)
-
-		// TODO(ilammy, 2020-10-14): implement support for base.BindText
-		// We should parse and decode the data, convert that into HMAC instead,
-		// and then either force binary format or reencode the data back into text.
-
-		default:
-			logrus.WithFields(logrus.Fields{"format": format, "index": valueIndex}).
-				Warning("Parameter format not supported, skipping")
+		// If we can't decrypt the data and compute its HMAC, searchable encryption failed to apply.
+		// Since we have already modified the query, it's likely to fail, but we can't do much about it.
+		hmacHash, err := encryptor.calculateHmac(ctx, data)
+		if err != nil {
+			logrus.WithError(err).WithField("index", valueIndex).Debug("Failed to encrypt column")
+			return values, false, err
 		}
+		// it is ok to ignore the error if not column setting provided
+		_ = newValues[valueIndex].SetData(hmacHash, encryptionSetting)
 	}
 	return newValues, true, nil
 }
