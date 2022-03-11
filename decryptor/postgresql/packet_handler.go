@@ -5,11 +5,12 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"io"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
-	"io"
 )
 
 // PacketHandler hold state of postgresql packet and process data rows
@@ -447,6 +448,35 @@ func (packet *PacketHandler) ReadClientPacket() error {
 		We read first 5 bytes, check is there known message types. If not then we try to read 3 more bytes and recognize 3 special messages
 		by their values. If we don't recognize, then process it as general message. We may have error if it's unknown message with message length < 8 bytes when
 		we not recognize, try to read +3 bytes and will block on system call read to read more when message may have only 1 bytes of MessageType and minimal MessageLength = 4 bytes (itself)
+		Overall, as of today (PostgreSQL 14), the protocol supports following packets, that can be
+		received from the client (Frontend or F), or both the client and the server (Backend) (F&B):
+		```
+		| Name                | Type | StartsWith                   |
+		|---------------------|------|------------------------------|
+		| Bind                | F    | Byte1('B')                   |
+		| CancelRequest       | F    | int32(16) || Int32(80877102) |
+		| Close               | F    | Byte1('C')                   |
+		| CopyData            | F&B  | Byte1('d')                   |
+		| CopyDone            | F&B  | Byte1('c')                   |
+		| CopyFail            | F    | Byte1('f')                   |
+		| Describe            | F    | Byte1('D')                   |
+		| Execute             | F    | Byte1('E')                   |
+		| Flush               | F    | Byte1('H')                   |
+		| FunctionCall        | F    | Byte1('F')                   |
+		| GSSENCRequest       | F    | Int32(8) || Int32(80877104)  |
+		| GSSResponse         | F    | Byte1('p')                   |
+		| Parse               | F    | Byte1('P')                   |
+		| PasswordMessage     | F    | Byte1('p')                   |
+		| Query               | F    | Byte1('Q')                   |
+		| SASLInitialResponse | F    | Byte1('p')                   |
+		| SASLResponse        | F    | Byte1('p')                   |
+		| SSLRequest          | F    | Int32(8) || Int32(80877103)  |
+		| StartupMessage      | F    | Int32(..) || Int32(196608)   |
+		| Sync                | F    | Byte1('S')                   |
+		| Terminate           | F    | Byte1('X')                   |
+		```
+
+		As you can see, only a couple of packets don't start with a single-letter ID. They are handled differently.
 	*/
 	switch packetBuf[0] {
 	// all known message types with flags (F) or (F/B) on https://www.postgresql.org/docs/current/static/protocol-message-formats.html
