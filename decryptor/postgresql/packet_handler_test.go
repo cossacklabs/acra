@@ -21,9 +21,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"testing"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/sirupsen/logrus"
-	"testing"
 )
 
 func TestClientUnknownCommand(t *testing.T) {
@@ -55,6 +56,26 @@ func TestClientUnknownCommand(t *testing.T) {
 	}
 	if !bytes.Equal(output, packet) {
 		t.Fatal("Output not equal to correct packet")
+	}
+}
+
+func TestClientLengthIsCheckedForSSLRequestError(t *testing.T) {
+	// Random bytes, except the fourth byte is 8
+	// But the whole length != 8. Therefore,
+	// this packet should not be parsed as SSLRequest
+	lengthBuf := []byte{0x13, 0x08, 0x00, 0x08}
+	typeBuf := SSLRequest
+	packet := bytes.Join([][]byte{lengthBuf, typeBuf}, []byte{})
+
+	reader := bytes.NewReader(packet)
+	output := make([]byte, 8)
+	writer := bufio.NewWriter(bytes.NewBuffer(output[:0]))
+	packetHander, err := NewClientSidePacketHandler(reader, writer, logrus.NewEntry(logrus.StandardLogger()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := packetHander.ReadClientPacket(); err != ErrUnsupportedPacketType {
+		t.Fatal("Packed is parsed in a wrong way")
 	}
 }
 
