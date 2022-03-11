@@ -102,6 +102,25 @@ func TestClientLengthIsCheckedForCancelRequest(t *testing.T) {
 	}
 }
 
+func TestClientLength16ForSSLRequestError(t *testing.T) {
+	// SSLRequestError expects length of 8, but we provide 16
+	lengthBuf := []byte{0x00, 0x00, 0x00, 0x10}
+	typeBuf := SSLRequest
+	randomPayload := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
+	packet := bytes.Join([][]byte{lengthBuf, typeBuf, randomPayload}, []byte{})
+
+	reader := bytes.NewReader(packet)
+	output := make([]byte, 16)
+	writer := bufio.NewWriter(bytes.NewBuffer(output[:0]))
+	packetHander, err := NewClientSidePacketHandler(reader, writer, logrus.NewEntry(logrus.StandardLogger()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := packetHander.ReadClientPacket(); err != ErrUnsupportedPacketType {
+		t.Fatal("Packed is parsed in a wrong way")
+	}
+}
+
 func TestClientSpecialMessageTypes(t *testing.T) {
 	sslLengthBuf := []byte{0, 0, 0, 8}
 	cancelRequestLengthBuf := []byte{0, 0, 0, 16}
