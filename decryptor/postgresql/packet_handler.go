@@ -420,6 +420,13 @@ var (
 	SSLRequest     = []byte{4, 210, 22, 47}
 	CancelRequest  = []byte{4, 210, 22, 46}
 	StartupRequest = []byte{0, 3, 0, 0}
+	GSSENCRequest  = []byte{4, 210, 22, 48}
+
+	// Length is always 8 plus SSLRequest
+	SSLRequestHeader = bytes.Join([][]byte{{0x00, 0x00, 0x00, 0x08}, SSLRequest}, []byte{})
+
+	// Length is always 16 plus CancelRequest
+	CancelRequestHeader = bytes.Join([][]byte{{0x00, 0x00, 0x00, 0x10}, CancelRequest}, []byte{})
 )
 
 // WithoutMessageType used to indicate that MessageType wasn't set and shouldn't marshaled
@@ -512,35 +519,15 @@ func (packet *PacketHandler) ReadClientPacket() error {
 		packet.setDataLengthBuffer(packetBuf[:4])
 
 		// ssl and cancel requests have known and different lengths (8 and 16 respectively) or variable-length in startup request
-		switch packetBuf[3] {
-		// ssl/cancel requests
-		case 8, 16:
-			// ssl/cancel request has 8 byte length and 5 bytes we already read
-			if bytes.Equal(SSLRequest, packetBuf[4:]) {
-				return nil
-			} else if bytes.Equal(CancelRequest, packetBuf[4:]) {
-				return nil
-			}
-			return ErrUnsupportedPacketType
-		// startup request or unknown message type
-		default:
-			if !bytes.Equal(StartupRequest, packetBuf[4:]) {
-				packet.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlUnexpectedPacket).WithField("packet_buffer", packetBuf).Warningln("Expected startup message. Process as general message.")
-				// we took unknown message type that wasn't recognized on top case and it's not special messages startup/ssl/cancel
-				// so we process it as general message type which has first byte as type and next 4 bytes is length of message
-				// above we read 8 bytes as for special messages, so we need to read dataLength -3 bytes
-				packet.messageType[0] = packetBuf[0]
-				packet.setDataLengthBuffer(packetBuf[1:5])
-				packet.descriptionBuf.Reset()
-				packet.descriptionBuf.Write(packetBuf[5:])
-				packet.dataLength -= 3
-				if err := packet.readData(false); err != nil {
-					return err
-				}
-				packet.dataLength += 3
-				return nil
-			}
+		switch {
 
+		case bytes.Equal(SSLRequestHeader, packetBuf[:8]):
+			return nil
+
+		case bytes.Equal(CancelRequestHeader, packetBuf[:8]):
+			return nil
+
+		case bytes.Equal(StartupRequest, packetBuf[4:8]):
 			// we read 4 bytes before. decrease before call readData because it read exactly as dataLength
 			packet.dataLength -= 4
 
@@ -550,6 +537,9 @@ func (packet *PacketHandler) ReadClientPacket() error {
 			// restore correct value
 			packet.dataLength += 4
 			return nil
+
+		default:
+			return ErrUnsupportedPacketType
 		}
 	}
 }
