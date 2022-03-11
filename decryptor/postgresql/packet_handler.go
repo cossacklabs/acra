@@ -480,12 +480,13 @@ func (packet *PacketHandler) ReadClientPacket() error {
 	*/
 	switch packetBuf[0] {
 	// all known message types with flags (F) or (F/B) on https://www.postgresql.org/docs/current/static/protocol-message-formats.html
-	case 'S', 'p', 'F', 'H', 'E', 'D', 'f', 'c', 'd', 'C', 'B', 'Q', 'P':
+	case 'B', 'C', 'd', 'c', 'f', 'D', 'E', 'H', 'F', 'p', 'P', 'Q', 'S':
 		// set message type
 		packet.messageType[0] = packetBuf[0]
 		// general message has 4 bytes after first as length
 		packet.setDataLengthBuffer(packetBuf[1:5])
 		return packet.readData(false)
+	// 'X'
 	case TerminatePacket[0]:
 		// set message type
 		packet.messageType[0] = packetBuf[0]
