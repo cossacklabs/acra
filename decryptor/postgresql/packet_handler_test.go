@@ -79,6 +79,29 @@ func TestClientLengthIsCheckedForSSLRequestError(t *testing.T) {
 	}
 }
 
+func TestClientLengthIsCheckedForCancelRequest(t *testing.T) {
+	// Random bytes, except the fourth byte is 16
+	// But the whole length != 16. Therefore,
+	// this packet should not be parsed as CancelRequest
+	lengthBuf := []byte{0x13, 0x08, 0x00, 0x10}
+	typeBuf := CancelRequest
+	// random payload
+	processId := []byte{0x00, 0x00, 0x00, 0x00}
+	secretKey := []byte{0x00, 0x00, 0x00, 0x00}
+	packet := bytes.Join([][]byte{lengthBuf, typeBuf, processId, secretKey}, []byte{})
+
+	reader := bytes.NewReader(packet)
+	output := make([]byte, 16)
+	writer := bufio.NewWriter(bytes.NewBuffer(output[:0]))
+	packetHander, err := NewClientSidePacketHandler(reader, writer, logrus.NewEntry(logrus.StandardLogger()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := packetHander.ReadClientPacket(); err != ErrUnsupportedPacketType {
+		t.Fatal("Packed is parsed in a wrong way")
+	}
+}
+
 func TestClientSpecialMessageTypes(t *testing.T) {
 	sslLengthBuf := []byte{0, 0, 0, 8}
 	cancelRequestLengthBuf := []byte{0, 0, 0, 16}
