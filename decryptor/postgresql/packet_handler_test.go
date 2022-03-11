@@ -39,23 +39,8 @@ func TestClientUnknownCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := packetHander.ReadClientPacket(); err != nil {
-		t.Fatal(err)
-	}
-	if packetHander.messageType[0] != unknownMessageType {
-		t.Fatal("Incorrect message type")
-	}
-	if !bytes.Equal(packetHander.descriptionLengthBuf, lengthBuf) {
-		t.Fatal("Incorrect length buf")
-	}
-	if !bytes.Equal(packetHander.descriptionBuf.Bytes(), dataBuf) {
-		t.Fatal("Incorrect data buf")
-	}
-	if err := packetHander.sendPacket(); err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(output, packet) {
-		t.Fatal("Output not equal to correct packet")
+	if err := packetHander.ReadClientPacket(); err != ErrUnsupportedPacketType {
+		t.Fatal("message is parsed, but shouldn't be")
 	}
 }
 
