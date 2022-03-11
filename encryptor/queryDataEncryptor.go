@@ -96,13 +96,6 @@ func (encryptor *QueryDataEncryptor) encryptInsertQuery(ctx context.Context, ins
 		return false, encryptor.onReturning(insert.Returning, tableName.RawValue())
 	}
 
-	// TODO remove if doesn't need
-	//placeholders, err := encryptor.getInsertPlaceholders(ctx, insert)
-	//if err != nil {
-	//	logrus.Debugf("Can't parse placeholders for table %s", tableName)
-	//	return false, err
-	//}
-	//
 	var columnsName []string
 	if len(insert.Columns) > 0 {
 		columnsName = make([]string, 0, len(insert.Columns))

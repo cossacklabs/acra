@@ -314,9 +314,6 @@ func (p *pgBoundValue) GetData(setting config.ColumnEncryptionSetting) ([]byte, 
 			return decoded, nil
 
 		}
-	// TODO(ilammy, 2020-10-19): handle non-bytes binary data
-	// Encryptor expects binary data to be passed in raw bytes, but most non-byte-arrays
-	// are expected in text format. If we get binary parameters, we may need to recode them.
 	case base.BinaryFormat:
 		if setting.IsTokenized() || setting.IsSearchable() || setting.OnlyEncryption() {
 			switch setting.GetTokenType() {

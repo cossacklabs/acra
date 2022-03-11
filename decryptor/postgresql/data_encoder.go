@@ -57,18 +57,15 @@ func (p *PgSQLDataEncoderProcessor) encodeBinary(ctx context.Context, data []byt
 	// if expects string, then leave as is if it is valid string or encode to hex
 	switch setting.GetTokenType() {
 	case common.TokenType_Int32, common.TokenType_Int64:
-		switch columnInfo.DataBinarySize() {
-		case 4, 8:
-			break
-		default:
-			return ctx, data, ErrInvalidIntValueBinarySize
+		size := 8
+		if setting.GetTokenType() == common.TokenType_Int32 {
+			size = 4
 		}
 		// convert back from text to binary
 		value, err := strconv.ParseInt(string(data), 10, 64)
 		if err != nil {
 			return ctx, data, err
 		}
-		size := columnInfo.DataBinarySize()
 		newData := make([]byte, size)
 		switch size {
 		case 4:
@@ -82,15 +79,6 @@ func (p *PgSQLDataEncoderProcessor) encodeBinary(ctx context.Context, data []byt
 			return ctx, data, ErrInvalidIntValueBinarySize
 		}
 		return ctx, newData, nil
-	case common.TokenType_String, common.TokenType_Email:
-		if utils.IsPrintableASCIIArray(data) {
-			// return as is
-			break
-		}
-		// if it's really binary data then encode it to hex string
-		//output := make([]byte, hex.EncodedLen(len(data)))
-		//hex.Encode(output, data)
-		return ctx, data, nil
 	}
 
 	return ctx, data, nil

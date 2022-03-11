@@ -27,17 +27,11 @@ func TestEncodingDecodingProcessorBinaryIntData(t *testing.T) {
 		{binValue: []byte{0, 0, 0, 128}, stringValue: []byte("128"), encodeErr: nil, decodeErr: nil, binarySize: 4},
 		{binValue: []byte{255, 255, 255, 128}, stringValue: []byte("-128"), encodeErr: nil, decodeErr: nil, binarySize: 4},
 
-		// int32 with invalid size. returned stringValue should be unchanged
-		{binValue: []byte{255, 255, 255, 128}, stringValue: []byte("-128"), encodeErr: ErrInvalidIntValueBinarySize, decodeErr: nil, binarySize: 3},
-
 		// int64 without errors
 		{binValue: []byte{0, 0, 0, 0, 0, 0, 0, 0}, stringValue: []byte("0"), encodeErr: nil, decodeErr: nil, binarySize: 8},
 		{binValue: []byte{255, 255, 255, 255, 255, 255, 255, 255}, stringValue: []byte("-1"), encodeErr: nil, decodeErr: nil, binarySize: 8},
 		{binValue: []byte{0, 0, 0, 0, 0, 0, 0, 128}, stringValue: []byte("128"), encodeErr: nil, decodeErr: nil, binarySize: 8},
 		{binValue: []byte{255, 255, 255, 255, 255, 255, 255, 128}, stringValue: []byte("-128"), encodeErr: nil, decodeErr: nil, binarySize: 8},
-
-		// int64 with invalid size. returned stringValue should be unchanged
-		{binValue: []byte{255, 255, 255, 255, 255, 255, 255, 128}, stringValue: []byte("-128"), encodeErr: ErrInvalidIntValueBinarySize, decodeErr: nil, binarySize: 7},
 	}
 	sizeToTokenType := map[int]string{
 		4: "int32",
@@ -56,7 +50,8 @@ func TestEncodingDecodingProcessorBinaryIntData(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i, tcase := range testcases {
-		columnInfo := base.NewColumnInfo(0, "", true, tcase.binarySize)
+		// use -1 as invalid binary size that should be ignored
+		columnInfo := base.NewColumnInfo(0, "", true, -1)
 		accessContext := &base.AccessContext{}
 		accessContext.SetColumnInfo(columnInfo)
 		ctx := base.SetAccessContextToContext(context.Background(), accessContext)
@@ -212,7 +207,8 @@ func TestEncodingDecodingTextFormat(t *testing.T) {
 		{inputValue: []byte(`-9223372036854775808`), outputValue: []byte(`-9223372036854775808`), binValue: []byte(`-9223372036854775808`), tokenType: common.TokenType_Int64},
 	}
 	accessContext := &base.AccessContext{}
-	columnInfo := base.NewColumnInfo(0, "", false, 4)
+	// use -1 as invalid binary size that should be ignored
+	columnInfo := base.NewColumnInfo(0, "", false, -1)
 	accessContext.SetColumnInfo(columnInfo)
 	ctx := base.SetAccessContextToContext(context.Background(), accessContext)
 	envelopeValue := config.CryptoEnvelopeTypeAcraBlock
