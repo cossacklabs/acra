@@ -61,6 +61,45 @@ func TestClientOneLetterCommands(t *testing.T) {
 	}
 }
 
+func TestClientVarSizePacket(t *testing.T) {
+	packets := [][]byte{
+		// SSLRequest:
+		// - 4-byte length (8 bytes)
+		// - 4-byte magic num
+		{0x00, 0x00, 0x00, 0x08, 0x04, 0xd2, 0x16, 0x2f},
+
+		// CancelRequest:
+		// - 4-byte length (16 bytes)
+		// - 4-byte magic num
+		// - 4-byte processId
+		// - 4-byte secrekey
+		{0x00, 0x00, 0x00, 0x10, 0x04, 0xd2, 0x16, 0x2e, 0xaa, 0xaa, 0xaa, 0xaa, 0xbb, 0xbb, 0xbb, 0xbb},
+
+		// StartupRequest
+		// - 4-byte length (in this case 10 bytes)
+		// - 4-byte magic num
+		// - variable size payload
+		{0x00, 0x00, 0x00, 0x0a, 0x00, 0x03, 0x00, 0x00, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa},
+	}
+
+	for _, packet := range packets {
+		reader := bytes.NewReader(packet)
+		output := make([]byte, 16)
+		writer := bufio.NewWriter(bytes.NewBuffer(output[:0]))
+		packetHander, err := NewClientSidePacketHandler(reader, writer, logrus.NewEntry(logrus.StandardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := packetHander.ReadClientPacket(); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := packetHander.sendPacket(); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestClientUnknownCommand(t *testing.T) {
 	unknownMessageType := byte(1)
 	lengthBuf := []byte{0, 0, 0, 7}
