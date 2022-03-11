@@ -27,6 +27,40 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+func TestClientOneLetterCommands(t *testing.T) {
+	ids := []byte{'B', 'C', 'd', 'c', 'f', 'D', 'E', 'H', 'F', 'p', 'P', 'Q', 'S', 'X'}
+
+	for _, id := range ids {
+		len := []byte{0x00, 0x00, 0x00, 0x08}
+		randomPayload := []byte{0x48, 0xfc, 0xbf, 0xc3}
+
+		// Message which consists of:
+		// id + 4-byte size of a packet (without id) + something random
+		packet := bytes.Join([][]byte{{id}, len, randomPayload}, []byte{})
+		reader := bytes.NewReader(packet)
+		output := make([]byte, 8)
+		writer := bufio.NewWriter(bytes.NewBuffer(output[:0]))
+		packetHander, err := NewClientSidePacketHandler(reader, writer, logrus.NewEntry(logrus.StandardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := packetHander.ReadClientPacket(); err != nil {
+			t.Fatal(err)
+		}
+		if packetHander.messageType[0] != id {
+			t.Fatalf("wrong messageType: expected %x, but found %x", id, packetHander.messageType[0])
+		}
+		// length doesn't include "length" itself
+		if packetHander.dataLength != 4 {
+			t.Fatalf("wrong dataLength: expected 4, but found %x", packetHander.dataLength)
+		}
+
+		if !bytes.Equal(packetHander.descriptionLengthBuf, len) {
+			t.Fatalf("Incorrect length buf: expected %x, but found %x", len, packetHander.descriptionLengthBuf)
+		}
+	}
+}
+
 func TestClientUnknownCommand(t *testing.T) {
 	unknownMessageType := byte(1)
 	lengthBuf := []byte{0, 0, 0, 7}
