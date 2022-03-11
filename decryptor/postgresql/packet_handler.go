@@ -427,6 +427,9 @@ var (
 
 	// Length is always 16 plus CancelRequest
 	CancelRequestHeader = bytes.Join([][]byte{{0x00, 0x00, 0x00, 0x10}, CancelRequest}, []byte{})
+
+	// Length is always 8 plus GSSENCRequest
+	GSSENCRequestHeader = bytes.Join([][]byte{{0x00, 0x00, 0x00, 0x08}, GSSENCRequest}, []byte{})
 )
 
 // WithoutMessageType used to indicate that MessageType wasn't set and shouldn't marshaled
@@ -525,6 +528,9 @@ func (packet *PacketHandler) ReadClientPacket() error {
 			return nil
 
 		case bytes.Equal(CancelRequestHeader, packetBuf[:8]):
+			return nil
+
+		case bytes.Equal(GSSENCRequestHeader, packetBuf[:8]):
 			return nil
 
 		case bytes.Equal(StartupRequest, packetBuf[4:8]):
