@@ -149,9 +149,9 @@ func TestClientLengthIsCheckedForCancelRequest(t *testing.T) {
 	lengthBuf := []byte{0x13, 0x08, 0x00, 0x10}
 	typeBuf := CancelRequest
 	// random payload
-	processId := []byte{0x00, 0x00, 0x00, 0x00}
+	processID := []byte{0x00, 0x00, 0x00, 0x00}
 	secretKey := []byte{0x00, 0x00, 0x00, 0x00}
-	packet := bytes.Join([][]byte{lengthBuf, typeBuf, processId, secretKey}, []byte{})
+	packet := bytes.Join([][]byte{lengthBuf, typeBuf, processID, secretKey}, []byte{})
 
 	reader := bytes.NewReader(packet)
 	output := make([]byte, 16)
