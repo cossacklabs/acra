@@ -41,6 +41,8 @@ func TestClientOneLetterCommands(t *testing.T) {
 		output := make([]byte, 8)
 		writer := bufio.NewWriter(bytes.NewBuffer(output[:0]))
 		packetHander, err := NewClientSidePacketHandler(reader, writer, logrus.NewEntry(logrus.StandardLogger()))
+		// Test as if one of the startup messages is received
+		packetHander.started = true
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -61,7 +63,7 @@ func TestClientOneLetterCommands(t *testing.T) {
 	}
 }
 
-func TestClientVarSizePacket(t *testing.T) {
+func TestClientStartupMessagePackets(t *testing.T) {
 	packets := [][]byte{
 		// SSLRequest:
 		// - 4-byte length (8 bytes)
@@ -114,45 +116,13 @@ func TestClientUnknownCommand(t *testing.T) {
 	output := make([]byte, 8)
 	writer := bufio.NewWriter(bytes.NewBuffer(output[:0]))
 	packetHander, err := NewClientSidePacketHandler(reader, writer, logrus.NewEntry(logrus.StandardLogger()))
+	// Test as if one of the startup messages is received
+	packetHander.started = true
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := packetHander.ReadClientPacket(); err != nil {
 		t.Fatal(err)
-	}
-}
-
-func TestClientSpecialMessageTypes(t *testing.T) {
-	sslLengthBuf := []byte{0, 0, 0, 8}
-	cancelRequestLengthBuf := []byte{0, 0, 0, 16}
-	lengthBufs := [][]byte{sslLengthBuf, cancelRequestLengthBuf}
-	for i, data := range [][]byte{SSLRequest, CancelRequest} {
-		packet := bytes.Join([][]byte{lengthBufs[i], data}, []byte{})
-		reader := bytes.NewReader(packet)
-		output := make([]byte, 8)
-		writer := bufio.NewWriter(bytes.NewBuffer(output[:0]))
-		packetHander, err := NewClientSidePacketHandler(reader, writer, logrus.NewEntry(logrus.StandardLogger()))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := packetHander.ReadClientPacket(); err != nil {
-			t.Fatal(err)
-		}
-		if packetHander.messageType[0] != WithoutMessageType {
-			t.Fatal("Incorrect message type")
-		}
-		if !bytes.Equal(packetHander.descriptionLengthBuf, lengthBufs[i]) {
-			t.Fatal("Incorrect length buf")
-		}
-		if !bytes.Equal(packetHander.descriptionBuf.Bytes(), data) {
-			t.Fatal("Incorrect data buf")
-		}
-		if err := packetHander.sendPacket(); err != nil {
-			t.Fatal(err)
-		}
-		if !bytes.Equal(output, packet) {
-			t.Fatal("Output not equal to correct packet")
-		}
 	}
 }
 
