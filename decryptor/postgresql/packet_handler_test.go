@@ -117,70 +117,8 @@ func TestClientUnknownCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := packetHander.ReadClientPacket(); err != ErrUnsupportedPacketType {
-		t.Fatal("message is parsed, but shouldn't be")
-	}
-}
-
-func TestClientLengthIsCheckedForSSLRequestError(t *testing.T) {
-	// Random bytes, except the fourth byte is 8
-	// But the whole length != 8. Therefore,
-	// this packet should not be parsed as SSLRequest
-	lengthBuf := []byte{0x13, 0x08, 0x00, 0x08}
-	typeBuf := SSLRequest
-	packet := bytes.Join([][]byte{lengthBuf, typeBuf}, []byte{})
-
-	reader := bytes.NewReader(packet)
-	output := make([]byte, 8)
-	writer := bufio.NewWriter(bytes.NewBuffer(output[:0]))
-	packetHander, err := NewClientSidePacketHandler(reader, writer, logrus.NewEntry(logrus.StandardLogger()))
-	if err != nil {
+	if err := packetHander.ReadClientPacket(); err != nil {
 		t.Fatal(err)
-	}
-	if err := packetHander.ReadClientPacket(); err != ErrUnsupportedPacketType {
-		t.Fatal("Packed is parsed in a wrong way")
-	}
-}
-
-func TestClientLengthIsCheckedForCancelRequest(t *testing.T) {
-	// Random bytes, except the fourth byte is 16
-	// But the whole length != 16. Therefore,
-	// this packet should not be parsed as CancelRequest
-	lengthBuf := []byte{0x13, 0x08, 0x00, 0x10}
-	typeBuf := CancelRequest
-	// random payload
-	processID := []byte{0x00, 0x00, 0x00, 0x00}
-	secretKey := []byte{0x00, 0x00, 0x00, 0x00}
-	packet := bytes.Join([][]byte{lengthBuf, typeBuf, processID, secretKey}, []byte{})
-
-	reader := bytes.NewReader(packet)
-	output := make([]byte, 16)
-	writer := bufio.NewWriter(bytes.NewBuffer(output[:0]))
-	packetHander, err := NewClientSidePacketHandler(reader, writer, logrus.NewEntry(logrus.StandardLogger()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := packetHander.ReadClientPacket(); err != ErrUnsupportedPacketType {
-		t.Fatal("Packed is parsed in a wrong way")
-	}
-}
-
-func TestClientLength16ForSSLRequestError(t *testing.T) {
-	// SSLRequestError expects length of 8, but we provide 16
-	lengthBuf := []byte{0x00, 0x00, 0x00, 0x10}
-	typeBuf := SSLRequest
-	randomPayload := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
-	packet := bytes.Join([][]byte{lengthBuf, typeBuf, randomPayload}, []byte{})
-
-	reader := bytes.NewReader(packet)
-	output := make([]byte, 16)
-	writer := bufio.NewWriter(bytes.NewBuffer(output[:0]))
-	packetHander, err := NewClientSidePacketHandler(reader, writer, logrus.NewEntry(logrus.StandardLogger()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := packetHander.ReadClientPacket(); err != ErrUnsupportedPacketType {
-		t.Fatal("Packed is parsed in a wrong way")
 	}
 }
 

@@ -545,7 +545,20 @@ func (packet *PacketHandler) ReadClientPacket() error {
 			return nil
 
 		default:
-			return ErrUnsupportedPacketType
+			packet.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlUnexpectedPacket).WithField("packet_buffer", packetBuf).Warningln("Unknown message format. Processed as general message.")
+			// we took unknown message type that wasn't recognized on top case and it's not special messages startup/ssl/cancel
+			// so we process it as general message type which has first byte as type and next 4 bytes is length of message
+			// above we read 8 bytes as for special messages, so we need to read dataLength -3 bytes
+			packet.messageType[0] = packetBuf[0]
+			packet.setDataLengthBuffer(packetBuf[1:5])
+			packet.descriptionBuf.Reset()
+			packet.descriptionBuf.Write(packetBuf[5:])
+			packet.dataLength -= 3
+			if err := packet.readData(false); err != nil {
+				return err
+			}
+			packet.dataLength += 3
+			return nil
 		}
 	}
 }
