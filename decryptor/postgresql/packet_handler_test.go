@@ -38,7 +38,7 @@ func TestClientOneLetterCommands(t *testing.T) {
 		// id + 4-byte size of a packet (without id) + something random
 		packet := bytes.Join([][]byte{{id}, len, randomPayload}, []byte{})
 		reader := bytes.NewReader(packet)
-		output := make([]byte, 8)
+		output := make([]byte, 9)
 		writer := bufio.NewWriter(bytes.NewBuffer(output[:0]))
 		packetHander, err := NewClientSidePacketHandler(reader, writer, logrus.NewEntry(logrus.StandardLogger()))
 		// Test as if one of the startup messages is received
@@ -60,6 +60,14 @@ func TestClientOneLetterCommands(t *testing.T) {
 		if !bytes.Equal(packetHander.descriptionLengthBuf, len) {
 			t.Fatalf("Incorrect length buf: expected %x, but found %x", len, packetHander.descriptionLengthBuf)
 		}
+
+		if err := packetHander.sendPacket(); err != nil {
+			t.Fatal(err)
+		}
+
+		if !bytes.Equal(packet, output) {
+			t.Fatalf("output packet is not the same as original: expected % x, but found % x", packet, output)
+		}
 	}
 }
 
@@ -78,10 +86,10 @@ func TestClientStartupMessagePackets(t *testing.T) {
 		{0x00, 0x00, 0x00, 0x10, 0x04, 0xd2, 0x16, 0x2e, 0xaa, 0xaa, 0xaa, 0xaa, 0xbb, 0xbb, 0xbb, 0xbb},
 
 		// StartupRequest
-		// - 4-byte length (in this case 10 bytes)
+		// - 4-byte length (in this case 14 bytes)
 		// - 4-byte magic num
 		// - variable size payload
-		{0x00, 0x00, 0x00, 0x0a, 0x00, 0x03, 0x00, 0x00, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa},
+		{0x00, 0x00, 0x00, 0x0e, 0x00, 0x03, 0x00, 0x00, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa},
 
 		// GSSENCRequest
 		// - 4-byte length (8 bytes)
@@ -104,6 +112,11 @@ func TestClientStartupMessagePackets(t *testing.T) {
 		if err := packetHander.sendPacket(); err != nil {
 			t.Fatal(err)
 		}
+
+		outputValid := output[:len(packet)]
+		if !bytes.Equal(packet, outputValid) {
+			t.Fatalf("output packet is not the same as original: expected % x, but found % x", packet, outputValid)
+		}
 	}
 }
 
@@ -123,6 +136,12 @@ func TestClientUnknownCommand(t *testing.T) {
 	}
 	if err := packetHander.ReadClientPacket(); err != nil {
 		t.Fatal(err)
+	}
+	if err := packetHander.sendPacket(); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(packet, output) {
+		t.Fatalf("output packet is not the same as original: expected % x, but found % x", packet, output)
 	}
 }
 
