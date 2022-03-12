@@ -1,5 +1,5 @@
-## 0.93.0 - 2022-03-11
-- Fix postgres packet parser to raise error on unknown format instead of trying to interpret it.
+## 0.93.0 - 2022-03-12
+- Fix postgres packet parser to raise error on unknown startup message.
 
 ## 0.93.0 - 2022-03-10
 - Fix bug with PostgreSQL + prepared statements that was discovered while using Rust `postgres` crate
