@@ -33,6 +33,9 @@ type PacketHandler struct {
 	// StartupMessage or SSLRequest).
 	// Is used to distinguish which message we parse: startup or general,
 	// because due to historical reasons, they have different format.
+	//
+	// In te db-dedicated code serves as indicator, whether we expect startup
+	// response or general response.
 	started bool
 }
 
@@ -619,4 +622,16 @@ func (packet *PacketHandler) IsSSLRequestAllowed() bool {
 // IsSSLRequestDeny returns true server denied switch to SSL
 func (packet *PacketHandler) IsSSLRequestDeny() bool {
 	return packet.messageType[0] == 'N'
+}
+
+// SetStarted sets `started` true, which indicates that we should process next
+// packets as general ones
+func (packet *PacketHandler) SetStarted() {
+	packet.started = true
+}
+
+// Returns true if startup packet is already received and packet handler excepts
+// general messages.
+func (packet *PacketHandler) IsAlreadyStarted() bool {
+	return packet.started
 }
