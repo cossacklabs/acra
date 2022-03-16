@@ -1,3 +1,6 @@
+## 0.93.0 - 2022-03-15
+- Remove legacy flags dedicated to acra-connector from dockerfiles under the `./docker/` directory.
+
 ## 0.93.0 - 2022-03-10
 - Fix bug with PostgreSQL + prepared statements that was discovered while using Rust `postgres` crate
 
