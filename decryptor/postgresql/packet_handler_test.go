@@ -21,10 +21,104 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"testing"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/sirupsen/logrus"
-	"testing"
 )
+
+func TestClientOneLetterCommands(t *testing.T) {
+	ids := []byte{'B', 'C', 'd', 'c', 'f', 'D', 'E', 'H', 'F', 'p', 'P', 'Q', 'S', 'X'}
+
+	for _, id := range ids {
+		len := []byte{0x00, 0x00, 0x00, 0x08}
+		randomPayload := []byte{0x48, 0xfc, 0xbf, 0xc3}
+
+		// Message which consists of:
+		// id + 4-byte size of a packet (without id) + something random
+		packet := bytes.Join([][]byte{{id}, len, randomPayload}, []byte{})
+		reader := bytes.NewReader(packet)
+		output := make([]byte, 9)
+		writer := bufio.NewWriter(bytes.NewBuffer(output[:0]))
+		packetHander, err := NewClientSidePacketHandler(reader, writer, logrus.NewEntry(logrus.StandardLogger()))
+		// Test as if one of the startup messages is received
+		packetHander.started = true
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := packetHander.ReadClientPacket(); err != nil {
+			t.Fatal(err)
+		}
+		if packetHander.messageType[0] != id {
+			t.Fatalf("wrong messageType: expected %x, but found %x", id, packetHander.messageType[0])
+		}
+		// length doesn't include "length" itself
+		if packetHander.dataLength != 4 {
+			t.Fatalf("wrong dataLength: expected 4, but found %x", packetHander.dataLength)
+		}
+
+		if !bytes.Equal(packetHander.descriptionLengthBuf, len) {
+			t.Fatalf("Incorrect length buf: expected %x, but found %x", len, packetHander.descriptionLengthBuf)
+		}
+
+		if err := packetHander.sendPacket(); err != nil {
+			t.Fatal(err)
+		}
+
+		if !bytes.Equal(packet, output) {
+			t.Fatalf("output packet is not the same as original: expected % x, but found % x", packet, output)
+		}
+	}
+}
+
+func TestClientStartupMessagePackets(t *testing.T) {
+	packets := [][]byte{
+		// SSLRequest:
+		// - 4-byte length (8 bytes)
+		// - 4-byte magic num
+		{0x00, 0x00, 0x00, 0x08, 0x04, 0xd2, 0x16, 0x2f},
+
+		// CancelRequest:
+		// - 4-byte length (16 bytes)
+		// - 4-byte magic num
+		// - 4-byte processId
+		// - 4-byte secrekey
+		{0x00, 0x00, 0x00, 0x10, 0x04, 0xd2, 0x16, 0x2e, 0xaa, 0xaa, 0xaa, 0xaa, 0xbb, 0xbb, 0xbb, 0xbb},
+
+		// StartupRequest
+		// - 4-byte length (in this case 14 bytes)
+		// - 4-byte magic num
+		// - variable size payload
+		{0x00, 0x00, 0x00, 0x0e, 0x00, 0x03, 0x00, 0x00, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa},
+
+		// GSSENCRequest
+		// - 4-byte length (8 bytes)
+		// - 4-byte magic num
+		{0x00, 0x00, 0x00, 0x08, 0x04, 0xd2, 0x16, 0x30},
+	}
+
+	for _, packet := range packets {
+		reader := bytes.NewReader(packet)
+		output := make([]byte, 16)
+		writer := bufio.NewWriter(bytes.NewBuffer(output[:0]))
+		packetHander, err := NewClientSidePacketHandler(reader, writer, logrus.NewEntry(logrus.StandardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := packetHander.ReadClientPacket(); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := packetHander.sendPacket(); err != nil {
+			t.Fatal(err)
+		}
+
+		outputValid := output[:len(packet)]
+		if !bytes.Equal(packet, outputValid) {
+			t.Fatalf("output packet is not the same as original: expected % x, but found % x", packet, outputValid)
+		}
+	}
+}
 
 func TestClientUnknownCommand(t *testing.T) {
 	unknownMessageType := byte(1)
@@ -35,60 +129,19 @@ func TestClientUnknownCommand(t *testing.T) {
 	output := make([]byte, 8)
 	writer := bufio.NewWriter(bytes.NewBuffer(output[:0]))
 	packetHander, err := NewClientSidePacketHandler(reader, writer, logrus.NewEntry(logrus.StandardLogger()))
+	// Test as if one of the startup messages is received
+	packetHander.started = true
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := packetHander.ReadClientPacket(); err != nil {
 		t.Fatal(err)
 	}
-	if packetHander.messageType[0] != unknownMessageType {
-		t.Fatal("Incorrect message type")
-	}
-	if !bytes.Equal(packetHander.descriptionLengthBuf, lengthBuf) {
-		t.Fatal("Incorrect length buf")
-	}
-	if !bytes.Equal(packetHander.descriptionBuf.Bytes(), dataBuf) {
-		t.Fatal("Incorrect data buf")
-	}
 	if err := packetHander.sendPacket(); err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(output, packet) {
-		t.Fatal("Output not equal to correct packet")
-	}
-}
-
-func TestClientSpecialMessageTypes(t *testing.T) {
-	sslLengthBuf := []byte{0, 0, 0, 8}
-	cancelRequestLengthBuf := []byte{0, 0, 0, 16}
-	lengthBufs := [][]byte{sslLengthBuf, cancelRequestLengthBuf}
-	for i, data := range [][]byte{SSLRequest, CancelRequest} {
-		packet := bytes.Join([][]byte{lengthBufs[i], data}, []byte{})
-		reader := bytes.NewReader(packet)
-		output := make([]byte, 8)
-		writer := bufio.NewWriter(bytes.NewBuffer(output[:0]))
-		packetHander, err := NewClientSidePacketHandler(reader, writer, logrus.NewEntry(logrus.StandardLogger()))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := packetHander.ReadClientPacket(); err != nil {
-			t.Fatal(err)
-		}
-		if packetHander.messageType[0] != WithoutMessageType {
-			t.Fatal("Incorrect message type")
-		}
-		if !bytes.Equal(packetHander.descriptionLengthBuf, lengthBufs[i]) {
-			t.Fatal("Incorrect length buf")
-		}
-		if !bytes.Equal(packetHander.descriptionBuf.Bytes(), data) {
-			t.Fatal("Incorrect data buf")
-		}
-		if err := packetHander.sendPacket(); err != nil {
-			t.Fatal(err)
-		}
-		if !bytes.Equal(output, packet) {
-			t.Fatal("Output not equal to correct packet")
-		}
+	if !bytes.Equal(packet, output) {
+		t.Fatalf("output packet is not the same as original: expected % x, but found % x", packet, output)
 	}
 }
 
