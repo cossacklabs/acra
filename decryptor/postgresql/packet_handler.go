@@ -630,7 +630,7 @@ func (packet *PacketHandler) SetStarted() {
 	packet.started = true
 }
 
-// Returns true if startup packet is already received and packet handler excepts
+// IsAlreadyStarted returns true if startup packet is already received and packet handler excepts
 // general messages.
 func (packet *PacketHandler) IsAlreadyStarted() bool {
 	return packet.started
