@@ -20,7 +20,9 @@ import (
 	"crypto/rand"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"os"
+	"reflect"
 	"testing"
+	"unsafe"
 )
 
 func TestFileExists(t *testing.T) {
@@ -97,4 +99,35 @@ func TestZeroizeKeyPair(t *testing.T) {
 func TestZeroizeNilKeyPair(t *testing.T) {
 	ZeroizeKeyPair(nil) // no panic
 	ZeroizeKeyPair(&keys.Keypair{})
+}
+
+func TestBytesToString(t *testing.T) {
+	type args struct {
+		data []byte
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{"nil array", args{nil}, ""},
+		{"empty array", args{[]byte{}}, ""},
+		{"empty array", args{[]byte(`some data`)}, `some data`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := BytesToString(tt.args.data)
+			if got != tt.want {
+				t.Errorf("BytesToString() = %v, want %v", got, tt.want)
+			}
+			byteHeader := (*reflect.SliceHeader)(unsafe.Pointer(&tt.args.data))
+			strHeader := (*reflect.StringHeader)(unsafe.Pointer(&got))
+			if byteHeader.Len == 0 {
+				return
+			}
+			if byteHeader.Data != strHeader.Data {
+				t.Fatal("Result string uses another block of memory")
+			}
+		})
+	}
 }

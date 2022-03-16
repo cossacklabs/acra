@@ -44,6 +44,9 @@ type ColumnEncryptionSetting interface {
 	ClientID() []byte
 	ZoneID() []byte
 
+	GetDataType() string
+	GetDefaultDataValue() *string
+
 	// Searchable encryption
 	IsSearchable() bool
 	// Data masking

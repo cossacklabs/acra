@@ -23,8 +23,10 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"io"
 	"io/ioutil"
+	"reflect"
 	"sync"
 	"time"
+	"unsafe"
 
 	log "github.com/sirupsen/logrus"
 	"os"
@@ -223,4 +225,16 @@ func WaitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 	case <-time.After(timeout):
 		return true // timed out
 	}
+}
+
+// BytesToString converts data to string with re-using same allocated memory
+// Warning: data shouldn't be changed after that because it will cause runtime error due to strings are immutable
+// Only for read/iterate operations
+func BytesToString(data []byte) string {
+	if len(data) == 0 {
+		return ""
+	}
+	sliceHeader := (*reflect.SliceHeader)(unsafe.Pointer(&data))
+	stringHeader := reflect.StringHeader{Data: sliceHeader.Data, Len: sliceHeader.Len}
+	return *(*string)(unsafe.Pointer(&stringHeader))
 }

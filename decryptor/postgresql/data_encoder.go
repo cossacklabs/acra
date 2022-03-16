@@ -49,13 +49,23 @@ func (p *PgSQLDataEncoderProcessor) ID() string {
 	return "PgSQLDataEncoderProcessor"
 }
 
+// here we process encryption/tokenization results before send it to a client
+// acra decrypts or de-tokenize SQL literals, so we should convert string SQL literals to binary format
+// if client expects int, then parse INT literals and convert to binary 4/8 byte format
+// if expects bytes, then pass as is
+// if expects string, then leave as is if it is valid string or encode to hex
+// if it is encrypted data then we return default values or as is if applicable (binary data)
 func (p *PgSQLDataEncoderProcessor) encodeBinary(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
-	// here we process encryption/tokenization results before send it to client
-	// acra decrypts or de-tokenize SQL literals, so we should convert string SQL literals to binary format
-	// if client expects int, then parse INT literals and convert to binary 4/8 byte format
-	// if expects bytes, then pass as is
-	// if expects string, then leave as is if it is valid string or encode to hex
+	if len(data) == 0 {
+		return ctx, data, nil
+	}
 	switch setting.GetTokenType() {
+	case common.TokenType_Email, common.TokenType_String:
+		if !utf8.Valid(data) {
+			value := setting.GetDefaultDataValue()
+			return ctx, []byte(*value), nil
+		}
+		return ctx, data, nil
 	case common.TokenType_Int32, common.TokenType_Int64:
 		size := 8
 		if setting.GetTokenType() == common.TokenType_Int32 {
@@ -64,7 +74,15 @@ func (p *PgSQLDataEncoderProcessor) encodeBinary(ctx context.Context, data []byt
 		// convert back from text to binary
 		value, err := strconv.ParseInt(string(data), 10, 64)
 		if err != nil {
-			return ctx, data, err
+			if setting.GetDefaultDataValue() != nil {
+				newVal := setting.GetDefaultDataValue()
+				value, err = strconv.ParseInt(*newVal, 10, 64)
+				if err != nil {
+					return ctx, data, err
+				}
+			} else {
+				return ctx, data, err
+			}
 		}
 		newData := make([]byte, size)
 		switch size {
@@ -119,24 +137,31 @@ func (p *PgSQLDataEncoderProcessor) decodeBinary(ctx context.Context, data []byt
 
 // encodeText converts data according to Text format received after decryption/de-tokenization according to ColumnEncryptionSetting
 // binary -> hex encoded
-// string/email -> string if valid UTF8/ASCII otherwise hex
-// else as is
+// string/email -> string if valid UTF8/ASCII otherwise hex encoded
+// integers as is
+// not decrypted data that left in binary format we replace with default values (integers) or encode to hex (binary, strings)
 func (p *PgSQLDataEncoderProcessor) encodeText(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
-	if isEncodedFromContext(ctx) {
-		if len(data) == 0 {
+	switch setting.GetTokenType() {
+	case common.TokenType_Int32, common.TokenType_Int64:
+		_, err := strconv.ParseInt(string(data), 10, 64)
+		// if it's valid string literal and decrypted, return as is
+		if err == nil {
 			return ctx, data, nil
 		}
-		// string valid values we try return as is without extra conversion to HEX literals, otherwise encode them
-		// to HEX
-		if utils.IsPrintableASCIIArray(data) {
-			return ctx, data, nil
+		// if it's encrypted binary, then it is binary array that is invalid int literal
+		if setting.GetDefaultDataValue() != nil {
+			newVal := setting.GetDefaultDataValue()
+			return ctx, []byte(*newVal), nil
 		}
-		if utf8.Valid(data) {
-			return ctx, data, nil
-		}
-		return ctx, utils.PgEncodeToHex(data), nil
+		return ctx, data, err
 	}
-	return ctx, data, nil
+	if len(data) == 0 {
+		return ctx, data, nil
+	}
+	if utils.IsPrintablePostgresqlString(data) {
+		return ctx, data, nil
+	}
+	return ctx, utils.PgEncodeToHex(data), nil
 }
 
 type encodeDecodeKey struct{}
@@ -168,7 +193,7 @@ func (p *PgSQLDataEncoderProcessor) decodeText(ctx context.Context, data []byte,
 			logger.WithError(err).Errorln("Can't decode binary data for decryption")
 			return ctx, data, nil
 		}
-		return encodedContext(ctx), decodedData, nil
+		return ctx, decodedData, nil
 	}
 	return ctx, data, nil
 }
@@ -177,7 +202,7 @@ func (p *PgSQLDataEncoderProcessor) decodeText(ctx context.Context, data []byte,
 func (p *PgSQLDataEncoderProcessor) OnColumn(ctx context.Context, data []byte) (context.Context, []byte, error) {
 	columnSetting, ok := encryptor.EncryptionSettingFromContext(ctx)
 	if !ok {
-		//return ctx, data, nil
+		// for case when data encrypted with acrastructs on app's side and used without any encryption setting
 		columnSetting = &config.BasicColumnEncryptionSetting{}
 	}
 	logger := logging.GetLoggerFromContext(ctx)

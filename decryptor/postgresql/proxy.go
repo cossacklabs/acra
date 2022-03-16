@@ -170,7 +170,6 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 		return nil, err
 	}
 	proxy.AddQueryObserver(queryEncryptor)
-	proxy.SubscribeOnAllColumnsDecryption(queryEncryptor)
 	// register last to encode all data into correct format according to client/database requested formats
 	// and ColumnEncryptionSetting
 	proxy.SubscribeOnAllColumnsDecryption(encoderProcessor)

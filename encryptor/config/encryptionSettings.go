@@ -138,6 +138,11 @@ type BasicColumnEncryptionSetting struct {
 	UsedClientID string `yaml:"client_id"`
 	UsedZoneID   string `yaml:"zone_id"`
 
+	// same as TokenType but related for encryption operations
+	DataType string `yaml:"data_type"`
+	// string for str/email/int32/int64 ans base64 string for binary data
+	DefaultDataValue *string `yaml:"default_data_value"`
+
 	// Data pseudonymization (tokenization)
 	Tokenized              bool   `yaml:"tokenized"`
 	ConsistentTokenization bool   `yaml:"consistent_tokenization"`
@@ -313,6 +318,16 @@ func (s *BasicColumnEncryptionSetting) GetPartialPlaintextLen() int {
 // IsEndMasking returns true if the right part of the value should be masked.
 func (s *BasicColumnEncryptionSetting) IsEndMasking() bool {
 	return s.PlaintextSide == maskingCommon.PlainTextSideLeft
+}
+
+// GetDataType returns data type for encrypted data
+func (s *BasicColumnEncryptionSetting) GetDataType() string {
+	return s.DataType
+}
+
+// GetDefaultDataValue returns default data value for encrypted data
+func (s *BasicColumnEncryptionSetting) GetDefaultDataValue() *string {
+	return s.DefaultDataValue
 }
 
 func (s *BasicColumnEncryptionSetting) applyDefaults(defaults defaultValues) {

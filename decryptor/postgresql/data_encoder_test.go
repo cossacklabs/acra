@@ -3,6 +3,7 @@ package postgresql
 import (
 	"bytes"
 	"context"
+	"errors"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
@@ -151,7 +152,7 @@ func TestSkipWithoutSetting(t *testing.T) {
 	}
 }
 
-func TestSkipWithoutBinaryMode(t *testing.T) {
+func TestTextMode(t *testing.T) {
 	encoder, err := NewPgSQLDataEncoderProcessor(DataEncoderModeEncode)
 	if err != nil {
 		t.Fatal(err)
@@ -160,20 +161,55 @@ func TestSkipWithoutBinaryMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	testData := []byte("some data")
+
+	type testcase struct {
+		input       []byte
+		decodedData []byte
+		encodedData []byte
+		decodeErr   error
+		encodeErr   error
+		setting     config.ColumnEncryptionSetting
+	}
+	strDefaultValue := "123"
+	testcases := []testcase{
+		// decoder expects valid string and pass as is, so no errors. but on encode operation it expects valid int literal
+		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte("some data"), decodeErr: nil, encodeErr: &strconv.NumError{},
+			setting: &config.BasicColumnEncryptionSetting{Tokenized: true, TokenType: "int32"}},
+
+		{input: []byte("123"), decodedData: []byte("123"), encodedData: []byte("123"), decodeErr: nil, encodeErr: nil,
+			setting: &config.BasicColumnEncryptionSetting{Tokenized: true, TokenType: "int32"}},
+
+		// encryption/decryption integer data, not tokenization
+		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte("some data"), decodeErr: nil, encodeErr: &strconv.NumError{},
+			setting: &config.BasicColumnEncryptionSetting{Tokenized: false, TokenType: "int32"}},
+
+		// encryption/decryption integer data, not tokenization
+		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte(strDefaultValue), decodeErr: nil, encodeErr: nil,
+			setting: &config.BasicColumnEncryptionSetting{Tokenized: false, TokenType: "int32", DefaultDataValue: &strDefaultValue}},
+	}
+
 	columnInfo := base.NewColumnInfo(0, "", false, 4)
 	accessContext := &base.AccessContext{}
 	accessContext.SetColumnInfo(columnInfo)
 	ctx := base.SetAccessContextToContext(context.Background(), accessContext)
-	testSetting := config.BasicColumnEncryptionSetting{Tokenized: true, TokenType: "int32"}
-	ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
-	for _, subscriber := range []base.DecryptionSubscriber{encoder, decoder} {
-		_, data, err := subscriber.OnColumn(ctx, testData)
+	for i, tcase := range testcases {
+		ctx = encryptor.NewContextWithEncryptionSetting(ctx, tcase.setting)
+		_, decodedData, decodeErr := decoder.OnColumn(ctx, tcase.input)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !bytes.Equal(data, testData) {
-			t.Fatal("Result data should be the same")
+		if decodeErr != tcase.decodeErr {
+			t.Fatalf("[%d] Incorrect decode error. Expect %s, took %s\n", i, tcase.decodeErr, decodeErr)
+		}
+		if !bytes.Equal(decodedData, tcase.decodedData) {
+			t.Fatalf("[%d] Result data should be the same\n", i)
+		}
+		_, encodedData, encodeErr := encoder.OnColumn(ctx, decodedData)
+		if encodeErr != tcase.encodeErr && !errors.As(encodeErr, &tcase.encodeErr) {
+			t.Fatalf("[%d] Incorrect encode error. Expect %s, took %s\n", i, tcase.encodeErr.Error(), encodeErr.Error())
+		}
+		if !bytes.Equal(encodedData, tcase.encodedData) {
+			t.Fatalf("[%d] Result data should be the same\n", i)
 		}
 	}
 }

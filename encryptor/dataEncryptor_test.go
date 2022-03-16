@@ -79,6 +79,14 @@ func TestAcrawriterDataEncryptor_EncryptWithClientID(t *testing.T) {
 
 type emptyEncryptionSetting struct{}
 
+func (s *emptyEncryptionSetting) GetDataType() string {
+	panic("implement me")
+}
+
+func (s *emptyEncryptionSetting) GetDefaultDataValue() *string {
+	panic("implement me")
+}
+
 func (s *emptyEncryptionSetting) OnlyEncryption() bool {
 	return true
 }

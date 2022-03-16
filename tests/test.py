@@ -1981,7 +1981,9 @@ class CensorBlacklistTest(BaseCensorTest):
                          MysqlExecutor(connection_args)]
         if TEST_POSTGRESQL:
             expectedException = (psycopg2.ProgrammingError,
-                                 asyncpg.exceptions.SyntaxOrAccessError)
+                                 asyncpg.exceptions.SyntaxOrAccessError,
+                                 # https://github.com/MagicStack/asyncpg/issues/240
+                                 AttributeError)
             expectedExceptionInPreparedStatement = asyncpg.exceptions.SyntaxOrAccessError
             executors = [Psycopg2Executor(connection_args),
                          AsyncpgExecutor(connection_args)]
@@ -2020,7 +2022,10 @@ class CensorWhitelistTest(BaseCensorTest):
         if TEST_POSTGRESQL:
             expectedException = (psycopg2.ProgrammingError,
                                  asyncpg.exceptions.SyntaxOrAccessError)
-            expectedExceptionInPreparedStatement = asyncpg.exceptions.SyntaxOrAccessError
+            expectedExceptionInPreparedStatement = (
+                asyncpg.exceptions.SyntaxOrAccessError,
+                # due to https://github.com/MagicStack/asyncpg/issues/240
+                AttributeError)
             executors = [Psycopg2Executor(connection_args),
                          AsyncpgExecutor(connection_args)]
 

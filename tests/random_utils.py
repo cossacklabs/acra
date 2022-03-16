@@ -21,6 +21,9 @@ def random_int64():
 
 
 def random_bytes(n=100):
+    # if default size then return binary and printable data
+    if n == 100:
+        return bytes([i for i in range(n)])
     return os.urandom(n)
 
 

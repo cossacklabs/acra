@@ -93,7 +93,7 @@ func (encryptor *QueryDataEncryptor) encryptInsertQuery(ctx context.Context, ins
 	}
 
 	if encryptor.encryptor == nil {
-		return false, encryptor.onReturning(insert.Returning, tableName.RawValue())
+		return false, encryptor.onReturning(ctx, insert.Returning, tableName.RawValue())
 	}
 
 	var columnsName []string
@@ -313,7 +313,8 @@ func (encryptor *QueryDataEncryptor) OnColumn(ctx context.Context, data []byte) 
 		if columnInfo.Index() < len(encryptor.querySelectSettings) {
 			selectSetting := encryptor.querySelectSettings[columnInfo.Index()]
 			if selectSetting != nil {
-				logging.GetLoggerFromContext(ctx).WithField("column_index", columnInfo.Index()).Debugln("Set encryption setting")
+
+				logging.GetLoggerFromContext(ctx).WithField("column_index", columnInfo.Index()).WithField("column", selectSetting.ColumnName()).Debugln("Set encryption setting")
 				return NewContextWithEncryptionSetting(ctx, selectSetting.Setting()), data, nil
 			}
 		}
@@ -371,7 +372,7 @@ func (encryptor *QueryDataEncryptor) onSelect(ctx context.Context, statement *sq
 	return false, nil
 }
 
-func (encryptor *QueryDataEncryptor) onReturning(returning sqlparser.Returning, tableName string) error {
+func (encryptor *QueryDataEncryptor) onReturning(ctx context.Context, returning sqlparser.Returning, tableName string) error {
 	if len(returning) == 0 {
 		return nil
 	}
@@ -391,6 +392,8 @@ func (encryptor *QueryDataEncryptor) onReturning(returning sqlparser.Returning, 
 			}
 			querySelectSettings = append(querySelectSettings, nil)
 		}
+		clientSession := base.ClientSessionFromContext(ctx)
+		SaveQueryDataItemsToClientSession(clientSession, querySelectSettings)
 		encryptor.querySelectSettings = querySelectSettings
 		return nil
 	}
@@ -412,7 +415,8 @@ func (encryptor *QueryDataEncryptor) onReturning(returning sqlparser.Returning, 
 		}
 		querySelectSettings = append(querySelectSettings, nil)
 	}
-
+	clientSession := base.ClientSessionFromContext(ctx)
+	SaveQueryDataItemsToClientSession(clientSession, querySelectSettings)
 	encryptor.querySelectSettings = querySelectSettings
 	return nil
 }
