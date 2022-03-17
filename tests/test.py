@@ -5298,33 +5298,32 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
                 self.checkMetrics(metrics_url, labels)
 
 
-class TestTransparentEncryption(BaseTestCase):
-    WHOLECELL_MODE = True
-    encryptor_table = sa.Table('test_transparent_encryption', metadata,
+class BaseTransparentEncryption(BaseTestCase):
+    encryptor_table = sa.Table(
+        'test_transparent_encryption', metadata,
         sa.Column('id', sa.Integer, primary_key=True),
         sa.Column('specified_client_id',
                   sa.LargeBinary(length=COLUMN_DATA_SIZE)),
-        sa.Column('default_client_id',
+                  sa.Column('default_client_id',
                   sa.LargeBinary(length=COLUMN_DATA_SIZE)),
-
         sa.Column('number', sa.Integer),
         sa.Column('zone_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
         sa.Column('raw_data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
         sa.Column('nullable', sa.Text, nullable=True),
         sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-    )
+        )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_config.yaml')
 
     def setUp(self):
         self.prepare_encryptor_config(client_id=TLS_CERT_CLIENT_ID_1)
-        super(TestTransparentEncryption, self).setUp()
+        super(BaseTransparentEncryption, self).setUp()
 
     def prepare_encryptor_config(self, client_id=None):
         prepare_encryptor_config(zone_id=zones[0][ZONE_ID], config_path=self.ENCRYPTOR_CONFIG, client_id=client_id)
 
     def tearDown(self):
         self.engine_raw.execute(self.encryptor_table.delete())
-        super(TestTransparentEncryption, self).tearDown()
+        super(BaseTransparentEncryption, self).tearDown()
         try:
             os.remove(get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
         except FileNotFoundError:
@@ -5333,8 +5332,11 @@ class TestTransparentEncryption(BaseTestCase):
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         acra_kwargs['encryptor_config_file'] = get_test_encryptor_config(
             self.ENCRYPTOR_CONFIG)
-        return super(TestTransparentEncryption, self).fork_acra(
+        return super(BaseTransparentEncryption, self).fork_acra(
             popen_kwargs, **acra_kwargs)
+
+
+class TestTransparentEncryption(BaseTransparentEncryption):
 
     def get_context_data(self):
         context = {
@@ -8398,6 +8400,101 @@ class TestRegressionInvalidOctalEncoding(BaseTokenizationWithBinaryPostgreSQL):
             else:
                 self.assertEqual(source_data[0][k], data[k])
                 self.assertNotEqual(hidden_data[0][k], data[k])
+
+
+class TestPostgresqlTypeAwareDecryption(BaseTransparentEncryption):
+    # test table used for queries and data mapping into python types
+    test_table = sa.Table(
+        # use new object of metadata to avoid name conflict
+        'test_type_aware_decryption', sa.MetaData(),
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.Text),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.Integer),
+        sa.Column('value_int64', sa.BigInteger),
+        sa.Column('value_null_str', sa.Text, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.Integer, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.Text, nullable=False, default=''),
+    )
+    # schema table used to generate table in the database with binary column types
+    schema_table = sa.Table(
+
+        'test_type_aware_decryption', metadata,
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.LargeBinary),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.LargeBinary),
+        sa.Column('value_int64', sa.LargeBinary),
+        sa.Column('value_null_str', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
+    )
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+
+    def checkSkip(self):
+        if not TEST_POSTGRESQL:
+            self.skipTest("Test only for PostgreSQL")
+
+    def testClientIDRead(self):
+        """test decrypting with correct clientID and not decrypting with
+        incorrect clientID or using direct connection to db
+        All result data should be valid for application. Not decrypted data should be returned with their default value
+        """
+        client_id = TLS_CERT_CLIENT_ID_1
+        data = {
+            'id': get_random_id(),
+            'value_str': random_str(),
+            'value_bytes': random_bytes(),
+            'value_int32': random_int32(),
+            'value_int64': random_int64(),
+            'value_null_str': None,
+            'value_null_int32': None,
+            'value_empty_str': ''
+        }
+        default_expected_values = {
+            'value_int32': 32,
+            'value_int64': 64,
+        }
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
+                   'value_empty_str')
+        self.engine1.execute(self.test_table.insert(), data)
+        result = self.engine1.execute(
+            sa.select([self.test_table])
+                .where(self.test_table.c.id == data['id']))
+        row = result.fetchone()
+        for column in columns:
+            self.assertEqual(data[column], row[column])
+            self.assertIsInstance(row[column], type(data[column]))
+
+        result = self.engine2.execute(
+            sa.select([self.test_table])
+                .where(self.test_table.c.id == data['id']))
+        row = result.fetchone()
+        for column in columns:
+            self.assertIsInstance(row[column], type(data[column]))
+            if 'null' in column:
+                self.assertIsNone(row[column])
+                continue
+            if 'empty' in column:
+                self.assertEqual(row[column], '')
+                continue
+            self.assertNotEqual(data[column], row[column])
+            if column in ('value_int32', 'value_int64'):
+                self.assertEqual(row[column], default_expected_values[column])
+
+        result = self.engine_raw.execute(
+            sa.select([self.test_table])
+                .where(self.test_table.c.id == data['id']))
+        row = result.fetchone()
+        for column in columns:
+            if 'null' in column:
+                self.assertIsNone(row[column])
+                continue
+            self.assertIsInstance(utils.memoryview_to_bytes(row[column]), bytes)
+            if column in ('value_str', 'value_bytes'):
+                # length of data should be greater than source data due to encryption overhead
+                self.assertTrue(len(utils.memoryview_to_bytes(row[column])) > len(data[column]))
 
 
 if __name__ == '__main__':

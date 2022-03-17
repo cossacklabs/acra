@@ -41,6 +41,8 @@ const (
 	SettingZoneIDFlag
 	SettingAcraBlockEncryptionFlag
 	SettingAcraStructEncryptionFlag
+	SettingDataTypeFlag
+	SettingDefaultDataValueFlag
 )
 
 // validSettings store all valid combinations of encryption settings
@@ -60,6 +62,13 @@ var validSettings = map[SettingMask]struct{}{
 
 	SettingZoneIDFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
 	SettingZoneIDFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
+
+	/////////////
+	// DataType tampering
+	/////////////
+	SettingDataTypeFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag:                               {},
+	SettingDataTypeFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag: {},
+
 	/////////////
 	// SEARCHABLE
 	// default ClientID
@@ -221,6 +230,8 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 				return err
 			}
 		}
+	} else {
+		s.settingMask |= SettingDataTypeFlag
 	}
 	dataType, err := common2.ParseStringEncryptedType(s.DataType)
 	if err != nil {
@@ -228,6 +239,9 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 	}
 	if err = common2.ValidateEncryptedType(dataType); err != nil {
 		return err
+	}
+	if s.DefaultDataValue != nil {
+		s.settingMask |= SettingDefaultDataValueFlag
 	}
 
 	if s.Tokenized {
