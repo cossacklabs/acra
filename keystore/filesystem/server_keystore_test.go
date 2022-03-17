@@ -693,12 +693,6 @@ func testFilesystemKeyStoreWithOnlyCachedData(storage Storage, t *testing.T) {
 	if err := store.GenerateClientIDSymmetricKey(testID); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.GenerateTokenSymmetricKey(testID, keystore.KeyOwnerTypeClient); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.GenerateTokenSymmetricKey(testID, keystore.KeyOwnerTypeClient); err != nil {
-		t.Fatal(err)
-	}
 	if err := store.GeneratePoisonRecordSymmetricKey(); err != nil {
 		t.Fatal(err)
 	}
@@ -748,10 +742,6 @@ func testFilesystemKeyStoreWithOnlyCachedData(storage Storage, t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = store.GetClientIDSymmetricKeys(testID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = store.GetDecryptionTokenSymmetricKeys(testID, keystore.KeyOwnerTypeClient)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -806,14 +796,6 @@ func testFilesystemKeyStoreWithOnlyCachedData(storage Storage, t *testing.T) {
 	}
 	if len(symKeys) != 2 {
 		t.Fatal("ClientID sym keys not cached")
-	}
-
-	symKeys, err = store.GetDecryptionTokenSymmetricKeys(testID, keystore.KeyOwnerTypeClient)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(symKeys) != 2 {
-		t.Fatal("Token sym keys not cached")
 	}
 
 	symKeys, err = store.GetPoisonSymmetricKeys()

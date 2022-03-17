@@ -84,12 +84,6 @@ const (
 // ErrKeysNotFound used if can't find key or keys
 var ErrKeysNotFound = errors.New("keys not found")
 
-// TokenKeystore method related with key management used by tokenization components
-type TokenKeystore interface {
-	GetEncryptionTokenSymmetricKey(id []byte, ownerType KeyOwnerType) ([]byte, error)
-	GetDecryptionTokenSymmetricKeys(id []byte, ownerType KeyOwnerType) ([][]byte, error)
-}
-
 // HmacKeyStore interface to fetch keys for hma calculation
 type HmacKeyStore interface {
 	GetHMACSecretKey(id []byte) ([]byte, error)
