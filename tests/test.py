@@ -954,7 +954,8 @@ class AsyncpgExecutor(QueryExecutor):
             asyncpg.connect(
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user, password=self.connection_args.password,
-                database=self.connection_args.dbname, ssl=ssl_context,
+                database=self.connection_args.dbname,
+                ssl=ssl_context,
                 **asyncpg_connect_args))
 
     def _set_text_format(self, conn):
@@ -6819,7 +6820,7 @@ class BaseTokenizationWithBinaryMySQL(BaseTokenization):
             for column, value in row.items():
                 if isinstance(value, (bytes, bytearray)):
                     try:
-                        row[column] = value.decode('utf8')
+                        row[column] = bytes(value)
                     except (LookupError, UnicodeDecodeError):
                         pass
         return result
@@ -6871,11 +6872,12 @@ class TestTokenizationWithoutZone(BaseTokenization):
 
         # data owner take source data
         for k in ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email'):
-            if isinstance(source_data[0][k], bytearray) and isinstance(data[k], str):
-                self.assertEqual(source_data[0][k], bytearray(data[k], encoding='utf-8'))
+            if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+                self.assertEqual(source_data[0][k], data[k].encode('utf-8'))
+                self.assertNotEqual(hidden_data[0][k], data[k].encode('utf-8'))
             else:
                 self.assertEqual(source_data[0][k], data[k])
-            self.assertNotEqual(hidden_data[0][k], data[k])
+                self.assertNotEqual(hidden_data[0][k], data[k])
 
     def testTokenizationDefaultClientIDWithBulkInsert(self):
         default_client_id_table = sa.Table(
@@ -6921,8 +6923,8 @@ class TestTokenizationWithoutZone(BaseTokenization):
         for idx in range(len(source_data)):
             # data owner take source data
             for k in ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email'):
-                if isinstance(source_data[idx][k], bytearray) and isinstance(values[idx][k], str):
-                    self.assertEqual(source_data[idx][k], bytearray(values[idx][k], encoding='utf-8'))
+                if isinstance(source_data[idx][k], (bytearray, bytes)) and isinstance(values[idx][k], str):
+                    self.assertEqual(source_data[idx][k], bytes(values[idx][k], encoding='utf-8'))
                 else:
                     self.assertEqual(source_data[idx][k], values[idx][k])
                     self.assertNotEqual(hidden_data[idx][k], values[idx][k])
@@ -6970,8 +6972,8 @@ class TestTokenizationWithoutZone(BaseTokenization):
 
         # data owner take source data
         for k in ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email'):
-            if isinstance(source_data[0][k], bytearray) and isinstance(data[k], str):
-                self.assertEqual(source_data[0][k], bytearray(data[k], encoding='utf-8'))
+            if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+                self.assertEqual(source_data[0][k], bytes(data[k], encoding='utf-8'))
             else:
                 self.assertEqual(source_data[0][k], data[k])
             self.assertNotEqual(hidden_data[0][k], data[k])
@@ -7019,12 +7021,14 @@ class TestTokenizationWithoutZone(BaseTokenization):
 
         # data owner take source data
         for k in ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email'):
-            # binary data returned as memoryview objects
-            if isinstance(source_data[0][k], bytearray) and isinstance(data[k], str):
-                self.assertEqual(utils.memoryview_to_bytes(source_data[0][k]), bytearray(data[k], encoding='utf-8'))
+            # successfully decrypted data returned as string otherwise as bytes
+            # always encode to bytes to compare values with same type coercions
+            if isinstance(source_data[0][k], (bytearray, bytes, memoryview)) and isinstance(data[k], str):
+                self.assertEqual(utils.memoryview_to_bytes(source_data[0][k]), data[k].encode('utf-8'))
+                self.assertNotEqual(utils.memoryview_to_bytes(hidden_data[0][k]), data[k].encode('utf-8'))
             else:
                 self.assertEqual(utils.memoryview_to_bytes(source_data[0][k]), data[k])
-            self.assertNotEqual(utils.memoryview_to_bytes(hidden_data[0][k]), data[k])
+                self.assertNotEqual(utils.memoryview_to_bytes(hidden_data[0][k]), data[k])
 
 
 class TestReturningProcessingMixing:
@@ -7221,9 +7225,9 @@ class TestTokenizationWithZone(BaseTokenization):
         token_fields = ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email')
         # data owner take source data
         for k in token_fields:
-            if isinstance(source_data[0][k], bytearray) and isinstance(data[k], str):
-                self.assertEqual(source_data[0][k], bytearray(data[k], encoding='utf-8'))
-                self.assertEqual(hidden_data[0][k], bytearray(data[k], encoding='utf-8'))
+            if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+                self.assertEqual(source_data[0][k], data[k].encode('utf-8'))
+                self.assertEqual(hidden_data[0][k], data[k].encode('utf-8'))
             else:
                 self.assertEqual(source_data[0][k], data[k])
                 self.assertEqual(hidden_data[0][k], data[k])
@@ -7293,9 +7297,9 @@ class TestTokenizationWithZone(BaseTokenization):
         token_fields = ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email')
         # data owner take source data
         for k in token_fields:
-            if isinstance(source_data[0][k], bytearray) and isinstance(data[k], str):
-                self.assertEqual(utils.memoryview_to_bytes(source_data[0][k]), bytearray(data[k], encoding='utf-8'))
-                self.assertEqual(utils.memoryview_to_bytes(hidden_data[0][k]), bytearray(data[k], encoding='utf-8'))
+            if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+                self.assertEqual(utils.memoryview_to_bytes(source_data[0][k]), data[k].encode('utf-8'))
+                self.assertEqual(utils.memoryview_to_bytes(hidden_data[0][k]), data[k].encode('utf-8'))
             else:
                 self.assertEqual(utils.memoryview_to_bytes(source_data[0][k]), data[k])
                 self.assertEqual(utils.memoryview_to_bytes(hidden_data[0][k]), data[k])
