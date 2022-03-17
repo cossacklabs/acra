@@ -16,25 +16,8 @@ limitations under the License.
 
 package filesystem
 
-import (
-	keystore2 "github.com/cossacklabs/acra/keystore"
-)
-
 func getSymmetricKeyName(id string) string {
 	return id + `_sym`
-}
-
-func getTokenSymmetricKeyName(id []byte, ownerType keystore2.KeyOwnerType) string {
-	var name string
-	switch ownerType {
-	case keystore2.KeyOwnerTypeClient:
-		name = getClientIDSymmetricKeyName(id)
-	case keystore2.KeyOwnerTypeZone:
-		name = getZoneIDSymmetricKeyName(id)
-	default:
-		name = string(id)
-	}
-	return name + ".token"
 }
 
 func getClientIDSymmetricKeyName(id []byte) string {

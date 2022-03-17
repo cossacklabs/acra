@@ -36,7 +36,6 @@ import (
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
-	keystore2 "github.com/cossacklabs/acra/keystore"
 	fs "github.com/cossacklabs/acra/keystore/filesystem/internal"
 	"github.com/cossacklabs/acra/keystore/lru"
 	"github.com/cossacklabs/acra/logging"
@@ -1310,26 +1309,4 @@ func (store *KeyStore) GetZoneIDSymmetricKeys(id []byte) ([][]byte, error) {
 func (store *KeyStore) GetZoneIDSymmetricKey(id []byte) ([]byte, error) {
 	keyName := getZoneIDSymmetricKeyName(id)
 	return store.getLatestSymmetricKey(id, keyName)
-}
-
-// GetDecryptionTokenSymmetricKeys return symmetric keys which may be used to decrypt encrypted token
-func (store *KeyStore) GetDecryptionTokenSymmetricKeys(id []byte, ownerType keystore2.KeyOwnerType) ([][]byte, error) {
-	keyName := getTokenSymmetricKeyName(id, ownerType)
-	return store.getSymmetricKeys(id, keyName)
-}
-
-// GetEncryptionTokenSymmetricKey return symmetric key which should be used to encrypt tokens
-func (store *KeyStore) GetEncryptionTokenSymmetricKey(id []byte, ownerType keystore2.KeyOwnerType) ([]byte, error) {
-	keyName := getTokenSymmetricKeyName(id, ownerType)
-	key, err := store.getLatestSymmetricKey(id, keyName)
-	if err != nil {
-		return nil, err
-	}
-	return key, nil
-}
-
-// GenerateTokenSymmetricKey new symmetric key in keystore
-func (store *KeyStore) GenerateTokenSymmetricKey(id []byte, ownerType keystore2.KeyOwnerType) error {
-	keyName := getTokenSymmetricKeyName(id, ownerType)
-	return store.generateAndSaveSymmetricKey(id, store.GetPrivateKeyFilePath(keyName))
 }
