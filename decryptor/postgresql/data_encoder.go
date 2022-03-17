@@ -7,8 +7,8 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
+	common2 "github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
 	"strconv"
@@ -59,16 +59,16 @@ func (p *PgSQLDataEncoderProcessor) encodeBinary(ctx context.Context, data []byt
 	if len(data) == 0 {
 		return ctx, data, nil
 	}
-	switch setting.GetTokenType() {
-	case common.TokenType_Email, common.TokenType_String:
+	switch setting.GetEncryptedDataType() {
+	case common2.EncryptedType_String:
 		if !utf8.Valid(data) {
 			value := setting.GetDefaultDataValue()
 			return ctx, []byte(*value), nil
 		}
 		return ctx, data, nil
-	case common.TokenType_Int32, common.TokenType_Int64:
+	case common2.EncryptedType_Int32, common2.EncryptedType_Int64:
 		size := 8
-		if setting.GetTokenType() == common.TokenType_Int32 {
+		if setting.GetEncryptedDataType() == common2.EncryptedType_Int32 {
 			size = 4
 		}
 		// convert back from text to binary
@@ -105,8 +105,11 @@ func (p *PgSQLDataEncoderProcessor) encodeBinary(ctx context.Context, data []byt
 func (p *PgSQLDataEncoderProcessor) decodeBinary(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
 	var newData [8]byte
 	// convert from binary to text literal because tokenizer expects int value as string literal
-	switch setting.GetTokenType() {
-	case common.TokenType_Int32, common.TokenType_Int64:
+	switch setting.GetEncryptedDataType() {
+	case common2.EncryptedType_Int32, common2.EncryptedType_Int64:
+		// We decode only tokenized data because it should be valid 4/8 byte values
+		// If it is encrypted integers then we will see here encrypted blob that cannot be decoded and should be decrypted
+		// in next handlers. So we return value as is
 		if setting.IsTokenized() {
 			// tokenizer operates over string SQL values so here we expect valid int binary values that we should
 			// convert to string SQL value
@@ -141,8 +144,8 @@ func (p *PgSQLDataEncoderProcessor) decodeBinary(ctx context.Context, data []byt
 // integers as is
 // not decrypted data that left in binary format we replace with default values (integers) or encode to hex (binary, strings)
 func (p *PgSQLDataEncoderProcessor) encodeText(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
-	switch setting.GetTokenType() {
-	case common.TokenType_Int32, common.TokenType_Int64:
+	switch setting.GetEncryptedDataType() {
+	case common2.EncryptedType_Int32, common2.EncryptedType_Int64:
 		_, err := strconv.ParseInt(string(data), 10, 64)
 		// if it's valid string literal and decrypted, return as is
 		if err == nil {
@@ -164,24 +167,6 @@ func (p *PgSQLDataEncoderProcessor) encodeText(ctx context.Context, data []byte,
 	return ctx, utils.PgEncodeToHex(data), nil
 }
 
-type encodeDecodeKey struct{}
-
-func encodedContext(ctx context.Context) context.Context {
-	return context.WithValue(ctx, encodeDecodeKey{}, true)
-}
-func isEncodedFromContext(ctx context.Context) bool {
-	val := ctx.Value(encodeDecodeKey{})
-	if val == nil {
-		return false
-	}
-	v, ok := val.(bool)
-	if !ok {
-		logging.GetLoggerFromContext(ctx).Warningln("Unexpected type for encodeDecodeKey context value")
-		return false
-	}
-	return v
-}
-
 // decodeText converts data from text format for decryptors/de-tokenizers according to ColumnEncryptionSetting
 // hex/octal binary -> raw binary data
 func (p *PgSQLDataEncoderProcessor) decodeText(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
@@ -195,6 +180,7 @@ func (p *PgSQLDataEncoderProcessor) decodeText(ctx context.Context, data []byte,
 		}
 		return ctx, decodedData, nil
 	}
+	// all other non-binary data should be valid SQL literals like integers or strings and Acra works with them as is
 	return ctx, data, nil
 }
 

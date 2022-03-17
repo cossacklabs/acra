@@ -192,8 +192,19 @@ build_protobuf:
 	@protoc --go_out=`pwd` --go-grpc_out=`pwd` \
 		--go_opt=module=github.com/cossacklabs/acra \
 		--go-grpc_opt=module=github.com/cossacklabs/acra \
-		-Icmd/acra-translator/grpc_api \
-		cmd/acra-translator/grpc_api/*.proto
+		-Ipseudonymization/common \
+		pseudonymization/common/*.proto
+	@protoc --go_out=`pwd` --go-grpc_out=`pwd` \
+    		--go_opt=module=github.com/cossacklabs/acra \
+    		--go-grpc_opt=module=github.com/cossacklabs/acra \
+    		-Icmd/acra-translator/grpc_api \
+    		cmd/acra-translator/grpc_api/*.proto
+	@protoc --go_out=`pwd` --go-grpc_out=`pwd` \
+    		--go_opt=module=github.com/cossacklabs/acra \
+    		--go-grpc_opt=module=github.com/cossacklabs/acra \
+    		-Iencryptor/config/common \
+    		encryptor/config/common/*.proto
+
 	@python3 -m grpc_tools.protoc -Icmd/acra-translator/grpc_api --proto_path=. --python_out=tests/ --grpc_python_out=tests/ cmd/acra-translator/grpc_api/*.proto
 
 ## Build the application in the subdirectory (default)

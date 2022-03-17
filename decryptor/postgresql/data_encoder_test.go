@@ -56,7 +56,10 @@ func TestEncodingDecodingProcessorBinaryIntData(t *testing.T) {
 		accessContext := &base.AccessContext{}
 		accessContext.SetColumnInfo(columnInfo)
 		ctx := base.SetAccessContextToContext(context.Background(), accessContext)
-		testSetting := config.BasicColumnEncryptionSetting{Tokenized: true, TokenType: sizeToTokenType[tcase.binarySize]}
+		testSetting := config.BasicColumnEncryptionSetting{
+			Tokenized: true,
+			DataType:  sizeToTokenType[tcase.binarySize],
+			TokenType: sizeToTokenType[tcase.binarySize]}
 		ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
 		ctx, strData, err := decoder.OnColumn(ctx, tcase.binValue)
 		if err != tcase.decodeErr {
@@ -174,18 +177,18 @@ func TestTextMode(t *testing.T) {
 	testcases := []testcase{
 		// decoder expects valid string and pass as is, so no errors. but on encode operation it expects valid int literal
 		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte("some data"), decodeErr: nil, encodeErr: &strconv.NumError{},
-			setting: &config.BasicColumnEncryptionSetting{Tokenized: true, TokenType: "int32"}},
+			setting: &config.BasicColumnEncryptionSetting{Tokenized: true, DataType: "int32"}},
 
 		{input: []byte("123"), decodedData: []byte("123"), encodedData: []byte("123"), decodeErr: nil, encodeErr: nil,
-			setting: &config.BasicColumnEncryptionSetting{Tokenized: true, TokenType: "int32"}},
+			setting: &config.BasicColumnEncryptionSetting{Tokenized: true, DataType: "int32"}},
 
 		// encryption/decryption integer data, not tokenization
 		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte("some data"), decodeErr: nil, encodeErr: &strconv.NumError{},
-			setting: &config.BasicColumnEncryptionSetting{Tokenized: false, TokenType: "int32"}},
+			setting: &config.BasicColumnEncryptionSetting{Tokenized: false, DataType: "int32"}},
 
 		// encryption/decryption integer data, not tokenization
 		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte(strDefaultValue), decodeErr: nil, encodeErr: nil,
-			setting: &config.BasicColumnEncryptionSetting{Tokenized: false, TokenType: "int32", DefaultDataValue: &strDefaultValue}},
+			setting: &config.BasicColumnEncryptionSetting{Tokenized: false, DataType: "int32", DefaultDataValue: &strDefaultValue}},
 	}
 
 	columnInfo := base.NewColumnInfo(0, "", false, 4)

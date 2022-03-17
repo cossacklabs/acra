@@ -667,7 +667,7 @@ func (proxy *PgProxy) handleParameterDescription(ctx context.Context, packet *Pa
 			continue
 		}
 		if setting.OnlyEncryption() || setting.IsSearchable() {
-			newOID, ok := mapTokenTypeToOID(setting.GetTokenType())
+			newOID, ok := mapEncryptedTypeToOID(setting.GetEncryptedDataType())
 			if ok {
 				parameterDescription.ParameterOIDs[i] = newOID
 				changed = true
@@ -713,7 +713,7 @@ func (proxy *PgProxy) handleRowDescription(ctx context.Context, packet *PacketHa
 			continue
 		}
 		if setting.Setting().OnlyEncryption() || setting.Setting().IsSearchable() {
-			newOID, ok := mapTokenTypeToOID(setting.Setting().GetTokenType())
+			newOID, ok := mapEncryptedTypeToOID(setting.Setting().GetEncryptedDataType())
 			if ok {
 				rowDescription.Fields[i].DataTypeOID = newOID
 				changed = true

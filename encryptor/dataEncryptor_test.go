@@ -21,6 +21,7 @@ import (
 	"errors"
 	"github.com/cossacklabs/acra/acrastruct"
 	"github.com/cossacklabs/acra/encryptor/config"
+	common2 "github.com/cossacklabs/acra/encryptor/config/common"
 	"testing"
 
 	"github.com/cossacklabs/acra/pseudonymization/common"
@@ -79,7 +80,7 @@ func TestAcrawriterDataEncryptor_EncryptWithClientID(t *testing.T) {
 
 type emptyEncryptionSetting struct{}
 
-func (s *emptyEncryptionSetting) GetDataType() string {
+func (s *emptyEncryptionSetting) GetEncryptedDataType() common2.EncryptedType {
 	panic("implement me")
 }
 

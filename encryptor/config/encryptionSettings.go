@@ -19,6 +19,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	common2 "github.com/cossacklabs/acra/encryptor/config/common"
 	maskingCommon "github.com/cossacklabs/acra/masking/common"
 	"github.com/cossacklabs/acra/pseudonymization/common"
 )
@@ -169,7 +170,7 @@ func IsBinaryDataOperation(setting ColumnEncryptionSetting) bool {
 }
 
 // Init validate and initialize SettingMask
-func (s *BasicColumnEncryptionSetting) Init() error {
+func (s *BasicColumnEncryptionSetting) Init() (err error) {
 	if len(s.Name) == 0 {
 		return ErrInvalidEncryptorConfig
 	}
@@ -184,7 +185,7 @@ func (s *BasicColumnEncryptionSetting) Init() error {
 		s.settingMask |= SettingClientIDFlag
 	}
 	if s.CryptoEnvelope != nil {
-		if err := ValidateCryptoEnvelopeType(*s.CryptoEnvelope); err != nil {
+		if err = ValidateCryptoEnvelopeType(*s.CryptoEnvelope); err != nil {
 			return err
 		}
 		switch *s.CryptoEnvelope {
@@ -204,9 +205,29 @@ func (s *BasicColumnEncryptionSetting) Init() error {
 		if !ok {
 			return fmt.Errorf("%s: %w", s.TokenType, common.ErrUnknownTokenType)
 		}
-		if err := common.ValidateTokenType(tokenType); err != nil {
+		if err = common.ValidateTokenType(tokenType); err != nil {
 			return err
 		}
+	}
+	if s.DataType == "" {
+		// by default all encrypted data is binary
+		s.DataType, _ = common2.EncryptedType_Bytes.ToConfigString()
+		// if DataType empty but configured for tokenization then map TokenType to appropriate DataType
+		if s.TokenType != "" {
+			// we don't validate because it's already validated above
+			tokenType, _ := tokenTypeNames[s.TokenType]
+			s.DataType, err = tokenType.ToEncryptedDataType().ToConfigString()
+			if err != nil {
+				return err
+			}
+		}
+	}
+	dataType, err := common2.ParseStringEncryptedType(s.DataType)
+	if err != nil {
+		return fmt.Errorf("%s: %w", s.DataType, common2.ErrUnknownEncryptedType)
+	}
+	if err = common2.ValidateEncryptedType(dataType); err != nil {
+		return err
 	}
 
 	if s.Tokenized {
@@ -222,7 +243,7 @@ func (s *BasicColumnEncryptionSetting) Init() error {
 	}
 
 	if s.MaskingPattern != "" || s.PlaintextSide != "" {
-		if err := maskingCommon.ValidateMaskingParams(s.MaskingPattern, s.PartialPlaintextLenBytes, s.PlaintextSide); err != nil {
+		if err = maskingCommon.ValidateMaskingParams(s.MaskingPattern, s.PartialPlaintextLenBytes, s.PlaintextSide); err != nil {
 			return err
 		}
 		s.settingMask |= SettingMaskingFlag | SettingMaskingPlaintextLengthFlag | SettingMaskingPlaintextSideFlag
@@ -320,9 +341,16 @@ func (s *BasicColumnEncryptionSetting) IsEndMasking() bool {
 	return s.PlaintextSide == maskingCommon.PlainTextSideLeft
 }
 
-// GetDataType returns data type for encrypted data
-func (s *BasicColumnEncryptionSetting) GetDataType() string {
-	return s.DataType
+// GetEncryptedDataType returns data type for encrypted data
+func (s *BasicColumnEncryptionSetting) GetEncryptedDataType() common2.EncryptedType {
+	// If the configuration file contains some unknown or unsupported token type,
+	// return some safe default.
+	const defaultDataType = common2.EncryptedType_Bytes
+	dataType, err := common2.ParseStringEncryptedType(s.DataType)
+	if err != nil {
+		return defaultDataType
+	}
+	return dataType
 }
 
 // GetDefaultDataValue returns default data value for encrypted data
