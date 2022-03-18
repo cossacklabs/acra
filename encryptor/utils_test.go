@@ -300,19 +300,19 @@ func TestPlaceholderSettings(t *testing.T) {
 	data[0] = &config.BasicColumnEncryptionSetting{}
 	data[1] = &config.BasicColumnEncryptionSetting{}
 
-	data_ := PlaceholderSettingsFromClientSession(clientSession)
-	if len(data_) != len(data) {
+	newData := PlaceholderSettingsFromClientSession(clientSession)
+	if len(newData) != len(data) {
 		t.Fatal("Unexpected map with different size")
 	}
 	// clear data, force to return map to the pool cleared from data
 	DeletePlaceholderSettingsFromClientSession(clientSession)
 
 	// we expect that will be returned same value from sync.Pool and check that it's cleared
-	data_ = PlaceholderSettingsFromClientSession(clientSession)
-	if len(data_) != 0 {
+	newData = PlaceholderSettingsFromClientSession(clientSession)
+	if len(newData) != 0 {
 		t.Fatal("Map's data wasn't cleared")
 	}
-	if len(data_) != len(data) {
+	if len(newData) != len(data) {
 		t.Fatal("Source map's data wasn't cleared")
 	}
 }

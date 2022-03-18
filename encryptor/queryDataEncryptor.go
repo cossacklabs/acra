@@ -31,6 +31,7 @@ import (
 	"strings"
 )
 
+// QueryDataItem stores information about table column and encryption setting
 type QueryDataItem struct {
 	setting     config.ColumnEncryptionSetting
 	tableName   string
