@@ -154,7 +154,7 @@ const (
 	EventCodeErrorCodingPostgresqlOctalEscape                  = 1208
 	EventCodeErrorCodingCantDecodeSQLValue                     = 1209
 	// used as general error
-	EventCodeErrorDBProtocolError                     = 1210
+	EventCodeErrorDBProtocolError = 1210
 
 	// network additional
 	EventCodeErrorNetworkWrite      = 1300

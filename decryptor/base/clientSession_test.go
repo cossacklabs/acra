@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-type sessionStub struct {}
+type sessionStub struct{}
 
 func (s sessionStub) Context() context.Context {
 	panic("implement me")
@@ -61,7 +61,7 @@ func TestSetClientSessionToContext(t *testing.T) {
 	}
 	ctx = SetClientSessionToContext(ctx, session)
 	value := ClientSessionFromContext(ctx)
-	if !reflect.DeepEqual(value, session){
+	if !reflect.DeepEqual(value, session) {
 		t.Fatal("Returned incorrect session value")
 	}
 }

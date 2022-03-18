@@ -12,7 +12,7 @@ func TestClientSession_Data(t *testing.T) {
 		t.Fatal(err)
 	}
 	type testcase struct {
-		key string
+		key  string
 		data interface{}
 	}
 	testcases := []testcase{
