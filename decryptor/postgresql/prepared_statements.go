@@ -20,6 +20,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/cossacklabs/acra/encryptor"
+	"github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/cossacklabs/acra/utils"
 	"strconv"
 
@@ -316,12 +317,12 @@ func (p *pgBoundValue) GetData(setting config.ColumnEncryptionSetting) ([]byte, 
 		}
 	case base.BinaryFormat:
 		if setting.IsTokenized() || setting.IsSearchable() || setting.OnlyEncryption() {
-			switch setting.GetTokenType() {
-			case tokens.TokenType_Int32:
+			switch setting.GetEncryptedDataType() {
+			case common.EncryptedType_Int32:
 				value := binary.BigEndian.Uint32(p.data)
 				strValue := strconv.FormatInt(int64(value), 10)
 				decodedData = []byte(strValue)
-			case tokens.TokenType_Int64:
+			case common.EncryptedType_Int64:
 				// if passed int32 as int64, just extend array and fill by zeroes
 				if len(p.data) == 4 {
 					p.data = append([]byte{0, 0, 0, 0}, p.data...)

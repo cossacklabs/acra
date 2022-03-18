@@ -6,6 +6,7 @@ import (
 	"errors"
 	"github.com/cossacklabs/acra/acrablock"
 	"github.com/cossacklabs/acra/acrastruct"
+	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
 )
@@ -60,6 +61,7 @@ func (recognizer *EnvelopeDetector) OnColumn(ctx context.Context, inBuffer []byt
 		return ctx, inBuffer, nil
 	}
 	outBuffer := make([]byte, 0, len(inBuffer))
+	changed := false
 	// inline mode
 	inIndex := 0
 	for {
@@ -96,6 +98,7 @@ func (recognizer *EnvelopeDetector) OnColumn(ctx context.Context, inBuffer []byt
 			if !bytes.Equal(processedData, container) {
 				outBuffer = append(outBuffer, processedData...)
 				inIndex += n
+				changed = true
 				break
 			}
 
@@ -109,6 +112,9 @@ func (recognizer *EnvelopeDetector) OnColumn(ctx context.Context, inBuffer []byt
 	}
 	// copy left bytes
 	outBuffer = append(outBuffer, inBuffer[inIndex:]...)
+	if changed {
+		return base.MarkDecryptedContext(ctx), outBuffer, nil
+	}
 	return ctx, outBuffer, nil
 }
 
@@ -193,6 +199,9 @@ func (wrapper *OldContainerDetectorWrapper) OnColumn(ctx context.Context, inBuff
 	outBuffer, err = acrablock.ProcessAcraBlocks(ctx, outBuffer, outBuffer, wrapper)
 	if err != nil {
 		return ctx, inBuffer, err
+	}
+	if !bytes.Equal(inBuffer, outBuffer) {
+		return base.MarkDecryptedContext(ctx), outBuffer, nil
 	}
 
 	return ctx, outBuffer, nil

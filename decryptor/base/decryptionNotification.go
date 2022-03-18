@@ -108,3 +108,15 @@ func (o *ColumnDecryptionObserver) OnColumnDecryption(ctx context.Context, colum
 	}
 	return data, nil
 }
+
+type decryptedCtxKey struct{}
+
+// MarkDecryptedContext save flag in context that data was decrypted
+func MarkDecryptedContext(ctx context.Context) context.Context {
+	return context.WithValue(ctx, decryptedCtxKey{}, true)
+}
+
+// IsDecryptedFromContext return true if data was decrypted related to context
+func IsDecryptedFromContext(ctx context.Context) bool {
+	return ctx.Value(decryptedCtxKey{}) != nil
+}

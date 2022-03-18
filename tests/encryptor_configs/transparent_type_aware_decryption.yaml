@@ -1,6 +1,43 @@
 schemas:
   # used in test.py
-- table: test_type_aware_decryption
+- table: test_type_aware_decryption_with_defaults
+  columns:
+  - id
+  - value_str
+  - value_bytes
+  - value_int32
+  - value_int64
+  - value_null_str
+  - value_null_int32
+  - value_empty_str
+
+  encrypted:
+  - column: value_str
+    data_type: "str"
+    default_data_value: "value_str"
+
+  - column: value_bytes
+    data_type: "bytes"
+    default_data_value: "dmFsdWVfYnl0ZXM="
+
+  - column: value_int32
+    data_type: "int32"
+    default_data_value: "32"
+
+  - column: value_int64
+    data_type: "int64"
+    default_data_value: "64"
+
+  - column: value_null_str
+    data_type: "str"
+
+  - column: value_null_int32
+    data_type: "str"
+
+  - column: value_empty_str
+    data_type: "str"
+
+- table: test_type_aware_decryption_without_defaults
   columns:
   - id
   - value_str
@@ -17,15 +54,12 @@ schemas:
 
   - column: value_bytes
     data_type: "bytes"
-    default_data_value: "dmFsdWVfYnl0ZXM="
 
   - column: value_int32
     data_type: "int32"
-    default_data_value: "32"
 
   - column: value_int64
     data_type: "int64"
-    default_data_value: "64"
 
   - column: value_null_str
     data_type: "str"

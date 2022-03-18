@@ -704,6 +704,9 @@ func (encryptor *QueryDataEncryptor) encryptValuesWithPlaceholders(ctx context.C
 		if err != nil {
 			return nil, false, err
 		}
+		if len(valueData) == 0 {
+			continue
+		}
 		encryptedData, err := encryptor.encryptWithColumnSettings(ctx, setting, valueData)
 		if err != nil && err != ErrUpdateLeaveDataUnchanged {
 			logrus.WithError(err).WithFields(logrus.Fields{"index": valueIndex, "column": columnName}).
