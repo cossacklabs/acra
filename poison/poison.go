@@ -30,7 +30,6 @@ import (
 	"github.com/cossacklabs/acra/acrastruct"
 	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/themis/gothemis/keys"
 )
 
 // Poison records length constants
@@ -89,10 +88,4 @@ func CreateSymmetricPoisonRecord(keyStore keystore.PoisonKeyStore, dataLength in
 	}
 
 	return crypto.SerializeEncryptedData(acraBlock, crypto.AcraBlockEnvelopeID)
-}
-
-// RecordProcessorKeyStore interface with required methods for RecordProcessor
-type RecordProcessorKeyStore interface {
-	GetPoisonPrivateKeys() ([]*keys.PrivateKey, error)
-	GetPoisonSymmetricKeys() ([][]byte, error)
 }
