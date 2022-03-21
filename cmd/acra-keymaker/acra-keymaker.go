@@ -184,7 +184,7 @@ func main() {
 
 	if *poisonRecord {
 		// Generate poison record symmetric key
-		if err = store.GeneratePoisonRecordSymmetricKey(); err != nil {
+		if err = store.GeneratePoisonSymmetricKey(); err != nil {
 			panic(err)
 		}
 		fmt.Println("Generated symmetric key for poison records")
@@ -249,7 +249,7 @@ func main() {
 		}
 		fmt.Println("Generated storage symmetric key for clientID")
 		// Generate poison record symmetric key
-		if err = store.GeneratePoisonRecordSymmetricKey(); err != nil {
+		if err = store.GeneratePoisonSymmetricKey(); err != nil {
 			panic(err)
 		}
 		fmt.Println("Generated symmetric key for poison records")

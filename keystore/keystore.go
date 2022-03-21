@@ -109,7 +109,7 @@ type SymmetricEncryptionKeyStoreGenerator interface {
 }
 
 type PoisonKeyGenerator interface {
-	GeneratePoisonRecordSymmetricKey() error
+	GeneratePoisonSymmetricKey() error
 	GeneratePoisonKeyPair() error
 }
 

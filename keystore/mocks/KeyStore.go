@@ -70,8 +70,8 @@ func (_m *KeyStore) GenerateLogKey() error {
 	return r0
 }
 
-// GeneratePoisonRecordSymmetricKey provides a mock function with given fields:
-func (_m *KeyStore) GeneratePoisonRecordSymmetricKey() error {
+// GeneratePoisonSymmetricKey provides a mock function with given fields:
+func (_m *KeyStore) GeneratePoisonSymmetricKey() error {
 	ret := _m.Called()
 
 	var r0 error

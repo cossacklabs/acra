@@ -89,7 +89,7 @@ func (s *ServerKeyStore) GetPoisonSymmetricKeys() ([][]byte, error) {
 	symmetricKeys, err := s.allSymmetricKeys(ring)
 	if err != nil {
 		s.log.WithError(err).Debug("Failed to get poison record symmetric keys")
-		if err := s.GeneratePoisonRecordSymmetricKey(); err != nil {
+		if err := s.GeneratePoisonSymmetricKey(); err != nil {
 			return nil, err
 		}
 		return s.allSymmetricKeys(ring)
@@ -110,7 +110,7 @@ func (s *ServerKeyStore) GetPoisonSymmetricKey() ([]byte, error) {
 	symmetricKey, err := s.currentSymmetricKey(ring)
 	if err != nil {
 		s.log.WithError(err).Debug("Failed to get current poison record symmetric key")
-		if err := s.GeneratePoisonRecordSymmetricKey(); err != nil {
+		if err := s.GeneratePoisonSymmetricKey(); err != nil {
 			return nil, err
 		}
 		return s.currentSymmetricKey(ring)
@@ -133,8 +133,8 @@ func (s *ServerKeyStore) savePoisonKeyPair(keypair *keys.Keypair) error {
 	return nil
 }
 
-// GeneratePoisonRecordSymmetricKey generates new poison record symmetric key.
-func (s *ServerKeyStore) GeneratePoisonRecordSymmetricKey() error {
+// GeneratePoisonSymmetricKey generates new poison record symmetric key.
+func (s *ServerKeyStore) GeneratePoisonSymmetricKey() error {
 	log := s.log
 	ring, err := s.OpenKeyRingRW(poisonSymmetricKeyPath)
 	if err != nil {

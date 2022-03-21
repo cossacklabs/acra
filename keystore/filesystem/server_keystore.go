@@ -1241,8 +1241,8 @@ func (store *KeyStore) GenerateZoneIDSymmetricKey(id []byte) error {
 	return store.generateAndSaveSymmetricKey(id, store.GetPrivateKeyFilePath(keyName))
 }
 
-// GeneratePoisonRecordSymmetricKey generate symmetric key for poison records
-func (store *KeyStore) GeneratePoisonRecordSymmetricKey() error {
+// GeneratePoisonSymmetricKey generate symmetric key for poison records
+func (store *KeyStore) GeneratePoisonSymmetricKey() error {
 	keyName := getSymmetricKeyName(PoisonKeyFilename)
 	exists, err := store.fs.Exists(keyName)
 	if err != nil {

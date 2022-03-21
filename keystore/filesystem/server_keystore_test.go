@@ -693,10 +693,10 @@ func testFilesystemKeyStoreWithOnlyCachedData(storage Storage, t *testing.T) {
 	if err := store.GenerateClientIDSymmetricKey(testID); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.GeneratePoisonRecordSymmetricKey(); err != nil {
+	if err := store.GeneratePoisonSymmetricKey(); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.GeneratePoisonRecordSymmetricKey(); err != nil {
+	if err := store.GeneratePoisonSymmetricKey(); err != nil {
 		t.Fatal(err)
 	}
 	// we don't have public function to generate poison record keypair because it's generated on first fetch operation
