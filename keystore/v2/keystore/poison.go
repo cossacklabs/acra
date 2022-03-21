@@ -150,7 +150,13 @@ func (s *ServerKeyStore) GeneratePoisonSymmetricKey() error {
 }
 
 func (store *ServerKeyStore) GeneratePoisonKeyPair() error {
-	panic("todo")
+	ring, err := store.OpenKeyRingRW(poisonKeyPath)
+	if err != nil {
+		store.log.WithError(err).Debug("Failed to open poison record key ring")
+		return err
+	}
+	_, err = store.newCurrentKeyPair(ring)
+	return err
 }
 
 func (s *ServerKeyStore) importPoisonRecordSymmetricKey(poisonKey []byte) error {
