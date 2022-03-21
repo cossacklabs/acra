@@ -1244,19 +1244,13 @@ func (store *KeyStore) GenerateZoneIDSymmetricKey(id []byte) error {
 // GeneratePoisonSymmetricKey generate symmetric key for poison records
 func (store *KeyStore) GeneratePoisonSymmetricKey() error {
 	keyName := getSymmetricKeyName(PoisonKeyFilename)
-	exists, err := store.fs.Exists(keyName)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return nil
-	}
-
-	return store.generateAndSaveSymmetricKey([]byte(keyName), store.GetPrivateKeyFilePath(keyName))
+	keyPath := store.GetPrivateKeyFilePath(keyName)
+	return store.generateAndSaveSymmetricKey([]byte(keyName), keyPath)
 }
 
 func (store *KeyStore) GeneratePoisonKeyPair() error {
-	panic("todo")
+	_, err := store.generateKeyPair(PoisonKeyFilename, []byte(PoisonKeyFilename))
+	return err
 }
 
 func (store *KeyStore) getSymmetricKeys(id []byte, keyname string) ([][]byte, error) {
