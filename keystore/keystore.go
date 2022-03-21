@@ -106,6 +106,9 @@ type SymmetricEncryptionKeyStore interface {
 type SymmetricEncryptionKeyStoreGenerator interface {
 	GenerateClientIDSymmetricKey(id []byte) error
 	GenerateZoneIDSymmetricKey(id []byte) error
+}
+
+type PoisonKeyGenerator interface {
 	GeneratePoisonRecordSymmetricKey() error
 }
 
@@ -278,7 +281,8 @@ type StorageKeyGenerator interface {
 // KeyMaking enables keystore initialization. It is used by acra-keymaker tool.
 type KeyMaking interface {
 	StorageKeyCreation
-	PoisonKeyStore
+	PoisonKeyStore // TEMPORARY
+	PoisonKeyGenerator
 	AuditLogKeyGenerator
 	HmacKeyGenerator
 	SymmetricEncryptionKeyStoreGenerator
