@@ -189,8 +189,7 @@ func main() {
 		}
 		fmt.Println("Generated symmetric key for poison records")
 		// Generate poison record keypair
-		// TODO: Replace with GeneratePoisonKeyPair
-		if _, err = store.GetPoisonKeyPair(); err != nil {
+		if err = store.GeneratePoisonKeyPair(); err != nil {
 			panic(err)
 		}
 		fmt.Println("Generated keypair for poison records")
@@ -254,8 +253,7 @@ func main() {
 		}
 		fmt.Println("Generated symmetric key for poison records")
 		// Generate poison record keypair
-		// TODO: Replace with GeneratePoisonKeyPair
-		if _, err = store.GetPoisonKeyPair(); err != nil {
+		if err = store.GeneratePoisonKeyPair(); err != nil {
 			panic(err)
 		}
 		fmt.Println("Generated keypair for poison records")

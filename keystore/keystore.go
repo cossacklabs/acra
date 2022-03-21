@@ -282,7 +282,6 @@ type StorageKeyGenerator interface {
 // KeyMaking enables keystore initialization. It is used by acra-keymaker tool.
 type KeyMaking interface {
 	StorageKeyCreation
-	PoisonKeyStore // TEMPORARY
 	PoisonKeyGenerator
 	AuditLogKeyGenerator
 	HmacKeyGenerator

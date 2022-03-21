@@ -498,8 +498,7 @@ func GenerateAcraKeys(params GenerateKeyParams, keyStore keystore.KeyMaking, def
 		log.Info("Generated symmetric key for poison records")
 		didSomething = true
 
-		// TODO: Replace with GeneratePoisonKeyPair
-		_, err = keyStore.GetPoisonKeyPair()
+		err = keyStore.GeneratePoisonKeyPair()
 		if err != nil {
 			log.WithError(err).Error("Failed to generate keypair for poison records")
 			return didSomething, err
