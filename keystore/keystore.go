@@ -110,6 +110,7 @@ type SymmetricEncryptionKeyStoreGenerator interface {
 
 type PoisonKeyGenerator interface {
 	GeneratePoisonRecordSymmetricKey() error
+	GeneratePoisonKeyPair() error
 }
 
 // AuditLogKeyStore keeps symmetric keys for audit log signtures.

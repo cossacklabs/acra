@@ -1255,6 +1255,10 @@ func (store *KeyStore) GeneratePoisonRecordSymmetricKey() error {
 	return store.generateAndSaveSymmetricKey([]byte(keyName), store.GetPrivateKeyFilePath(keyName))
 }
 
+func (store *KeyStore) GeneratePoisonKeyPair() error {
+	panic("todo")
+}
+
 func (store *KeyStore) getSymmetricKeys(id []byte, keyname string) ([][]byte, error) {
 	keys := make([][]byte, 0, 4)
 	historicalKeys, err := store.GetHistoricalPrivateKeyFilenames(keyname)

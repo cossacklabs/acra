@@ -149,6 +149,10 @@ func (s *ServerKeyStore) GeneratePoisonRecordSymmetricKey() error {
 	return nil
 }
 
+func (store *ServerKeyStore) GeneratePoisonKeyPair() error {
+	panic("todo")
+}
+
 func (s *ServerKeyStore) importPoisonRecordSymmetricKey(poisonKey []byte) error {
 	log := s.log
 	ring, err := s.OpenKeyRingRW(poisonSymmetricKeyPath)

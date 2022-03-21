@@ -40,6 +40,10 @@ func (keystore *testKeystore) GeneratePoisonRecordSymmetricKey() error {
 	panic("implement me")
 }
 
+func (keystore *testKeystore) GeneratePoisonKeyPair() error {
+	panic("implement me")
+}
+
 func (keystore *testKeystore) ListKeys() ([]keystore.KeyDescription, error) {
 	panic("implement me")
 }
