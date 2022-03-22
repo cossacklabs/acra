@@ -916,9 +916,9 @@ func (store *KeyStore) Reset() {
 	store.cache.Clear()
 }
 
-// GetPoisonKeyPair generates EC keypair for encrypting/decrypting poison records, and writes it to fs
-// encrypting private key or reads existing keypair from fs.
-// Returns keypair or error if generation/decryption failed.
+// GetPoisonKeyPair reads and returns poison EC keypair from the fs.
+// Returns an error if fs or crypto operations fail. Also, returns ErrKeysNotFound
+// if the key pair doesn't exist.
 func (store *KeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	privateKey, privateOk := store.cache.Get(PoisonKeyFilename)
 	publicKey, publicOk := store.cache.Get(poisonKeyFilenamePublic)
@@ -933,8 +933,7 @@ func (store *KeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	private, err := store.loadPrivateKey(privatePath)
 	if err != nil {
 		if IsKeyReadError(err) {
-			log.Debug("Generate poison key pair")
-			return store.generateKeyPair(PoisonKeyFilename, []byte(PoisonKeyFilename))
+			return nil, keystore.ErrKeysNotFound
 		}
 		return nil, err
 	}
@@ -952,9 +951,10 @@ func (store *KeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	return &keys.Keypair{Public: public, Private: private}, nil
 }
 
-// GetPoisonPrivateKeys returns all private keys used to decrypt poison records, from newest to oldest.
-// If a poison record does not exist, it is created and its sole private key is returned.
-// Returns a list of private poison keys (possibly empty), or an error if decryption fails.
+// GetPoisonPrivateKeys reads and returns poison EC private keys from the fs,
+// returning them in order from newest to oldest.
+// Returns an error if fs or crypto operations fail. Also, returns
+// ErrKeysNotFound if the keys don't exist.
 func (store *KeyStore) GetPoisonPrivateKeys() ([]*keys.PrivateKey, error) {
 	// If some poison keypairs exist, pull their private keys.
 	filenames, err := store.GetHistoricalPrivateKeyFilenames(PoisonKeyFilename)
@@ -964,81 +964,51 @@ func (store *KeyStore) GetPoisonPrivateKeys() ([]*keys.PrivateKey, error) {
 	poisonKeys, err := store.getPrivateKeysByFilenames([]byte(PoisonKeyFilename), filenames)
 	if err != nil {
 		if IsKeyReadError(err) {
-			// If there is no poison record keypair, generated one and returns its private key.
-			log.Debug("Generate poison key pair")
-			keypair, err := store.generateKeyPair(PoisonKeyFilename, []byte(PoisonKeyFilename))
-			if err != nil {
-				return nil, err
-			}
-			return []*keys.PrivateKey{keypair.Private}, nil
-
+			return nil, keystore.ErrKeysNotFound
 		}
 		return nil, err
+	}
+	if len(poisonKeys) == 0 {
+		return nil, keystore.ErrKeysNotFound
 	}
 	return poisonKeys, nil
 }
 
-// GetPoisonSymmetricKeys returns all symmetric keys used to decrypt poison records with AcraBlock, from newest to oldest.
-// If a poison record does not exist, it is created and its sole symmetric key is returned.
-// Returns a list of symmetric poison keys (possibly empty), or an error if decryption fails.
+// GetPoisonSymmetricKeys reads and returns all poison symmetric keys from the
+// fs, returning them in order from newest to oldest.
+// Returns an error if fs or crypto operations fail. Also, returns
+// ErrKeysNotFound if the keys don't exist.
 func (store *KeyStore) GetPoisonSymmetricKeys() ([][]byte, error) {
 	keyFileName := getSymmetricKeyName(PoisonKeyFilename)
-	poisonKeyExists, err := store.fs.Exists(store.GetPrivateKeyFilePath(keyFileName))
+	keys, err := store.getSymmetricKeys([]byte(keyFileName), keyFileName)
+
 	if err != nil {
-		log.Debug("Can't check poison key existence")
+		if IsKeyReadError(err) {
+			return nil, keystore.ErrKeysNotFound
+		}
 		return nil, err
 	}
-	log.WithError(err).WithField("exists", poisonKeyExists).Debug("Get poison sym keys")
-	// If there is no poison record keypair, generated one and returns its private key.
-	if !poisonKeyExists {
-		log.Debugln("Generate poison symmetric key")
-
-		err := store.generateAndSaveSymmetricKey([]byte(keyFileName), store.GetPrivateKeyFilePath(keyFileName))
-		if err != nil {
-			log.Debug("Can't generate new poison sym key")
-			return nil, err
-		}
+	if len(keys) == 0 {
+		return nil, keystore.ErrKeysNotFound
 	}
-	return store.getSymmetricKeys([]byte(keyFileName), keyFileName)
+	return keys, nil
 }
 
-// GetPoisonSymmetricKey returns latest symmetric key for encryption of poison records with AcraBlock.
-// If a poison record does not exist, it is created and its sole symmetric key is returned.
+// GetPoisonSymmetricKey reads and returns poison symmetric key from the fs.
+// Returns an error if fs or crypto operations fail. Also, returns
+// ErrKeysNotFound if the keys don't exist.
 func (store *KeyStore) GetPoisonSymmetricKey() ([]byte, error) {
 	keyFileName := getSymmetricKeyName(PoisonKeyFilename)
-
-	// Try getting it from cache first
-	key, ok := store.cache.Get(keyFileName)
-	if ok {
-		decryptedKey, err := store.encryptor.Decrypt(key, []byte(keyFileName))
-		if err != nil {
-			return nil, err
-		}
-
-		return decryptedKey, nil
-	}
-
-	// Not cached? Try reading it
 	key, err := store.getLatestSymmetricKey([]byte(keyFileName), keyFileName)
 	if err == nil {
 		return key, nil
 	}
 
-	// Does not exist? Generate it!
-	log.Debugln("Generating poison symmetric key")
-	err = store.generateAndSaveSymmetricKey([]byte(keyFileName), store.GetPrivateKeyFilePath(keyFileName))
-	if err != nil {
-		log.Debug("Can't generate new poison sym key")
-		return nil, err
+	if IsKeyReadError(err) {
+		return nil, keystore.ErrKeysNotFound
 	}
 
-	// And read again, this time should be successful
-	key, err = store.getLatestSymmetricKey([]byte(keyFileName), keyFileName)
-	if err != nil {
-		return nil, err
-	}
-
-	return key, nil
+	return nil, err
 }
 
 // RotateZoneKey generate new key pair for ZoneId, overwrite private key with new and return new public key

@@ -290,7 +290,8 @@ type KeyMaking interface {
 
 // PoisonKeyStore provides access to poison record key pairs.
 type PoisonKeyStore interface {
-	// Reads current poison record key pair, creating it if it does not exist yet.
+	// Reads current poison record key pair, returning ErrKeysNotFound if it
+	// does not exist yet.
 	GetPoisonKeyPair() (*keys.Keypair, error)
 	GetPoisonPrivateKeys() ([]*keys.PrivateKey, error)
 	GetPoisonSymmetricKeys() ([][]byte, error)
