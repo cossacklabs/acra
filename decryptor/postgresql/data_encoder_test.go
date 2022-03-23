@@ -7,8 +7,12 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/pseudonymization/common"
+	"github.com/cossacklabs/acra/utils"
+	"github.com/sirupsen/logrus"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -42,11 +46,11 @@ func TestEncodingDecodingProcessorBinaryIntData(t *testing.T) {
 		7: "int64",
 	}
 
-	encoder, err := NewPgSQLDataEncoderProcessor(DataEncoderModeEncode)
+	encoder, err := NewPgSQLDataEncoderProcessor()
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoder, err := NewPgSQLDataEncoderProcessor(DataEncoderModeDecode)
+	decoder, err := NewPgSQLDataDecoderProcessor()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,11 +106,11 @@ func TestEncodingDecodingProcessorAllowedBinaryData(t *testing.T) {
 		{value: validEmailString, tokenType: common.TokenType_Bytes},
 	}
 
-	encoder, err := NewPgSQLDataEncoderProcessor(DataEncoderModeEncode)
+	encoder, err := NewPgSQLDataEncoderProcessor()
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoder, err := NewPgSQLDataEncoderProcessor(DataEncoderModeDecode)
+	decoder, err := NewPgSQLDataDecoderProcessor()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,11 +139,11 @@ func TestEncodingDecodingProcessorAllowedBinaryData(t *testing.T) {
 }
 
 func TestSkipWithoutSetting(t *testing.T) {
-	encoder, err := NewPgSQLDataEncoderProcessor(DataEncoderModeEncode)
+	encoder, err := NewPgSQLDataEncoderProcessor()
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoder, err := NewPgSQLDataEncoderProcessor(DataEncoderModeDecode)
+	decoder, err := NewPgSQLDataDecoderProcessor()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,11 +160,11 @@ func TestSkipWithoutSetting(t *testing.T) {
 }
 
 func TestTextMode(t *testing.T) {
-	encoder, err := NewPgSQLDataEncoderProcessor(DataEncoderModeEncode)
+	encoder, err := NewPgSQLDataEncoderProcessor()
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoder, err := NewPgSQLDataEncoderProcessor(DataEncoderModeDecode)
+	decoder, err := NewPgSQLDataDecoderProcessor()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,19 +176,23 @@ func TestTextMode(t *testing.T) {
 		decodeErr   error
 		encodeErr   error
 		setting     config.ColumnEncryptionSetting
+		logMessage  string
 	}
 	strDefaultValue := "123"
 	testcases := []testcase{
 		// decoder expects valid string and pass as is, so no errors. but on encode operation it expects valid int literal
-		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte("some data"), decodeErr: nil, encodeErr: &strconv.NumError{},
-			setting: &config.BasicColumnEncryptionSetting{Tokenized: true, DataType: "int32"}},
+		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte("some data"),
+			decodeErr: nil, encodeErr: nil,
+			setting:    &config.BasicColumnEncryptionSetting{Tokenized: true, DataType: "int32"},
+			logMessage: `Can't decode int value and no default value`},
 
 		{input: []byte("123"), decodedData: []byte("123"), encodedData: []byte("123"), decodeErr: nil, encodeErr: nil,
 			setting: &config.BasicColumnEncryptionSetting{Tokenized: true, DataType: "int32"}},
 
 		// encryption/decryption integer data, not tokenization
-		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte("some data"), decodeErr: nil, encodeErr: &strconv.NumError{},
-			setting: &config.BasicColumnEncryptionSetting{Tokenized: false, DataType: "int32"}},
+		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte("some data"), decodeErr: nil, encodeErr: nil,
+			setting:    &config.BasicColumnEncryptionSetting{Tokenized: false, DataType: "int32"},
+			logMessage: `Can't decode int value and no default value`},
 
 		// encryption/decryption integer data, not tokenization
 		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte(strDefaultValue), decodeErr: nil, encodeErr: nil,
@@ -195,7 +203,13 @@ func TestTextMode(t *testing.T) {
 	accessContext := &base.AccessContext{}
 	accessContext.SetColumnInfo(columnInfo)
 	ctx := base.SetAccessContextToContext(context.Background(), accessContext)
+	logger := logrus.New()
+	entry := logrus.NewEntry(logger)
+	logBuffer := &bytes.Buffer{}
+	logger.SetOutput(logBuffer)
+	ctx = logging.SetLoggerToContext(ctx, entry)
 	for i, tcase := range testcases {
+		logBuffer.Reset()
 		ctx = encryptor.NewContextWithEncryptionSetting(ctx, tcase.setting)
 		_, decodedData, decodeErr := decoder.OnColumn(ctx, tcase.input)
 		if err != nil {
@@ -214,15 +228,18 @@ func TestTextMode(t *testing.T) {
 		if !bytes.Equal(encodedData, tcase.encodedData) {
 			t.Fatalf("[%d] Result data should be the same\n", i)
 		}
+		if len(tcase.logMessage) > 0 && !strings.Contains(logBuffer.String(), tcase.logMessage) {
+			t.Fatal("Log buffer doesn't contain expected message")
+		}
 	}
 }
 
 func TestEncodingDecodingTextFormat(t *testing.T) {
-	encoder, err := NewPgSQLDataEncoderProcessor(DataEncoderModeEncode)
+	encoder, err := NewPgSQLDataEncoderProcessor()
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoder, err := NewPgSQLDataEncoderProcessor(DataEncoderModeDecode)
+	decoder, err := NewPgSQLDataDecoderProcessor()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,11 +297,11 @@ func TestEncodingDecodingTextFormat(t *testing.T) {
 }
 
 func TestSkipWithoutColumnInfo(t *testing.T) {
-	encoder, err := NewPgSQLDataEncoderProcessor(DataEncoderModeEncode)
+	encoder, err := NewPgSQLDataEncoderProcessor()
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoder, err := NewPgSQLDataEncoderProcessor(DataEncoderModeDecode)
+	decoder, err := NewPgSQLDataDecoderProcessor()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -304,35 +321,8 @@ func TestSkipWithoutColumnInfo(t *testing.T) {
 	}
 }
 
-func TestEncodeDecodeModeValidation(t *testing.T) {
-	// invalid mode
-	_, err := NewPgSQLDataEncoderProcessor(3)
-	if err != ErrInvalidDataEncoderMode {
-		t.Fatalf("Expect ErrInvalidDataEncoderMode, took %s\n", err)
-	}
-
-	// create valid, but then change internally to invalid
-	encoder, err := NewPgSQLDataEncoderProcessor(DataEncoderModeEncode)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// set invalid
-	encoder.mode = 3
-	testData := []byte("some data")
-	columnInfo := base.NewColumnInfo(0, "", true, 4)
-	accessContext := &base.AccessContext{}
-	accessContext.SetColumnInfo(columnInfo)
-	ctx := base.SetAccessContextToContext(context.Background(), accessContext)
-	testSetting := config.BasicColumnEncryptionSetting{Tokenized: true, TokenType: "int32"}
-	ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
-	_, _, err = encoder.OnColumn(ctx, testData)
-	if err != ErrInvalidDataEncoderMode {
-		t.Fatalf("Expect ErrInvalidDataEncoderMode, took %s\n", err)
-	}
-}
-
 func TestFailedEncodingInvalidTextValue(t *testing.T) {
-	encoder, err := NewPgSQLDataEncoderProcessor(DataEncoderModeEncode)
+	encoder, err := NewPgSQLDataEncoderProcessor()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,16 +330,62 @@ func TestFailedEncodingInvalidTextValue(t *testing.T) {
 	accessContext := &base.AccessContext{}
 	accessContext.SetColumnInfo(columnInfo)
 	ctx := base.SetAccessContextToContext(context.Background(), accessContext)
-	testSetting := config.BasicColumnEncryptionSetting{Tokenized: true, TokenType: "int32"}
+	testSetting := config.BasicColumnEncryptionSetting{DataType: "int32"}
 	ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
 	testData := []byte("asdas")
+	// without default value
 	_, data, err := encoder.OnColumn(ctx, testData)
+	if err != nil {
+		t.Fatal("Expects nil on encode error")
+	}
+
+	// invalid int32 valid value
+	strValue := utils.BytesToString(testData)
+	testSetting = config.BasicColumnEncryptionSetting{DataType: "int32", DefaultDataValue: &strValue}
+	ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
+	_, data, err = encoder.OnColumn(ctx, testData)
 	numErr, ok := err.(*strconv.NumError)
 	if !ok {
 		t.Fatal("Expect strconv.NumError")
 	}
 	if numErr.Err != strconv.ErrSyntax {
 		t.Fatalf("Expect ErrSyntax, took %s\n", numErr.Err)
+	}
+	if !bytes.Equal(data, testData) {
+		t.Fatal("Result data should be the same")
+	}
+}
+
+func TestFailedEncodingInvalidBinaryValue(t *testing.T) {
+	encoder, err := NewPgSQLDataEncoderProcessor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	columnInfo := base.NewColumnInfo(0, "", true, 4)
+	accessContext := &base.AccessContext{}
+	accessContext.SetColumnInfo(columnInfo)
+	ctx := base.SetAccessContextToContext(context.Background(), accessContext)
+	testSetting := config.BasicColumnEncryptionSetting{DataType: "bytes"}
+	ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
+	testData := []byte("invalid base64 value")
+	// without default value
+	_, data, err := encoder.OnColumn(ctx, testData)
+	if err != nil {
+		t.Fatal("Expects nil on encode error")
+	}
+
+	// invalid int32 valid value
+	strValue := utils.BytesToString(testData)
+	testSetting = config.BasicColumnEncryptionSetting{DataType: "bytes", DefaultDataValue: &strValue}
+	ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
+	logger := logrus.New()
+	entry := logrus.NewEntry(logger)
+	logBuffer := &bytes.Buffer{}
+	logger.SetOutput(logBuffer)
+	ctx = logging.SetLoggerToContext(ctx, entry)
+	_, data, err = encoder.OnColumn(ctx, testData)
+	if !bytes.Contains(logBuffer.Bytes(), []byte("Can't decode base64 default value")) {
+		t.Fatal("Expects warning about failed decoding")
 	}
 	if !bytes.Equal(data, testData) {
 		t.Fatal("Result data should be the same")

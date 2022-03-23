@@ -8433,8 +8433,8 @@ class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(BaseTransparentEnc
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     def checkSkip(self):
-        if not TEST_POSTGRESQL:
-            self.skipTest("Test only for PostgreSQL")
+        if not (TEST_POSTGRESQL and TEST_WITH_TLS):
+            self.skipTest("Test only for PostgreSQL with TLS")
 
     def testClientIDRead(self):
         """test decrypting with correct clientID and not decrypting with
@@ -8593,8 +8593,8 @@ class TestPostgresqlTextTypeAwareDecryptionWithoutDefaults(BaseTransparentEncryp
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     def checkSkip(self):
-        if not TEST_POSTGRESQL:
-            self.skipTest("Test only for PostgreSQL")
+        if not (TEST_POSTGRESQL and TEST_WITH_TLS):
+            self.skipTest("Test only for PostgreSQL with TLS")
 
     def testClientIDRead(self):
         """test decrypting with correct clientID and not decrypting with
@@ -8670,8 +8670,8 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithoutDefaults(TestPostgresqlBinar
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     def checkSkip(self):
-        if not TEST_POSTGRESQL:
-            self.skipTest("Test only for PostgreSQL")
+        if not (TEST_POSTGRESQL and TEST_WITH_TLS):
+            self.skipTest("Test only for PostgreSQL with TLS")
 
     def testClientIDRead(self):
         """test decrypting with correct clientID and not decrypting with
