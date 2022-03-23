@@ -1254,6 +1254,27 @@ func TestKeyStore_GetPoisonKeyPair(t *testing.T) {
 		}
 	})
 
+	t.Run("Check keys don't generate on Get", func(t *testing.T) {
+		_, err := keyStore.GetPoisonKeyPair()
+		if err != keystore.ErrKeysNotFound {
+			t.Fatalf("Expected ErrKeysNotFound, but got %v", err)
+		}
+
+		_, err = keyStore.GetPoisonSymmetricKey()
+		if err != keystore.ErrKeysNotFound {
+			t.Fatalf("Expected ErrKeysNotFound, but got %v", err)
+		}
+
+		_, err = keyStore.GetPoisonPrivateKeys()
+		if err != keystore.ErrKeysNotFound {
+			t.Fatalf("Expected ErrKeysNotFound, but got %v", err)
+		}
+		_, err = keyStore.GetPoisonSymmetricKeys()
+		if err != keystore.ErrKeysNotFound {
+			t.Fatalf("Expected ErrKeysNotFound, but got %v", err)
+		}
+	})
+
 	if err = keyStore.GeneratePoisonKeyPair(); err != nil {
 		t.Fatal(err)
 	}
