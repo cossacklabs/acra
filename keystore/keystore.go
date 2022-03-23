@@ -298,6 +298,13 @@ type PoisonKeyStore interface {
 	GetPoisonSymmetricKey() ([]byte, error)
 }
 
+// PoisonKeyStorageAndGenerator has all methods to create and retrieve various
+// keys dedicated to poison records.
+type PoisonKeyStorageAndGenerator interface {
+	PoisonKeyStore
+	PoisonKeyGenerator
+}
+
 // ServerKeyStore enables AcraStruct encryption, decryption,
 // and secure communication of acra-server with other services.
 type ServerKeyStore interface {

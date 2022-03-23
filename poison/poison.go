@@ -54,12 +54,19 @@ func createPoisonRecordData(dataLength int) ([]byte, error) {
 }
 
 // CreatePoisonRecord generates AcraStruct encrypted with Poison Record public key
-func CreatePoisonRecord(keystore keystore.PoisonKeyStore, dataLength int) ([]byte, error) {
+func CreatePoisonRecord(keyStore keystore.PoisonKeyStorageAndGenerator, dataLength int) ([]byte, error) {
 	data, err := createPoisonRecordData(dataLength)
 	if err != nil {
 		return nil, err
 	}
-	poisonKeypair, err := keystore.GetPoisonKeyPair()
+	poisonKeypair, err := keyStore.GetPoisonKeyPair()
+	if err == keystore.ErrKeysNotFound {
+		if err = keyStore.GeneratePoisonKeyPair(); err != nil {
+			return nil, err
+		}
+		poisonKeypair, err = keyStore.GetPoisonKeyPair()
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -73,12 +80,18 @@ func CreatePoisonRecord(keystore keystore.PoisonKeyStore, dataLength int) ([]byt
 }
 
 // CreateSymmetricPoisonRecord generates AcraBlock encrypted with Poison Record symmetric key
-func CreateSymmetricPoisonRecord(keyStore keystore.PoisonKeyStore, dataLength int) ([]byte, error) {
+func CreateSymmetricPoisonRecord(keyStore keystore.PoisonKeyStorageAndGenerator, dataLength int) ([]byte, error) {
 	data, err := createPoisonRecordData(dataLength)
 	if err != nil {
 		return nil, err
 	}
 	symmetricKey, err := keyStore.GetPoisonSymmetricKey()
+	if err == keystore.ErrKeysNotFound {
+		if err = keyStore.GeneratePoisonSymmetricKey(); err != nil {
+			return nil, err
+		}
+		symmetricKey, err = keyStore.GetPoisonSymmetricKey()
+	}
 	if err != nil {
 		return nil, err
 	}
