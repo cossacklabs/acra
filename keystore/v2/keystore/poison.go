@@ -144,13 +144,15 @@ func (s *ServerKeyStore) GeneratePoisonSymmetricKey() error {
 	return nil
 }
 
-func (store *ServerKeyStore) GeneratePoisonKeyPair() error {
-	ring, err := store.OpenKeyRingRW(poisonKeyPath)
+// GeneratePoisonKeyPair generates new poison keypair, saving it in the storage.
+// Old keypair is rotated.
+func (s *ServerKeyStore) GeneratePoisonKeyPair() error {
+	ring, err := s.OpenKeyRingRW(poisonKeyPath)
 	if err != nil {
-		store.log.WithError(err).Debug("Failed to open poison record key ring")
+		s.log.WithError(err).Debug("Failed to open poison record key ring")
 		return err
 	}
-	_, err = store.newCurrentKeyPair(ring)
+	_, err = s.newCurrentKeyPair(ring)
 	return err
 }
 

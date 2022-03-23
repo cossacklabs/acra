@@ -108,6 +108,7 @@ type SymmetricEncryptionKeyStoreGenerator interface {
 	GenerateZoneIDSymmetricKey(id []byte) error
 }
 
+// PoisonKeyGenerator is responsible for generation of poison keys.
 type PoisonKeyGenerator interface {
 	GeneratePoisonSymmetricKey() error
 	GeneratePoisonKeyPair() error

@@ -1218,6 +1218,8 @@ func (store *KeyStore) GeneratePoisonSymmetricKey() error {
 	return store.generateAndSaveSymmetricKey([]byte(keyName), keyPath)
 }
 
+// GeneratePoisonKeyPair generates new poison keypair, saving it in the storage.
+// Old keypair is rotated.
 func (store *KeyStore) GeneratePoisonKeyPair() error {
 	_, err := store.generateKeyPair(PoisonKeyFilename, []byte(PoisonKeyFilename))
 	return err
