@@ -90,54 +90,6 @@ func TestEncodingDecodingProcessorBinaryIntData(t *testing.T) {
 	}
 }
 
-// TestEncodingDecodingProcessorAllowedBinaryData checks decoding binary array and string values to golang []byte and back
-// String/Email/Byte types processed as is without any encoding/decoding
-func TestEncodingDecodingProcessorAllowedBinaryData(t *testing.T) {
-	validEmailString := []byte(`email@email.com`)
-	type testcase struct {
-		value     []byte
-		tokenType common.TokenType
-	}
-
-	testcases := []testcase{
-		// int32 without errors
-		{value: validEmailString, tokenType: common.TokenType_String},
-		{value: validEmailString, tokenType: common.TokenType_Email},
-		{value: validEmailString, tokenType: common.TokenType_Bytes},
-	}
-
-	encoder, err := NewPgSQLDataEncoderProcessor()
-	if err != nil {
-		t.Fatal(err)
-	}
-	decoder, err := NewPgSQLDataDecoderProcessor()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for i, tcase := range testcases {
-		columnInfo := base.NewColumnInfo(0, "", true, len(tcase.value))
-		accessContext := &base.AccessContext{}
-		accessContext.SetColumnInfo(columnInfo)
-		ctx := base.SetAccessContextToContext(context.Background(), accessContext)
-		testSetting := config.BasicColumnEncryptionSetting{Tokenized: true, TokenType: tcase.tokenType.String()}
-		ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
-		ctx, decodedValue, err := decoder.OnColumn(ctx, tcase.value)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !bytes.Equal(validEmailString, decodedValue) {
-			t.Fatalf("[%d] Expect '%s', took '%s'\n", i, validEmailString, decodedValue)
-		}
-		_, encodedData, err := encoder.OnColumn(ctx, decodedValue)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !bytes.Equal(validEmailString, encodedData) {
-			t.Fatalf("[%d] Expect '%s', took '%s'\n", i, validEmailString, decodedValue)
-		}
-	}
-}
-
 func TestSkipWithoutSetting(t *testing.T) {
 	encoder, err := NewPgSQLDataEncoderProcessor()
 	if err != nil {
@@ -149,7 +101,19 @@ func TestSkipWithoutSetting(t *testing.T) {
 	}
 	testData := []byte("some data")
 	for _, subscriber := range []base.DecryptionSubscriber{encoder, decoder} {
-		_, data, err := subscriber.OnColumn(context.Background(), testData)
+		// without column setting data
+		ctx := context.Background()
+		_, data, err := subscriber.OnColumn(ctx, testData)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(data, testData) {
+			t.Fatal("Result data should be the same")
+		}
+		// test without column info
+		columnSetting := &config.BasicColumnEncryptionSetting{}
+		ctx = encryptor.NewContextWithEncryptionSetting(ctx, columnSetting)
+		_, data, err = subscriber.OnColumn(ctx, testData)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -197,6 +161,28 @@ func TestTextMode(t *testing.T) {
 		// encryption/decryption integer data, not tokenization
 		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte(strDefaultValue), decodeErr: nil, encodeErr: nil,
 			setting: &config.BasicColumnEncryptionSetting{Tokenized: false, DataType: "int32", DefaultDataValue: &strDefaultValue}},
+
+		// invalid binary hex value that should be returned as is. Also encoded into hex due to invalid hex value
+		{input: []byte("\\xTT"), decodedData: []byte("\\xTT"), encodedData: []byte("\\x5c785454"), decodeErr: nil, encodeErr: nil,
+			setting: &config.BasicColumnEncryptionSetting{Tokenized: false, DataType: "bytes"}},
+		// printable valid value returned as is
+		{input: []byte("valid string"), decodedData: []byte("valid string"), encodedData: []byte("valid string"), decodeErr: nil, encodeErr: nil,
+			setting: &config.BasicColumnEncryptionSetting{Tokenized: false, DataType: "bytes"}},
+		{input: []byte("valid string"), decodedData: []byte("valid string"), encodedData: []byte("valid string"), decodeErr: nil, encodeErr: nil,
+			setting: &config.BasicColumnEncryptionSetting{Tokenized: false, DataType: "str"}},
+
+		// empty values
+		{input: []byte{}, decodedData: []byte{}, encodedData: []byte{}, decodeErr: nil, encodeErr: nil,
+			setting: &config.BasicColumnEncryptionSetting{Tokenized: false, DataType: "bytes"}},
+		// empty values
+		{input: nil, decodedData: nil, encodedData: nil, decodeErr: nil, encodeErr: nil,
+			setting: &config.BasicColumnEncryptionSetting{Tokenized: false, DataType: "bytes"}},
+		// empty values
+		{input: []byte{}, decodedData: []byte{}, encodedData: []byte{}, decodeErr: nil, encodeErr: nil,
+			setting: &config.BasicColumnEncryptionSetting{Tokenized: false, DataType: "str"}},
+		// empty values
+		{input: nil, decodedData: nil, encodedData: nil, decodeErr: nil, encodeErr: nil,
+			setting: &config.BasicColumnEncryptionSetting{Tokenized: false, DataType: "str"}},
 	}
 
 	columnInfo := base.NewColumnInfo(0, "", false, 4)
@@ -230,6 +216,95 @@ func TestTextMode(t *testing.T) {
 		}
 		if len(tcase.logMessage) > 0 && !strings.Contains(logBuffer.String(), tcase.logMessage) {
 			t.Fatal("Log buffer doesn't contain expected message")
+		}
+	}
+}
+
+func TestBinaryMode(t *testing.T) {
+	encoder, err := NewPgSQLDataEncoderProcessor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoder, err := NewPgSQLDataDecoderProcessor()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	type testcase struct {
+		input       []byte
+		decodedData []byte
+		encodedData []byte
+		decodeErr   error
+		encodeErr   error
+		setting     config.ColumnEncryptionSetting
+		logMessage  string
+	}
+	strDefaultValue := "1"
+	testcases := []testcase{
+		// decoder expects valid string and pass as is, so no errors. but on encode operation it expects valid int literal
+		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte("some data"),
+			decodeErr: nil, encodeErr: nil,
+			setting:    &config.BasicColumnEncryptionSetting{DataType: "int32"},
+			logMessage: `Can't decode int value and no default value`},
+
+		{input: []byte{0, 0, 0, 1}, decodedData: []byte("1"), encodedData: []byte{0, 0, 0, 1}, decodeErr: nil, encodeErr: nil,
+			setting: &config.BasicColumnEncryptionSetting{DataType: "int32"}},
+
+		// encryption/decryption integer data, not tokenization
+		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte("some data"), decodeErr: nil, encodeErr: nil,
+			setting:    &config.BasicColumnEncryptionSetting{DataType: "int32"},
+			logMessage: `Can't decode int value and no default value`},
+
+		// encryption/decryption integer data, not tokenization
+		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte{0, 0, 0, 1}, decodeErr: nil, encodeErr: nil,
+			setting: &config.BasicColumnEncryptionSetting{DataType: "int32", DefaultDataValue: &strDefaultValue}},
+
+		// invalid binary hex value that should be returned as is. Also encoded into hex due to invalid hex value
+		{input: []byte("\\xTT"), decodedData: []byte("\\xTT"), encodedData: []byte("\\xTT"), decodeErr: nil, encodeErr: nil,
+			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes"}},
+		// printable valid value returned as is
+		{input: []byte("valid string"), decodedData: []byte("valid string"), encodedData: []byte("valid string"), decodeErr: nil, encodeErr: nil,
+			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes"}},
+
+		// empty values
+		{input: []byte{}, decodedData: []byte{}, encodedData: []byte{}, decodeErr: nil, encodeErr: nil,
+			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes"}},
+		// empty values
+		{input: nil, decodedData: nil, encodedData: nil, decodeErr: nil, encodeErr: nil,
+			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes"}},
+	}
+
+	columnInfo := base.NewColumnInfo(0, "", true, 4)
+	accessContext := &base.AccessContext{}
+	accessContext.SetColumnInfo(columnInfo)
+	ctx := base.SetAccessContextToContext(context.Background(), accessContext)
+	logger := logrus.New()
+	entry := logrus.NewEntry(logger)
+	logBuffer := &bytes.Buffer{}
+	logger.SetOutput(logBuffer)
+	ctx = logging.SetLoggerToContext(ctx, entry)
+	for i, tcase := range testcases {
+		logBuffer.Reset()
+		ctx = encryptor.NewContextWithEncryptionSetting(ctx, tcase.setting)
+		_, decodedData, decodeErr := decoder.OnColumn(ctx, tcase.input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if decodeErr != tcase.decodeErr {
+			t.Fatalf("[%d] Incorrect decode error. Expect %s, took %s\n", i, tcase.decodeErr, decodeErr)
+		}
+		if !bytes.Equal(decodedData, tcase.decodedData) {
+			t.Fatalf("[%d] Result data should be the same\n", i)
+		}
+		_, encodedData, encodeErr := encoder.OnColumn(ctx, decodedData)
+		if encodeErr != tcase.encodeErr && !errors.As(encodeErr, &tcase.encodeErr) {
+			t.Fatalf("[%d] Incorrect encode error. Expect %s, took %s\n", i, tcase.encodeErr.Error(), encodeErr.Error())
+		}
+		if !bytes.Equal(encodedData, tcase.encodedData) {
+			t.Fatalf("[%d] Result data should be the same\n", i)
+		}
+		if len(tcase.logMessage) > 0 && !strings.Contains(logBuffer.String(), tcase.logMessage) {
+			t.Fatalf("[%d] Log buffer doesn't contain expected message\n", i)
 		}
 	}
 }

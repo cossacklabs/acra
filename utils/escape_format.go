@@ -28,16 +28,6 @@ func IsPrintableEscapeChar(c byte) bool {
 	return false
 }
 
-// IsPrintableASCIIArray return true if all symbols in data are ASCII printable symbols
-//func IsPrintableASCIIArray(data []byte) bool {
-//	for _, c := range data {
-//		if !IsPrintableEscapeChar(c) {
-//			return false
-//		}
-//	}
-//	return true
-//}
-
 // IsPrintablePostgresqlString returns true if it's valid ASCII or utf8 string except '\' character that used as escape
 // character in strings
 func IsPrintablePostgresqlString(data []byte) bool {

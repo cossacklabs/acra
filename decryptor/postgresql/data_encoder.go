@@ -72,6 +72,7 @@ func (p *PgSQLDataEncoderProcessor) encodeBinary(ctx context.Context, data []byt
 					return ctx, data, err
 				}
 			} else {
+				logger.WithError(err).Errorln("Can't decode int value and no default value")
 				return ctx, data, nil
 			}
 		}
