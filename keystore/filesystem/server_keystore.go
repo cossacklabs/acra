@@ -810,7 +810,7 @@ func (store *KeyStore) describeDir(dirName string) ([]keystore.KeyDescription, e
 			return nil, err
 		}
 		if description.Purpose == PurposeLegacy {
-			log.WithField("ID", description.ID).Debug("Ignoring legacy key")
+			log.WithField("ID", description.ID).Warn("Ignoring legacy key")
 			continue
 		}
 		keys = append(keys, *description)
@@ -842,10 +842,7 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 	components := strings.Split(fileInfo.Name(), "_")
 
 	if len(components) == 1 {
-		id := fileInfo.Name()
-		if strings.HasSuffix(id, ".pub") {
-			id = id[:len(id)-4]
-		}
+		id := strings.TrimSuffix(fileInfo.Name(), ".pub")
 
 		return &keystore.KeyDescription{
 			ID:       id,

@@ -6171,6 +6171,15 @@ class TestAcraIgnoresLegacyKeys(AcraCatchLogsMixin, BaseTestCase):
     while keystore contains legacy keys (Connector<->Server, Connector<->Translator)
     """
 
+    legacy_key_files = [
+        'testclientid',
+        'testclientid.pub',
+        'testclientid_server',
+        'testclientid_server.pub',
+        'testclientid_translator',
+        'testclientid_translator.pub',
+    ]
+
     def checkSkip(self):
         if KEYSTORE_VERSION != 'v1':
             self.skipTest("test only for keystore v1")
@@ -6182,23 +6191,31 @@ class TestAcraIgnoresLegacyKeys(AcraCatchLogsMixin, BaseTestCase):
             open(f"{KEYS_FOLDER.name}/{name}", "w").close()
 
         try:
-            create_key_file('testclientid')
-            create_key_file('testclientid.pub')
-            create_key_file('testclientid_server')
-            create_key_file('testclientid_server.pub')
-            create_key_file('testclientid_translator')
-            create_key_file('testclientid_translator.pub')
+            for key_file in self.legacy_key_files:
+                open(f"{KEYS_FOLDER.name}/{key_file}", "w").close()
         except:
             self.tearDown()
             raise
 
+    def tearDown(self):
+        for key_file in self.legacy_key_files:
+            os.remove(f"{KEYS_FOLDER.name}/{key_file}")
+
+        super().tearDown()
+
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
-        args = {'keystore_cache_size': 0, 'keystore_cache_on_start_enable': 'true'}
+        args = {
+            'keystore_cache_size': 0,
+            'keystore_cache_on_start_enable': 'true',
+        }
         acra_kwargs.update(args)
         return super().fork_acra(popen_kwargs, **acra_kwargs)
 
     def testKeysCachedSuccessfully(self):
         self.assertIn("Cached keystore on start successfully".lower(), self.read_log(self.acra).lower())
+
+    def testLegacyKeysIgnored(self):
+        self.assertIn("Ignoring legacy key".lower(), self.read_log(self.acra).lower())
 
 
 class BaseSearchableTransparentEncryption(TestTransparentEncryption):
