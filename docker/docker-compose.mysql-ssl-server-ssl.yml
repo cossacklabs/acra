@@ -67,7 +67,6 @@ services:
             --tls_auth=4
             --tls_client_id_from_cert
             --tls_identifier_extractor_type=distinguished_name
-            --acraconnector_transport_encryption_disable
             --tls_ca=/ssl.ca/example.cossacklabs.com.crt
             --tls_cert=/ssl.server/acra-server.crt
             --tls_key=/ssl.server/acra-server.key

@@ -5,12 +5,13 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"io"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/jackc/pgx/pgproto3"
 	"github.com/sirupsen/logrus"
-	"io"
 )
 
 // PacketHandler hold state of postgresql packet and process data rows
@@ -28,6 +29,15 @@ type PacketHandler struct {
 	logger          *logrus.Entry
 	Columns         []*ColumnData
 	terminatePacket bool
+
+	// Flag which is true, if one of the startup messages is received (either
+	// StartupMessage or SSLRequest).
+	// Is used to distinguish which message we parse: startup or general,
+	// because due to historical reasons, they have different format.
+	//
+	// In te db-dedicated code serves as indicator, whether we expect startup
+	// response or general response.
+	started bool
 }
 
 // NewClientSidePacketHandler return new PacketHandler with initialized own logger for client's packets
@@ -439,6 +449,16 @@ var (
 	SSLRequest     = []byte{4, 210, 22, 47}
 	CancelRequest  = []byte{4, 210, 22, 46}
 	StartupRequest = []byte{0, 3, 0, 0}
+	GSSENCRequest  = []byte{4, 210, 22, 48}
+
+	// Length is always 8 plus SSLRequest
+	SSLRequestHeader = bytes.Join([][]byte{{0x00, 0x00, 0x00, 0x08}, SSLRequest}, []byte{})
+
+	// Length is always 16 plus CancelRequest
+	CancelRequestHeader = bytes.Join([][]byte{{0x00, 0x00, 0x00, 0x10}, CancelRequest}, []byte{})
+
+	// Length is always 8 plus GSSENCRequest
+	GSSENCRequestHeader = bytes.Join([][]byte{{0x00, 0x00, 0x00, 0x08}, GSSENCRequest}, []byte{})
 )
 
 // WithoutMessageType used to indicate that MessageType wasn't set and shouldn't marshaled
@@ -447,100 +467,159 @@ const WithoutMessageType = 0
 // ErrUnsupportedPacketType error when recognized unsupported message type or new added to postgresql wire protocol
 var ErrUnsupportedPacketType = errors.New("unsupported postgresql message type")
 
-// ReadClientPacket read and recognize packets that may be sent only from client/frontend. It's all message types marked
-// with (F) or (F/B) on https://www.postgresql.org/docs/current/static/protocol-message-formats.html
+// ReadClientPacket read and recognize packets that may be sent only from client/frontend.
+//
+// There are two types of messages: startup and general ones.
+// Due to historical reasons, startup messages have the following format:
+//
+//     [4-byte length] [4-byte tag] [payload...]
+//
+// On the other hand, general messages have:
+//
+//     [1-byte tag] [4-byte length] [payload...]
+//
+// Overall, as of today (PostgreSQL 14), the protocol supports following packets,
+// that can be received from the client (Frontend or F), or both the client and
+// the server (Backend) (F&B):
+// ```
+// | Name                | Type | StartsWith                    |
+// |---------------------|------|-------------------------------|
+// | Bind                | F    | Byte1('B') || Int32(len)      |
+// | CancelRequest       | F    | int32(16)  || Int32(80877102) |
+// | Close               | F    | Byte1('C') || Int32(len)      |
+// | CopyData            | F&B  | Byte1('d') || Int32(len)      |
+// | CopyDone            | F&B  | Byte1('c') || Int32(len)      |
+// | CopyFail            | F    | Byte1('f') || Int32(len)      |
+// | Describe            | F    | Byte1('D') || Int32(len)      |
+// | Execute             | F    | Byte1('E') || Int32(len)      |
+// | Flush               | F    | Byte1('H') || Int32(len)      |
+// | FunctionCall        | F    | Byte1('F') || Int32(len)      |
+// | GSSENCRequest       | F    | Int32(8)   || Int32(80877104) |
+// | GSSResponse         | F    | Byte1('p') || Int32(len)      |
+// | Parse               | F    | Byte1('P') || Int32(len)      |
+// | PasswordMessage     | F    | Byte1('p') || Int32(len)      |
+// | Query               | F    | Byte1('Q') || Int32(len)      |
+// | SASLInitialResponse | F    | Byte1('p') || Int32(len)      |
+// | SASLResponse        | F    | Byte1('p') || Int32(len)      |
+// | SSLRequest          | F    | Int32(8)   || Int32(80877103) |
+// | StartupMessage      | F    | Int32(len) || Int32(196608)   |
+// | Sync                | F    | Byte1('S') || Int32(len)      |
+// | Terminate           | F    | Byte1('X') || Int32(len)      |
+// ```
+//
+// Startup message can only be received as first message after connection is
+// established. This fact allows to distinguish which format to parse.
+// If connection is established, and first message is not startup one, this
+// function returns ErrUnsupportedPacketType.
+// If startup message is already received, but then comes a message with unknown
+// format, it would be parsed as a general message with unknown tag.
+//
+// https://www.postgresql.org/docs/current/static/protocol-message-formats.html
 func (packet *PacketHandler) ReadClientPacket() error {
+	if packet.started {
+		return packet.readGeneralPacket()
+	}
+	// https://www.postgresql.org/docs/current/protocol-flow.html
+	// First packet should always be StartupMessage/SSLRequest/GSSENCRequest
+	return packet.readStartupPacket()
+}
+
+// Tries to read one of the startup packets:
+// - StartupMessage
+// - SSLRequest
+// - CancelRequest
+// - GSSENCRequest
+//
+// Due to historical reasons, all startup messages have the following format:
+//
+//     [4-byte length] [4-byte tag] [payload...]
+//
+// If the packet cannot be parsed as a startup packets, the ErrUnsupportedPacketType
+// is returned.
+//
+// Source: https://www.postgresql.org/docs/current/protocol-flow.html
+func (packet *PacketHandler) readStartupPacket() error {
 	packet.Reset()
-	// 8 bytes because startup/ssl/cancel messages has at least 8 bytes
+	// 8 bytes because all startup messages has at least 8 bytes
 	packetBuf := make([]byte, 8)
 	packet.messageType[0] = WithoutMessageType
-	// any message has at least 5 bytes: TypeOfMessage(1) + Length(4) or 8 bytes of special messages
+
+	n, err := io.ReadFull(packet.reader, packetBuf)
+	if err := base.CheckReadWrite(n, 8, err); err != nil {
+		packet.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).WithError(err).Debugln("Can't read 8 bytes of Startup/SSLRequest packet")
+		return err
+	}
+
+	switch {
+	case bytes.Equal(StartupRequest, packetBuf[4:8]):
+	case bytes.Equal(SSLRequestHeader, packetBuf[:8]):
+	case bytes.Equal(CancelRequestHeader, packetBuf[:8]):
+	case bytes.Equal(GSSENCRequestHeader, packetBuf[:8]):
+	default:
+		return ErrUnsupportedPacketType
+	}
+
+	packet.setDataLengthBuffer(packetBuf[:4])
+
+	// We read 8 bytes: 4-byte length and 4-byte tag.
+	// Return tag to the descriptionBuf
+	n, err = packet.descriptionBuf.Write(packetBuf[4:])
+	if err := base.CheckReadWrite(n, 4, err); err != nil {
+		return err
+	}
+
+	// we read 4 bytes before. decrease before call readData because it read exactly as dataLength
+	packet.dataLength -= 4
+
+	if err := packet.readData(false); err != nil {
+		return err
+	}
+	// restore correct value
+	packet.dataLength += 4
+
+	packet.started = true
+
+	return nil
+}
+
+func (packet *PacketHandler) readGeneralPacket() error {
+	packet.Reset()
+	// 1-byte id + 4-byte length
+	packetBuf := make([]byte, 5)
 
 	n, err := io.ReadFull(packet.reader, packetBuf[:5])
 	if err := base.CheckReadWrite(n, 5, err); err != nil {
 		packet.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).WithError(err).Debugln("Can't read first 5 bytes")
 		return err
 	}
-	/*
-		Postgresql has 3 messages that hasn't general message format <MessageType> + <Message Length>. It's ssl request, cancelation and startup message
-		General message has at least 5 bytes in packet, these 3 packets has at least 8 bytes (<Message Length> + <Constant Value>)
-		We read first 5 bytes, check is there known message types. If not then we try to read 3 more bytes and recognize 3 special messages
-		by their values. If we don't recognize, then process it as general message. We may have error if it's unknown message with message length < 8 bytes when
-		we not recognize, try to read +3 bytes and will block on system call read to read more when message may have only 1 bytes of MessageType and minimal MessageLength = 4 bytes (itself)
-	*/
-	switch packetBuf[0] {
-	// all known message types with flags (F) or (F/B) on https://www.postgresql.org/docs/current/static/protocol-message-formats.html
-	case 'S', 'p', 'F', 'H', 'E', 'D', 'f', 'c', 'd', 'C', 'B', 'Q', 'P':
-		// set message type
-		packet.messageType[0] = packetBuf[0]
-		// general message has 4 bytes after first as length
-		packet.setDataLengthBuffer(packetBuf[1:5])
-		return packet.readData(false)
-	case TerminatePacket[0]:
-		// set message type
-		packet.messageType[0] = packetBuf[0]
-		// general message has 4 bytes after first as length
-		packet.setDataLengthBuffer(packetBuf[1:5])
+
+	tag := packetBuf[0]
+
+	packet.messageType[0] = tag
+	// general message has 4 bytes after first as length
+	packet.setDataLengthBuffer(packetBuf[1:5])
+
+	switch tag {
+	// Terminate packet
+	case 'X':
 		packet.terminatePacket = true
 		if !bytes.Equal(TerminatePacket, packetBuf[:5]) {
 			packet.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlUnexpectedPacket).Warningln("Expected Terminate packet but receive something else")
 			return packet.readData(false)
 		}
 		return nil
+
+	// All known tags
+	case 'B', 'C', 'd', 'c', 'f', 'D', 'E', 'H', 'F', 'p', 'P', 'Q', 'S':
+
+	// We don't know the type of message. It may mean that Postgres updated its
+	// protocol for example. In any case, produce a warning but try to parse it
+	// as general message anyway
 	default:
-		// fill our buf with other 3 bytes to check is it special message
-		n, err := io.ReadFull(packet.reader, packetBuf[5:])
-		if err := base.CheckReadWrite(n, 3, err); err != nil {
-			return err
-		}
-		// write packet data to correct buf
-		n, err = packet.descriptionBuf.Write(packetBuf[4:])
-		if err := base.CheckReadWrite(n, 4, err); err != nil {
-			return err
-		}
-		packet.setDataLengthBuffer(packetBuf[:4])
-
-		// ssl and cancel requests have known and different lengths (8 and 16 respectively) or variable-length in startup request
-		switch packetBuf[3] {
-		// ssl/cancel requests
-		case 8, 16:
-			// ssl/cancel request has 8 byte length and 5 bytes we already read
-			if bytes.Equal(SSLRequest, packetBuf[4:]) {
-				return nil
-			} else if bytes.Equal(CancelRequest, packetBuf[4:]) {
-				return nil
-			}
-			return ErrUnsupportedPacketType
-		// startup request or unknown message type
-		default:
-			if !bytes.Equal(StartupRequest, packetBuf[4:]) {
-				packet.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlUnexpectedPacket).WithField("packet_buffer", packetBuf).Warningln("Expected startup message. Process as general message.")
-				// we took unknown message type that wasn't recognized on top case and it's not special messages startup/ssl/cancel
-				// so we process it as general message type which has first byte as type and next 4 bytes is length of message
-				// above we read 8 bytes as for special messages, so we need to read dataLength -3 bytes
-				packet.messageType[0] = packetBuf[0]
-				packet.setDataLengthBuffer(packetBuf[1:5])
-				packet.descriptionBuf.Reset()
-				packet.descriptionBuf.Write(packetBuf[5:])
-				packet.dataLength -= 3
-				if err := packet.readData(false); err != nil {
-					return err
-				}
-				packet.dataLength += 3
-				return nil
-			}
-
-			// we read 4 bytes before. decrease before call readData because it read exactly as dataLength
-			packet.dataLength -= 4
-
-			if err := packet.readData(false); err != nil {
-				return err
-			}
-			// restore correct value
-			packet.dataLength += 4
-			return nil
-		}
+		packet.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlUnexpectedPacket).WithField("packet_buffer", packetBuf).Warningln("Unknown message format. Processed as general message.")
 	}
+
+	return packet.readData(false)
 }
 
 // Marshal transforms data row into bytes array
@@ -563,4 +642,16 @@ func (packet *PacketHandler) IsSSLRequestAllowed() bool {
 // IsSSLRequestDeny returns true server denied switch to SSL
 func (packet *PacketHandler) IsSSLRequestDeny() bool {
 	return packet.messageType[0] == 'N'
+}
+
+// SetStarted sets `started` true, which indicates that we should process next
+// packets as general ones
+func (packet *PacketHandler) SetStarted() {
+	packet.started = true
+}
+
+// IsAlreadyStarted returns true if startup packet is already received and packet handler excepts
+// general messages.
+func (packet *PacketHandler) IsAlreadyStarted() bool {
+	return packet.started
 }
