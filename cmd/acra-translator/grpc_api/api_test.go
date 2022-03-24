@@ -3,10 +3,11 @@ package grpc_api
 import (
 	"bytes"
 	"errors"
+	"testing"
+
 	acrastruct2 "github.com/cossacklabs/acra/acrastruct"
 	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/keystore"
-	"testing"
 
 	"github.com/cossacklabs/acra/cmd/acra-translator/common"
 	"github.com/cossacklabs/acra/poison"
@@ -36,7 +37,11 @@ func (keystore *testKeystore) GenerateZoneIDSymmetricKey(id []byte) error {
 	panic("implement me")
 }
 
-func (keystore *testKeystore) GeneratePoisonRecordSymmetricKey() error {
+func (keystore *testKeystore) GeneratePoisonSymmetricKey() error {
+	panic("implement me")
+}
+
+func (keystore *testKeystore) GeneratePoisonKeyPair() error {
 	panic("implement me")
 }
 

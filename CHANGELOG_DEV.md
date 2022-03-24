@@ -1,3 +1,7 @@
+## 0.93.0 - 2022-03-23
+- Remove autogeneration of poison keys on the first access (but keep in poisonrecordmaker).
+- Add warning on enabled poison detection if keys are not generated.
+
 ## 0.93.0 - 2022-03-15
 - Remove legacy flags dedicated to acra-connector from dockerfiles under the `./docker/` directory.
 

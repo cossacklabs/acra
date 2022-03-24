@@ -81,7 +81,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	var store keystore.PoisonKeyStore
+	var store keystore.PoisonKeyStorageAndGenerator
 	if filesystemV2.IsKeyDirectory(*keysDir) {
 		store = openKeyStoreV2(*keysDir, keyLoader)
 	} else {
@@ -104,7 +104,7 @@ func main() {
 	fmt.Println(base64.StdEncoding.EncodeToString(poisonRecord))
 }
 
-func openKeyStoreV1(output string, loader keyloader.MasterKeyLoader) keystore.PoisonKeyStore {
+func openKeyStoreV1(output string, loader keyloader.MasterKeyLoader) keystore.PoisonKeyStorageAndGenerator {
 	masterKey, err := loader.LoadMasterKey()
 	if err != nil {
 		log.WithError(err).Errorln("Cannot load master key")
@@ -136,7 +136,7 @@ func openKeyStoreV1(output string, loader keyloader.MasterKeyLoader) keystore.Po
 	return keyStoreV1
 }
 
-func openKeyStoreV2(keyDirPath string, loader keyloader.MasterKeyLoader) keystore.PoisonKeyStore {
+func openKeyStoreV2(keyDirPath string, loader keyloader.MasterKeyLoader) keystore.PoisonKeyStorageAndGenerator {
 	encryption, signature, err := loader.LoadMasterKeys()
 	if err != nil {
 		log.WithError(err).Errorln("Cannot load master key")
