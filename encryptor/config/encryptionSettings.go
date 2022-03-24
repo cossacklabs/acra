@@ -88,7 +88,6 @@ var validSettings = map[SettingMask]struct{}{
 	SettingDataTypeFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag:                               {},
 	SettingDataTypeFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag: {},
 
-
 	/////////////
 	// SEARCHABLE
 	// default ClientID
