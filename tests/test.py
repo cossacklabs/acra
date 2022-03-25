@@ -6185,11 +6185,6 @@ class TestAcraIgnoresLegacyKeys(AcraCatchLogsMixin, BaseTestCase):
             self.skipTest("test only for keystore v1")
 
     def setUp(self):
-        super().setUp()
-
-        def create_key_file(name):
-            open(f"{KEYS_FOLDER.name}/{name}", "w").close()
-
         try:
             for key_file in self.legacy_key_files:
                 open(f"{KEYS_FOLDER.name}/{key_file}", "w").close()
@@ -6197,9 +6192,12 @@ class TestAcraIgnoresLegacyKeys(AcraCatchLogsMixin, BaseTestCase):
             self.tearDown()
             raise
 
+        super().setUp()
+
     def tearDown(self):
         for key_file in self.legacy_key_files:
-            os.remove(f"{KEYS_FOLDER.name}/{key_file}")
+            try: os.remove(f"{KEYS_FOLDER.name}/{key_file}")
+            except: pass
 
         super().tearDown()
 
