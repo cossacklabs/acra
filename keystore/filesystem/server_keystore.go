@@ -808,6 +808,10 @@ func (store *KeyStore) describeDir(dirName string) ([]keystore.KeyDescription, e
 		if err != nil {
 			return nil, err
 		}
+		if description.Purpose == PurposeLegacy {
+			log.WithField("ID", description.ID).Warn("Ignoring legacy key")
+			continue
+		}
 		keys = append(keys, *description)
 	}
 	return keys, nil
@@ -835,6 +839,16 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 	}
 
 	components := strings.Split(fileInfo.Name(), "_")
+
+	if len(components) == 1 {
+		id := strings.TrimSuffix(fileInfo.Name(), ".pub")
+
+		return &keystore.KeyDescription{
+			ID:       id,
+			Purpose:  PurposeLegacy,
+			ClientID: []byte(components[0]),
+		}, nil
+	}
 
 	//in case of one split result slice will have more than one element
 	if len(components) < 2 {
@@ -905,6 +919,14 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 			ID:       fileInfo.Name(),
 			Purpose:  PurposeAuditLog,
 			ClientID: []byte(strings.Join(components[:len(components)-2], "_")),
+		}, nil
+	}
+
+	if lastKeyPart == "server" || lastKeyPart == "server.pub" || lastKeyPart == "translator" || lastKeyPart == "translator.pub" {
+		return &keystore.KeyDescription{
+			ID:       fileInfo.Name(),
+			Purpose:  PurposeLegacy,
+			ClientID: []byte(components[0]),
 		}, nil
 	}
 
