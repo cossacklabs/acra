@@ -44,7 +44,7 @@ func (x EncryptedType) ToConfigString() (val string, err error) {
 // Validation errors
 var (
 	ErrUnknownEncryptedType     = errors.New("unknown token type")
-	ErrUnsupportedEncryptedType = errors.New("token type not supported")
+	ErrUnsupportedEncryptedType = errors.New("data type not supported")
 )
 
 // ValidateEncryptedType return true if value is supported EncryptedType
