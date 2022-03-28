@@ -24,7 +24,6 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
 	"strconv"
-	"unicode/utf8"
 )
 
 var pgHexStringPrefix = []byte{'\\', 'x'}
@@ -79,7 +78,7 @@ func (*MysqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, error
 
 // PgEncodeToHexString return data as is if it's valid UTF string otherwise encode to hex with \x prefix
 func PgEncodeToHexString(data []byte) []byte {
-	if utf8.Valid(data) {
+	if utils.IsPrintablePostgresqlString(data) {
 		return data
 	}
 	newVal := make([]byte, len(pgHexStringPrefix)+hex.EncodedLen(len(data)))
@@ -158,13 +157,7 @@ func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, 
 			val.Type = sqlparser.StrVal
 			fallthrough
 		case sqlparser.PgEscapeString, sqlparser.StrVal:
-			if utils.IsPrintablePostgresqlString(data) {
-				return data, nil
-			}
-			newVal := make([]byte, len(pgHexStringPrefix)+hex.EncodedLen(len(data)))
-			copy(newVal, pgHexStringPrefix)
-			hex.Encode(newVal[len(pgHexStringPrefix):], data)
-			return newVal, nil
+			return PgEncodeToHexString(data), nil
 		}
 	}
 	return nil, errUnsupportedExpression
