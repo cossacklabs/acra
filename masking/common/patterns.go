@@ -16,7 +16,11 @@
 
 package common
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+	"github.com/cossacklabs/acra/encryptor/config/common"
+)
 
 // PlainTextSide defines which side of data is left untouched (in plain), and which is masked with a pattern.
 type PlainTextSide string
@@ -35,7 +39,7 @@ var (
 )
 
 // ValidateMaskingParams checks and returns an error if masking parameters are incorrect.
-func ValidateMaskingParams(pattern string, plaintextLength int, plaintextSide PlainTextSide) error {
+func ValidateMaskingParams(pattern string, plaintextLength int, plaintextSide PlainTextSide, dataType common.EncryptedType) error {
 	if len(pattern) == 0 {
 		return ErrInvalidMaskingPattern
 	}
@@ -44,6 +48,14 @@ func ValidateMaskingParams(pattern string, plaintextLength int, plaintextSide Pl
 	}
 	if plaintextSide != PlainTextSideRight && plaintextSide != PlainTextSideLeft {
 		return ErrInvalidPlaintextSide
+	}
+	switch dataType {
+	//case common2.EncryptedType_String, common2.EncryptedType_Bytes:
+	case common.EncryptedType_String, common.EncryptedType_Bytes:
+		break
+	default:
+		// intX not supported masking with type awareness
+		return fmt.Errorf("masking configuration error: %w", common.ErrUnsupportedEncryptedType)
 	}
 	return nil
 }

@@ -297,6 +297,32 @@ schemas:
         data_type: int64
 `,
 			nil},
+		// type aware decryption, all supported types + masking
+		{`
+schemas:
+  - table: test_table
+    columns:
+      - data1
+      - data2
+      - data3
+      - data4
+    encrypted:
+      - column: data1
+        data_type: str
+		masking: "00"
+        plaintext_length: 2
+        plaintext_side: "left"
+      - column: data2
+        data_type: bytes
+		masking: "00"
+        plaintext_length: 2
+        plaintext_side: "left"
+      - column: data3
+        data_type: int32
+      - column: data4
+        data_type: int64
+`,
+			nil},
 		// type aware decryption, all supported types, specified client id
 		{`
 schemas:
@@ -313,6 +339,36 @@ schemas:
       - column: data2
         data_type: bytes
         client_id: client
+      - column: data3
+        data_type: int32
+        client_id: client
+      - column: data4
+        data_type: int64
+        client_id: client
+`,
+			nil},
+		// type aware decryption, all supported types, specified client id + masking
+		{`
+schemas:
+  - table: test_table
+    columns:
+      - data1
+      - data2
+      - data3
+      - data4
+    encrypted:
+      - column: data1
+        data_type: str
+        client_id: client
+		masking: "00"
+        plaintext_length: 2
+        plaintext_side: "left"
+      - column: data2
+        data_type: bytes
+        client_id: client
+		masking: "00"
+        plaintext_length: 2
+        plaintext_side: "left"
       - column: data3
         data_type: int32
         client_id: client

@@ -73,6 +73,8 @@ var validSettings = map[SettingMask]struct{}{
 	SettingDataTypeFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag:                               {},
 	SettingDataTypeFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag: {},
 
+	SettingDataTypeFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag | SettingMaskingFlag | SettingMaskingPlaintextLengthFlag | SettingMaskingPlaintextSideFlag: {},
+
 	// ZoneID
 
 	SettingDataTypeFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag:                               {},
@@ -276,7 +278,7 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 	}
 
 	if s.MaskingPattern != "" || s.PlaintextSide != "" {
-		if err = maskingCommon.ValidateMaskingParams(s.MaskingPattern, s.PartialPlaintextLenBytes, s.PlaintextSide); err != nil {
+		if err = maskingCommon.ValidateMaskingParams(s.MaskingPattern, s.PartialPlaintextLenBytes, s.PlaintextSide, s.GetEncryptedDataType()); err != nil {
 			return err
 		}
 		s.settingMask |= SettingMaskingFlag | SettingMaskingPlaintextLengthFlag | SettingMaskingPlaintextSideFlag
