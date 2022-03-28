@@ -88,10 +88,18 @@ func PgEncodeToHexString(data []byte) []byte {
 	return newVal
 }
 
-// PostgresqlDBDataCoder implement DBDataCoder for PostgreSQL
+// PostgresqlDBDataCoder responsible to handle decoding/encoding SQL literals before/after QueryEncryptor handlers
+//
+// Acra captures SQL queries like `INSERT INTO users (age, username, email, photo) VALUES (123, 'john_wick', 'johnwick@mail.com', '\xaabbcc');`
+// and manipulates with SQL values `123`, `'john_wick'`, `'johnwick@mail.com'`, `'\xaabbcc'`. On first stage Acra
+// decodes with Decode method values from SQL literals into binary or leave as is. For example hex encoded values decoded into binary"
+// `'\xaabbcc'` decoded into []byte{170,187,204} and passed to QueryEncryptor's callbacks `EncryptWith[Client|Zone]ID`
+// After that it should be encoded with Encode method from binary form into SQL to replace values in the query.
 type PostgresqlDBDataCoder struct{}
 
-// Decode literal in expression to binary
+// Decode hex/escaped literals to raw binary values for encryption/decryption. String values left as is because it
+// doesn't need any decoding. Historically Int values had support only for tokenization and operated over string SQL
+// literals.
 func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
@@ -137,13 +145,16 @@ func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, 
 			hex.Encode(output, data)
 			return output, nil
 		case sqlparser.IntVal:
+			// QueryDataEncryptor can tokenize INT SQL literal and we should not do anything because it is still valid
+			// INT literal. Also, handler can encrypt data and replace SQL literal with encrypted data as []byte result.
+			// Due to invalid format for INT literals, we should encode it as valid hex encoded binary value and change
+			// type of SQL token for sqlparser that encoded into final SQL string
+
 			// if data was just tokenized, so we return it as is because it is valid int literal
 			if _, err := strconv.Atoi(string(data)); err == nil {
 				return data, nil
 			}
-			// otherwise here we work with encrypted int literal and took binary data that we should pass forward
-			// as encoded into hex. So change type to StrVal and pass flow below to encode as it was binary data encoded
-			// with hex
+			// otherwise change type and pass it below for hex encoding
 			val.Type = sqlparser.StrVal
 			fallthrough
 		case sqlparser.PgEscapeString, sqlparser.StrVal:
