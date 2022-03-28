@@ -264,6 +264,9 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 	if s.DefaultDataValue != nil {
 		s.settingMask |= SettingDefaultDataValueFlag
 	}
+	if err = common2.ValidateDefaultValue(s.DefaultDataValue, dataType); err != nil {
+		return fmt.Errorf("invalid default value: %w", err)
+	}
 
 	if s.Tokenized {
 		s.settingMask |= SettingTokenizationFlag

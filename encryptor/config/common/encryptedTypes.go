@@ -1,6 +1,10 @@
 package common
 
-import "errors"
+import (
+	"errors"
+	"strconv"
+	"unicode/utf8"
+)
 
 // ParseStringEncryptedType parse string value to EncryptedType value
 func ParseStringEncryptedType(value string) (EncryptedType, error) {
@@ -57,4 +61,31 @@ func ValidateEncryptedType(value EncryptedType) error {
 		return ErrUnsupportedEncryptedType
 	}
 	return nil
+}
+
+// ValidateDefaultValue default value according to EncryptedType
+//
+// str -> validates utf8 string
+// bytes - do nothing
+// int32/64 - try parse string as integer value with base 10
+func ValidateDefaultValue(value *string, dataType EncryptedType) (err error) {
+	if value == nil {
+		return nil
+	}
+	switch dataType {
+	case EncryptedType_Int32:
+		_, err = strconv.ParseInt(*value, 10, 32)
+		return err
+	case EncryptedType_Int64:
+		_, err = strconv.ParseInt(*value, 10, 64)
+		return err
+	case EncryptedType_String:
+		if !utf8.ValidString(*value) {
+			return errors.New("invalid utf8 string")
+		}
+		return nil
+	case EncryptedType_Bytes:
+		return nil
+	}
+	return errors.New("not supported EncryptedType")
 }
