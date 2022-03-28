@@ -23,6 +23,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/cossacklabs/acra/encryptor"
+	"github.com/cossacklabs/acra/encryptor/config"
 	"net"
 	"time"
 
@@ -674,7 +675,7 @@ func (proxy *PgProxy) handleParameterDescription(ctx context.Context, packet *Pa
 		if setting == nil {
 			continue
 		}
-		if setting.OnlyEncryption() || setting.IsSearchable() {
+		if config.HasTypeAwareSupport(setting) {
 			newOID, ok := mapEncryptedTypeToOID(setting.GetEncryptedDataType())
 			if ok {
 				parameterDescription.ParameterOIDs[i] = newOID
@@ -720,7 +721,7 @@ func (proxy *PgProxy) handleRowDescription(ctx context.Context, packet *PacketHa
 		if setting == nil {
 			continue
 		}
-		if setting.Setting().OnlyEncryption() || setting.Setting().IsSearchable() {
+		if config.HasTypeAwareSupport(setting.Setting()) {
 			newOID, ok := mapEncryptedTypeToOID(setting.Setting().GetEncryptedDataType())
 			if ok {
 				rowDescription.Fields[i].DataTypeOID = newOID

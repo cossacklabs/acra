@@ -407,3 +407,17 @@ func (s *BasicColumnEncryptionSetting) applyDefaults(defaults defaultValues) {
 		}
 	}
 }
+
+// HasTypeAwareSupport return true if setting configured for decryption with type awareness
+func HasTypeAwareSupport(setting ColumnEncryptionSetting) bool {
+	maskingSupport := setting.GetMaskingPattern() != ""
+	switch setting.GetEncryptedDataType() {
+	//case common2.EncryptedType_String, common2.EncryptedType_Bytes:
+	case common2.EncryptedType_String, common2.EncryptedType_Bytes, common2.EncryptedType_Int32, common2.EncryptedType_Int64:
+		break
+	default:
+		// intX not supported masking with type awareness
+		maskingSupport = false
+	}
+	return setting.OnlyEncryption() || setting.IsSearchable() || maskingSupport
+}
