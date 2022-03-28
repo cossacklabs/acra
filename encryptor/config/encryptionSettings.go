@@ -417,7 +417,6 @@ func (s *BasicColumnEncryptionSetting) applyDefaults(defaults defaultValues) {
 func HasTypeAwareSupport(setting ColumnEncryptionSetting) bool {
 	maskingSupport := setting.GetMaskingPattern() != ""
 	switch setting.GetEncryptedDataType() {
-	//case common2.EncryptedType_String, common2.EncryptedType_Bytes:
 	case common2.EncryptedType_String, common2.EncryptedType_Bytes, common2.EncryptedType_Int32, common2.EncryptedType_Int64:
 		break
 	default:

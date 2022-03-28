@@ -50,7 +50,6 @@ func ValidateMaskingParams(pattern string, plaintextLength int, plaintextSide Pl
 		return ErrInvalidPlaintextSide
 	}
 	switch dataType {
-	//case common2.EncryptedType_String, common2.EncryptedType_Bytes:
 	case common.EncryptedType_String, common.EncryptedType_Bytes:
 		break
 	default:
