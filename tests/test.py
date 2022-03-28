@@ -5757,7 +5757,6 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
             default_args = {
                 'acra-server': ['-db_host=127.0.0.1'],
                 'acra-keys': [],
-                'acra-heartbeat': ['--logging_format=plaintext'],
             }
             for service in services:
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
@@ -5780,7 +5779,6 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
             default_args = {
                 'acra-server': ['-db_host=127.0.0.1'],
                 'acra-keys': [],
-                'acra-heartbeat': ['--logging_format=plaintext'],
             }
             for service in services:
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
@@ -5807,9 +5805,6 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
 
             default_args = {
                 'acra-addzone': ['-keys_output_dir={}'.format(KEYS_FOLDER.name)],
-                'acra-heartbeat': {'args': ['--logging_format=plaintext',
-                                            '--connection_string=please-fail'],
-                                   'status': 1},
                 'acra-keymaker': ['-keys_output_dir={}'.format(tmp_dir),
                                   '-keys_public_output_dir={}'.format(tmp_dir),
                                   '--keystore={}'.format(KEYSTORE_VERSION)],
@@ -5850,9 +5845,6 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
         with tempfile.TemporaryDirectory() as tmp_dir:
             default_args = {
                 'acra-addzone': ['-keys_output_dir={}'.format(KEYS_FOLDER.name)],
-                'acra-heartbeat': {'args': ['--logging_format=plaintext',
-                                            '--connection_string=please-fail'],
-                                   'status': 1},
                 'acra-keymaker': ['-keys_output_dir={}'.format(tmp_dir),
                                   '-keys_public_output_dir={}'.format(tmp_dir),
                                   '--keystore={}'.format(KEYSTORE_VERSION)],
@@ -6181,6 +6173,58 @@ class TestTLSAuthenticationDirectlyToAcraBySerialNumberConnectionsClosed(AcraCat
     def testServerRead(self):
         super().testServerRead()
         self.assertIn("Finished processing client's connection", self.read_log(self.acra))
+
+class TestAcraIgnoresLegacyKeys(AcraCatchLogsMixin, BaseTestCase):
+    """
+    Ensure AcraServer won't exit with error when started with flags for key caching,
+    while keystore contains legacy keys (Connector<->Server, Connector<->Translator)
+    """
+
+    legacy_key_files = [
+        'testclientid',
+        'testclientid.pub',
+        'testclientid_server',
+        'testclientid_server.pub',
+        'testclientid_translator',
+        'testclientid_translator.pub',
+    ]
+
+    def checkSkip(self):
+        super().checkSkip()
+
+        if KEYSTORE_VERSION != 'v1':
+            self.skipTest("test only for keystore v1")
+
+    def setUp(self):
+        try:
+            for key_file in self.legacy_key_files:
+                open(f"{KEYS_FOLDER.name}/{key_file}", "w").close()
+        except:
+            self.tearDown()
+            raise
+
+        super().setUp()
+
+    def tearDown(self):
+        for key_file in self.legacy_key_files:
+            try: os.remove(f"{KEYS_FOLDER.name}/{key_file}")
+            except: pass
+
+        super().tearDown()
+
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        args = {
+            'keystore_cache_size': 0,
+            'keystore_cache_on_start_enable': 'true',
+        }
+        acra_kwargs.update(args)
+        return super().fork_acra(popen_kwargs, **acra_kwargs)
+
+    def testKeysCachedSuccessfully(self):
+        self.assertIn("Cached keystore on start successfully".lower(), self.read_log(self.acra).lower())
+
+    def testLegacyKeysIgnored(self):
+        self.assertIn("Ignoring legacy key".lower(), self.read_log(self.acra).lower())
 
 
 class BaseSearchableTransparentEncryption(TestTransparentEncryption):

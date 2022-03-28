@@ -157,3 +157,6 @@ examples/cpp/Testing
 examples/cpp/cmake-build-debug/*
 examples/cpp/cmake_install.cmake
 examples/cpp/cmake-build-debug
+
+# vscode project folder
+.vscode

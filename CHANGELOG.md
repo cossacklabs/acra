@@ -19,6 +19,7 @@ _Core_:
     - Added caching metadata about rotated keys [#498](https://github.com/cossacklabs/acra/pull/498)
     - Added new flag `--keystore_cache_on_start_enable` that turns on loading all keys into in-memory cache on startup. [#497](https://github.com/cossacklabs/acra/pull/497)
     - Changed default value for `--keystore_cache_size` parameter from `-1` (which means no limits for cache) to 1000 (cache items). [#497](https://github.com/cossacklabs/acra/pull/497)
+    - Legacy keys that were used with AcraConnector are now ignored during initial caching on startup. [#510](https://github.com/cossacklabs/acra/pull/510)
 - **AcraServer**:
   - The default CryptoEnvelope has changed from `acrastruct` to `acrablock` in the encryptor_config. Now AcraServer 
     will use faster encryption by default. You can select which CryptoEnvelope to use in encryptor_config. 

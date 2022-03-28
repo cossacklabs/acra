@@ -101,8 +101,11 @@ func TestImportKeyStoreV1(t *testing.T) {
 	if err != nil {
 		t.Errorf("GetZonePrivateKey() failed: %v", err)
 	}
-	// Since we cannot access all generated key pairs via AcraServer keystore,
-	// we generate them here and use Save... API
+
+	if err = keyStoreV1.GeneratePoisonKeyPair(); err != nil {
+		t.Errorf("GeneratePoisonKeyPair() failed: %v", err)
+	}
+
 	poisonKeyPairV1, err := keyStoreV1.GetPoisonKeyPair()
 	if err != nil {
 		t.Errorf("GetPoisonKeyPair() failed: %v", err)

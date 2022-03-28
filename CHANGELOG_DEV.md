@@ -1,8 +1,12 @@
-## 0.93.0 - 2022-03-23
+## 0.93.0 - 2022-03-28
 - Transparent decryption with replacing type's metadata
 - Extend `encryptor_config` with new settings: `data_type=[int32|int64|str|bytes]` and `default_data_value: <SQL int literal | string | base64 string>`
 - Support values in text format from Postgresql's binary protocol
 - Refactored internals of data encoding/decoding, protocol processing, saving session related data
+
+## 0.93.0 - 2022-03-23
+- Remove autogeneration of poison keys on the first access (but keep in poisonrecordmaker).
+- Add warning on enabled poison detection if keys are not generated.
 
 ## 0.93.0 - 2022-03-15
 - Remove legacy flags dedicated to acra-connector from dockerfiles under the `./docker/` directory.

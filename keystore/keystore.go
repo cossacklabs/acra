@@ -106,7 +106,12 @@ type SymmetricEncryptionKeyStore interface {
 type SymmetricEncryptionKeyStoreGenerator interface {
 	GenerateClientIDSymmetricKey(id []byte) error
 	GenerateZoneIDSymmetricKey(id []byte) error
-	GeneratePoisonRecordSymmetricKey() error
+}
+
+// PoisonKeyGenerator is responsible for generation of poison keys.
+type PoisonKeyGenerator interface {
+	GeneratePoisonSymmetricKey() error
+	GeneratePoisonKeyPair() error
 }
 
 // AuditLogKeyStore keeps symmetric keys for audit log signtures.
@@ -278,7 +283,7 @@ type StorageKeyGenerator interface {
 // KeyMaking enables keystore initialization. It is used by acra-keymaker tool.
 type KeyMaking interface {
 	StorageKeyCreation
-	PoisonKeyStore
+	PoisonKeyGenerator
 	AuditLogKeyGenerator
 	HmacKeyGenerator
 	SymmetricEncryptionKeyStoreGenerator
@@ -286,11 +291,19 @@ type KeyMaking interface {
 
 // PoisonKeyStore provides access to poison record key pairs.
 type PoisonKeyStore interface {
-	// Reads current poison record key pair, creating it if it does not exist yet.
+	// Reads current poison record key pair, returning ErrKeysNotFound if it
+	// does not exist yet.
 	GetPoisonKeyPair() (*keys.Keypair, error)
 	GetPoisonPrivateKeys() ([]*keys.PrivateKey, error)
 	GetPoisonSymmetricKeys() ([][]byte, error)
 	GetPoisonSymmetricKey() ([]byte, error)
+}
+
+// PoisonKeyStorageAndGenerator has all methods to create and retrieve various
+// keys dedicated to poison records.
+type PoisonKeyStorageAndGenerator interface {
+	PoisonKeyStore
+	PoisonKeyGenerator
 }
 
 // ServerKeyStore enables AcraStruct encryption, decryption,

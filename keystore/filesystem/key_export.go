@@ -80,6 +80,7 @@ const (
 	PurposeStorageZoneKeyPair        = "zone"
 	PurposeStorageZonePrivateKey     = "private_zone"
 	PurposeStorageZonePublicKey      = "public_zone"
+	PurposeLegacy                    = "legacy"
 )
 
 // ExportPublicKey loads a public key for export.

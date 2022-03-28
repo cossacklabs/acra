@@ -56,20 +56,6 @@ func (_m *ServerKeyStore) GenerateDataEncryptionKeys(clientID []byte) error {
 	return r0
 }
 
-// GeneratePoisonRecordSymmetricKey provides a mock function with given fields:
-func (_m *ServerKeyStore) GeneratePoisonRecordSymmetricKey() error {
-	ret := _m.Called()
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func() error); ok {
-		r0 = rf()
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
 // GenerateZoneIDSymmetricKey provides a mock function with given fields: id
 func (_m *ServerKeyStore) GenerateZoneIDSymmetricKey(id []byte) error {
 	ret := _m.Called(id)
