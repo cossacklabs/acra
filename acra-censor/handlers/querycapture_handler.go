@@ -5,7 +5,6 @@ import (
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
 	log "github.com/sirupsen/logrus"
-	"strings"
 )
 
 // QueryCaptureHandler provides logging mechanism of censor
@@ -58,36 +57,4 @@ func (handler *QueryCaptureHandler) DumpQueries() error {
 		return err
 	}
 	return nil
-}
-
-// MarkQueryAsForbidden marks particular query as forbidden.
-// Expects redacted query
-func (handler *QueryCaptureHandler) MarkQueryAsForbidden(query string) error {
-	_, queryWithHiddenValues, _, err := handler.parser.HandleRawSQLQuery(query)
-	if err != nil {
-		handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).Errorln("Can't mark query as forbidden")
-		return err
-	}
-	err = handler.writer.WalkQueries(func(queryInfo *common.QueryInfo) error {
-		if strings.EqualFold(queryInfo.RawQuery, queryWithHiddenValues) {
-			queryInfo.IsForbidden = true
-		}
-		return nil
-	})
-	return err
-}
-
-// GetForbiddenQueries returns a list of non-masked forbidden RawQueries.
-func (handler *QueryCaptureHandler) GetForbiddenQueries() []string {
-	var forbiddenQueries []string
-	err := handler.writer.WalkQueries(func(queryInfo *common.QueryInfo) error {
-		if queryInfo.IsForbidden {
-			forbiddenQueries = append(forbiddenQueries, queryInfo.RawQuery)
-		}
-		return nil
-	})
-	if err != nil {
-		handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorWriterMemoryError).Errorln("Can't get forbidden queries")
-	}
-	return forbiddenQueries
 }

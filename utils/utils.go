@@ -23,7 +23,6 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"io"
 	"io/ioutil"
-	"reflect"
 	"sync"
 	"time"
 	"unsafe"
@@ -230,11 +229,10 @@ func WaitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 // BytesToString converts data to string with re-using same allocated memory
 // Warning: data shouldn't be changed after that because it will cause runtime error due to strings are immutable
 // Only for read/iterate operations
+// See https://groups.google.com/forum/#!msg/Golang-Nuts/ENgbUzYvCuU/90yGx7GUAgAJ .
+//
+// Note it may break if string and/or slice header will change
+// in the future go versions.
 func BytesToString(data []byte) string {
-	if len(data) == 0 {
-		return ""
-	}
-	sliceHeader := (*reflect.SliceHeader)(unsafe.Pointer(&data))
-	stringHeader := reflect.StringHeader{Data: sliceHeader.Data, Len: sliceHeader.Len}
-	return *(*string)(unsafe.Pointer(&stringHeader))
+	return *(*string)(unsafe.Pointer(&data))
 }

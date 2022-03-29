@@ -2,6 +2,8 @@ package crypto
 
 import (
 	"context"
+	"errors"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
@@ -32,6 +34,8 @@ func (recognizer *PoisonRecordDetector) SetPoisonRecordCallbacks(callbacks base.
 // OnCryptoEnvelope implementation of EnvelopeCallbackHandler for poison records detections
 func (recognizer PoisonRecordDetector) OnCryptoEnvelope(ctx context.Context, container []byte) ([]byte, error) {
 	logger := logging.GetLoggerFromContext(ctx)
+	logger.Debugln("Searching for poison records")
+
 	if !recognizer.callbacks.HasCallbacks() {
 		logger.Debugln("Skip poison record check due to empty callbacks")
 		return container, nil
@@ -44,6 +48,12 @@ func (recognizer PoisonRecordDetector) OnCryptoEnvelope(ctx context.Context, con
 		Keystore: NewPoisonRecordKeyStoreWrapper(recognizer.keyStore),
 		Context:  poisonCtx,
 	})
+
+	if errors.Is(err, keystore.ErrKeysNotFound) {
+		logger.Warningln("Skip poison record check due to a lack of poison keys")
+		return container, nil
+	}
+
 	if err == nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorRecognizedPoisonRecord).Warningln("Recognized poison record")
 		if recognizer.callbacks.HasCallbacks() {

@@ -5,15 +5,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"io"
+	"net"
+	"testing"
+	"time"
+
 	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/cmd/acra-server/common"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/sirupsen/logrus"
-	"io"
-	"net"
-	"testing"
-	"time"
 )
 
 func TestDataRowLastEmptyColumn(t *testing.T) {
@@ -142,6 +143,8 @@ func TestPreparedStatementRegistering(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Test as if one of the startup messages is received
+	packet.started = true
 	if err = packet.ReadClientPacket(); err != nil {
 		t.Fatal(err)
 	}

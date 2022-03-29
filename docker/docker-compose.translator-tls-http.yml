@@ -37,8 +37,6 @@ services:
             --incoming_connection_http_string=http://0.0.0.0:9595
             --keys_dir=/keys
             --keystore_cache_size=100
-            --acratranslator_tls_transport_enable
-            --acraconnector_transport_encryption_disable
             --tls_auth=4
             --tls_ca=/ssl.ca/example.cossacklabs.com.crt
             --tls_cert=/ssl.translator/acra-translator.crt

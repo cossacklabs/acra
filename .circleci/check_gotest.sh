@@ -14,6 +14,15 @@ if [ -z "$GO_VERSIONS" ]; then
     GO_VERSIONS="$(readlink $GOROOT)"
 fi
 
+# for local run
+if [ -z "$GO_VERSIONS" ]; then
+  echo 'Run tests with local golang executable'
+  go test -tags="${TEST_BUILD_TAGS}" ${TEST_EXTRA_BUILD_FLAGS} ./...;
+  status="$?"
+  exit $status
+fi
+
+# for circleci run
 for go_version in $GO_VERSIONS; do
     export GOROOT="/usr/local/lib/go/$go_version"
 

@@ -66,8 +66,29 @@ var validSettings = map[SettingMask]struct{}{
 	/////////////
 	// DataType tampering
 	/////////////
+
+	// AcraBlock
+
+	// ClientID
 	SettingDataTypeFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag:                               {},
 	SettingDataTypeFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag: {},
+
+	SettingDataTypeFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag | SettingMaskingFlag | SettingMaskingPlaintextLengthFlag | SettingMaskingPlaintextSideFlag: {},
+
+	// ZoneID
+
+	SettingDataTypeFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag:                               {},
+	SettingDataTypeFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag: {},
+
+	// AcraStruct
+	// ClientID
+	SettingDataTypeFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag:                               {},
+	SettingDataTypeFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag: {},
+
+	// ZoneID
+
+	SettingDataTypeFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag:                               {},
+	SettingDataTypeFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag: {},
 
 	/////////////
 	// SEARCHABLE
@@ -243,6 +264,9 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 	if s.DefaultDataValue != nil {
 		s.settingMask |= SettingDefaultDataValueFlag
 	}
+	if err = common2.ValidateDefaultValue(s.DefaultDataValue, dataType); err != nil {
+		return fmt.Errorf("invalid default value: %w", err)
+	}
 
 	if s.Tokenized {
 		s.settingMask |= SettingTokenizationFlag
@@ -257,7 +281,7 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 	}
 
 	if s.MaskingPattern != "" || s.PlaintextSide != "" {
-		if err = maskingCommon.ValidateMaskingParams(s.MaskingPattern, s.PartialPlaintextLenBytes, s.PlaintextSide); err != nil {
+		if err = maskingCommon.ValidateMaskingParams(s.MaskingPattern, s.PartialPlaintextLenBytes, s.PlaintextSide, s.GetEncryptedDataType()); err != nil {
 			return err
 		}
 		s.settingMask |= SettingMaskingFlag | SettingMaskingPlaintextLengthFlag | SettingMaskingPlaintextSideFlag
@@ -359,7 +383,7 @@ func (s *BasicColumnEncryptionSetting) IsEndMasking() bool {
 func (s *BasicColumnEncryptionSetting) GetEncryptedDataType() common2.EncryptedType {
 	// If the configuration file contains some unknown or unsupported token type,
 	// return some safe default.
-	const defaultDataType = common2.EncryptedType_Unknown
+	const defaultDataType = common2.EncryptedType_Bytes
 	dataType, err := common2.ParseStringEncryptedType(s.DataType)
 	if err != nil {
 		return defaultDataType
@@ -387,4 +411,17 @@ func (s *BasicColumnEncryptionSetting) applyDefaults(defaults defaultValues) {
 			s.ReEncryptToAcraBlock = &v
 		}
 	}
+}
+
+// HasTypeAwareSupport return true if setting configured for decryption with type awareness
+func HasTypeAwareSupport(setting ColumnEncryptionSetting) bool {
+	maskingSupport := setting.GetMaskingPattern() != ""
+	switch setting.GetEncryptedDataType() {
+	case common2.EncryptedType_String, common2.EncryptedType_Bytes, common2.EncryptedType_Int32, common2.EncryptedType_Int64:
+		break
+	default:
+		// intX not supported masking with type awareness
+		maskingSupport = false
+	}
+	return setting.OnlyEncryption() || setting.IsSearchable() || maskingSupport
 }

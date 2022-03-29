@@ -210,3 +210,13 @@ func (p ProxyError) Unwrap() error {
 func (p ProxyError) InterruptSide() string {
 	return p.interruptSide
 }
+
+// OnlyDefaultEncryptorSettings returns true if config contains settings only for transparent decryption that works by default
+func OnlyDefaultEncryptorSettings(store config.TableSchemaStore) bool {
+	storeMask := store.GetGlobalSettingsMask()
+	return storeMask&(config.SettingSearchFlag|
+		config.SettingMaskingFlag|
+		config.SettingTokenizationFlag|
+		config.SettingDefaultDataValueFlag|
+		config.SettingDataTypeFlag) == 0
+}

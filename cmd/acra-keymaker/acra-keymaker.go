@@ -26,10 +26,11 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
-	"github.com/cossacklabs/acra/network"
 	"io/ioutil"
 	"os"
 	"strings"
+
+	"github.com/cossacklabs/acra/network"
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
@@ -183,12 +184,12 @@ func main() {
 
 	if *poisonRecord {
 		// Generate poison record symmetric key
-		if err = store.GeneratePoisonRecordSymmetricKey(); err != nil {
+		if err = store.GeneratePoisonSymmetricKey(); err != nil {
 			panic(err)
 		}
 		fmt.Println("Generated symmetric key for poison records")
 		// Generate poison record keypair
-		if _, err = store.GetPoisonKeyPair(); err != nil {
+		if err = store.GeneratePoisonKeyPair(); err != nil {
 			panic(err)
 		}
 		fmt.Println("Generated keypair for poison records")
@@ -247,12 +248,12 @@ func main() {
 		}
 		fmt.Println("Generated storage symmetric key for clientID")
 		// Generate poison record symmetric key
-		if err = store.GeneratePoisonRecordSymmetricKey(); err != nil {
+		if err = store.GeneratePoisonSymmetricKey(); err != nil {
 			panic(err)
 		}
 		fmt.Println("Generated symmetric key for poison records")
 		// Generate poison record keypair
-		if _, err = store.GetPoisonKeyPair(); err != nil {
+		if err = store.GeneratePoisonKeyPair(); err != nil {
 			panic(err)
 		}
 		fmt.Println("Generated keypair for poison records")

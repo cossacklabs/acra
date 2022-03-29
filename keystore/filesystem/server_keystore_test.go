@@ -279,6 +279,44 @@ func testGenerateConnectorKeys(store *KeyStore, t *testing.T) {
 
 }
 
+func testGeneratePoissonSymmetricKey(store *KeyStore, t *testing.T) {
+	err := store.GeneratePoisonSymmetricKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyPath := store.GetPrivateKeyFilePath(getSymmetricKeyName(PoisonKeyFilename))
+	exists, err := store.fs.Exists(keyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		t.Fatal("Poisson symmetic key doesn't exists")
+	}
+}
+
+func testGeneratePoissonKeyPair(store *KeyStore, t *testing.T) {
+	err := store.GeneratePoisonKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	privatePath := store.GetPrivateKeyFilePath(PoisonKeyFilename)
+	exists, err := store.fs.Exists(privatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		t.Fatal("Poisson private key doesn't exists")
+	}
+	publicPath := store.GetPublicKeyFilePath(PoisonKeyFilename + ".pub")
+	exists, err = store.fs.Exists(publicPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		t.Fatal("Poisson public key doesn't exists")
+	}
+}
+
 func testReset(store *KeyStore, t *testing.T) {
 	testID := []byte("some test id")
 	if err := store.GenerateServerKeys(testID); err != nil {
@@ -417,6 +455,26 @@ func testGetPoisonSymmetricKey(store *KeyStore, t *testing.T) {
 	}
 }
 
+func testGetPoisonKeyPair(store *KeyStore, t *testing.T) {
+	keypair1, err := store.GetPoisonKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	keypair2, err := store.GetPoisonKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(keypair1.Public.Value, keypair2.Public.Value) {
+		t.Fatal("Two calls to GetPoisonKeyPair() returned different public keys")
+	}
+
+	if !bytes.Equal(keypair1.Private.Value, keypair2.Private.Value) {
+		t.Fatal("Two calls to GetPoisonKeyPair() returned different private keys")
+	}
+}
+
 func testFilesystemKeyStoreBasic(storage Storage, t *testing.T) {
 	privateKeyDirectory := fmt.Sprintf(".%s%s", string(filepath.Separator), "cache")
 	storage.MkdirAll(privateKeyDirectory, 0700)
@@ -479,6 +537,9 @@ func testFilesystemKeyStoreBasic(storage Storage, t *testing.T) {
 		testWriteKeyFileUncreatedDir(store, t)
 		testGetClientIDEncryptionPublicKey(store, t)
 		testGetSymmetricKey(store, t)
+
+		testGeneratePoissonSymmetricKey(store, t)
+		testGeneratePoissonKeyPair(store, t)
 		testGetPoisonSymmetricKey(store, t)
 	}
 }
@@ -693,26 +754,16 @@ func testFilesystemKeyStoreWithOnlyCachedData(storage Storage, t *testing.T) {
 	if err := store.GenerateClientIDSymmetricKey(testID); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.GenerateTokenSymmetricKey(testID, keystore.KeyOwnerTypeClient); err != nil {
+	if err := store.GeneratePoisonSymmetricKey(); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.GenerateTokenSymmetricKey(testID, keystore.KeyOwnerTypeClient); err != nil {
+	if err := store.GeneratePoisonSymmetricKey(); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.GeneratePoisonRecordSymmetricKey(); err != nil {
+	if err := store.GeneratePoisonKeyPair(); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.GeneratePoisonRecordSymmetricKey(); err != nil {
-		t.Fatal(err)
-	}
-	// we don't have public function to generate poison record keypair because it's generated on first fetch operation
-	// if they don't exists
-	if _, err := store.generateKeyPair(PoisonKeyFilename, []byte(PoisonKeyFilename)); err != nil {
-		t.Fatal(err)
-	}
-	// we don't have public function to generate poison record keypair because it's generated on first fetch operation
-	// if they don't exists
-	if _, err := store.generateKeyPair(PoisonKeyFilename, []byte(PoisonKeyFilename)); err != nil {
+	if err := store.GeneratePoisonKeyPair(); err != nil {
 		t.Fatal(err)
 	}
 	zoneID, _, err := store.GenerateZoneKey()
@@ -748,10 +799,6 @@ func testFilesystemKeyStoreWithOnlyCachedData(storage Storage, t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = store.GetClientIDSymmetricKeys(testID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = store.GetDecryptionTokenSymmetricKeys(testID, keystore.KeyOwnerTypeClient)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -806,14 +853,6 @@ func testFilesystemKeyStoreWithOnlyCachedData(storage Storage, t *testing.T) {
 	}
 	if len(symKeys) != 2 {
 		t.Fatal("ClientID sym keys not cached")
-	}
-
-	symKeys, err = store.GetDecryptionTokenSymmetricKeys(testID, keystore.KeyOwnerTypeClient)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(symKeys) != 2 {
-		t.Fatal("Token sym keys not cached")
 	}
 
 	symKeys, err = store.GetPoisonSymmetricKeys()
@@ -990,8 +1029,11 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetZonePrivateKey() failed: %v", err)
 	}
-	// Since we cannot access all generated key pairs via AcraServer keystore,
-	// we generate them here and use Save... API
+
+	if err = keyStore.GeneratePoisonKeyPair(); err != nil {
+		t.Fatalf("GeneratePoisonKeyPair() failed: %v", err)
+	}
+
 	poisonKeyPair, err := keyStore.GetPoisonKeyPair()
 	if err != nil {
 		t.Fatalf("GetPoisonKeyPair() failed: %v", err)
@@ -1211,7 +1253,32 @@ func TestKeyStore_GetPoisonKeyPair(t *testing.T) {
 			t.Fatal("Unexpected cached poison public key")
 		}
 	})
-	// we don't have api to generate keypair because keystore generates it automatically on first request
+
+	t.Run("Check keys don't generate on Get", func(t *testing.T) {
+		_, err := keyStore.GetPoisonKeyPair()
+		if err != keystore.ErrKeysNotFound {
+			t.Fatalf("Expected ErrKeysNotFound, but got %v", err)
+		}
+
+		_, err = keyStore.GetPoisonSymmetricKey()
+		if err != keystore.ErrKeysNotFound {
+			t.Fatalf("Expected ErrKeysNotFound, but got %v", err)
+		}
+
+		_, err = keyStore.GetPoisonPrivateKeys()
+		if err != keystore.ErrKeysNotFound {
+			t.Fatalf("Expected ErrKeysNotFound, but got %v", err)
+		}
+		_, err = keyStore.GetPoisonSymmetricKeys()
+		if err != keystore.ErrKeysNotFound {
+			t.Fatalf("Expected ErrKeysNotFound, but got %v", err)
+		}
+	})
+
+	if err = keyStore.GeneratePoisonKeyPair(); err != nil {
+		t.Fatal(err)
+	}
+
 	keyPair, err := keyStore.GetPoisonKeyPair()
 	if err != nil {
 		t.Fatal(err)
@@ -1245,6 +1312,194 @@ func TestKeyStore_GetPoisonKeyPair(t *testing.T) {
 		}
 		if !bytes.Equal(keyPair2.Private.Value, keyPair.Private.Value) {
 			t.Fatal("Took unexpected new keypair's private key")
+		}
+	})
+}
+
+func getKeystore() (*KeyStore, string, error) {
+	keyDir, err := ioutil.TempDir(os.TempDir(), "testKeystore")
+
+	encryptor, err := keystore.NewSCellKeyEncryptor([]byte("some key"))
+	if err != nil {
+		return nil, "", err
+	}
+	keyStore, err := NewCustomFilesystemKeyStore().
+		KeyDirectory(keyDir).
+		Encryptor(encryptor).
+		Storage(&fileStorage{}).
+		Build()
+	return keyStore, keyDir, nil
+}
+
+func TestPoisonKeyGeneration(t *testing.T) {
+	keyStore, path, err := getKeystore()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer os.RemoveAll(path)
+
+	t.Run("Poison keys don't generate on Get", func(t *testing.T) {
+		_, err := keyStore.GetPoisonKeyPair()
+		if err != keystore.ErrKeysNotFound {
+			t.Fatalf("Expected ErrKeysNotFound, but got %v", err)
+		}
+
+		_, err = keyStore.GetPoisonSymmetricKey()
+		if err != keystore.ErrKeysNotFound {
+			t.Fatalf("Expected ErrKeysNotFound, but got %v", err)
+		}
+
+		_, err = keyStore.GetPoisonPrivateKeys()
+		if err != keystore.ErrKeysNotFound {
+			t.Fatalf("Expected ErrKeysNotFound, but got %v", err)
+		}
+		_, err = keyStore.GetPoisonSymmetricKeys()
+		if err != keystore.ErrKeysNotFound {
+			t.Fatalf("Expected ErrKeysNotFound, but got %v", err)
+		}
+	})
+
+	t.Run("Poison keys can be generated", func(t *testing.T) {
+		err := keyStore.GeneratePoisonKeyPair()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = keyStore.GeneratePoisonSymmetricKey()
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("Poison key are generated successfully", func(t *testing.T) {
+		keyPair, err := keyStore.GetPoisonKeyPair()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		symKey, err := keyStore.GetPoisonSymmetricKey()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(symKey) != keystore.SymmetricKeyLength {
+			t.Fatalf("Wrong length: expected %d, but got %d", keystore.SymmetricKeyLength, len(symKey))
+		}
+
+		privateKeys, err := keyStore.GetPoisonPrivateKeys()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(privateKeys) != 1 {
+			t.Fatalf("Wrong number of private keys: expected 1, but got %d", len(privateKeys))
+		}
+		if !bytes.Equal(privateKeys[0].Value, keyPair.Private.Value) {
+			t.Fatal("Private keys are not equal")
+		}
+
+		symKeys, err := keyStore.GetPoisonSymmetricKeys()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(symKeys) != 1 {
+			t.Fatalf("Wrong number of symmetric keys: expected 1, but got %d", len(symKeys))
+		}
+		if !bytes.Equal(symKeys[0], symKey) {
+			t.Fatal("Symmetric keys are not equal")
+		}
+	})
+
+	t.Run("Poison keys can be rotated", func(t *testing.T) {
+		// Save old keys
+		oldKeyPair, err := keyStore.GetPoisonKeyPair()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		oldSymKey, err := keyStore.GetPoisonSymmetricKey()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Generate new ones
+		err = keyStore.GeneratePoisonKeyPair()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = keyStore.GeneratePoisonSymmetricKey()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// TODO: for some reasons, new keys are not added to the cache. This
+		// resuts in a retrieval of wrong key.
+		// In theory, that's not a problem for Acra, because keys are generated
+		// and used by different entities (keymaker and Acra-server), but still
+		// could be an issue, if someone wants to rotate keys on the fly.
+		// .CacheSize(0) don't help
+		keyStore.cache.Clear()
+
+		// Retrieve new ones
+		newKeyPair, err := keyStore.GetPoisonKeyPair()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		newSymKey, err := keyStore.GetPoisonSymmetricKey()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		privateKeys, err := keyStore.GetPoisonPrivateKeys()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		symKeys, err := keyStore.GetPoisonSymmetricKeys()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Compare
+
+		if bytes.Equal(oldKeyPair.Private.Value, newKeyPair.Private.Value) {
+			t.Fatal("Private keys are equal after rotation")
+		}
+
+		if bytes.Equal(oldKeyPair.Public.Value, newKeyPair.Public.Value) {
+			t.Fatal("Public keys are equal after rotation")
+		}
+
+		if bytes.Equal(oldSymKey, newSymKey) {
+			t.Fatal("Symmetric keys are equal after rotation")
+		}
+
+		if len(privateKeys) != 2 {
+			t.Fatalf("Wrong number of private keys: expected 2, but got %d", len(privateKeys))
+		}
+		if len(symKeys) != 2 {
+			t.Fatalf("Wrong number of symmetric keys: expected 2, but got %d", len(symKeys))
+		}
+
+		if !bytes.Equal(privateKeys[0].Value, newKeyPair.Private.Value) {
+			t.Fatal("First private key should be the newest one")
+		}
+
+		if !bytes.Equal(privateKeys[1].Value, oldKeyPair.Private.Value) {
+			t.Fatal("First private key should be the oldest one")
+		}
+
+		if !bytes.Equal(privateKeys[0].Value, newKeyPair.Private.Value) {
+			t.Fatal("First private key should be the newest one")
+		}
+
+		if !bytes.Equal(symKeys[0], newSymKey) {
+			t.Fatal("First symmetric key should be the newest one")
+		}
+
+		if !bytes.Equal(symKeys[1], oldSymKey) {
+			t.Fatal("Second symmetric key should be the oldest one")
 		}
 	})
 }

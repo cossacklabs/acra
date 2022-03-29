@@ -22,6 +22,14 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"io/ioutil"
+	"net"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
 	translatorCommon "github.com/cossacklabs/acra/cmd/acra-translator/common"
 	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/keystore"
@@ -33,13 +41,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
-	"io/ioutil"
-	"net"
-	"os"
-	"path/filepath"
-	"strings"
-	"testing"
-	"time"
 
 	"github.com/cossacklabs/acra/keystore/mocks"
 	"github.com/cossacklabs/acra/pseudonymization"
@@ -357,6 +358,32 @@ func (t *testPoisonCallback) Call() error {
 	return nil
 }
 
+// poisonKeyStorageAndGeneratorStub provides a simple wrapper around
+// mocks.ServerKeyStore. That's because the ServerKeyStore doesn't implement
+// PoisonKeyStorageAndGenerator which we need to generate poison records.
+type poisonKeyStorageAndGeneratorStub struct {
+	keyStorage *mocks.ServerKeyStore
+}
+
+func (s *poisonKeyStorageAndGeneratorStub) GetPoisonKeyPair() (*keys.Keypair, error) {
+	return s.keyStorage.GetPoisonKeyPair()
+}
+func (s *poisonKeyStorageAndGeneratorStub) GetPoisonPrivateKeys() ([]*keys.PrivateKey, error) {
+	return s.keyStorage.GetPoisonPrivateKeys()
+}
+func (s *poisonKeyStorageAndGeneratorStub) GetPoisonSymmetricKeys() ([][]byte, error) {
+	return s.keyStorage.GetPoisonSymmetricKeys()
+}
+func (s *poisonKeyStorageAndGeneratorStub) GetPoisonSymmetricKey() ([]byte, error) {
+	return s.keyStorage.GetPoisonSymmetricKey()
+}
+func (s *poisonKeyStorageAndGeneratorStub) GeneratePoisonSymmetricKey() error {
+	return nil
+}
+func (s *poisonKeyStorageAndGeneratorStub) GeneratePoisonKeyPair() error {
+	return nil
+}
+
 func TestTranslatorService_DecryptionPoisonRecord(t *testing.T) {
 	type testCase struct {
 		ClientID []byte
@@ -392,7 +419,7 @@ func TestTranslatorService_DecryptionPoisonRecord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	poisonRecord, err := poison.CreateSymmetricPoisonRecord(keyStorage, 100)
+	poisonRecord, err := poison.CreateSymmetricPoisonRecord(&poisonKeyStorageAndGeneratorStub{keyStorage}, 100)
 	if err != nil {
 		t.Fatal(err)
 	}
