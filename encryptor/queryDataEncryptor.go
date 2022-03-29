@@ -436,8 +436,6 @@ func (encryptor *QueryDataEncryptor) OnQuery(ctx context.Context, query base.OnQ
 	changed := false
 	// collect placeholder in queries to save for future ParameterDescription packet to replace according to
 	// setting's data type
-	//
-	// 32 as initial size to avoid future re-allocation. looks like enough for a lot of apps
 	clientSession := base.ClientSessionFromContext(ctx)
 	bindPlaceholders := PlaceholderSettingsFromClientSession(clientSession)
 	switch typedStatement := statement.(type) {
