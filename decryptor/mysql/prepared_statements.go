@@ -187,7 +187,11 @@ func (m *mysqlBoundValue) Copy() base.BoundValue {
 
 // SetData set new value to BoundValue using ColumnEncryptionSetting if provided
 func (m *mysqlBoundValue) SetData(newData []byte, setting config.ColumnEncryptionSetting) error {
-	m.textData = newData
+	// means that we set encrypted data
+	if !bytes.Equal(m.textData, newData) {
+		m.paramType = TypeBlob
+		m.textData = newData
+	}
 
 	if setting == nil {
 		return nil

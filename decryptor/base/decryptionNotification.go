@@ -12,6 +12,7 @@ type ColumnInfo interface {
 	Alias() string
 	IsBinaryFormat() bool
 	DataBinarySize() int
+	DataBinaryType() byte
 }
 
 type columnInfo struct {
@@ -19,6 +20,7 @@ type columnInfo struct {
 	alias          string
 	binary         bool
 	dataBinarySize int
+	dataBinaryType byte
 }
 
 // Index return index of column in a row start from 0 and from left
@@ -29,6 +31,11 @@ func (info columnInfo) Index() int {
 // DataBinarySize return size of data
 func (info columnInfo) DataBinarySize() int {
 	return info.dataBinarySize
+}
+
+// DataBinaryType return type of data
+func (info columnInfo) DataBinaryType() byte {
+	return info.dataBinaryType
 }
 
 // IsBinaryFormat return true if column data in binary DB specific format
@@ -42,8 +49,8 @@ func (info columnInfo) Alias() string {
 }
 
 // NewColumnInfo return ColumnInfo implementation for metadata
-func NewColumnInfo(index int, alias string, binaryFormat bool, size int) ColumnInfo {
-	return columnInfo{index: index, alias: alias, binary: binaryFormat, dataBinarySize: size}
+func NewColumnInfo(index int, alias string, binaryFormat bool, size int, dataType byte) ColumnInfo {
+	return columnInfo{index: index, alias: alias, binary: binaryFormat, dataBinarySize: size, dataBinaryType: dataType}
 }
 
 // ColumnInfoFromContext return ColumnInfo and true if was assigned, otherwise empty ColumnInfo and false

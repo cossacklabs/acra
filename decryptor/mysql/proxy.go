@@ -77,6 +77,8 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 		proxy.SubscribeOnAllColumnsDecryption(queryEncryptor)
 	}
 
+	proxy.SubscribeOnAllColumnsDecryption(NewDecodeMySQLDataEncoderProcessor())
+
 	// poison record processor should be first
 	if factory.setting.PoisonRecordCallbackStorage() != nil && factory.setting.PoisonRecordCallbackStorage().HasCallbacks() {
 		// setting PoisonRecords callback for CryptoHandlers inside registry
@@ -160,6 +162,8 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 	}
 	proxy.AddQueryObserver(queryEncryptor)
 	proxy.SubscribeOnAllColumnsDecryption(queryEncryptor)
+
+	proxy.SubscribeOnAllColumnsDecryption(NewEncodeMySQLDataEncoderProcessor())
 
 	return proxy, nil
 }
