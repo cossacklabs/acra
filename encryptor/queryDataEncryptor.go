@@ -115,7 +115,12 @@ func (encryptor *QueryDataEncryptor) encryptInsertQuery(ctx context.Context, ins
 			for _, valTuple := range rows {
 				// collect values per column
 				for j, value := range valTuple {
-					columnName := columnsName[j%len(columnsName)]
+					// in case when query `INSERT INTO table1 (col1, col2) VALUES (1, 2), (3, 4, 5);
+					// in a tuple has incorrect amount of values ("5" in the example)
+					if j >= len(columnsName) {
+						continue
+					}
+					columnName := columnsName[j]
 					if changedValue, err := encryptor.encryptExpression(ctx, value, schema, columnName, bindPlaceholders); err != nil {
 						logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptorCantEncryptExpression).WithError(err).Errorln("Can't encrypt expression")
 						return changed, err
