@@ -223,9 +223,9 @@ func (handler *Handler) Unsubscribe(subscriber base.DecryptionSubscriber) {
 	handler.decryptionObserver.Unsubscribe(subscriber)
 }
 
-func (handler *Handler) onColumnDecryption(parentCtx context.Context, column int, data []byte, isBinary bool, dataType byte) ([]byte, error) {
+func (handler *Handler) onColumnDecryption(parentCtx context.Context, column int, data []byte, isBinary bool, field *ColumnDescription) ([]byte, error) {
 	accessContext := base.AccessContextFromContext(parentCtx)
-	accessContext.SetColumnInfo(base.NewColumnInfo(column, "", isBinary, len(data), dataType))
+	accessContext.SetColumnInfo(base.NewColumnInfo(column, "", isBinary, len(data), byte(field.Type), byte(field.originType)))
 	return handler.decryptionObserver.OnColumnDecryption(parentCtx, column, data)
 }
 
@@ -509,7 +509,7 @@ func (handler *Handler) processTextDataRow(ctx context.Context, rowData []byte, 
 		if err != nil {
 			return nil, err
 		}
-		value, err = handler.onColumnDecryption(ctx, i, value, false, byte(fields[i].Type))
+		value, err = handler.onColumnDecryption(ctx, i, value, false, fields[i])
 		if err != nil {
 			fieldLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				WithError(err).Errorln("Failed to process column data")
@@ -561,7 +561,7 @@ func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte
 			return nil, err
 		}
 
-		value, err = handler.onColumnDecryption(ctx, i, processData, true, byte(fields[i].Type))
+		value, err = handler.onColumnDecryption(ctx, i, processData, true, fields[i])
 		if err != nil {
 			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				WithField("field_index", i).WithError(err).Errorln("Failed to process column data")
@@ -575,7 +575,12 @@ func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte
 }
 
 func (handler *Handler) extractProcessData(pos int, rowData []byte, field *ColumnDescription) ([]byte, int, error) {
-	switch field.Type {
+	fieldType := field.Type
+	if field.changed {
+		fieldType = field.originType
+	}
+
+	switch fieldType {
 	case TypeNull:
 		return []byte{}, 0, nil
 

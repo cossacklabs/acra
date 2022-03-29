@@ -27,7 +27,8 @@ import (
 
 // ColumnDescription https://dev.mysql.com/doc/internals/en/com-query-response.html#packet-Protocol::ColumnDefinition41
 type ColumnDescription struct {
-	changed bool
+	changed    bool
+	originType Type
 	// field as byte slice
 	data         []byte
 	header       []byte
@@ -173,6 +174,7 @@ func ParseResultField(packet *Packet, schemaStore config.TableSchemaStore) (*Col
 			newFieldType, ok := mapEncryptedTypeToField(setting.GetEncryptedDataType())
 			if ok {
 				field.Type = Type(newFieldType)
+				field.originType = Type(packet.data[pos])
 				field.changed = true
 			}
 		}

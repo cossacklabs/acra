@@ -241,7 +241,12 @@ func (p *BaseMySQLDataEncoderProcessor) encodeText(ctx context.Context, data []b
 
 func (p *BaseMySQLDataEncoderProcessor) decodeBinary(ctx context.Context, encoded []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
 	// convert from binary to text literal because tokenizer expects int value as string literal
-	switch Type(columnInfo.DataBinaryType()) {
+	columnType := columnInfo.DataBinaryType()
+	if originType := columnInfo.OriginBinaryType(); originType != 0 {
+		columnType = originType
+	}
+
+	switch Type(columnType) {
 	case TypeNull:
 		// do nothing
 
