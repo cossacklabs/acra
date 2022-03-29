@@ -17,6 +17,7 @@ package common
 
 import (
 	"database/sql"
+	// import driver for connect function
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/sirupsen/logrus"
 	"os"

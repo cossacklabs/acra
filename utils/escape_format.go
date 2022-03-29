@@ -16,6 +16,10 @@ limitations under the License.
 
 package utils
 
+import (
+	"unicode"
+)
+
 // IsPrintableEscapeChar returns true if character is ASCII printable (code between 32 and 126)
 func IsPrintableEscapeChar(c byte) bool {
 	if c >= 32 && c <= 126 {
@@ -24,10 +28,17 @@ func IsPrintableEscapeChar(c byte) bool {
 	return false
 }
 
-// IsPrintableASCIIArray return true if all symbols in data are ASCII printable symbols
-func IsPrintableASCIIArray(data []byte) bool {
-	for _, c := range data {
-		if !IsPrintableEscapeChar(c) {
+// IsPrintablePostgresqlString returns true if it's valid ASCII or utf8 string except '\' character that used as escape
+// character in strings
+func IsPrintablePostgresqlString(data []byte) bool {
+	if len(data) == 0 {
+		return true
+	}
+	// convert byte slice to string to work with Runes instead of bytes
+	stringValue := BytesToString(data)
+	// '\' is special case because PostgreSQL escapes it
+	for _, c := range stringValue {
+		if c == '\\' || !unicode.IsPrint(c) {
 			return false
 		}
 	}

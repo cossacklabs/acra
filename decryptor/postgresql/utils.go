@@ -295,7 +295,12 @@ func (p *BindPacket) SetParameters(values []base.BoundValue) {
 		p.paramValues = make([][]byte, len(values))
 	}
 	for i := range p.paramValues {
-		p.paramValues[i] = values[i].GetData(nil)
+		value, err := values[i].GetData(nil)
+		if err != nil {
+			log.WithError(err).Errorln("Can't get BoundValue data")
+			return
+		}
+		p.paramValues[i] = value
 	}
 }
 

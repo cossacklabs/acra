@@ -183,9 +183,12 @@ func TestOldContainerDetectorWrapper(t *testing.T) {
 				},
 			}
 			for _, tcase := range testCases {
-				_, outBuffer, err := containerDetector.OnColumn(base.SetAccessContextToContext(context.Background(), accessContext), tcase.input)
+				ctx, outBuffer, err := containerDetector.OnColumn(base.SetAccessContextToContext(context.Background(), accessContext), tcase.input)
 				if err != nil {
 					t.Fatal("OnColumn error ", err)
+				}
+				if !base.IsDecryptedFromContext(ctx) {
+					t.Fatal("Expects decrypted data")
 				}
 
 				if !bytes.Equal(outBuffer, tcase.expected) {

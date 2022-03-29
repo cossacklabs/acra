@@ -22,6 +22,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/cossacklabs/acra/acrastruct"
+	"github.com/cossacklabs/acra/decryptor/base/mocks"
+	"github.com/cossacklabs/acra/logging"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/mock"
 	"strings"
 	"testing"
 
@@ -427,6 +431,13 @@ schemas:
 			}
 		}
 		ctx := base.SetAccessContextToContext(context.Background(), base.NewAccessContext(base.WithClientID(defaultClientID)))
+		clientSession := &mocks.ClientSession{}
+		sessionData := make(map[string]interface{}, 2)
+		clientSession.On("GetData", mock.Anything).Return(sessionData, true)
+		clientSession.On("SetData", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+			sessionData[args[0].(string)] = args[1]
+		})
+		ctx = base.SetClientSessionToContext(ctx, clientSession)
 		data, changed, err := mysqlParser.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
 		if err != nil {
 			t.Fatalf("%v. %s", i, err.Error())
@@ -479,7 +490,13 @@ schemas:
 	}
 
 	ctx := base.SetAccessContextToContext(context.Background(), base.NewAccessContext(base.WithClientID(defaultClientID)))
-
+	clientSession := &mocks.ClientSession{}
+	data := make(map[string]interface{}, 2)
+	clientSession.On("GetData", mock.Anything).Return(data, true)
+	clientSession.On("SetData", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		data[args[0].(string)] = args[1]
+	})
+	ctx = base.SetClientSessionToContext(ctx, clientSession)
 	t.Run("RETURNING *", func(t *testing.T) {
 		query := `INSERT INTO TableWithColumnSchema ('zone_id', 'specified_client_id', 'other_column', 'default_client_id') VALUES (1, 1, 1, 1) RETURNING *`
 
@@ -503,7 +520,7 @@ schemas:
 			setting := mysqlParser.querySelectSettings[i]
 
 			if columns[i] != setting.columnName {
-				t.Fatalf("%v. Incorrect querySelectSetting \nTook: %v\nExpected: %v", i, setting.columnName, columns[i])
+				t.Fatalf("%v. Incorrect QueryDataItem \nTook: %v\nExpected: %v", i, setting.columnName, columns[i])
 			}
 		}
 	})
@@ -535,7 +552,7 @@ schemas:
 			setting := mysqlParser.querySelectSettings[i]
 
 			if returningColumns[i] != setting.columnName {
-				t.Fatalf("%v. Incorrect querySelectSetting \nTook: %v\nExpected: %v", i, setting.columnName, columns[i])
+				t.Fatalf("%v. Incorrect QueryDataItem \nTook: %v\nExpected: %v", i, setting.columnName, columns[i])
 			}
 		}
 	})
@@ -544,7 +561,7 @@ schemas:
 func TestEncryptionSettingCollection(t *testing.T) {
 	type testcase struct {
 		config   string
-		settings []*querySelectSetting
+		settings []*QueryDataItem
 		query    string
 	}
 	testcases := []testcase{
@@ -560,7 +577,7 @@ func TestEncryptionSettingCollection(t *testing.T) {
       - column: data2
         crypto_envelope: acrablock`,
 			query: `select data1, data2, data3 from test_table`,
-			settings: []*querySelectSetting{
+			settings: []*QueryDataItem{
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data1"}, tableName: "test_table", columnName: "data1", columnAlias: "test_table"},
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data2"}, tableName: "test_table", columnName: "data2", columnAlias: "test_table"},
 				nil,
@@ -578,7 +595,7 @@ func TestEncryptionSettingCollection(t *testing.T) {
       - column: data2
         crypto_envelope: acrablock`,
 			query: `select 1 from test_table`,
-			settings: []*querySelectSetting{
+			settings: []*QueryDataItem{
 				nil,
 			},
 		},
@@ -594,7 +611,7 @@ func TestEncryptionSettingCollection(t *testing.T) {
       - column: data2
         crypto_envelope: acrablock`,
 			query: `select * from test_table`,
-			settings: []*querySelectSetting{
+			settings: []*QueryDataItem{
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data1"}, tableName: "test_table", columnName: "data1", columnAlias: ""},
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data2"}, tableName: "test_table", columnName: "data2", columnAlias: ""},
 				nil,
@@ -612,7 +629,7 @@ func TestEncryptionSettingCollection(t *testing.T) {
       - column: data2
         crypto_envelope: acrablock`,
 			query: `select 'some string', * from test_table`,
-			settings: []*querySelectSetting{
+			settings: []*QueryDataItem{
 				nil,
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data1"}, tableName: "test_table", columnName: "data1", columnAlias: ""},
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data2"}, tableName: "test_table", columnName: "data2", columnAlias: ""},
@@ -631,7 +648,7 @@ func TestEncryptionSettingCollection(t *testing.T) {
       - column: data2
         crypto_envelope: acrablock`,
 			query: `select * from test_table t1`,
-			settings: []*querySelectSetting{
+			settings: []*QueryDataItem{
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data1"}, tableName: "test_table", columnName: "data1", columnAlias: ""},
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data2"}, tableName: "test_table", columnName: "data2", columnAlias: ""},
 				nil,
@@ -649,7 +666,7 @@ func TestEncryptionSettingCollection(t *testing.T) {
       - column: data2
         crypto_envelope: acrablock`,
 			query: `select t1.* from test_table t1`,
-			settings: []*querySelectSetting{
+			settings: []*QueryDataItem{
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data1"}, tableName: "test_table", columnName: "data1", columnAlias: ""},
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data2"}, tableName: "test_table", columnName: "data2", columnAlias: ""},
 				nil,
@@ -676,7 +693,7 @@ func TestEncryptionSettingCollection(t *testing.T) {
       - column: data2
         crypto_envelope: acrablock`,
 			query: `select t1.*, t2.* from test_table t1, test_table2 t2`,
-			settings: []*querySelectSetting{
+			settings: []*QueryDataItem{
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data1"}, tableName: "test_table", columnName: "data1", columnAlias: ""},
 				{setting: &config.BasicColumnEncryptionSetting{Name: "data2"}, tableName: "test_table", columnName: "data2", columnAlias: ""},
 				nil,
@@ -706,7 +723,15 @@ func TestEncryptionSettingCollection(t *testing.T) {
 		if !ok {
 			t.Fatalf("[%d] Test query should be SELECT query, took %s\n", i, tcase.query)
 		}
-		_, err = encryptor.onSelect(selectExpr)
+
+		clientSession := &mocks.ClientSession{}
+		data := make(map[string]interface{}, 2)
+		clientSession.On("GetData", mock.Anything).Return(data, true)
+		clientSession.On("SetData", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+			data[args[0].(string)] = args[1]
+		})
+		ctx := base.SetClientSessionToContext(context.Background(), clientSession)
+		_, err = encryptor.onSelect(ctx, selectExpr)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -777,9 +802,92 @@ func TestEncryptionSettingCollectionFailures(t *testing.T) {
 		if !ok {
 			t.Fatalf("[%d] Test query should be SELECT query, took %s\n", i, tcase.query)
 		}
-		_, err = encryptor.onSelect(selectExpr)
+		_, err = encryptor.onSelect(context.TODO(), selectExpr)
 		if err != tcase.err {
 			t.Fatalf("Expect error %s, took %s\n", tcase.err, err)
 		}
+	}
+}
+
+func TestInsertWithIncorrectPlaceholdersAmount(t *testing.T) {
+	type testcase struct {
+		config      string
+		err         error
+		query       string
+		expectedLog string
+	}
+	testcases := []testcase{
+		// placeholders more than columns
+		{config: `schemas:
+  - table: test_table
+    columns:
+      - data1
+    encrypted:
+      - column: data1`,
+			query:       `insert into test_table(data1) values ($1, $2);`,
+			err:         nil,
+			expectedLog: "Amount of values in INSERT bigger than column count",
+		},
+		// placeholders more than columns with several data rows
+		{config: `schemas:
+  - table: test_table
+    columns:
+      - data1
+    encrypted:
+      - column: data1`,
+			query:       `insert into test_table(data1) values ($1), ($2, $3);`,
+			err:         nil,
+			expectedLog: "Amount of values in INSERT bigger than column count",
+		},
+	}
+	parser := sqlparser.New(sqlparser.ModeDefault)
+
+	encryptor, err := NewPostgresqlQueryEncryptor(nil, parser, NewChainDataEncryptor())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// use custom output writer to check buffer for expected log entries
+	logger := logrus.New()
+	outBuffer := &bytes.Buffer{}
+	logger.SetOutput(outBuffer)
+	ctx := logging.SetLoggerToContext(context.Background(), logrus.NewEntry(logger))
+	clientSession := &mocks.ClientSession{}
+	sessionData := make(map[string]interface{}, 2)
+	clientSession.On("GetData", mock.Anything).Return(func(key string) interface{} {
+		return sessionData[key]
+	}, func(key string) bool {
+		_, ok := sessionData[key]
+		return ok
+	})
+	clientSession.On("DeleteData", mock.Anything).Run(func(args mock.Arguments) {
+		delete(sessionData, args[0].(string))
+	})
+	clientSession.On("SetData", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		sessionData[args[0].(string)] = args[1]
+	})
+	ctx = base.SetClientSessionToContext(ctx, clientSession)
+	for i, tcase := range testcases {
+		outBuffer.Reset()
+		t.Logf("Test tcase %d\n", i)
+		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		if err != nil {
+			t.Fatal(err)
+		}
+		encryptor.schemaStore = schemaStore
+		statement, err := parser.Parse(tcase.query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		insertExpr, ok := statement.(*sqlparser.Insert)
+		if !ok {
+			t.Fatalf("[%d] Test query should be INSERT query, took %s\n", i, tcase.query)
+		}
+		DeletePlaceholderSettingsFromClientSession(clientSession)
+		bindData := PlaceholderSettingsFromClientSession(clientSession)
+		_, err = encryptor.encryptInsertQuery(ctx, insertExpr, bindData)
+		if err != tcase.err {
+			t.Fatalf("Expect error %s, took %s\n", tcase.err, err)
+		}
+		strings.Contains(outBuffer.String(), tcase.expectedLog)
 	}
 }

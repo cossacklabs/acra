@@ -215,11 +215,6 @@ func NewMysqlProxy(session base.ClientSession, parser *sqlparser.Parser, setting
 	}, nil
 }
 
-// SubscribeOnColumnDecryption subscribes for OnColumn notifications about the column, indexed from left to right starting with zero.
-func (handler *Handler) SubscribeOnColumnDecryption(i int, subscriber base.DecryptionSubscriber) {
-	handler.decryptionObserver.SubscribeOnColumnDecryption(i, subscriber)
-}
-
 // SubscribeOnAllColumnsDecryption subscribes for OnColumn notifications on each column.
 func (handler *Handler) SubscribeOnAllColumnsDecryption(subscriber base.DecryptionSubscriber) {
 	handler.decryptionObserver.SubscribeOnAllColumnsDecryption(subscriber)

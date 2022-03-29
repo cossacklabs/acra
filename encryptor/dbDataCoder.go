@@ -23,6 +23,7 @@ import (
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
+	"strconv"
 )
 
 var pgHexStringPrefix = []byte{'\\', 'x'}
@@ -75,10 +76,29 @@ func (*MysqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, error
 	return nil, errUnsupportedExpression
 }
 
-// PostgresqlDBDataCoder implement DBDataCoder for PostgreSQL
+// PgEncodeToHexString return data as is if it's valid UTF string otherwise encode to hex with \x prefix
+func PgEncodeToHexString(data []byte) []byte {
+	if utils.IsPrintablePostgresqlString(data) {
+		return data
+	}
+	newVal := make([]byte, len(pgHexStringPrefix)+hex.EncodedLen(len(data)))
+	copy(newVal, pgHexStringPrefix)
+	hex.Encode(newVal[len(pgHexStringPrefix):], data)
+	return newVal
+}
+
+// PostgresqlDBDataCoder responsible to handle decoding/encoding SQL literals before/after QueryEncryptor handlers
+//
+// Acra captures SQL queries like `INSERT INTO users (age, username, email, photo) VALUES (123, 'john_wick', 'johnwick@mail.com', '\xaabbcc');`
+// and manipulates with SQL values `123`, `'john_wick'`, `'johnwick@mail.com'`, `'\xaabbcc'`. On first stage Acra
+// decodes with Decode method values from SQL literals into binary or leave as is. For example hex encoded values decoded into binary"
+// `'\xaabbcc'` decoded into []byte{170,187,204} and passed to QueryEncryptor's callbacks `EncryptWith[Client|Zone]ID`
+// After that it should be encoded with Encode method from binary form into SQL to replace values in the query.
 type PostgresqlDBDataCoder struct{}
 
-// Decode literal in expression to binary
+// Decode hex/escaped literals to raw binary values for encryption/decryption. String values left as is because it
+// doesn't need any decoding. Historically Int values had support only for tokenization and operated over string SQL
+// literals.
 func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
@@ -108,7 +128,7 @@ func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 				// return value as is because it may be string with printable characters that wasn't encoded on client
 				return val.Val, nil
 			}
-			return binValue.Data(), nil
+			return binValue, nil
 		}
 	}
 	return nil, errUnsupportedExpression
@@ -119,20 +139,25 @@ func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, 
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
 		switch val.Type {
-		case sqlparser.IntVal:
-			return data, nil
 		case sqlparser.HexVal:
 			output := make([]byte, hex.EncodedLen(len(data)))
 			hex.Encode(output, data)
 			return output, nil
-		case sqlparser.PgEscapeString, sqlparser.StrVal:
-			if utils.IsPrintableASCIIArray(data) {
+		case sqlparser.IntVal:
+			// QueryDataEncryptor can tokenize INT SQL literal and we should not do anything because it is still valid
+			// INT literal. Also, handler can encrypt data and replace SQL literal with encrypted data as []byte result.
+			// Due to invalid format for INT literals, we should encode it as valid hex encoded binary value and change
+			// type of SQL token for sqlparser that encoded into final SQL string
+
+			// if data was just tokenized, so we return it as is because it is valid int literal
+			if _, err := strconv.Atoi(string(data)); err == nil {
 				return data, nil
 			}
-			newVal := make([]byte, len(pgHexStringPrefix)+hex.EncodedLen(len(data)))
-			copy(newVal, pgHexStringPrefix)
-			hex.Encode(newVal[len(pgHexStringPrefix):], data)
-			return newVal, nil
+			// otherwise change type and pass it below for hex encoding
+			val.Type = sqlparser.StrVal
+			fallthrough
+		case sqlparser.PgEscapeString, sqlparser.StrVal:
+			return PgEncodeToHexString(data), nil
 		}
 	}
 	return nil, errUnsupportedExpression

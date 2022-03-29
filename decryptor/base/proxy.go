@@ -110,19 +110,6 @@ type Proxy interface {
 	ProxyDatabaseConnection(context.Context, chan<- ProxyError)
 }
 
-// ClientSession is a connection between the client and the database, mediated by AcraServer.
-type ClientSession interface {
-	Context() context.Context
-	ClientConnection() net.Conn
-	DatabaseConnection() net.Conn
-
-	PreparedStatementRegistry() PreparedStatementRegistry
-	SetPreparedStatementRegistry(registry PreparedStatementRegistry)
-
-	ProtocolState() interface{}
-	SetProtocolState(state interface{})
-}
-
 // TLSConnectionWrapper used by proxy to wrap raw connections to TLS when intercepts client/database request about switching to TLS
 // Reuse network.ConnectionWrapper to explicitly force TLS usage by name
 type TLSConnectionWrapper interface {
@@ -222,4 +209,14 @@ func (p ProxyError) Unwrap() error {
 // InterruptSide return interruption side where error happened
 func (p ProxyError) InterruptSide() string {
 	return p.interruptSide
+}
+
+// OnlyDefaultEncryptorSettings returns true if config contains settings only for transparent decryption that works by default
+func OnlyDefaultEncryptorSettings(store config.TableSchemaStore) bool {
+	storeMask := store.GetGlobalSettingsMask()
+	return storeMask&(config.SettingSearchFlag|
+		config.SettingMaskingFlag|
+		config.SettingTokenizationFlag|
+		config.SettingDefaultDataValueFlag|
+		config.SettingDataTypeFlag) == 0
 }

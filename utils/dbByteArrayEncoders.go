@@ -87,56 +87,30 @@ func DecodeOctal(data []byte) ([]byte, error) {
 	return output, nil
 }
 
-// DecodedData wrap binary data which should be encoded in final format after usage
-type DecodedData struct {
-	data       []byte
-	encodeFunc func([]byte) []byte
-}
-
-// Data return binary data
-func (d *DecodedData) Data() []byte {
-	return d.data
-}
-
-// Set set binary data
-func (d *DecodedData) Set(data []byte) {
-	d.data = data
-}
-
-// Encoded return encoded binary data in final format according to encoding logic
-func (d *DecodedData) Encoded() []byte {
-	return d.encodeFunc(d.data)
-}
-
-func hexEncode(data []byte) []byte {
+// PgEncodeToHex encode binary data to hex SQL literal
+func PgEncodeToHex(data []byte) []byte {
 	output := make([]byte, 2+hex.EncodedLen(len(data)))
 	copy(output[:2], []byte{'\\', 'x'})
 	hex.Encode(output[2:], data)
 	return output
 }
 
-func dryEncode(data []byte) []byte {
-	return data
-}
-
-// WrapRawDataAsDecoded return DecodedData with Encode function which return data as is
-func WrapRawDataAsDecoded(data []byte) *DecodedData {
-	return &DecodedData{data: data, encodeFunc: dryEncode}
-}
-
 // DecodeEscaped with hex or octal encodings
-func DecodeEscaped(data []byte) (*DecodedData, error) {
+func DecodeEscaped(data []byte) ([]byte, error) {
 	if len(data) >= 2 && bytes.Equal(data[:2], []byte{'\\', 'x'}) {
 		hexdata := data[2:]
 		output := make([]byte, hex.DecodedLen(len(hexdata)))
 		_, err := hex.Decode(output, hexdata)
-		return &DecodedData{data: output, encodeFunc: hexEncode}, err
+		if err != nil {
+			return data, err
+		}
+		return output, err
 	}
 	result, err := DecodeOctal(data)
 	if err != nil {
-		return &DecodedData{data: data, encodeFunc: dryEncode}, ErrDecodeOctalString
+		return data, ErrDecodeOctalString
 	}
-	return &DecodedData{data: result, encodeFunc: EncodeToOctal}, nil
+	return result, nil
 }
 
 // QuoteValue returns name in quotes, if name contains quotes, doubles them

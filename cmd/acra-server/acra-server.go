@@ -318,7 +318,7 @@ func realMain() error {
 	}
 
 	serverConfig.SetKeyStore(keyStore)
-	log.Infof("Keystore init OK")
+	log.WithField("path", *keysDir).Infof("Keystore init OK")
 
 	if err := crypto.InitRegistry(keyStore); err != nil {
 		log.WithError(err).Errorln("Can't initialize crypto registry")

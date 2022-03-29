@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+// we should use unique name to avoid package duplication with pseudonymization/common package (that left as is
+// to not break backward compatibility)
+package github.com.cossacklabs.acra.encryptor.config.common;
+
+option go_package = "github.com/cossacklabs/acra/encryptor/config/common";
+
+// EncryptedType defines types for encrypted data.
+enum EncryptedType {
+  Unknown  = 0;
+  Int32    = 1;
+  Int64    = 2;
+  String   = 3;
+  Bytes    = 4;
+}
+
+// EncryptedValue keeps serialized encrypted value.
+message EncryptedValue {
+  bytes     value = 1;
+  EncryptedType type  = 2;
+}

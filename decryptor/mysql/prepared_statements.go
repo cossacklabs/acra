@@ -209,8 +209,8 @@ func (m *mysqlBoundValue) SetData(newData []byte, setting config.ColumnEncryptio
 }
 
 // GetData return BoundValue using ColumnEncryptionSetting if provided
-func (m *mysqlBoundValue) GetData(_ config.ColumnEncryptionSetting) []byte {
-	return m.textData
+func (m *mysqlBoundValue) GetData(_ config.ColumnEncryptionSetting) ([]byte, error) {
+	return m.textData, nil
 }
 
 // Encode format result BoundValue data

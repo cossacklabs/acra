@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	common2 "github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/cossacklabs/acra/pseudonymization/common"
 )
 
@@ -43,6 +44,9 @@ type ColumnEncryptionSetting interface {
 	ColumnName() string
 	ClientID() []byte
 	ZoneID() []byte
+
+	GetEncryptedDataType() common2.EncryptedType
+	GetDefaultDataValue() *string
 
 	// Searchable encryption
 	IsSearchable() bool

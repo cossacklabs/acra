@@ -182,7 +182,11 @@ func (packet *Packet) SetParameters(values []base.BoundValue) (err error) {
 		// and we need to get result tokenization value to set signed/unsigned byte
 		switch Type(boundType) {
 		case TypeLong, TypeLongLong:
-			intValue, err := strconv.ParseInt(string(values[i].GetData(nil)), 10, 64)
+			data, err := values[i].GetData(nil)
+			if err != nil {
+				return err
+			}
+			intValue, err := strconv.ParseInt(string(data), 10, 64)
 			if err != nil {
 				return err
 			}

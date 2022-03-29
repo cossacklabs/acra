@@ -36,6 +36,7 @@ type ClientSession struct {
 	logger         *log.Entry
 	statements     base.PreparedStatementRegistry
 	protocolState  interface{}
+	data           map[string]interface{}
 }
 
 var sessionCounter uint32
@@ -47,8 +48,35 @@ func NewClientSession(ctx context.Context, config *Config, connection net.Conn) 
 	sessionID := atomic.AddUint32(&sessionCounter, 1)
 	logger := logging.GetLoggerFromContext(ctx)
 	logger = logger.WithField("session_id", sessionID)
+	session := &ClientSession{connection: connection, config: config, ctx: ctx, logger: logger,
+		data: make(map[string]interface{}, 8)}
 	ctx = logging.SetLoggerToContext(ctx, logger)
-	return &ClientSession{connection: connection, config: config, ctx: ctx, logger: logger}, nil
+	ctx = base.SetClientSessionToContext(ctx, session)
+	session.ctx = ctx
+	return session, nil
+
+}
+
+// SetData save session related data by key
+func (clientSession *ClientSession) SetData(key string, data interface{}) {
+	clientSession.data[key] = data
+}
+
+// GetData return session related data by key and true otherwise nil, false
+func (clientSession *ClientSession) GetData(key string) (interface{}, bool) {
+	value, ok := clientSession.data[key]
+	return value, ok
+}
+
+// DeleteData delete session related data by key
+func (clientSession *ClientSession) DeleteData(key string) {
+	delete(clientSession.data, key)
+}
+
+// HasData return true if session has data by key
+func (clientSession *ClientSession) HasData(key string) bool {
+	_, ok := clientSession.data[key]
+	return ok
 }
 
 // Logger returns session's logger.

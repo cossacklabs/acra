@@ -19,6 +19,9 @@ package postgresql
 import (
 	"encoding/binary"
 	"errors"
+	"github.com/cossacklabs/acra/encryptor"
+	"github.com/cossacklabs/acra/encryptor/config/common"
+	"github.com/cossacklabs/acra/utils"
 	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
@@ -235,12 +238,21 @@ func (p *pgBoundValue) GetType() byte {
 
 // SetData set new value to BoundValue using ColumnEncryptionSetting if provided
 func (p *pgBoundValue) SetData(newData []byte, setting config.ColumnEncryptionSetting) error {
-	p.data = newData
-
 	if setting == nil {
+		p.data = newData
 		return nil
 	}
 
+	if setting.IsTokenized() {
+		return p.setTokenizedData(newData, setting)
+	} else if config.IsBinaryDataOperation(setting) {
+		return p.setEncryptedData(newData, setting)
+	}
+	return nil
+}
+
+func (p *pgBoundValue) setTokenizedData(newData []byte, setting config.ColumnEncryptionSetting) error {
+	p.data = newData
 	switch p.format {
 	case base.BinaryFormat:
 		switch setting.GetTokenType() {
@@ -265,26 +277,52 @@ func (p *pgBoundValue) SetData(newData []byte, setting config.ColumnEncryptionSe
 	return nil
 }
 
+func (p *pgBoundValue) setEncryptedData(newData []byte, setting config.ColumnEncryptionSetting) error {
+	p.data = newData
+	switch p.format {
+	case base.TextFormat:
+		// here we take encrypted data and encode it to SQL String value that contains binary data in hex format
+		// or pass it as is if it is already valid string (all other SQL literals)
+		p.data = encryptor.PgEncodeToHexString(newData)
+		return nil
+	case base.BinaryFormat:
+		// all our encryption operations applied over text format values to be compatible with text format
+		// and here we work with encrypted TextFormat values that we should pass as is to server
+		break
+	}
+
+	return nil
+}
+
 // GetData return BoundValue using ColumnEncryptionSetting if provided
-func (p *pgBoundValue) GetData(setting config.ColumnEncryptionSetting) []byte {
+func (p *pgBoundValue) GetData(setting config.ColumnEncryptionSetting) ([]byte, error) {
 	if setting == nil {
-		return p.data
+		return p.data, nil
 	}
 
 	decodedData := p.data
 
 	switch p.format {
-	// TODO(ilammy, 2020-10-19): handle non-bytes binary data
-	// Encryptor expects binary data to be passed in raw bytes, but most non-byte-arrays
-	// are expected in text format. If we get binary parameters, we may need to recode them.
+	case base.TextFormat:
+		if setting.OnlyEncryption() || setting.IsSearchable() {
+			// binary data in TextFormat received as Hex/Octal encoded values
+			// so we should decode them before processing
+
+			decoded, err := utils.DecodeEscaped(p.data)
+			if err != nil {
+				return p.data, err
+			}
+			return decoded, nil
+
+		}
 	case base.BinaryFormat:
-		if setting.IsTokenized() {
-			switch setting.GetTokenType() {
-			case tokens.TokenType_Int32:
+		if setting.IsTokenized() || setting.IsSearchable() || setting.OnlyEncryption() {
+			switch setting.GetEncryptedDataType() {
+			case common.EncryptedType_Int32:
 				value := binary.BigEndian.Uint32(p.data)
 				strValue := strconv.FormatInt(int64(value), 10)
 				decodedData = []byte(strValue)
-			case tokens.TokenType_Int64:
+			case common.EncryptedType_Int64:
 				// if passed int32 as int64, just extend array and fill by zeroes
 				if len(p.data) == 4 {
 					p.data = append([]byte{0, 0, 0, 0}, p.data...)
@@ -295,7 +333,7 @@ func (p *pgBoundValue) GetData(setting config.ColumnEncryptionSetting) []byte {
 			}
 		}
 	}
-	return decodedData
+	return decodedData, nil
 }
 
 // Encode format result BoundValue data

@@ -954,7 +954,8 @@ class AsyncpgExecutor(QueryExecutor):
             asyncpg.connect(
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user, password=self.connection_args.password,
-                database=self.connection_args.dbname, ssl=ssl_context,
+                database=self.connection_args.dbname,
+                ssl=ssl_context,
                 **asyncpg_connect_args))
 
     def _set_text_format(self, conn):
@@ -1713,9 +1714,9 @@ class BaseBinaryPostgreSQLTestCase(BaseTestCase):
     def setUp(self):
         super().setUp()
 
-        def executor_with_ssl(ssl_key, ssl_cert):
+        def executor_with_ssl(ssl_key, ssl_cert, port=self.ACRASERVER_PORT):
             args = ConnectionArgs(
-                host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
+                host=get_db_host(), port=port, dbname=DB_NAME,
                 user=DB_USER, password=DB_USER_PASSWORD,
                 ssl_ca=TEST_TLS_CA,
                 ssl_key=ssl_key,
@@ -1726,6 +1727,7 @@ class BaseBinaryPostgreSQLTestCase(BaseTestCase):
 
         self.executor1 = executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
         self.executor2 = executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
+        self.raw_executor = executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT, 5432)
 
     def compileQuery(self, query, parameters={}, literal_binds=False):
         """
@@ -1981,7 +1983,9 @@ class CensorBlacklistTest(BaseCensorTest):
                          MysqlExecutor(connection_args)]
         if TEST_POSTGRESQL:
             expectedException = (psycopg2.ProgrammingError,
-                                 asyncpg.exceptions.SyntaxOrAccessError)
+                                 asyncpg.exceptions.SyntaxOrAccessError,
+                                 # https://github.com/MagicStack/asyncpg/issues/240
+                                 AttributeError)
             expectedExceptionInPreparedStatement = asyncpg.exceptions.SyntaxOrAccessError
             executors = [Psycopg2Executor(connection_args),
                          AsyncpgExecutor(connection_args)]
@@ -2020,7 +2024,10 @@ class CensorWhitelistTest(BaseCensorTest):
         if TEST_POSTGRESQL:
             expectedException = (psycopg2.ProgrammingError,
                                  asyncpg.exceptions.SyntaxOrAccessError)
-            expectedExceptionInPreparedStatement = asyncpg.exceptions.SyntaxOrAccessError
+            expectedExceptionInPreparedStatement = (
+                asyncpg.exceptions.SyntaxOrAccessError,
+                # due to https://github.com/MagicStack/asyncpg/issues/240
+                AttributeError)
             executors = [Psycopg2Executor(connection_args),
                          AsyncpgExecutor(connection_args)]
 
@@ -5292,33 +5299,32 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
                 self.checkMetrics(metrics_url, labels)
 
 
-class TestTransparentEncryption(BaseTestCase):
-    WHOLECELL_MODE = True
-    encryptor_table = sa.Table('test_transparent_encryption', metadata,
+class BaseTransparentEncryption(BaseTestCase):
+    encryptor_table = sa.Table(
+        'test_transparent_encryption', metadata,
         sa.Column('id', sa.Integer, primary_key=True),
         sa.Column('specified_client_id',
                   sa.LargeBinary(length=COLUMN_DATA_SIZE)),
-        sa.Column('default_client_id',
+                  sa.Column('default_client_id',
                   sa.LargeBinary(length=COLUMN_DATA_SIZE)),
-
         sa.Column('number', sa.Integer),
         sa.Column('zone_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
         sa.Column('raw_data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
         sa.Column('nullable', sa.Text, nullable=True),
         sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-    )
+        )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_config.yaml')
 
     def setUp(self):
         self.prepare_encryptor_config(client_id=TLS_CERT_CLIENT_ID_1)
-        super(TestTransparentEncryption, self).setUp()
+        super(BaseTransparentEncryption, self).setUp()
 
     def prepare_encryptor_config(self, client_id=None):
         prepare_encryptor_config(zone_id=zones[0][ZONE_ID], config_path=self.ENCRYPTOR_CONFIG, client_id=client_id)
 
     def tearDown(self):
         self.engine_raw.execute(self.encryptor_table.delete())
-        super(TestTransparentEncryption, self).tearDown()
+        super(BaseTransparentEncryption, self).tearDown()
         try:
             os.remove(get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
         except FileNotFoundError:
@@ -5327,8 +5333,11 @@ class TestTransparentEncryption(BaseTestCase):
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         acra_kwargs['encryptor_config_file'] = get_test_encryptor_config(
             self.ENCRYPTOR_CONFIG)
-        return super(TestTransparentEncryption, self).fork_acra(
+        return super(BaseTransparentEncryption, self).fork_acra(
             popen_kwargs, **acra_kwargs)
+
+
+class TestTransparentEncryption(BaseTransparentEncryption):
 
     def get_context_data(self):
         context = {
@@ -6858,7 +6867,7 @@ class BaseTokenizationWithBinaryMySQL(BaseTokenization):
             for column, value in row.items():
                 if isinstance(value, (bytes, bytearray)):
                     try:
-                        row[column] = value.decode('utf8')
+                        row[column] = bytes(value)
                     except (LookupError, UnicodeDecodeError):
                         pass
         return result
@@ -6910,11 +6919,12 @@ class TestTokenizationWithoutZone(BaseTokenization):
 
         # data owner take source data
         for k in ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email'):
-            if isinstance(source_data[0][k], bytearray) and isinstance(data[k], str):
-                self.assertEqual(source_data[0][k], bytearray(data[k], encoding='utf-8'))
+            if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+                self.assertEqual(source_data[0][k], data[k].encode('utf-8'))
+                self.assertNotEqual(hidden_data[0][k], data[k].encode('utf-8'))
             else:
                 self.assertEqual(source_data[0][k], data[k])
-            self.assertNotEqual(hidden_data[0][k], data[k])
+                self.assertNotEqual(hidden_data[0][k], data[k])
 
     def testTokenizationDefaultClientIDWithBulkInsert(self):
         default_client_id_table = sa.Table(
@@ -6960,8 +6970,8 @@ class TestTokenizationWithoutZone(BaseTokenization):
         for idx in range(len(source_data)):
             # data owner take source data
             for k in ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email'):
-                if isinstance(source_data[idx][k], bytearray) and isinstance(values[idx][k], str):
-                    self.assertEqual(source_data[idx][k], bytearray(values[idx][k], encoding='utf-8'))
+                if isinstance(source_data[idx][k], (bytearray, bytes)) and isinstance(values[idx][k], str):
+                    self.assertEqual(source_data[idx][k], bytes(values[idx][k], encoding='utf-8'))
                 else:
                     self.assertEqual(source_data[idx][k], values[idx][k])
                     self.assertNotEqual(hidden_data[idx][k], values[idx][k])
@@ -7009,8 +7019,8 @@ class TestTokenizationWithoutZone(BaseTokenization):
 
         # data owner take source data
         for k in ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email'):
-            if isinstance(source_data[0][k], bytearray) and isinstance(data[k], str):
-                self.assertEqual(source_data[0][k], bytearray(data[k], encoding='utf-8'))
+            if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+                self.assertEqual(source_data[0][k], bytes(data[k], encoding='utf-8'))
             else:
                 self.assertEqual(source_data[0][k], data[k])
             self.assertNotEqual(hidden_data[0][k], data[k])
@@ -7058,12 +7068,14 @@ class TestTokenizationWithoutZone(BaseTokenization):
 
         # data owner take source data
         for k in ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email'):
-            # binary data returned as memoryview objects
-            if isinstance(source_data[0][k], bytearray) and isinstance(data[k], str):
-                self.assertEqual(utils.memoryview_to_bytes(source_data[0][k]), bytearray(data[k], encoding='utf-8'))
+            # successfully decrypted data returned as string otherwise as bytes
+            # always encode to bytes to compare values with same type coercions
+            if isinstance(source_data[0][k], (bytearray, bytes, memoryview)) and isinstance(data[k], str):
+                self.assertEqual(utils.memoryview_to_bytes(source_data[0][k]), data[k].encode('utf-8'))
+                self.assertNotEqual(utils.memoryview_to_bytes(hidden_data[0][k]), data[k].encode('utf-8'))
             else:
                 self.assertEqual(utils.memoryview_to_bytes(source_data[0][k]), data[k])
-            self.assertNotEqual(utils.memoryview_to_bytes(hidden_data[0][k]), data[k])
+                self.assertNotEqual(utils.memoryview_to_bytes(hidden_data[0][k]), data[k])
 
 
 class TestReturningProcessingMixing:
@@ -7260,9 +7272,9 @@ class TestTokenizationWithZone(BaseTokenization):
         token_fields = ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email')
         # data owner take source data
         for k in token_fields:
-            if isinstance(source_data[0][k], bytearray) and isinstance(data[k], str):
-                self.assertEqual(source_data[0][k], bytearray(data[k], encoding='utf-8'))
-                self.assertEqual(hidden_data[0][k], bytearray(data[k], encoding='utf-8'))
+            if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+                self.assertEqual(source_data[0][k], data[k].encode('utf-8'))
+                self.assertEqual(hidden_data[0][k], data[k].encode('utf-8'))
             else:
                 self.assertEqual(source_data[0][k], data[k])
                 self.assertEqual(hidden_data[0][k], data[k])
@@ -7332,9 +7344,9 @@ class TestTokenizationWithZone(BaseTokenization):
         token_fields = ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email')
         # data owner take source data
         for k in token_fields:
-            if isinstance(source_data[0][k], bytearray) and isinstance(data[k], str):
-                self.assertEqual(utils.memoryview_to_bytes(source_data[0][k]), bytearray(data[k], encoding='utf-8'))
-                self.assertEqual(utils.memoryview_to_bytes(hidden_data[0][k]), bytearray(data[k], encoding='utf-8'))
+            if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+                self.assertEqual(utils.memoryview_to_bytes(source_data[0][k]), data[k].encode('utf-8'))
+                self.assertEqual(utils.memoryview_to_bytes(hidden_data[0][k]), data[k].encode('utf-8'))
             else:
                 self.assertEqual(utils.memoryview_to_bytes(source_data[0][k]), data[k])
                 self.assertEqual(utils.memoryview_to_bytes(hidden_data[0][k]), data[k])
@@ -8433,6 +8445,317 @@ class TestRegressionInvalidOctalEncoding(BaseTokenizationWithBinaryPostgreSQL):
             else:
                 self.assertEqual(source_data[0][k], data[k])
                 self.assertNotEqual(hidden_data[0][k], data[k])
+
+
+class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(BaseTransparentEncryption):
+    # test table used for queries and data mapping into python types
+    test_table = sa.Table(
+        # use new object of metadata to avoid name conflict
+        'test_type_aware_decryption_with_defaults', sa.MetaData(),
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.Text),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.Integer),
+        sa.Column('value_int64', sa.BigInteger),
+        sa.Column('value_null_str', sa.Text, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.Integer, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.Text, nullable=False, default=''),
+    )
+    # schema table used to generate table in the database with binary column types
+    schema_table = sa.Table(
+
+        'test_type_aware_decryption_with_defaults', metadata,
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.LargeBinary),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.LargeBinary),
+        sa.Column('value_int64', sa.LargeBinary),
+        sa.Column('value_null_str', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
+    )
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+
+    def checkSkip(self):
+        if not (TEST_POSTGRESQL and TEST_WITH_TLS):
+            self.skipTest("Test only for PostgreSQL with TLS")
+
+    def testClientIDRead(self):
+        """test decrypting with correct clientID and not decrypting with
+        incorrect clientID or using direct connection to db
+        All result data should be valid for application. Not decrypted data should be returned with their default value
+        """
+        data = {
+            'id': get_random_id(),
+            'value_str': random_str(),
+            'value_bytes': random_bytes(),
+            'value_int32': random_int32(),
+            'value_int64': random_int64(),
+            'value_null_str': None,
+            'value_null_int32': None,
+            'value_empty_str': ''
+        }
+        default_expected_values = {
+            'value_int32': 32,
+            'value_int64': 64,
+            'value_bytes': b'value_bytes',
+            'value_str': 'value_str',
+        }
+
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
+                   'value_empty_str')
+        self.engine1.execute(self.test_table.insert(), data)
+        result = self.engine1.execute(
+            sa.select([self.test_table])
+                .where(self.test_table.c.id == data['id']))
+        row = result.fetchone()
+        for column in columns:
+            self.assertEqual(data[column], row[column])
+            self.assertIsInstance(row[column], type(data[column]))
+
+        result = self.engine2.execute(
+            sa.select([self.test_table])
+                .where(self.test_table.c.id == data['id']))
+        row = result.fetchone()
+        for column in columns:
+            self.assertIsInstance(row[column], type(data[column]))
+            if 'null' in column:
+                self.assertIsNone(row[column])
+                continue
+            if 'empty' in column:
+                self.assertEqual(row[column], '')
+                continue
+            self.assertNotEqual(data[column], row[column])
+            if column in ('value_int32', 'value_int64'):
+                self.assertEqual(row[column], default_expected_values[column])
+
+        result = self.engine_raw.execute(
+            sa.select([self.test_table])
+                .where(self.test_table.c.id == data['id']))
+        row = result.fetchone()
+        for column in columns:
+            if 'null' in column:
+                self.assertIsNone(row[column])
+                continue
+            self.assertIsInstance(utils.memoryview_to_bytes(row[column]), bytes)
+            if column in ('value_str', 'value_bytes'):
+                # length of data should be greater than source data due to encryption overhead
+                self.assertTrue(len(utils.memoryview_to_bytes(row[column])) > len(data[column]))
+
+
+class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults(
+        BaseBinaryPostgreSQLTestCase, TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults):
+    def testClientIDRead(self):
+        """test decrypting with correct clientID and not decrypting with
+        incorrect clientID or using direct connection to db
+        All result data should be valid for application. Not decrypted data should be returned with their default value
+        """
+        data = {
+            'id': get_random_id(),
+            'value_str': random_str(),
+            'value_bytes': random_bytes(),
+            'value_int32': random_int32(),
+            'value_int64': random_int64(),
+            'value_null_str': None,
+            'value_null_int32': None,
+            'value_empty_str': ''
+        }
+        default_expected_values = {
+            'value_int32': 32,
+            'value_int64': 64,
+            'value_bytes': b'value_bytes',
+            'value_str': 'value_str',
+        }
+
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
+                   'value_empty_str')
+        query, args = self.compileQuery(self.test_table.insert(), data)
+        self.executor1.execute_prepared_statement(query, args)
+
+        query, args = self.compileQuery(
+            sa.select([self.test_table])
+            .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
+        row = self.executor1.execute_prepared_statement(query, args)[0]
+        for column in columns:
+            if 'null' in column:
+                # asyncpg decodes None values as empty str/bytes value
+                self.assertFalse(row[column])
+                continue
+            self.assertEqual(data[column], row[column])
+            self.assertIsInstance(row[column], type(data[column]))
+
+        row = self.executor2.execute_prepared_statement(query, args)[0]
+        for column in columns:
+            if 'null' in column:
+                # asyncpg decodes None values as empty str/bytes value
+                self.assertFalse(row[column])
+                continue
+            if 'empty' in column:
+                self.assertEqual(data[column], row[column])
+            else:
+                self.assertNotEqual(data[column], row[column])
+            self.assertIsInstance(row[column], type(data[column]))
+
+        row = self.executor2.execute_prepared_statement(query, args)[0]
+        for column in columns:
+            if 'null' in column or 'empty' in column:
+                # asyncpg decodes None values as empty str/bytes value
+                self.assertFalse(row[column])
+                continue
+            self.assertNotEqual(data[column], row[column])
+
+
+class TestPostgresqlTextTypeAwareDecryptionWithoutDefaults(BaseTransparentEncryption):
+    # test table used for queries and data mapping into python types
+    test_table = sa.Table(
+        # use new object of metadata to avoid name conflict
+        'test_type_aware_decryption_without_defaults', sa.MetaData(),
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.Text),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.Integer),
+        sa.Column('value_int64', sa.BigInteger),
+        sa.Column('value_null_str', sa.Text, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.Integer, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.Text, nullable=False, default=''),
+    )
+    # schema table used to generate table in the database with binary column types
+    schema_table = sa.Table(
+
+        'test_type_aware_decryption_without_defaults', metadata,
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.LargeBinary),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.LargeBinary),
+        sa.Column('value_int64', sa.LargeBinary),
+        sa.Column('value_null_str', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
+    )
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+
+    def checkSkip(self):
+        if not (TEST_POSTGRESQL and TEST_WITH_TLS):
+            self.skipTest("Test only for PostgreSQL with TLS")
+
+    def testClientIDRead(self):
+        """test decrypting with correct clientID and not decrypting with
+        incorrect clientID or using direct connection to db
+        All result data should be valid for application. Not decrypted data should be returned as is and DB driver
+        should cause error
+        """
+        data = {
+            'id': get_random_id(),
+            'value_str': random_str(),
+            'value_bytes': random_bytes(),
+            'value_int32': random_int32(),
+            'value_int64': random_int64(),
+            'value_null_str': None,
+            'value_null_int32': None,
+            'value_empty_str': ''
+        }
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        self.engine1.execute(self.test_table.insert(), data)
+        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
+                   'value_empty_str')
+
+        result = self.engine2.execute(
+            sa.select([self.test_table])
+                .where(self.test_table.c.id == data['id']))
+        # acra change types for binary data columns and python driver can't decode to correct types
+        with self.assertRaises(UnicodeDecodeError):
+            row = result.fetchone()
+
+        # direct connection should receive binary data according to real scheme
+        result = self.engine_raw.execute(
+            sa.select([self.test_table])
+                .where(self.test_table.c.id == data['id']))
+        row = result.fetchone()
+        for column in columns:
+            if 'null' in column or 'empty' in column:
+                # asyncpg decodes None values as empty str/bytes value
+                self.assertFalse(row[column])
+                continue
+            value = utils.memoryview_to_bytes(row[column])
+            self.assertIsInstance(value, bytes, column)
+            self.assertNotEqual(data[column], value, column)
+
+
+class TestPostgresqlBinaryTypeAwareDecryptionWithoutDefaults(TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults):
+    # test table used for queries and data mapping into python types
+    test_table = sa.Table(
+        # use new object of metadata to avoid name conflict
+        'test_type_aware_decryption_without_defaults', sa.MetaData(),
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.Text),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.Integer),
+        sa.Column('value_int64', sa.BigInteger),
+        sa.Column('value_null_str', sa.Text, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.Integer, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.Text, nullable=False, default=''),
+        extend_existing=True
+    )
+    # schema table used to generate table in the database with binary column types
+    schema_table = sa.Table(
+        'test_type_aware_decryption_without_defaults', metadata,
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.LargeBinary),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.LargeBinary),
+        sa.Column('value_int64', sa.LargeBinary),
+        sa.Column('value_null_str', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
+        extend_existing=True
+    )
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+
+    def checkSkip(self):
+        if not (TEST_POSTGRESQL and TEST_WITH_TLS):
+            self.skipTest("Test only for PostgreSQL with TLS")
+
+    def testClientIDRead(self):
+        """test decrypting with correct clientID and not decrypting with
+        incorrect clientID or using direct connection to db
+        All result data should be valid for application. Not decrypted data should be returned as is and DB driver
+        should cause error
+        """
+        data = {
+            'id': get_random_id(),
+            'value_str': random_str(),
+            'value_bytes': random_bytes(),
+            'value_int32': random_int32(),
+            'value_int64': random_int64(),
+            'value_null_str': None,
+            'value_null_int32': None,
+            'value_empty_str': ''
+        }
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        ######
+        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
+                   'value_empty_str')
+        query, args = self.compileQuery(self.test_table.insert(), data)
+        self.executor1.execute_prepared_statement(query, args)
+
+        query, args = self.compileQuery(
+            sa.select([self.test_table])
+                .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
+
+        with self.assertRaises(UnicodeDecodeError):
+            row = self.executor2.execute_prepared_statement(query, args)[0]
+
+        row = self.raw_executor.execute_prepared_statement(query, args)[0]
+        for column in columns:
+            if 'null' in column or 'empty' in column:
+                # asyncpg decodes None values as empty str/bytes value
+                self.assertFalse(row[column])
+                continue
+            value = utils.memoryview_to_bytes(row[column])
+            self.assertIsInstance(value, bytes, column)
+            self.assertNotEqual(data[column], value, column)
 
 
 if __name__ == '__main__':
