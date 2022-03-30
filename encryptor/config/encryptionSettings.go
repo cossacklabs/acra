@@ -383,7 +383,7 @@ func (s *BasicColumnEncryptionSetting) IsEndMasking() bool {
 func (s *BasicColumnEncryptionSetting) GetEncryptedDataType() common2.EncryptedType {
 	// If the configuration file contains some unknown or unsupported token type,
 	// return some safe default.
-	const defaultDataType = common2.EncryptedType_Bytes
+	const defaultDataType = common2.EncryptedType_Unknown
 	dataType, err := common2.ParseStringEncryptedType(s.DataType)
 	if err != nil {
 		return defaultDataType
