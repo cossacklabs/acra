@@ -230,8 +230,10 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 	if s.ReEncryptToAcraBlock != nil && *s.ReEncryptToAcraBlock {
 		s.settingMask |= SettingReEncryptionFlag
 	}
+	var tokenType common.TokenType
+	var ok bool
 	if s.TokenType != "" || s.Tokenized {
-		tokenType, ok := tokenTypeNames[s.TokenType]
+		tokenType, ok = tokenTypeNames[s.TokenType]
 		if !ok {
 			return fmt.Errorf("%s: %w", s.TokenType, common.ErrUnknownTokenType)
 		}
@@ -243,9 +245,7 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 	if s.DataType == "" {
 		// if DataType empty but configured for tokenization then map TokenType to appropriate DataType
 		if s.TokenType != "" {
-			// we don't validate because it's already validated above
-			tokenType, _ := tokenTypeNames[s.TokenType]
-			s.DataType, err = tokenType.ToEncryptedDataType().ToConfigString()
+			s.DataType, err = common2.TokenTypeToEncryptedDataType(tokenType).ToConfigString()
 			if err != nil {
 				return err
 			}
@@ -259,7 +259,7 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 		if err != nil {
 			return fmt.Errorf("%s: %w", s.DataType, common2.ErrUnknownEncryptedType)
 		}
-		if err = common2.ValidateEncryptedType(dataType); err != nil {
+		if err = common2.ValidateEncryptedType(dataType, tokenType); err != nil {
 			return err
 		}
 	}
@@ -294,7 +294,7 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 	if s.Searchable {
 		s.settingMask |= SettingSearchFlag
 	}
-	_, ok := validSettings[s.settingMask]
+	_, ok = validSettings[s.settingMask]
 	if !ok {
 		return ErrInvalidEncryptorConfig
 	}
