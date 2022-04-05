@@ -223,7 +223,7 @@ func (handler *Handler) Unsubscribe(subscriber base.DecryptionSubscriber) {
 	handler.decryptionObserver.Unsubscribe(subscriber)
 }
 
-func (handler *Handler) onColumnDecryption(parentCtx context.Context, column int, data []byte, isBinary bool, field *ColumnDescription) ([]byte, error) {
+func (handler *Handler) onColumnDecryption(parentCtx context.Context, column int, data []byte, isBinary bool, field *ColumnDescription) (context.Context, []byte, error) {
 	accessContext := base.AccessContextFromContext(parentCtx)
 	accessContext.SetColumnInfo(base.NewColumnInfo(column, "", isBinary, len(data), byte(field.Type), byte(field.originType)))
 	return handler.decryptionObserver.OnColumnDecryption(parentCtx, column, data)
@@ -490,13 +490,6 @@ func (handler *Handler) handleStatementExecute(ctx context.Context, packet *Pack
 	return nil
 }
 
-func (handler *Handler) isFieldToDecrypt(field *ColumnDescription) bool {
-	if tableSchema := handler.setting.TableSchemaStore().GetTableSchema(string(field.Table)); tableSchema != nil {
-		return tableSchema.NeedToEncrypt(string(field.Name))
-	}
-	return false
-}
-
 func (handler *Handler) processTextDataRow(ctx context.Context, rowData []byte, fields []*ColumnDescription) (output []byte, err error) {
 	var value []byte
 	var pos int
@@ -509,7 +502,7 @@ func (handler *Handler) processTextDataRow(ctx context.Context, rowData []byte, 
 		if err != nil {
 			return nil, err
 		}
-		value, err = handler.onColumnDecryption(ctx, i, value, false, fields[i])
+		_, value, err = handler.onColumnDecryption(ctx, i, value, false, fields[i])
 		if err != nil {
 			fieldLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				WithError(err).Errorln("Failed to process column data")
@@ -525,9 +518,6 @@ func (handler *Handler) processTextDataRow(ctx context.Context, rowData []byte, 
 
 func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte, fields []*ColumnDescription) ([]byte, error) {
 	pos := 0
-	//var n int
-	//var err error
-	var value []byte
 	var output []byte
 
 	handler.logger.Debugln("Process data rows in binary protocol")
@@ -554,18 +544,25 @@ func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte
 		if nullBitmap[(i+2)/8]&(1<<(uint(i+2)%8)) > 0 {
 			continue
 		}
-		processData, n, err := handler.extractProcessData(pos, rowData, fields[i])
+		extractedData, n, err := handler.extractData(pos, rowData, fields[i])
 		if err != nil {
 			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
 				Errorln("Can't handle length encoded string binary value")
 			return nil, err
 		}
 
-		value, err = handler.onColumnDecryption(ctx, i, processData, true, fields[i])
+		decrCtx, value, err := handler.onColumnDecryption(ctx, i, extractedData, true, fields[i])
 		if err != nil {
 			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				WithField("field_index", i).WithError(err).Errorln("Failed to process column data")
 			return nil, err
+		}
+
+		// rollback type changing in case of error converting to data type
+		if base.IsErrorConvertedDataTypeFromContext(decrCtx) {
+			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+				WithField("field_index", i).WithError(err).Errorln("Failed to change data type - rollback field type")
+			fields[i].Type = fields[i].originType
 		}
 
 		output = append(output, value...)
@@ -574,7 +571,8 @@ func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte
 	return output, nil
 }
 
-func (handler *Handler) extractProcessData(pos int, rowData []byte, field *ColumnDescription) ([]byte, int, error) {
+func (handler *Handler) extractData(pos int, rowData []byte, field *ColumnDescription) ([]byte, int, error) {
+	// in case of type changing we should process as origin type
 	fieldType := field.Type
 	if field.changed {
 		fieldType = field.originType

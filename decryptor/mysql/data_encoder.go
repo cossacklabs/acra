@@ -16,6 +16,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// ErrConvertToDataType error that indicates if data type conversion was failed
+var ErrConvertToDataType = errors.New("error on converting to data type")
+
 // BaseMySQLDataEncoderProcessor implements processor and encode/decode binary intX values to text format which acceptable by Tokenizer
 type BaseMySQLDataEncoderProcessor struct{}
 
@@ -64,33 +67,42 @@ func (p *BaseMySQLDataEncoderProcessor) encodeBinary(ctx context.Context, data [
 	logger.Debugln("Encode binary")
 
 	if len(data) == 0 {
-		return ctx, data, nil
+		// we still need to encode result data as it might be null field in db
+		return ctx, PutLengthEncodedString(data), nil
 	}
 
+	var columnType = columnInfo.DataBinaryType()
 	dataTypeEncoded, isEncoded, err := p.encodeWithDataType(ctx, data, setting)
-	if err != nil {
-		//todo: add error processing
+	if err != nil && err != ErrConvertToDataType {
 		return nil, nil, err
 	}
 
+	// in case of successful encoding with defined data type return encoded data
 	if isEncoded {
 		return ctx, dataTypeEncoded, nil
 	}
+
+	// in case of error on converting to defined type we should roll back field type and encode it as it was originally
+	if err == ErrConvertToDataType {
+		ctx = base.MarkErrorConvertedDataTypeContext(ctx)
+		columnType = columnInfo.OriginBinaryType()
+	}
+
 	var encoded []byte
 	var isNumericType bool
 	// After processing, parse the value back and reencode it. Take care for the format to match.
 	// The result must have exact same format as it had. Overflows are unacceptable.
-	switch Type(columnInfo.DataBinaryType()) {
+	switch Type(columnType) {
 	case TypeNull:
 		if data != nil {
-			err = errors.New("NULL not kept NULL")
+			return nil, nil, errors.New("NULL not kept NULL")
 		}
 
 	case TypeTiny:
 		encoded = make([]byte, 1)
 		intValue, err := strconv.ParseInt(string(data), 10, 8)
 		if err != nil {
-			break
+			return nil, nil, err
 		}
 		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int8(intValue))
 		isNumericType = true
@@ -99,7 +111,7 @@ func (p *BaseMySQLDataEncoderProcessor) encodeBinary(ctx context.Context, data [
 		encoded = make([]byte, 2)
 		intValue, err := strconv.ParseInt(string(data), 10, 16)
 		if err != nil {
-			break
+			return nil, nil, err
 		}
 		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int16(intValue))
 		isNumericType = true
@@ -108,7 +120,7 @@ func (p *BaseMySQLDataEncoderProcessor) encodeBinary(ctx context.Context, data [
 		encoded = make([]byte, 4)
 		intValue, err := strconv.ParseInt(string(data), 10, 32)
 		if err != nil {
-			break
+			return nil, nil, err
 		}
 		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int32(intValue))
 		isNumericType = true
@@ -117,7 +129,7 @@ func (p *BaseMySQLDataEncoderProcessor) encodeBinary(ctx context.Context, data [
 		encoded = make([]byte, 8)
 		intValue, err := strconv.ParseInt(string(data), 10, 64)
 		if err != nil {
-			break
+			return nil, nil, err
 		}
 		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int64(intValue))
 		isNumericType = true
@@ -126,7 +138,7 @@ func (p *BaseMySQLDataEncoderProcessor) encodeBinary(ctx context.Context, data [
 		encoded = make([]byte, 4)
 		floatValue, err := strconv.ParseFloat(string(data), 32)
 		if err != nil {
-			break
+			return nil, nil, err
 		}
 		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, float32(floatValue))
 		isNumericType = true
@@ -135,15 +147,10 @@ func (p *BaseMySQLDataEncoderProcessor) encodeBinary(ctx context.Context, data [
 		encoded = make([]byte, 8)
 		floatValue, err := strconv.ParseFloat(string(data), 64)
 		if err != nil {
-			break
+			return nil, nil, err
 		}
 		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, float64(floatValue))
 		isNumericType = true
-
-	}
-	if err != nil {
-		//TODO: add error
-		return ctx, data, nil
 	}
 
 	if isNumericType {
@@ -171,40 +178,39 @@ func (p *BaseMySQLDataEncoderProcessor) encodeWithDataType(ctx context.Context, 
 			if value := setting.GetDefaultDataValue(); value != nil {
 				return PutLengthEncodedString([]byte(*value)), true, nil
 			}
+			return data, false, ErrConvertToDataType
 		}
-		return PutLengthEncodedString(data), true, nil
+		return data, false, nil
 	case common.EncryptedType_Int32:
 		encoded := make([]byte, 4)
 		intValue, err := strconv.ParseInt(string(data), 10, 32)
 		if err != nil {
 			if newVal := setting.GetDefaultDataValue(); newVal != nil {
-				intValue, err = strconv.ParseInt(*newVal, 10, 64)
+				intValue, err = strconv.ParseInt(*newVal, 10, 32)
 				if err != nil {
-					return data, false, err
+					return data, false, ErrConvertToDataType
 				}
+			} else {
+				return data, false, ErrConvertToDataType
 			}
-			// TODO: ask Lagovas what to do in case of error casting to defined type.
-			// Not sure we can return data as is as we already changed the field type and need rollback type as well.
-			return data, false, err
 		}
 		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int32(intValue))
 		return encoded, true, err
 
 	case common.EncryptedType_Int64:
 		encoded := make([]byte, 8)
-		intValue, err := strconv.ParseInt(string(data), 10, 32)
+		intValue, err := strconv.ParseInt(string(data), 10, 64)
 		if err != nil {
 			if newVal := setting.GetDefaultDataValue(); newVal != nil {
 				intValue, err = strconv.ParseInt(*newVal, 10, 64)
 				if err != nil {
-					return data, false, err
+					return data, false, ErrConvertToDataType
 				}
+			} else {
+				return data, false, ErrConvertToDataType
 			}
-			// TODO: ask Lagovas what to do in case of error casting to defined type.
-			// Not sure we can return data as is as we already changed the field type and need rollback type as well.
-			return data, false, err
 		}
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int32(intValue))
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int64(intValue))
 		return encoded, true, err
 	}
 
@@ -215,7 +221,8 @@ func (p *BaseMySQLDataEncoderProcessor) encodeText(ctx context.Context, data []b
 	logger = logger.WithField("column", setting.ColumnName()).WithField("decrypted", base.IsDecryptedFromContext(ctx))
 	logger.Debugln("Encode text")
 	if len(data) == 0 {
-		return ctx, data, nil
+		// we still need to encode result data as it might be null field in db
+		return ctx, PutLengthEncodedString(data), nil
 	}
 
 	switch setting.GetEncryptedDataType() {
@@ -235,6 +242,19 @@ func (p *BaseMySQLDataEncoderProcessor) encodeText(ctx context.Context, data []b
 				return ctx, PutLengthEncodedString(binValue), nil
 			}
 		}
+	case common.EncryptedType_Int32, common.EncryptedType_Int64:
+		_, err := strconv.ParseInt(string(data), 10, 64)
+		// if it's valid string literal and decrypted, return as is
+		if err == nil {
+			return ctx, PutLengthEncodedString(data), nil
+		}
+		// if it's encrypted binary, then it is binary array that is invalid int literal
+		if !base.IsDecryptedFromContext(ctx) {
+			if newVal := setting.GetDefaultDataValue(); newVal != nil {
+				return ctx, PutLengthEncodedString([]byte(*newVal)), nil
+			}
+		}
+		logger.Warningln("Can't decode int value and no default value")
 	}
 	return ctx, PutLengthEncodedString(data), nil
 }

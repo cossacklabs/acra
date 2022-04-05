@@ -241,16 +241,16 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 	}
 	if s.DataType == "" {
 		// by default all encrypted data is binary
-		s.DataType, _ = common2.EncryptedType_Bytes.ToConfigString()
+		s.DataType = common2.EncryptedType_Unknown.String()
 		// if DataType empty but configured for tokenization then map TokenType to appropriate DataType
-		if s.TokenType != "" {
-			// we don't validate because it's already validated above
-			tokenType, _ := tokenTypeNames[s.TokenType]
-			s.DataType, err = tokenType.ToEncryptedDataType().ToConfigString()
-			if err != nil {
-				return err
-			}
-		}
+		//if s.TokenType != "" {
+		//	// we don't validate because it's already validated above
+		//	tokenType, _ := tokenTypeNames[s.TokenType]
+		//	s.DataType, err = tokenType.ToEncryptedDataType().ToConfigString()
+		//	if err != nil {
+		//		return err
+		//	}
+		//}
 	} else {
 		s.settingMask |= SettingDataTypeFlag
 	}
@@ -383,7 +383,7 @@ func (s *BasicColumnEncryptionSetting) IsEndMasking() bool {
 func (s *BasicColumnEncryptionSetting) GetEncryptedDataType() common2.EncryptedType {
 	// If the configuration file contains some unknown or unsupported token type,
 	// return some safe default.
-	const defaultDataType = common2.EncryptedType_Bytes
+	const defaultDataType = common2.EncryptedType_Unknown
 	dataType, err := common2.ParseStringEncryptedType(s.DataType)
 	if err != nil {
 		return defaultDataType

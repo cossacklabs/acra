@@ -178,7 +178,8 @@ func (proxy *PgProxy) onColumnDecryption(parentCtx context.Context, i int, data 
 	accessContext.SetColumnInfo(base.NewColumnInfo(i, "", binaryFormat, len(data), 0, 0))
 	// create new ctx per column processing
 	ctx := base.SetAccessContextToContext(parentCtx, accessContext)
-	return proxy.decryptionObserver.OnColumnDecryption(ctx, i, data)
+	_, newData, err := proxy.decryptionObserver.OnColumnDecryption(ctx, i, data)
+	return newData, err
 }
 
 // AddQueryObserver implement QueryObservable interface and proxy call to ObserverManager

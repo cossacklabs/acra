@@ -24,6 +24,7 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
 	"strconv"
+	"unicode/utf8"
 )
 
 var pgHexStringPrefix = []byte{'\\', 'x'}
@@ -62,15 +63,32 @@ func (*MysqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 
 // Encode data to correct literal from binary data for this expression
 func (*MysqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, error) {
+	encodeDataToHex := func(val *sqlparser.SQLVal, data []byte) ([]byte, error) {
+		output := make([]byte, hex.EncodedLen(len(data)))
+		hex.Encode(output, data)
+
+		val.Type = sqlparser.HexVal
+		return output, nil
+	}
+
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
 		switch val.Type {
-		case sqlparser.IntVal, sqlparser.StrVal:
-			return data, nil
+		case sqlparser.IntVal:
+			// if data was just tokenized, so we return it as is because it is valid int literal
+			if _, err := strconv.Atoi(string(data)); err == nil {
+				return data, nil
+			}
+			return encodeDataToHex(val, data)
+		case sqlparser.StrVal:
+
+			// if data is valid utf8 string so we return it as is
+			if utf8.Valid(data) {
+				return data, nil
+			}
+			return encodeDataToHex(val, data)
 		case sqlparser.HexVal:
-			output := make([]byte, hex.EncodedLen(len(data)))
-			hex.Encode(output, data)
-			return output, nil
+			return encodeDataToHex(val, data)
 		}
 	}
 	return nil, errUnsupportedExpression

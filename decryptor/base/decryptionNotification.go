@@ -117,17 +117,17 @@ func (o *ColumnDecryptionObserver) Unsubscribe(subscriber DecryptionSubscriber) 
 // OnColumnDecryption notifies all subscribers about a change in given column, passing the context and data to them.
 // Returns the data and error returned by subscribers.
 // If a subscriber returns an error, it is immediately returned and other subscribers are not notified.
-func (o *ColumnDecryptionObserver) OnColumnDecryption(ctx context.Context, column int, data []byte) ([]byte, error) {
+func (o *ColumnDecryptionObserver) OnColumnDecryption(ctx context.Context, column int, data []byte) (context.Context, []byte, error) {
 	var err error
 	// Avoid creating a map entry if it does not exist.
 	for _, subscriber := range o.allColumns {
 		ctx, data, err = subscriber.OnColumn(ctx, data)
 		if err != nil {
 			logrus.WithField("subscriber", subscriber.ID()).WithError(err).Errorln("OnColumn error")
-			return data, err
+			return ctx, data, err
 		}
 	}
-	return data, nil
+	return ctx, data, nil
 }
 
 type decryptedCtxKey struct{}
@@ -140,4 +140,28 @@ func MarkDecryptedContext(ctx context.Context) context.Context {
 // IsDecryptedFromContext return true if data was decrypted related to context
 func IsDecryptedFromContext(ctx context.Context) bool {
 	return ctx.Value(decryptedCtxKey{}) != nil
+}
+
+type errorConvertedDataTypeCtxKey struct{}
+
+// MarkErrorConvertedDataTypeContext save flag in context that was error during data type conversion
+func MarkErrorConvertedDataTypeContext(ctx context.Context) context.Context {
+	return context.WithValue(ctx, errorConvertedDataTypeCtxKey{}, true)
+}
+
+// UnMarkErrorConvertedDataTypeContext release flag in context that was error during data type conversion
+func UnMarkErrorConvertedDataTypeContext(ctx context.Context) context.Context {
+	return context.WithValue(ctx, errorConvertedDataTypeCtxKey{}, false)
+}
+
+// IsErrorConvertedDataTypeFromContext return true if data was decrypted related to context
+func IsErrorConvertedDataTypeFromContext(ctx context.Context) bool {
+	if errValue := ctx.Value(errorConvertedDataTypeCtxKey{}); errValue != nil {
+		if isMarked, ok := errValue.(bool); ok {
+			return isMarked
+		}
+		return false
+	}
+
+	return false
 }

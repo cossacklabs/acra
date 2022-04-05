@@ -811,13 +811,13 @@ if sys.version_info[1] > 6:
     ConnectionArgs = collections.namedtuple(
         "ConnectionArgs",
         field_names=["user", "password", "host", "port", "dbname",
-                     "ssl_ca", "ssl_key", "ssl_cert", "format"],
+                     "ssl_ca", "ssl_key", "ssl_cert", "raw", "format"],
         # 'format' is optional, other fields are required.
         defaults=[None])
 else:
     class ConnectionArgs:
         def __init__(self, user=None, password=None, host=None, port=None, dbname=None,
-                     ssl_ca=None, ssl_key=None, ssl_cert=None, format=None):
+                     ssl_ca=None, ssl_key=None, ssl_cert=None, format=None, raw=None):
             self.user = user
             self.password = password
             self.host = host
@@ -827,6 +827,7 @@ else:
             self.ssl_key = ssl_key
             self.ssl_cert = ssl_cert
             self.format = format
+            self.raw = raw
 
 
 class QueryExecutor(object):
@@ -886,7 +887,7 @@ class MysqlExecutor(QueryExecutor):
         if args is None:
             args = []
         with contextlib.closing(mysql.connector.Connect(
-                use_unicode=False, raw=True, charset='ascii',
+                use_unicode=False, raw=self.connection_args.raw, charset='ascii',
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user,
                 password=self.connection_args.password,
@@ -1225,7 +1226,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     TEST_DATA_LOG = False
 
     acra = ProcessStub()
-
     def checkSkip(self):
         if not TEST_WITH_TLS:
             self.skipTest("running tests with TLS")
@@ -1287,6 +1287,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             'http_api_enable': 'true' if self.ZONE else 'true',
             'keystore_cache_on_start_enable': 'false',
             'keys_dir': KEYS_FOLDER.name,
+            'd': 'true',
         }
         # keystore v2 doest not support caching, disable it for now
         if KEYSTORE_VERSION == 'v2':
@@ -1722,6 +1723,7 @@ class BaseBinaryPostgreSQLTestCase(BaseTestCase):
                 ssl_key=ssl_key,
                 ssl_cert=ssl_cert,
                 format=self.FORMAT,
+                raw=True,
             )
             return AsyncpgExecutor(args)
 
@@ -1824,6 +1826,7 @@ class BaseBinaryMySQLTestCase(BaseTestCase):
                 ssl_ca=TEST_TLS_CA,
                 ssl_key=ssl_key,
                 ssl_cert=ssl_cert,
+                raw=True,
             )
             return MysqlExecutor(args)
 
@@ -5313,7 +5316,7 @@ class BaseTransparentEncryption(BaseTestCase):
         sa.Column('nullable', sa.Text, nullable=True),
         sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
         )
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('./encryptor_config.yaml')
 
     def setUp(self):
         self.prepare_encryptor_config(client_id=TLS_CERT_CLIENT_ID_1)
@@ -6250,7 +6253,7 @@ class BaseSearchableTransparentEncryption(TestTransparentEncryption):
         sa.Column('token_email', sa.Text, nullable=False, default=''),
         sa.Column('masking', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_encryptor_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_encryptor_config.yaml')
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         # Disable keystore cache since it can interfere with rotation tests
@@ -6684,19 +6687,19 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
 
 
 class TestSearchableTransparentEncryptionWithDefaultsAcraBlockBinaryPostgreSQL(BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin, TestSearchableTransparentEncryption):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_defaults_with_searchable_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_acrablock_defaults_with_searchable_config.yaml')
 
 
 class TestSearchableTransparentEncryptionWithDefaultsAcraBlockBinaryMySQL(BaseSearchableTransparentEncryptionBinaryMySQLMixin, TestSearchableTransparentEncryption):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_defaults_with_searchable_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_acrablock_defaults_with_searchable_config.yaml')
 
 
 class TestSearchableTransparentEncryptionWithDefaultsAcraStructBinaryPostgreSQL(BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin, TestSearchableTransparentEncryption):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrastruct_defaults_with_searchable_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_acrastruct_defaults_with_searchable_config.yaml')
 
 
 class TestSearchableTransparentEncryptionWithDefaultsAcraStructBinaryMySQL(BaseSearchableTransparentEncryptionBinaryMySQLMixin, TestSearchableTransparentEncryption):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrastruct_defaults_with_searchable_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_acrastruct_defaults_with_searchable_config.yaml')
 
 
 class TestSearchableTransparentEncryptionBinaryPostgreSQL(BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin, TestSearchableTransparentEncryption):
@@ -6720,7 +6723,7 @@ class TestTransparentSearchableEncryptionWithZone(BaseSearchableTransparentEncry
 
 class BaseTokenization(BaseTestCase):
     WHOLECELL_MODE = True
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_tokenization_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_tokenization_config.yaml')
 
     def get_specified_client_id(self):
         return TLS_CERT_CLIENT_ID_2
@@ -6857,7 +6860,9 @@ class BaseTokenizationWithBinaryMySQL(BaseTokenization):
             user=DB_USER, password=DB_USER_PASSWORD,
             ssl_ca=TEST_TLS_CA,
             ssl_key=ssl_key,
-            ssl_cert=ssl_cert)
+            ssl_cert=ssl_cert,
+            raw=True,
+        )
         result = MysqlExecutor(args).execute_prepared_statement(query)
         # For some weird reason MySQL connector in prepared statement mode
         # does not decode TEXT columns into Python strings. In text mode
@@ -7414,7 +7419,7 @@ class TestTokenizationWithZoneBinaryBindMySQL(BaseTokenizationWithBinaryBindMySQ
 
 class BaseMasking(BaseTokenization):
     WHOLECELL_MODE = False
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_masking_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_masking_config.yaml')
 
     def check_crypto_envelope(self, table, row_id):
         temp_acrastruct = create_acrastruct_with_client_id(b'somedata', TLS_CERT_CLIENT_ID_1)
@@ -7926,7 +7931,7 @@ class TestMaskingWithZonePerRow(BaseMasking):
 
 
 class BaseAcraBlockMasking:
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_masking_acrablock_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_masking_acrablock_config.yaml')
 
     def check_crypto_envelope(self, table, row_id):
         temp_acrastruct = create_acrastruct_with_client_id(b'somedata', TLS_CERT_CLIENT_ID_1)
@@ -7956,7 +7961,7 @@ class TestMaskingAcraBlockWithoutZoneBinaryPostgreSQL(BaseAcraBlockMasking, Base
 
 
 class TestMaskingAcraBlockWithoutZoneWithDefaults(BaseAcraBlockMasking, TestMaskingWithoutZone):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_masking_acrablock_with_defaults_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_masking_acrablock_with_defaults_config.yaml')
 
 
 class TestMaskingAcraBlockWithZonePerValue(BaseAcraBlockMasking, TestMaskingWithZonePerValue):
@@ -7972,7 +7977,7 @@ class TestMaskingAcraBlockWithZonePerValueBinaryPostgreSQL(BaseAcraBlockMasking,
 
 
 class TestMaskingAcraBlockWithZonePerValueWithDefaults(BaseAcraBlockMasking, TestMaskingWithZonePerValue):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_masking_acrablock_with_defaults_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_masking_acrablock_with_defaults_config.yaml')
 
 
 class TestMaskingAcraBlockWithZonePerRow(BaseAcraBlockMasking, TestMaskingWithZonePerRow):
@@ -8189,7 +8194,7 @@ class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
                                sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
                                sa.Column('masked_prefix', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
                                )
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_acrablock_config.yaml')
 
     def testAcraStructReEncryption(self):
         specified_id = TLS_CERT_CLIENT_ID_1
@@ -8273,7 +8278,7 @@ class TestTransparentAcraBlockEncryptionMissingExtraLog(TestTransparentAcraBlock
 
 
 class TestTransparentAcraBlockEncryptionWithDefaults(TestTransparentAcraBlockEncryption):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_config_with_defaults.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_acrablock_config_with_defaults.yaml')
 
 
 class TestTransparentAcraBlockEncryptionWithZone(TestTransparentAcraBlockEncryption, TestTransparentEncryptionWithZone):
@@ -8357,11 +8362,11 @@ class TestTransparentAcraBlockEncryptionWithZone(TestTransparentAcraBlockEncrypt
 
 
 class TestTransparentAcraBlockEncryptionWithZoneWithDefaults(TestTransparentAcraBlockEncryptionWithZone):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_config_with_defaults.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_acrablock_config_with_defaults.yaml')
 
 
 class TestInvalidCryptoEnvelope(unittest.TestCase):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_encryptor_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_encryptor_config.yaml')
 
     def test_invalid_defaults(self):
         with open(self.ENCRYPTOR_CONFIG, 'r') as f:
@@ -8474,7 +8479,7 @@ class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(BaseTransparentEnc
         sa.Column('value_null_int32', sa.LargeBinary, nullable=True, default=None),
         sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('./encryptor_configs/transparent_type_aware_decryption.yaml')
 
     def checkSkip(self):
         if not (TEST_POSTGRESQL and TEST_WITH_TLS):
@@ -8544,6 +8549,121 @@ class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(BaseTransparentEnc
                 self.assertTrue(len(utils.memoryview_to_bytes(row[column])) > len(data[column]))
 
 
+class TestMySQLTextFormatTypeAwareDecryptionWithDefaults(BaseBinaryMySQLTestCase, BaseTransparentEncryption):
+    # test table used for queries and data mapping into python types
+    test_table = sa.Table(
+        # use new object of metadata to avoid name conflict
+        'test_type_aware_decryption_with_defaults', sa.MetaData(),
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.Text),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.Integer),
+        sa.Column('value_int64', sa.BigInteger),
+        sa.Column('value_null_str', sa.Text, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.Integer, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.Text, nullable=False, default=''),
+        extend_existing=True
+    )
+    # schema table used to generate table in the database with binary column types
+    schema_table = sa.Table(
+
+        'test_type_aware_decryption_with_defaults', metadata,
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.LargeBinary),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.LargeBinary),
+        sa.Column('value_int64', sa.LargeBinary),
+        sa.Column('value_null_str', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
+        extend_existing=True
+    )
+    ENCRYPTOR_CONFIG = get_encryptor_config('./encryptor_configs/transparent_type_aware_decryption.yaml')
+
+    def setUp(self):
+        super().setUp()
+
+        # switch off raw mode to be able to convert result rows to python types
+        def raw_executor_with_ssl(ssl_key, ssl_cert):
+            args = ConnectionArgs(
+                host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
+                user=DB_USER, password=DB_USER_PASSWORD,
+                ssl_ca=TEST_TLS_CA,
+                ssl_key=ssl_key,
+                ssl_cert=ssl_cert,
+                raw=False,
+            )
+            return MysqlExecutor(args)
+
+        self.executor1 = raw_executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
+        self.executor2 = raw_executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
+
+    def checkSkip(self):
+        if not (TEST_MYSQL and TEST_WITH_TLS):
+            self.skipTest("Test only for MySQL with TLS")
+
+    def testClientIDRead(self):
+        """test decrypting with correct clientID and not decrypting with
+        incorrect clientID or using direct connection to db
+        All result data should be valid for application. Not decrypted data should be returned with their default value
+        """
+        data = {
+            'id': get_random_id(),
+            'value_str': random_str(),
+            'value_bytes': random_bytes(),
+            'value_int32': random_int32(),
+            'value_int64': random_int64(),
+            'value_null_str': None,
+            'value_null_int32': None,
+            'value_empty_str': ''
+        }
+        default_expected_values = {
+            'value_int32': 32,
+            'value_int64': 64,
+            'value_bytes': b'value_bytes',
+            'value_str': 'value_str',
+            'value_empty_str': ''
+        }
+
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        columns = ('value_bytes', 'value_int32', 'value_int64', 'value_empty_str', 'value_str')
+        null_columns = ('value_null_str', 'value_null_int32')
+
+        self.engine1.execute(self.test_table.insert(), data)
+
+        compile_kwargs = {"literal_binds": True}
+        query = sa.select([self.test_table]).where(self.test_table.c.id == data['id'])
+        query = str(query.compile(compile_kwargs=compile_kwargs))
+
+        row = self.executor1.execute(query)[0]
+        for column in columns:
+            self.assertEqual(data[column], row[column])
+            self.assertIsInstance(row[column], type(data[column]))
+
+        # mysql.connector represent null value as empty string
+        for column in null_columns:
+            self.assertEqual(row[column], '')
+
+        row = self.executor2.execute(query)[0]
+        for column in columns:
+            self.assertEqual(row[column], default_expected_values[column])
+            self.assertIsInstance(row[column], type(default_expected_values[column]))
+
+        for column in null_columns:
+            self.assertEqual(row[column], '')
+
+        row = self.engine_raw.execute(sa.select([self.test_table])
+                .where(self.test_table.c.id == data['id'])).fetchone()
+        for column in columns:
+            if 'null' in column:
+                self.assertIsNone(row[column])
+                continue
+            self.assertIsInstance(utils.memoryview_to_bytes(row[column]), bytes)
+            if column in ('value_str', 'value_bytes'):
+                # length of data should be greater than source data due to encryption overhead
+                self.assertTrue(len(utils.memoryview_to_bytes(row[column])) > len(data[column]))
+
+
 class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults(
         BaseBinaryPostgreSQLTestCase, TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults):
     def testClientIDRead(self):
@@ -8596,6 +8716,7 @@ class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults(
                 self.assertEqual(data[column], row[column])
             else:
                 self.assertNotEqual(data[column], row[column])
+                self.assertEqual(row[column], default_expected_values[column])
             self.assertIsInstance(row[column], type(data[column]))
 
         row = self.executor2.execute_prepared_statement(query, args)[0]
@@ -8605,6 +8726,63 @@ class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults(
                 self.assertFalse(row[column])
                 continue
             self.assertNotEqual(data[column], row[column])
+
+
+class TestMySQLBinaryFormatTypeAwareDecryptionWithDefaults(TestMySQLTextFormatTypeAwareDecryptionWithDefaults):
+    def testClientIDRead(self):
+        """test decrypting with correct clientID and not decrypting with
+        incorrect clientID or using direct connection to db
+        All result data should be valid for application. Not decrypted data should be returned with their default value
+        """
+        data = {
+            'id': get_random_id(),
+            'value_str': random_str(),
+            'value_bytes': random_bytes(),
+            'value_int32': random_int32(),
+            'value_int64': random_int64(),
+            'value_null_str': None,
+            'value_null_int32': None,
+            'value_empty_str': ''
+        }
+        default_expected_values = {
+            'value_int32': 32,
+            'value_int64': 64,
+            'value_bytes': b'value_bytes',
+            'value_str': 'value_str',
+        }
+
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        columns = ('value_str', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32', 'value_empty_str')
+        query, args = self.compileQuery(self.test_table.insert(), data)
+        self.executor1.execute_prepared_statement_no_result(query, args)
+
+        query, args = self.compileQuery(
+            sa.select([self.test_table])
+                .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
+        row = self.executor1.execute_prepared_statement(query, args)[0]
+
+        # mysql bytes response present bytearray type not bytes
+        self.assertIsInstance(row['value_bytes'], type(bytearray(data['value_bytes'])))
+
+        for column in columns:
+            self.assertEqual(data[column], row[column])
+            self.assertIsInstance(row[column], type(data[column]))
+
+        row = self.executor2.execute_prepared_statement(query, args)[0]
+
+        # mysql bytes response present bytearray type not bytes
+        self.assertNotEqual(row['value_bytes'], bytearray(data['value_bytes']))
+        self.assertEqual(row['value_bytes'], bytearray(default_expected_values['value_bytes']))
+
+        for column in columns:
+            if 'empty' in column:
+                self.assertEqual(data[column], row[column])
+            elif 'null' in column:
+                self.assertEqual(data[column], row[column])
+            else:
+                self.assertNotEqual(data[column], row[column])
+                self.assertEqual(default_expected_values[column], row[column])
+            self.assertIsInstance(row[column], type(data[column]))
 
 
 class TestPostgresqlTextTypeAwareDecryptionWithoutDefaults(BaseTransparentEncryption):
@@ -8634,7 +8812,7 @@ class TestPostgresqlTextTypeAwareDecryptionWithoutDefaults(BaseTransparentEncryp
         sa.Column('value_null_int32', sa.LargeBinary, nullable=True, default=None),
         sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('./encryptor_configs/transparent_type_aware_decryption.yaml')
 
     def checkSkip(self):
         if not (TEST_POSTGRESQL and TEST_WITH_TLS):
@@ -8683,6 +8861,112 @@ class TestPostgresqlTextTypeAwareDecryptionWithoutDefaults(BaseTransparentEncryp
             self.assertNotEqual(data[column], value, column)
 
 
+class TestMySQLTextTypeAwareDecryptionWithoutDefaults(BaseBinaryMySQLTestCase, BaseTransparentEncryption):
+    # test table used for queries and data mapping into python types
+    test_table = sa.Table(
+        # use new object of metadata to avoid name conflict
+        'test_type_aware_decryption_without_defaults', sa.MetaData(),
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.Text),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.Integer),
+        sa.Column('value_int64', sa.BigInteger),
+        sa.Column('value_null_str', sa.Text, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.Integer, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.Text, nullable=False, default=''),
+        extend_existing=True
+    )
+    # schema table used to generate table in the database with binary column types
+    schema_table = sa.Table(
+
+        'test_type_aware_decryption_without_defaults', metadata,
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.LargeBinary),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.LargeBinary),
+        sa.Column('value_int64', sa.LargeBinary),
+        sa.Column('value_null_str', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
+        extend_existing=True
+    )
+    ENCRYPTOR_CONFIG = get_encryptor_config('./encryptor_configs/transparent_type_aware_decryption.yaml')
+
+    def setUp(self):
+        super().setUp()
+
+        # switch off raw mode to be able to convert result rows to python types
+        def raw_executor_with_ssl(ssl_key, ssl_cert):
+            args = ConnectionArgs(
+                host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
+                user=DB_USER, password=DB_USER_PASSWORD,
+                ssl_ca=TEST_TLS_CA,
+                ssl_key=ssl_key,
+                ssl_cert=ssl_cert,
+                raw=False,
+            )
+            return MysqlExecutor(args)
+
+        self.executor1 = raw_executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
+        self.executor2 = raw_executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
+
+    def checkSkip(self):
+        if not (TEST_MYSQL and TEST_WITH_TLS):
+            self.skipTest("Test only for MySQL with TLS")
+
+    def testClientIDRead(self):
+        """test decrypting with correct clientID and not decrypting with
+        incorrect clientID or using direct connection to db
+        All result data should be valid for application. Not decrypted data should be returned as is and DB driver
+        should cause error
+        """
+        data = {
+            'id': get_random_id(),
+            'value_str': random_str(),
+            'value_bytes': random_bytes(),
+            'value_int32': random_int32(),
+            'value_int64': random_int64(),
+            'value_null_str': None,
+            'value_null_int32': None,
+            'value_empty_str': ''
+        }
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        self.engine1.execute(self.test_table.insert(), data)
+        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_empty_str')
+        null_columns = ('value_null_str', 'value_null_int32')
+
+        compile_kwargs = {"literal_binds": True}
+        query = sa.select([self.test_table]).where(self.test_table.c.id == data['id'])
+        query = str(query.compile(compile_kwargs=compile_kwargs))
+
+        row = self.executor1.execute(query)[0]
+        for column in columns:
+            self.assertEqual(data[column], row[column])
+            self.assertIsInstance(row[column], type(data[column]))
+
+        # mysql.connector represent null value as empty string
+        for column in null_columns:
+            self.assertEqual(row[column], '')
+
+        # connector can't decode binary blobs to int types
+        with self.assertRaises(mysql.connector.errors.InternalError):
+            row = self.executor2.execute(query)[0]
+
+        # direct connection should receive binary data according to real scheme
+        result = self.engine_raw.execute(
+            sa.select([self.test_table])
+                .where(self.test_table.c.id == data['id']))
+        row = result.fetchone()
+        for column in columns:
+            if 'null' in column or 'empty' in column:
+                # asyncpg decodes None values as empty str/bytes value
+                self.assertFalse(row[column])
+                continue
+            value = utils.memoryview_to_bytes(row[column])
+            self.assertIsInstance(value, bytes, column)
+            self.assertNotEqual(data[column], value, column)
+
+
 class TestPostgresqlBinaryTypeAwareDecryptionWithoutDefaults(TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults):
     # test table used for queries and data mapping into python types
     test_table = sa.Table(
@@ -8711,7 +8995,7 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithoutDefaults(TestPostgresqlBinar
         sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
         extend_existing=True
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('./encryptor_configs/transparent_type_aware_decryption.yaml')
 
     def checkSkip(self):
         if not (TEST_POSTGRESQL and TEST_WITH_TLS):
@@ -8757,6 +9041,51 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithoutDefaults(TestPostgresqlBinar
             self.assertIsInstance(value, bytes, column)
             self.assertNotEqual(data[column], value, column)
 
+
+class TestMySQLBinaryTypeAwareDecryptionWithoutDefaults(TestMySQLTextTypeAwareDecryptionWithoutDefaults):
+    def checkSkip(self):
+        if not (TEST_MYSQL and TEST_WITH_TLS):
+            self.skipTest("Test only for MySQL with TLS")
+
+    def testClientIDRead(self):
+        """test decrypting with correct clientID and not decrypting with
+        incorrect clientID or using direct connection to db
+        All result data should be valid for application. Not decrypted data should be returned as is and DB driver
+        should cause error
+
+        MySQL decoded should roll back FieldType as well
+        """
+        data = {
+            'id': get_random_id(),
+            'value_str': random_str(),
+            'value_bytes': random_bytes(),
+            'value_int32': random_int32(),
+            'value_int64': random_int64(),
+            'value_null_str': None,
+            'value_null_int32': None,
+            'value_empty_str': ''
+        }
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        ######
+        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
+                   'value_empty_str')
+        query, args = self.compileQuery(self.test_table.insert(), data)
+        self.executor1.execute_prepared_statement_no_result(query, args)
+
+        query, args = self.compileQuery(
+            sa.select([self.test_table])
+                .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
+
+        row = self.executor2.execute_prepared_statement(query, args)[0]
+
+        for column in columns:
+            if 'null' in column or 'empty' in column:
+                # asyncpg decodes None values as empty str/bytes value
+                self.assertFalse(row[column])
+                continue
+            value = utils.memoryview_to_bytes(row[column])
+            self.assertIsInstance(value, bytearray, column)
+            self.assertNotEqual(data[column], value, column)
 
 if __name__ == '__main__':
     import xmlrunner
