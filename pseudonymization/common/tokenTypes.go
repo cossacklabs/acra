@@ -56,12 +56,10 @@ func (x TokenType) ToEncryptedDataType() common.EncryptedType {
 		return common.EncryptedType_Int32
 	case TokenType_Int64:
 		return common.EncryptedType_Int64
-	case TokenType_String:
+	case TokenType_String, TokenType_Email:
 		return common.EncryptedType_String
 	case TokenType_Bytes:
 		return common.EncryptedType_Bytes
-	case TokenType_Email:
-		return common.EncryptedType_String
 	}
 	return common.EncryptedType_Unknown
 }

@@ -239,9 +239,8 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 			return err
 		}
 	}
+	dataType := common2.EncryptedType_Unknown
 	if s.DataType == "" {
-		// by default all encrypted data is binary
-		s.DataType, _ = common2.EncryptedType_Bytes.ToConfigString()
 		// if DataType empty but configured for tokenization then map TokenType to appropriate DataType
 		if s.TokenType != "" {
 			// we don't validate because it's already validated above
@@ -252,16 +251,22 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 			}
 		}
 	} else {
+		// set mask only if it set explicitly, not via token_type
 		s.settingMask |= SettingDataTypeFlag
 	}
-	dataType, err := common2.ParseStringEncryptedType(s.DataType)
-	if err != nil {
-		return fmt.Errorf("%s: %w", s.DataType, common2.ErrUnknownEncryptedType)
-	}
-	if err = common2.ValidateEncryptedType(dataType); err != nil {
-		return err
+	if s.DataType != "" {
+		dataType, err = common2.ParseStringEncryptedType(s.DataType)
+		if err != nil {
+			return fmt.Errorf("%s: %w", s.DataType, common2.ErrUnknownEncryptedType)
+		}
+		if err = common2.ValidateEncryptedType(dataType); err != nil {
+			return err
+		}
 	}
 	if s.DefaultDataValue != nil {
+		if dataType == common2.EncryptedType_Unknown {
+			return errors.New("default_data_value used without data_type")
+		}
 		s.settingMask |= SettingDefaultDataValueFlag
 	}
 	if err = common2.ValidateDefaultValue(s.DefaultDataValue, dataType); err != nil {

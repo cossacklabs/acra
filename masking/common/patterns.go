@@ -50,7 +50,8 @@ func ValidateMaskingParams(pattern string, plaintextLength int, plaintextSide Pl
 		return ErrInvalidPlaintextSide
 	}
 	switch dataType {
-	case common.EncryptedType_String, common.EncryptedType_Bytes:
+	// support not defined Unknown or String/Bytes
+	case common.EncryptedType_String, common.EncryptedType_Bytes, common.EncryptedType_Unknown:
 		break
 	default:
 		// intX not supported masking with type awareness
