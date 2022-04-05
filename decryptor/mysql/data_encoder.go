@@ -332,7 +332,7 @@ func (p *EncodeMySQLDataEncoderProcessor) OnColumn(ctx context.Context, data []b
 	logger := logging.GetLoggerFromContext(ctx)
 	columnInfo, ok := base.ColumnInfoFromContext(ctx)
 	if !ok {
-		logger.WithField("processor", "PgSQLDataEncoderProcessor").Warningln("No column info in ctx")
+		logger.WithField("processor", "EncodeMySQLDataEncoderProcessor").Warningln("No column info in ctx")
 		// we can't do anything
 		return ctx, data, nil
 	}
@@ -352,7 +352,7 @@ func (p *DecodeMySQLDataEncoderProcessor) OnColumn(ctx context.Context, data []b
 	logger := logging.GetLoggerFromContext(ctx)
 	columnInfo, ok := base.ColumnInfoFromContext(ctx)
 	if !ok {
-		logger.WithField("processor", "PgSQLDataEncoderProcessor").Warningln("No column info in ctx")
+		logger.WithField("processor", "DecodeMySQLDataEncoderProcessor").Warningln("No column info in ctx")
 		// we can't do anything
 		return ctx, data, nil
 	}
