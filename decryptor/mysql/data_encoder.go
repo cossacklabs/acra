@@ -6,12 +6,12 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
-	"github.com/cossacklabs/acra/encryptor/config/common"
 	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
+	"github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/sirupsen/logrus"
 )

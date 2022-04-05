@@ -149,19 +149,7 @@ func MarkErrorConvertedDataTypeContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, errorConvertedDataTypeCtxKey{}, true)
 }
 
-// UnMarkErrorConvertedDataTypeContext release flag in context that was error during data type conversion
-func UnMarkErrorConvertedDataTypeContext(ctx context.Context) context.Context {
-	return context.WithValue(ctx, errorConvertedDataTypeCtxKey{}, false)
-}
-
 // IsErrorConvertedDataTypeFromContext return true if data was decrypted related to context
 func IsErrorConvertedDataTypeFromContext(ctx context.Context) bool {
-	if errValue := ctx.Value(errorConvertedDataTypeCtxKey{}); errValue != nil {
-		if isMarked, ok := errValue.(bool); ok {
-			return isMarked
-		}
-		return false
-	}
-
-	return false
+	return ctx.Value(errorConvertedDataTypeCtxKey{}) != nil
 }

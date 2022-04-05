@@ -1287,7 +1287,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             'http_api_enable': 'true' if self.ZONE else 'true',
             'keystore_cache_on_start_enable': 'false',
             'keys_dir': KEYS_FOLDER.name,
-            'd': 'true',
         }
         # keystore v2 doest not support caching, disable it for now
         if KEYSTORE_VERSION == 'v2':
@@ -5316,7 +5315,7 @@ class BaseTransparentEncryption(BaseTestCase):
         sa.Column('nullable', sa.Text, nullable=True),
         sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
         )
-    ENCRYPTOR_CONFIG = get_encryptor_config('./encryptor_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_config.yaml')
 
     def setUp(self):
         self.prepare_encryptor_config(client_id=TLS_CERT_CLIENT_ID_1)
@@ -6253,7 +6252,7 @@ class BaseSearchableTransparentEncryption(TestTransparentEncryption):
         sa.Column('token_email', sa.Text, nullable=False, default=''),
         sa.Column('masking', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_encryptor_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_encryptor_config.yaml')
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         # Disable keystore cache since it can interfere with rotation tests
@@ -6687,19 +6686,19 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
 
 
 class TestSearchableTransparentEncryptionWithDefaultsAcraBlockBinaryPostgreSQL(BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin, TestSearchableTransparentEncryption):
-    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_acrablock_defaults_with_searchable_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_defaults_with_searchable_config.yaml')
 
 
 class TestSearchableTransparentEncryptionWithDefaultsAcraBlockBinaryMySQL(BaseSearchableTransparentEncryptionBinaryMySQLMixin, TestSearchableTransparentEncryption):
-    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_acrablock_defaults_with_searchable_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_defaults_with_searchable_config.yaml')
 
 
 class TestSearchableTransparentEncryptionWithDefaultsAcraStructBinaryPostgreSQL(BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin, TestSearchableTransparentEncryption):
-    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_acrastruct_defaults_with_searchable_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrastruct_defaults_with_searchable_config.yaml')
 
 
 class TestSearchableTransparentEncryptionWithDefaultsAcraStructBinaryMySQL(BaseSearchableTransparentEncryptionBinaryMySQLMixin, TestSearchableTransparentEncryption):
-    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_acrastruct_defaults_with_searchable_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrastruct_defaults_with_searchable_config.yaml')
 
 
 class TestSearchableTransparentEncryptionBinaryPostgreSQL(BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin, TestSearchableTransparentEncryption):
@@ -6723,7 +6722,7 @@ class TestTransparentSearchableEncryptionWithZone(BaseSearchableTransparentEncry
 
 class BaseTokenization(BaseTestCase):
     WHOLECELL_MODE = True
-    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_tokenization_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_tokenization_config.yaml')
 
     def get_specified_client_id(self):
         return TLS_CERT_CLIENT_ID_2
@@ -7419,7 +7418,7 @@ class TestTokenizationWithZoneBinaryBindMySQL(BaseTokenizationWithBinaryBindMySQ
 
 class BaseMasking(BaseTokenization):
     WHOLECELL_MODE = False
-    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_masking_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_masking_config.yaml')
 
     def check_crypto_envelope(self, table, row_id):
         temp_acrastruct = create_acrastruct_with_client_id(b'somedata', TLS_CERT_CLIENT_ID_1)
@@ -7931,7 +7930,7 @@ class TestMaskingWithZonePerRow(BaseMasking):
 
 
 class BaseAcraBlockMasking:
-    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_masking_acrablock_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_masking_acrablock_config.yaml')
 
     def check_crypto_envelope(self, table, row_id):
         temp_acrastruct = create_acrastruct_with_client_id(b'somedata', TLS_CERT_CLIENT_ID_1)
@@ -7961,7 +7960,7 @@ class TestMaskingAcraBlockWithoutZoneBinaryPostgreSQL(BaseAcraBlockMasking, Base
 
 
 class TestMaskingAcraBlockWithoutZoneWithDefaults(BaseAcraBlockMasking, TestMaskingWithoutZone):
-    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_masking_acrablock_with_defaults_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_masking_acrablock_with_defaults_config.yaml')
 
 
 class TestMaskingAcraBlockWithZonePerValue(BaseAcraBlockMasking, TestMaskingWithZonePerValue):
@@ -7977,7 +7976,7 @@ class TestMaskingAcraBlockWithZonePerValueBinaryPostgreSQL(BaseAcraBlockMasking,
 
 
 class TestMaskingAcraBlockWithZonePerValueWithDefaults(BaseAcraBlockMasking, TestMaskingWithZonePerValue):
-    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_masking_acrablock_with_defaults_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_masking_acrablock_with_defaults_config.yaml')
 
 
 class TestMaskingAcraBlockWithZonePerRow(BaseAcraBlockMasking, TestMaskingWithZonePerRow):
@@ -8194,7 +8193,7 @@ class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
                                sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
                                sa.Column('masked_prefix', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
                                )
-    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_acrablock_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_config.yaml')
 
     def testAcraStructReEncryption(self):
         specified_id = TLS_CERT_CLIENT_ID_1
@@ -8278,7 +8277,7 @@ class TestTransparentAcraBlockEncryptionMissingExtraLog(TestTransparentAcraBlock
 
 
 class TestTransparentAcraBlockEncryptionWithDefaults(TestTransparentAcraBlockEncryption):
-    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_acrablock_config_with_defaults.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_config_with_defaults.yaml')
 
 
 class TestTransparentAcraBlockEncryptionWithZone(TestTransparentAcraBlockEncryption, TestTransparentEncryptionWithZone):
@@ -8362,11 +8361,11 @@ class TestTransparentAcraBlockEncryptionWithZone(TestTransparentAcraBlockEncrypt
 
 
 class TestTransparentAcraBlockEncryptionWithZoneWithDefaults(TestTransparentAcraBlockEncryptionWithZone):
-    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_acrablock_config_with_defaults.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_config_with_defaults.yaml')
 
 
 class TestInvalidCryptoEnvelope(unittest.TestCase):
-    ENCRYPTOR_CONFIG = get_encryptor_config('./ee_encryptor_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_encryptor_config.yaml')
 
     def test_invalid_defaults(self):
         with open(self.ENCRYPTOR_CONFIG, 'r') as f:
@@ -8479,7 +8478,7 @@ class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(BaseTransparentEnc
         sa.Column('value_null_int32', sa.LargeBinary, nullable=True, default=None),
         sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('./encryptor_configs/transparent_type_aware_decryption.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     def checkSkip(self):
         if not (TEST_POSTGRESQL and TEST_WITH_TLS):
@@ -8578,7 +8577,7 @@ class TestMySQLTextFormatTypeAwareDecryptionWithDefaults(BaseBinaryMySQLTestCase
         sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
         extend_existing=True
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('./encryptor_configs/transparent_type_aware_decryption.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     def setUp(self):
         super().setUp()
@@ -8812,7 +8811,7 @@ class TestPostgresqlTextTypeAwareDecryptionWithoutDefaults(BaseTransparentEncryp
         sa.Column('value_null_int32', sa.LargeBinary, nullable=True, default=None),
         sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('./encryptor_configs/transparent_type_aware_decryption.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     def checkSkip(self):
         if not (TEST_POSTGRESQL and TEST_WITH_TLS):
@@ -8890,7 +8889,7 @@ class TestMySQLTextTypeAwareDecryptionWithoutDefaults(BaseBinaryMySQLTestCase, B
         sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
         extend_existing=True
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('./encryptor_configs/transparent_type_aware_decryption.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     def setUp(self):
         super().setUp()
@@ -8995,7 +8994,7 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithoutDefaults(TestPostgresqlBinar
         sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
         extend_existing=True
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('./encryptor_configs/transparent_type_aware_decryption.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     def checkSkip(self):
         if not (TEST_POSTGRESQL and TEST_WITH_TLS):
