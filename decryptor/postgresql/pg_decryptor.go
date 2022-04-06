@@ -22,10 +22,11 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/encryptor/config"
 	"net"
 	"time"
+
+	"github.com/cossacklabs/acra/encryptor"
+	"github.com/cossacklabs/acra/encryptor/config"
 
 	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/decryptor/base"
@@ -250,7 +251,7 @@ func (proxy *PgProxy) ProxyClientConnection(ctx context.Context, errCh chan<- ba
 		// If the packet has been rejected by AcraCensor, stop here and don't send it to the database.
 		// Also, craft and send the client an error so that they know their query has been rejected.
 		if censored {
-			err := proxy.sendClientAcraCensorError(logger)
+			err := proxy.sendClientError("AcraCensor blocked this query", logger)
 			if err != nil {
 				errCh <- base.NewClientProxyError(err)
 				return
@@ -388,8 +389,8 @@ func (proxy *PgProxy) handleBindPacket(ctx context.Context, packet *PacketHandle
 	return false, nil
 }
 
-func (proxy *PgProxy) sendClientAcraCensorError(logger *log.Entry) error {
-	errorMessage, err := NewPgError("AcraCensor blocked this query")
+func (proxy *PgProxy) sendClientError(msg string, logger *log.Entry) error {
+	errorMessage, err := NewPgError(msg)
 	if err != nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantGenerateErrorPacket).
 			WithError(err).Errorln("Can't create PostgreSQL error message")
@@ -534,6 +535,16 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 
 			// Massage the packet. This should not normally fail. If it does, the client will not receive the packet.
 			err := proxy.handleDatabasePacket(packetCtx, packetHandler, logger)
+			if decryptionError, ok := err.(*EncodingError); ok {
+				logger.Debugln("G1gg1l3s: sending error to the client")
+				if err = proxy.sendClientError(decryptionError.Error(), logger); err != nil {
+					logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
+						WithError(err).Errorln("Can't send packet")
+					errCh <- base.NewDBProxyError(err)
+					return
+				}
+				continue
+			}
 			if err != nil {
 				errCh <- base.NewDBProxyError(err)
 				return

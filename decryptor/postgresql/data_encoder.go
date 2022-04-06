@@ -16,6 +16,15 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// EncodingError is returned from encoding handlers when some failure occurs.
+// This error should be sent to the user directly, so it needs to be own type
+// to be distinguishable.
+type EncodingError struct{}
+
+func (e *EncodingError) Error() string {
+	return "encoding error"
+}
+
 // PgSQLDataEncoderProcessor implements processor and encode binary/text values before sending to app
 type PgSQLDataEncoderProcessor struct{}
 
@@ -314,6 +323,8 @@ func onFail(setting config.ColumnEncryptionSetting, logger *logrus.Entry) (encod
 		return nil, nil
 	case action == "default":
 		return encodeDefault(setting, logger), nil
+	case action == "error":
+		return nil, &EncodingError{}
 	default:
 		return nil, fmt.Errorf("unknown action")
 	}
