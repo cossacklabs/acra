@@ -52,10 +52,11 @@ func (p *PgSQLDataEncoderProcessor) encodeBinary(ctx context.Context, data []byt
 			size = 4
 		}
 		// convert back from text to binary
-		value, err := strconv.ParseInt(string(data), 10, 64)
+		strValue := string(data)
+		value, err := strconv.ParseInt(strValue, 10, 64)
 		// we don't return error to not cause connection drop on Acra side and pass it to app to deal with it
 		if err == nil {
-			val := intValue{size, value}
+			val := intValue{size, value, strValue}
 			return ctx, val.asBinary(), nil
 		} else {
 			if value := encodeDefault(setting, logger); value != nil {
@@ -82,22 +83,10 @@ func (p *PgSQLDataEncoderProcessor) encodeText(ctx context.Context, data []byte,
 		return ctx, data, nil
 	}
 	switch setting.GetEncryptedDataType() {
-	case common2.EncryptedType_String:
+	case common2.EncryptedType_String, common2.EncryptedType_Bytes:
 		if !base.IsDecryptedFromContext(ctx) {
-			if newVal := setting.GetDefaultDataValue(); newVal != nil {
-				logger.WithField("default", *newVal).Debugln("Change with default")
-				return ctx, []byte(*newVal), nil
-			}
-		}
-	case common2.EncryptedType_Bytes:
-		if !base.IsDecryptedFromContext(ctx) {
-			if newVal := setting.GetDefaultDataValue(); newVal != nil {
-				binValue, err := base64.StdEncoding.DecodeString(*newVal)
-				if err != nil {
-					return ctx, data, err
-				}
-				// override and encode at end of function
-				data = binValue
+			if value := encodeDefault(setting, logger); value != nil {
+				return ctx, value.asText(), nil
 			}
 		}
 	case common2.EncryptedType_Int32, common2.EncryptedType_Int64:
@@ -108,9 +97,8 @@ func (p *PgSQLDataEncoderProcessor) encodeText(ctx context.Context, data []byte,
 		}
 		// if it's encrypted binary, then it is binary array that is invalid int literal
 		if !base.IsDecryptedFromContext(ctx) {
-			if newVal := setting.GetDefaultDataValue(); newVal != nil {
-				logger.Debugln("Return default value")
-				return ctx, []byte(*newVal), nil
+			if value := encodeDefault(setting, logger); value != nil {
+				return ctx, value.asText(), nil
 			}
 		}
 		logger.Warningln("Can't decode int value and no default value")
@@ -231,6 +219,7 @@ func (p *PgSQLDataDecoderProcessor) OnColumn(ctx context.Context, data []byte) (
 // ready to be encoded
 type encodingValue interface {
 	asBinary() []byte
+	asText() []byte
 }
 
 // byteSequenceValue is an abstraction over all byte-sequence values -- strings
@@ -240,11 +229,18 @@ type byteSequenceValue struct {
 }
 
 func (v *byteSequenceValue) asBinary() []byte { return v.seq }
+func (v *byteSequenceValue) asText() []byte {
+	if utils.IsPrintablePostgresqlString(v.seq) {
+		return v.seq
+	}
+	return utils.PgEncodeToHex(v.seq)
+}
 
 // intValue represents a {size*8}-bit integer ready for encoding
 type intValue struct {
-	size  int
-	value int64
+	size     int
+	value    int64
+	strValue string
 }
 
 func (v *intValue) asBinary() []byte {
@@ -258,12 +254,16 @@ func (v *intValue) asBinary() []byte {
 	return newData
 }
 
+func (v *intValue) asText() []byte {
+	return []byte(v.strValue)
+}
+
 // encodeDefault returns wrapped default value from settings ready for encdoing
 // returns nil if something went wrong, which in many cases indicates that the
 // original value should be returned as it is
 func encodeDefault(setting config.ColumnEncryptionSetting, logger *logrus.Entry) encodingValue {
-	value := setting.GetDefaultDataValue()
-	if value == nil {
+	strValue := setting.GetDefaultDataValue()
+	if strValue == nil {
 		logger.Errorln("Default value is not specified")
 		return nil
 	}
@@ -272,9 +272,9 @@ func encodeDefault(setting config.ColumnEncryptionSetting, logger *logrus.Entry)
 
 	switch dataType {
 	case common2.EncryptedType_String:
-		return &byteSequenceValue{seq: []byte(*value)}
+		return &byteSequenceValue{seq: []byte(*strValue)}
 	case common2.EncryptedType_Bytes:
-		binValue, err := base64.StdEncoding.DecodeString(*value)
+		binValue, err := base64.StdEncoding.DecodeString(*strValue)
 		if err != nil {
 			logger.WithError(err).Errorln("Can't decode base64 default value")
 			return nil
@@ -285,13 +285,13 @@ func encodeDefault(setting config.ColumnEncryptionSetting, logger *logrus.Entry)
 		if dataType == common2.EncryptedType_Int32 {
 			size = 4
 		}
-		value, err := strconv.ParseInt(*value, 10, 64)
+		value, err := strconv.ParseInt(*strValue, 10, 64)
 		if err != nil {
 			logger.WithError(err).Errorln("Can't parse default integer value")
 			return nil
 		}
 
-		return &intValue{size, value}
+		return &intValue{size: size, value: value, strValue: *strValue}
 	}
 	return nil
 }
