@@ -19,10 +19,11 @@ package encryptor
 import (
 	"bytes"
 	"errors"
+	"testing"
+
 	"github.com/cossacklabs/acra/acrastruct"
 	"github.com/cossacklabs/acra/encryptor/config"
 	common2 "github.com/cossacklabs/acra/encryptor/config/common"
-	"testing"
 
 	"github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -85,6 +86,10 @@ func (s *emptyEncryptionSetting) GetEncryptedDataType() common2.EncryptedType {
 }
 
 func (s *emptyEncryptionSetting) GetDefaultDataValue() *string {
+	panic("implement me")
+}
+
+func (s *emptyEncryptionSetting) GetOnFail() string {
 	panic("implement me")
 }
 

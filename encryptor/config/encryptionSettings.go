@@ -19,6 +19,7 @@ package config
 import (
 	"errors"
 	"fmt"
+
 	common2 "github.com/cossacklabs/acra/encryptor/config/common"
 	maskingCommon "github.com/cossacklabs/acra/masking/common"
 	"github.com/cossacklabs/acra/pseudonymization/common"
@@ -173,6 +174,12 @@ type BasicColumnEncryptionSetting struct {
 	DataType string `yaml:"data_type"`
 	// string for str/email/int32/int64 ans base64 string for binary data
 	DefaultDataValue *string `yaml:"default_data_value"`
+	// an action that should be performed on failure
+	// for type awareness decryption the default is "error", which indicates
+	// the the error should be returned to a user
+	// to return a default value, use  "default" together with
+	// `default_data_value` field
+	OnFail string `yaml:"on_fail"`
 
 	// Data pseudonymization (tokenization)
 	Tokenized              bool   `yaml:"tokenized"`
@@ -268,6 +275,8 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 			return errors.New("default_data_value used without data_type")
 		}
 		s.settingMask |= SettingDefaultDataValueFlag
+		// TODO: temporary
+		s.OnFail = "default"
 	}
 	if err = common2.ValidateDefaultValue(s.DefaultDataValue, dataType); err != nil {
 		return fmt.Errorf("invalid default value: %w", err)
@@ -416,6 +425,12 @@ func (s *BasicColumnEncryptionSetting) applyDefaults(defaults defaultValues) {
 			s.ReEncryptToAcraBlock = &v
 		}
 	}
+}
+
+// GetOnFail returns the action that should be performed on failure
+// Valid values are "", "error" and "default"
+func (s *BasicColumnEncryptionSetting) GetOnFail() string {
+	return s.OnFail
 }
 
 // HasTypeAwareSupport return true if setting configured for decryption with type awareness

@@ -47,6 +47,7 @@ type ColumnEncryptionSetting interface {
 
 	GetEncryptedDataType() common2.EncryptedType
 	GetDefaultDataValue() *string
+	GetOnFail() string
 
 	// Searchable encryption
 	IsSearchable() bool
