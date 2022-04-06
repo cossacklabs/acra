@@ -19,41 +19,41 @@ import (
 // ErrConvertToDataType error that indicates if data type conversion was failed
 var ErrConvertToDataType = errors.New("error on converting to data type")
 
-// BaseMySQLDataEncoderProcessor implements processor and encode/decode binary intX values to text format which acceptable by Tokenizer
-type BaseMySQLDataEncoderProcessor struct{}
+// BaseMySQLDataProcessor implements processor and encode/decode binary intX values to text format which acceptable by Tokenizer
+type BaseMySQLDataProcessor struct{}
 
-// EncodeMySQLDataEncoderProcessor implements processor and encode/decode binary intX values to text format which acceptable by Tokenizer
-type EncodeMySQLDataEncoderProcessor struct {
-	BaseMySQLDataEncoderProcessor
+// MySQLDataEncoderProcessor implements processor and encode/decode binary intX values to text format which acceptable by Tokenizer
+type MySQLDataEncoderProcessor struct {
+	BaseMySQLDataProcessor
 }
 
 // NewEncodeMySQLDataEncoderProcessor return new data encoder from/to binary format for tokenization
-func NewEncodeMySQLDataEncoderProcessor() *EncodeMySQLDataEncoderProcessor {
-	return &EncodeMySQLDataEncoderProcessor{
-		BaseMySQLDataEncoderProcessor{},
+func NewEncodeMySQLDataEncoderProcessor() *MySQLDataEncoderProcessor {
+	return &MySQLDataEncoderProcessor{
+		BaseMySQLDataProcessor{},
 	}
 }
 
 // ID return name of processor
-func (p *EncodeMySQLDataEncoderProcessor) ID() string {
-	return "EncodeMySQLDataEncoderProcessor"
+func (p *MySQLDataEncoderProcessor) ID() string {
+	return "MySQLDataEncoderProcessor"
 }
 
-// DecodeMySQLDataEncoderProcessor implements processor and encode/decode binary intX values to text format which acceptable by Tokenizer
-type DecodeMySQLDataEncoderProcessor struct {
-	BaseMySQLDataEncoderProcessor
+// MySQLDataDecoderProcessor implements processor and encode/decode binary intX values to text format which acceptable by Tokenizer
+type MySQLDataDecoderProcessor struct {
+	BaseMySQLDataProcessor
 }
 
 // NewDecodeMySQLDataEncoderProcessor return new data encoder from/to binary format for tokenization
-func NewDecodeMySQLDataEncoderProcessor() *DecodeMySQLDataEncoderProcessor {
-	return &DecodeMySQLDataEncoderProcessor{
-		BaseMySQLDataEncoderProcessor{},
+func NewDecodeMySQLDataEncoderProcessor() *MySQLDataDecoderProcessor {
+	return &MySQLDataDecoderProcessor{
+		BaseMySQLDataProcessor{},
 	}
 }
 
 // ID return name of processor
-func (p *DecodeMySQLDataEncoderProcessor) ID() string {
-	return "DecodeMySQLDataEncoderProcessor"
+func (p *MySQLDataDecoderProcessor) ID() string {
+	return "MySQLDataDecoderProcessor"
 }
 
 // here we process encryption/tokenization results before send it to a client
@@ -62,7 +62,7 @@ func (p *DecodeMySQLDataEncoderProcessor) ID() string {
 // if expects bytes, then pass as is
 // if expects string, then leave as is if it is valid string or encode to hex
 // if it is encrypted data then we return default values or as is if applicable (binary data)
-func (p *BaseMySQLDataEncoderProcessor) encodeBinary(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
+func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
 	logger = logger.WithField("column", setting.ColumnName()).WithField("decrypted", base.IsDecryptedFromContext(ctx))
 	logger.Debugln("Encode binary")
 
@@ -72,7 +72,7 @@ func (p *BaseMySQLDataEncoderProcessor) encodeBinary(ctx context.Context, data [
 	}
 
 	var columnType = columnInfo.DataBinaryType()
-	dataTypeEncoded, isEncoded, err := p.encodeWithDataType(ctx, data, setting)
+	dataTypeEncoded, isEncoded, err := p.encodeBinaryWithDataType(ctx, data, setting)
 	if err != nil && err != ErrConvertToDataType {
 		return nil, nil, err
 	}
@@ -160,7 +160,7 @@ func (p *BaseMySQLDataEncoderProcessor) encodeBinary(ctx context.Context, data [
 	return ctx, PutLengthEncodedString(data), nil
 }
 
-func (p *BaseMySQLDataEncoderProcessor) encodeWithDataType(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting) ([]byte, bool, error) {
+func (p *BaseMySQLDataProcessor) encodeBinaryWithDataType(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting) ([]byte, bool, error) {
 	switch setting.GetEncryptedDataType() {
 	case common.EncryptedType_Bytes:
 		if !base.IsDecryptedFromContext(ctx) {
@@ -217,7 +217,47 @@ func (p *BaseMySQLDataEncoderProcessor) encodeWithDataType(ctx context.Context, 
 	return data, false, nil
 }
 
-func (p *BaseMySQLDataEncoderProcessor) encodeText(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
+func (p *BaseMySQLDataProcessor) encodeTextWithDataType(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting) ([]byte, bool, error) {
+	switch setting.GetEncryptedDataType() {
+	case common.EncryptedType_String:
+		if !base.IsDecryptedFromContext(ctx) {
+			if value := setting.GetDefaultDataValue(); value != nil {
+				return PutLengthEncodedString([]byte(*value)), true, nil
+			}
+			return data, false, ErrConvertToDataType
+		}
+		return data, false, nil
+	case common.EncryptedType_Bytes:
+		if !base.IsDecryptedFromContext(ctx) {
+			if newValue := setting.GetDefaultDataValue(); newValue != nil {
+				binValue, err := base64.StdEncoding.DecodeString(*newValue)
+				if err != nil {
+					return nil, false, err
+				}
+				return PutLengthEncodedString(binValue), true, nil
+			}
+			return data, false, ErrConvertToDataType
+		}
+		return data, false, nil
+	case common.EncryptedType_Int32, common.EncryptedType_Int64:
+		_, err := strconv.ParseInt(string(data), 10, 64)
+		// if it's valid string literal and decrypted, return as is
+		if err == nil {
+			return PutLengthEncodedString(data), true, nil
+		}
+		// if it's encrypted binary, then it is binary array that is invalid int literal
+		if !base.IsDecryptedFromContext(ctx) {
+			if newVal := setting.GetDefaultDataValue(); newVal != nil {
+				return PutLengthEncodedString([]byte(*newVal)), true, nil
+			}
+			return data, false, ErrConvertToDataType
+		}
+	}
+
+	return data, false, nil
+}
+
+func (p *BaseMySQLDataProcessor) encodeText(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
 	logger = logger.WithField("column", setting.ColumnName()).WithField("decrypted", base.IsDecryptedFromContext(ctx))
 	logger.Debugln("Encode text")
 	if len(data) == 0 {
@@ -225,41 +265,25 @@ func (p *BaseMySQLDataEncoderProcessor) encodeText(ctx context.Context, data []b
 		return ctx, PutLengthEncodedString(data), nil
 	}
 
-	switch setting.GetEncryptedDataType() {
-	case common.EncryptedType_String:
-		if !base.IsDecryptedFromContext(ctx) {
-			if value := setting.GetDefaultDataValue(); value != nil {
-				return ctx, PutLengthEncodedString([]byte(*value)), nil
-			}
-		}
-	case common.EncryptedType_Bytes:
-		if !base.IsDecryptedFromContext(ctx) {
-			if newValue := setting.GetDefaultDataValue(); newValue != nil {
-				binValue, err := base64.StdEncoding.DecodeString(*newValue)
-				if err != nil {
-					return ctx, nil, err
-				}
-				return ctx, PutLengthEncodedString(binValue), nil
-			}
-		}
-	case common.EncryptedType_Int32, common.EncryptedType_Int64:
-		_, err := strconv.ParseInt(string(data), 10, 64)
-		// if it's valid string literal and decrypted, return as is
-		if err == nil {
-			return ctx, PutLengthEncodedString(data), nil
-		}
-		// if it's encrypted binary, then it is binary array that is invalid int literal
-		if !base.IsDecryptedFromContext(ctx) {
-			if newVal := setting.GetDefaultDataValue(); newVal != nil {
-				return ctx, PutLengthEncodedString([]byte(*newVal)), nil
-			}
-		}
-		logger.Warningln("Can't decode int value and no default value")
+	dataTypeEncoded, isEncoded, err := p.encodeTextWithDataType(ctx, data, setting)
+	if err != nil && err != ErrConvertToDataType {
+		return nil, nil, err
 	}
+
+	// in case of successful encoding with defined data type return encoded data
+	if isEncoded {
+		return ctx, dataTypeEncoded, nil
+	}
+
+	// in case of error on converting to defined type we should roll back field type and encode it as it was originally
+	if err == ErrConvertToDataType {
+		ctx = base.MarkErrorConvertedDataTypeContext(ctx)
+	}
+
 	return ctx, PutLengthEncodedString(data), nil
 }
 
-func (p *BaseMySQLDataEncoderProcessor) decodeBinary(ctx context.Context, encoded []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
+func (p *BaseMySQLDataProcessor) decodeBinary(ctx context.Context, encoded []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
 	// convert from binary to text literal because tokenizer expects int value as string literal
 	columnType := columnInfo.DataBinaryType()
 	if originType := columnInfo.OriginBinaryType(); originType != 0 {
@@ -323,7 +347,7 @@ func (p *BaseMySQLDataEncoderProcessor) decodeBinary(ctx context.Context, encode
 }
 
 // OnColumn encode binary value to text and back. Should be before and after tokenizer processor
-func (p *EncodeMySQLDataEncoderProcessor) OnColumn(ctx context.Context, data []byte) (context.Context, []byte, error) {
+func (p *MySQLDataEncoderProcessor) OnColumn(ctx context.Context, data []byte) (context.Context, []byte, error) {
 	columnSetting, ok := encryptor.EncryptionSettingFromContext(ctx)
 	if !ok {
 		// for case when data encrypted with acrastructs on app's side and used without any encryption setting
@@ -332,7 +356,7 @@ func (p *EncodeMySQLDataEncoderProcessor) OnColumn(ctx context.Context, data []b
 	logger := logging.GetLoggerFromContext(ctx)
 	columnInfo, ok := base.ColumnInfoFromContext(ctx)
 	if !ok {
-		logger.WithField("processor", "EncodeMySQLDataEncoderProcessor").Warningln("No column info in ctx")
+		logger.WithField("processor", "MySQLDataEncoderProcessor").Warningln("No column info in ctx")
 		// we can't do anything
 		return ctx, data, nil
 	}
@@ -343,7 +367,7 @@ func (p *EncodeMySQLDataEncoderProcessor) OnColumn(ctx context.Context, data []b
 }
 
 // OnColumn encode binary value to text and back. Should be before and after tokenizer processor
-func (p *DecodeMySQLDataEncoderProcessor) OnColumn(ctx context.Context, data []byte) (context.Context, []byte, error) {
+func (p *MySQLDataDecoderProcessor) OnColumn(ctx context.Context, data []byte) (context.Context, []byte, error) {
 	columnSetting, ok := encryptor.EncryptionSettingFromContext(ctx)
 	if !ok {
 		// for case when data encrypted with acrastructs on app's side and used without any encryption setting
@@ -352,7 +376,7 @@ func (p *DecodeMySQLDataEncoderProcessor) OnColumn(ctx context.Context, data []b
 	logger := logging.GetLoggerFromContext(ctx)
 	columnInfo, ok := base.ColumnInfoFromContext(ctx)
 	if !ok {
-		logger.WithField("processor", "DecodeMySQLDataEncoderProcessor").Warningln("No column info in ctx")
+		logger.WithField("processor", "MySQLDataDecoderProcessor").Warningln("No column info in ctx")
 		// we can't do anything
 		return ctx, data, nil
 	}

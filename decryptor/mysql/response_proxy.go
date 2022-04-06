@@ -491,23 +491,29 @@ func (handler *Handler) handleStatementExecute(ctx context.Context, packet *Pack
 }
 
 func (handler *Handler) processTextDataRow(ctx context.Context, rowData []byte, fields []*ColumnDescription) (output []byte, err error) {
-	var value []byte
 	var pos int
-	var n int
 	var fieldLogger *logrus.Entry
 	handler.logger.Debugln("Process data rows in text protocol")
 	for i := range fields {
 		fieldLogger = handler.logger.WithField("field_index", i)
-		value, n, err = LengthEncodedString(rowData[pos:])
+		value, n, err := LengthEncodedString(rowData[pos:])
 		if err != nil {
 			return nil, err
 		}
-		_, value, err = handler.onColumnDecryption(ctx, i, value, false, fields[i])
+		decrCtx, value, err := handler.onColumnDecryption(ctx, i, value, false, fields[i])
 		if err != nil {
 			fieldLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				WithError(err).Errorln("Failed to process column data")
 			return nil, err
 		}
+
+		// rollback type changing in case of error converting to data type
+		if base.IsErrorConvertedDataTypeFromContext(decrCtx) {
+			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+				WithField("field_index", i).WithError(err).Errorln("Failed to change data type - rollback field type")
+			fields[i].Type = fields[i].originType
+		}
+
 		output = append(output, value...)
 		pos += n
 	}
@@ -652,11 +658,14 @@ func (handler *Handler) QueryResponseHandler(ctx context.Context, packet *Packet
 				}
 			}
 			handler.logger.WithField("column_index", i).Debugln("Parse field")
-			field, err := ParseResultField(fieldPacket, handler.setting.TableSchemaStore())
+			field, err := ParseResultField(fieldPacket)
 			if err != nil {
 				handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't parse result field")
 				return err
 			}
+			// updating filed type according to DataType provided in schemaStore
+			updatedFieldEncodedType(field, handler.setting.TableSchemaStore())
+
 			if field.Type.IsBinaryType() {
 				handler.logger.WithField("column_index", i).Debugln("Binary field")
 				binaryFieldIndexes = append(binaryFieldIndexes, i)

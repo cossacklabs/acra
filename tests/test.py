@@ -8947,9 +8947,8 @@ class TestMySQLTextTypeAwareDecryptionWithoutDefaults(BaseBinaryMySQLTestCase, B
         for column in null_columns:
             self.assertEqual(row[column], '')
 
-        # connector can't decode binary blobs to int types
-        with self.assertRaises(mysql.connector.errors.InternalError):
-            row = self.executor2.execute(query)[0]
+        # field types should be rollbacked in case of invalid encoding
+        row = self.executor2.execute(query)[0]
 
         # direct connection should receive binary data according to real scheme
         result = self.engine_raw.execute(

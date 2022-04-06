@@ -19,8 +19,6 @@ package mysql
 import (
 	"encoding/binary"
 	"errors"
-	"github.com/cossacklabs/acra/encryptor/config"
-
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
 )
@@ -104,7 +102,7 @@ func ParsePrepareStatementResponse(data []byte) (*PrepareStatementResponse, erro
 }
 
 // ParseResultField parses binary field and returns ColumnDescription
-func ParseResultField(packet *Packet, schemaStore config.TableSchemaStore) (*ColumnDescription, error) {
+func ParseResultField(packet *Packet) (*ColumnDescription, error) {
 	field := &ColumnDescription{}
 	field.data = packet.data
 	field.header = packet.header
@@ -167,20 +165,7 @@ func ParseResultField(packet *Packet, schemaStore config.TableSchemaStore) (*Col
 	pos += 4
 
 	//type
-	tableSchema := schemaStore.GetTableSchema(string(field.Table))
-	if tableSchema != nil {
-		field.Type = Type(packet.data[pos])
-		if setting := tableSchema.GetColumnEncryptionSettings(string(field.Name)); setting != nil {
-			newFieldType, ok := mapEncryptedTypeToField(setting.GetEncryptedDataType())
-			if ok {
-				field.Type = Type(newFieldType)
-				field.originType = Type(packet.data[pos])
-				field.changed = true
-			}
-		}
-	} else {
-		field.Type = Type(packet.data[pos])
-	}
+	field.Type = Type(packet.data[pos])
 	pos++
 
 	//flag
