@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/binary"
+	"strconv"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
@@ -11,7 +13,6 @@ import (
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
-	"strconv"
 )
 
 // PgSQLDataEncoderProcessor implements processor and encode binary/text values before sending to app
@@ -38,21 +39,10 @@ func (p *PgSQLDataEncoderProcessor) encodeBinary(ctx context.Context, data []byt
 		return ctx, data, nil
 	}
 	switch setting.GetEncryptedDataType() {
-	case common2.EncryptedType_String:
+	case common2.EncryptedType_String, common2.EncryptedType_Bytes:
 		if !base.IsDecryptedFromContext(ctx) {
-			if newVal := setting.GetDefaultDataValue(); newVal != nil {
-				return ctx, []byte(*newVal), nil
-			}
-		}
-		return ctx, data, nil
-	case common2.EncryptedType_Bytes:
-		if !base.IsDecryptedFromContext(ctx) {
-			if newVal := setting.GetDefaultDataValue(); newVal != nil {
-				binValue, err := base64.StdEncoding.DecodeString(*newVal)
-				if err == nil {
-					return ctx, binValue, nil
-				}
-				logger.WithError(err).Errorln("Can't decode base64 default value")
+			if value := encodeDefault(setting, logger); value != nil {
+				return ctx, value.asBinary(), nil
 			}
 		}
 		return ctx, data, nil
@@ -64,26 +54,17 @@ func (p *PgSQLDataEncoderProcessor) encodeBinary(ctx context.Context, data []byt
 		// convert back from text to binary
 		value, err := strconv.ParseInt(string(data), 10, 64)
 		// we don't return error to not cause connection drop on Acra side and pass it to app to deal with it
-		if err != nil {
-			if newVal := setting.GetDefaultDataValue(); newVal != nil {
-				value, err = strconv.ParseInt(*newVal, 10, 64)
-				if err != nil {
-					logger.WithError(err).Errorln("Can't parse default integer value")
-					return ctx, data, nil
-				}
+		if err == nil {
+			val := intValue{size, value}
+			return ctx, val.asBinary(), nil
+		} else {
+			if value := encodeDefault(setting, logger); value != nil {
+				return ctx, value.asBinary(), nil
 			} else {
 				logger.WithError(err).Errorln("Can't decode int value and no default value")
 				return ctx, data, nil
 			}
 		}
-		newData := make([]byte, size)
-		switch size {
-		case 4:
-			binary.BigEndian.PutUint32(newData, uint32(value))
-		case 8:
-			binary.BigEndian.PutUint64(newData, uint64(value))
-		}
-		return ctx, newData, nil
 	}
 
 	return ctx, data, nil
@@ -244,4 +225,73 @@ func (p *PgSQLDataDecoderProcessor) OnColumn(ctx context.Context, data []byte) (
 		return p.decodeBinary(ctx, data, columnSetting, columnInfo, logger)
 	}
 	return p.decodeText(ctx, data, columnSetting, columnInfo, logger)
+}
+
+// encodingValue represents a (possibly parsed and prepared) value that is
+// ready to be encoded
+type encodingValue interface {
+	asBinary() []byte
+}
+
+// byteSequenceValue is an abstraction over all byte-sequence values -- strings
+// and []byte (because they are encoded in the same way)
+type byteSequenceValue struct {
+	seq []byte
+}
+
+func (v *byteSequenceValue) asBinary() []byte { return v.seq }
+
+// intValue represents a {size*8}-bit integer ready for encoding
+type intValue struct {
+	size  int
+	value int64
+}
+
+func (v *intValue) asBinary() []byte {
+	newData := make([]byte, v.size)
+	switch v.size {
+	case 4:
+		binary.BigEndian.PutUint32(newData, uint32(v.value))
+	case 8:
+		binary.BigEndian.PutUint64(newData, uint64(v.value))
+	}
+	return newData
+}
+
+// encodeDefault returns wrapped default value from settings ready for encdoing
+// returns nil if something went wrong, which in many cases indicates that the
+// original value should be returned as it is
+func encodeDefault(setting config.ColumnEncryptionSetting, logger *logrus.Entry) encodingValue {
+	value := setting.GetDefaultDataValue()
+	if value == nil {
+		logger.Errorln("Default value is not specified")
+		return nil
+	}
+
+	dataType := setting.GetEncryptedDataType()
+
+	switch dataType {
+	case common2.EncryptedType_String:
+		return &byteSequenceValue{seq: []byte(*value)}
+	case common2.EncryptedType_Bytes:
+		binValue, err := base64.StdEncoding.DecodeString(*value)
+		if err != nil {
+			logger.WithError(err).Errorln("Can't decode base64 default value")
+			return nil
+		}
+		return &byteSequenceValue{seq: binValue}
+	case common2.EncryptedType_Int32, common2.EncryptedType_Int64:
+		size := 8
+		if dataType == common2.EncryptedType_Int32 {
+			size = 4
+		}
+		value, err := strconv.ParseInt(*value, 10, 64)
+		if err != nil {
+			logger.WithError(err).Errorln("Can't parse default integer value")
+			return nil
+		}
+
+		return &intValue{size, value}
+	}
+	return nil
 }
