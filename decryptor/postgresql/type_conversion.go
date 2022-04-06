@@ -13,6 +13,8 @@ func mapEncryptedTypeToOID(dataType common.EncryptedType) (uint32, bool) {
 		return pgtype.Int4OID, true
 	case common.EncryptedType_Int64:
 		return pgtype.Int8OID, true
+	case common.EncryptedType_Bytes:
+		return pgtype.ByteaOID, true
 	}
 	return 0, false
 }
