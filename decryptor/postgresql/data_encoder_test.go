@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
+	"testing"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
@@ -11,9 +14,6 @@ import (
 	"github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
-	"strconv"
-	"strings"
-	"testing"
 )
 
 // TestEncodingDecodingProcessorBinaryIntData checks decoding binary INT values to string SQL literals and back
@@ -411,7 +411,10 @@ func TestFailedEncodingInvalidTextValue(t *testing.T) {
 	// without default value
 	_, data, err := encoder.OnColumn(ctx, testData)
 	if err != nil {
-		t.Fatal("Expects nil on encode error")
+		t.Fatal("Expected nil on encode error")
+	}
+	if !bytes.Equal(data, testData) {
+		t.Fatal("Result data should be the same")
 	}
 
 	// invalid int32 valid value
@@ -419,12 +422,8 @@ func TestFailedEncodingInvalidTextValue(t *testing.T) {
 	testSetting = config.BasicColumnEncryptionSetting{DataType: "int32", DefaultDataValue: &strValue}
 	ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
 	_, data, err = encoder.OnColumn(ctx, testData)
-	numErr, ok := err.(*strconv.NumError)
-	if !ok {
-		t.Fatal("Expect strconv.NumError")
-	}
-	if numErr.Err != strconv.ErrSyntax {
-		t.Fatalf("Expect ErrSyntax, took %s\n", numErr.Err)
+	if err != nil {
+		t.Fatal("Expected nil on encode error")
 	}
 	if !bytes.Equal(data, testData) {
 		t.Fatal("Result data should be the same")

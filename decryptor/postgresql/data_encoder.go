@@ -69,7 +69,7 @@ func (p *PgSQLDataEncoderProcessor) encodeBinary(ctx context.Context, data []byt
 				value, err = strconv.ParseInt(*newVal, 10, 64)
 				if err != nil {
 					logger.WithError(err).Errorln("Can't parse default integer value")
-					return ctx, data, err
+					return ctx, data, nil
 				}
 			} else {
 				logger.WithError(err).Errorln("Can't decode int value and no default value")
@@ -80,10 +80,8 @@ func (p *PgSQLDataEncoderProcessor) encodeBinary(ctx context.Context, data []byt
 		switch size {
 		case 4:
 			binary.BigEndian.PutUint32(newData, uint32(value))
-			break
 		case 8:
 			binary.BigEndian.PutUint64(newData, uint64(value))
-			break
 		}
 		return ctx, newData, nil
 	}
