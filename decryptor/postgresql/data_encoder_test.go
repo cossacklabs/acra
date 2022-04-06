@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -160,7 +161,7 @@ func TestTextMode(t *testing.T) {
 
 		// encryption/decryption integer data, not tokenization
 		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte(strDefaultValue), decodeErr: nil, encodeErr: nil,
-			setting: &config.BasicColumnEncryptionSetting{Tokenized: false, DataType: "int32", DefaultDataValue: &strDefaultValue}},
+			setting: &config.BasicColumnEncryptionSetting{Tokenized: false, DataType: "int32", OnFail: "default", DefaultDataValue: &strDefaultValue}},
 
 		// invalid binary hex value that should be returned as is. Also encoded into hex due to invalid hex value
 		{input: []byte("\\xTT"), decodedData: []byte("\\xTT"), encodedData: []byte("\\x5c785454"), decodeErr: nil, encodeErr: nil,
@@ -257,7 +258,7 @@ func TestBinaryMode(t *testing.T) {
 
 		// encryption/decryption integer data, not tokenization
 		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte{0, 0, 0, 1}, decodeErr: nil, encodeErr: nil,
-			setting: &config.BasicColumnEncryptionSetting{DataType: "int32", DefaultDataValue: &strDefaultValue}},
+			setting: &config.BasicColumnEncryptionSetting{DataType: "int32", OnFail: "default", DefaultDataValue: &strDefaultValue}},
 
 		// invalid binary hex value that should be returned as is. Also encoded into hex due to invalid hex value
 		{input: []byte("\\xTT"), decodedData: []byte("\\xTT"), encodedData: []byte("\\xTT"), decodeErr: nil, encodeErr: nil,
@@ -290,6 +291,7 @@ func TestBinaryMode(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		fmt.Printf("[%d]\n", i)
 		if decodeErr != tcase.decodeErr {
 			t.Fatalf("[%d] Incorrect decode error. Expect %s, took %s\n", i, tcase.decodeErr, decodeErr)
 		}
@@ -419,7 +421,7 @@ func TestFailedEncodingInvalidTextValue(t *testing.T) {
 
 	// invalid int32 valid value
 	strValue := utils.BytesToString(testData)
-	testSetting = config.BasicColumnEncryptionSetting{DataType: "int32", DefaultDataValue: &strValue}
+	testSetting = config.BasicColumnEncryptionSetting{DataType: "int32", OnFail: "default", DefaultDataValue: &strValue}
 	ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
 	_, data, err = encoder.OnColumn(ctx, testData)
 	if err != nil {
@@ -443,21 +445,25 @@ func TestFailedEncodingInvalidBinaryValue(t *testing.T) {
 	ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
 	testData := []byte("invalid base64 value")
 	// without default value
-	_, data, err := encoder.OnColumn(ctx, testData)
+	_, _, err = encoder.OnColumn(ctx, testData)
 	if err != nil {
 		t.Fatal("Expects nil on encode error")
 	}
 
 	// invalid int32 valid value
 	strValue := utils.BytesToString(testData)
-	testSetting = config.BasicColumnEncryptionSetting{DataType: "bytes", DefaultDataValue: &strValue}
+	testSetting = config.BasicColumnEncryptionSetting{
+		DataType:         "bytes",
+		OnFail:           "default",
+		DefaultDataValue: &strValue,
+	}
 	ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
 	logger := logrus.New()
 	entry := logrus.NewEntry(logger)
 	logBuffer := &bytes.Buffer{}
 	logger.SetOutput(logBuffer)
 	ctx = logging.SetLoggerToContext(ctx, entry)
-	_, data, err = encoder.OnColumn(ctx, testData)
+	_, data, _ := encoder.OnColumn(ctx, testData)
 	if !bytes.Contains(logBuffer.Bytes(), []byte("Can't decode base64 default value")) {
 		t.Fatal("Expects warning about failed decoding")
 	}

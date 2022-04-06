@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/binary"
+	"fmt"
 	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
@@ -41,7 +42,9 @@ func (p *PgSQLDataEncoderProcessor) encodeBinary(ctx context.Context, data []byt
 	switch setting.GetEncryptedDataType() {
 	case common2.EncryptedType_String, common2.EncryptedType_Bytes:
 		if !base.IsDecryptedFromContext(ctx) {
-			if value := encodeDefault(setting, logger); value != nil {
+			if value, err := onFail(setting, logger); err != nil {
+				return ctx, nil, err
+			} else if value != nil {
 				return ctx, value.asBinary(), nil
 			}
 		}
@@ -58,14 +61,15 @@ func (p *PgSQLDataEncoderProcessor) encodeBinary(ctx context.Context, data []byt
 		if err == nil {
 			val := intValue{size, value, strValue}
 			return ctx, val.asBinary(), nil
-		} else {
-			if value := encodeDefault(setting, logger); value != nil {
-				return ctx, value.asBinary(), nil
-			} else {
-				logger.WithError(err).Errorln("Can't decode int value and no default value")
-				return ctx, data, nil
-			}
 		}
+		if value, err := onFail(setting, logger); err != nil {
+			return ctx, nil, err
+		} else if value != nil {
+			return ctx, value.asBinary(), nil
+		}
+		logger.WithError(err).Errorln("Can't decode int value and no default value")
+		return ctx, data, nil
+
 	}
 
 	return ctx, data, nil
@@ -85,7 +89,9 @@ func (p *PgSQLDataEncoderProcessor) encodeText(ctx context.Context, data []byte,
 	switch setting.GetEncryptedDataType() {
 	case common2.EncryptedType_String, common2.EncryptedType_Bytes:
 		if !base.IsDecryptedFromContext(ctx) {
-			if value := encodeDefault(setting, logger); value != nil {
+			if value, err := onFail(setting, logger); err != nil {
+				return ctx, nil, err
+			} else if value != nil {
 				return ctx, value.asText(), nil
 			}
 		}
@@ -97,7 +103,9 @@ func (p *PgSQLDataEncoderProcessor) encodeText(ctx context.Context, data []byte,
 		}
 		// if it's encrypted binary, then it is binary array that is invalid int literal
 		if !base.IsDecryptedFromContext(ctx) {
-			if value := encodeDefault(setting, logger); value != nil {
+			if value, err := onFail(setting, logger); err != nil {
+				return ctx, nil, err
+			} else if value != nil {
 				return ctx, value.asText(), nil
 			}
 		}
@@ -294,4 +302,19 @@ func encodeDefault(setting config.ColumnEncryptionSetting, logger *logrus.Entry)
 		return &intValue{size: size, value: value, strValue: *strValue}
 	}
 	return nil
+}
+
+// onFail returns either an error, which should be returned, or value, which
+// should be encoded, because there is some problem with original, or `nil`
+// which indicates that original value should be returned as is.
+func onFail(setting config.ColumnEncryptionSetting, logger *logrus.Entry) (encodingValue, error) {
+	action := setting.GetOnFail()
+	switch {
+	case action == "":
+		return nil, nil
+	case action == "default":
+		return encodeDefault(setting, logger), nil
+	default:
+		return nil, fmt.Errorf("unknown action")
+	}
 }
