@@ -2,6 +2,7 @@ package common
 
 import (
 	"errors"
+	"github.com/cossacklabs/acra/pseudonymization/common"
 	"strconv"
 	"unicode/utf8"
 )
@@ -90,4 +91,19 @@ func ValidateDefaultValue(value *string, dataType EncryptedType) (err error) {
 		return nil
 	}
 	return errors.New("not supported EncryptedType")
+}
+
+// TokenTypeToEncryptedDataType converts value to appropriate EncryptedType
+func TokenTypeToEncryptedDataType(tokenType common.TokenType) EncryptedType {
+	switch tokenType {
+	case common.TokenType_Int32:
+		return EncryptedType_Int32
+	case common.TokenType_Int64:
+		return EncryptedType_Int64
+	case common.TokenType_String, common.TokenType_Email:
+		return EncryptedType_String
+	case common.TokenType_Bytes:
+		return EncryptedType_Bytes
+	}
+	return EncryptedType_Unknown
 }

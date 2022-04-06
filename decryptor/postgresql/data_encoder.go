@@ -106,7 +106,7 @@ func (p *PgSQLDataEncoderProcessor) encodeText(ctx context.Context, data []byte,
 	case common2.EncryptedType_String:
 		if !base.IsDecryptedFromContext(ctx) {
 			if newVal := setting.GetDefaultDataValue(); newVal != nil {
-				logger.WithField("data", string(data)).WithField("default", *newVal).Debugln("Change with default")
+				logger.WithField("default", *newVal).Debugln("Change with default")
 				return ctx, []byte(*newVal), nil
 			}
 		}

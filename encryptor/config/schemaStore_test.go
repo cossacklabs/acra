@@ -659,3 +659,123 @@ schemas:
 		}
 	}
 }
+
+func TestDataTypeValidation(t *testing.T) {
+	type testcase struct {
+		config string
+		err    error
+	}
+	testcases := []testcase{
+		{`
+schemas:
+  - table: test_table
+    columns:
+      - data1
+    encrypted:
+      - column: data1
+        data_type: int32
+        tokenized: true
+        token_type: int32
+`,
+			ErrInvalidEncryptorConfig},
+		{`
+schemas:
+  - table: test_table
+    columns:
+      - data1
+    encrypted:
+      - column: data1
+        data_type: int64
+        tokenized: true
+        token_type: int64
+`,
+			ErrInvalidEncryptorConfig},
+		{`
+schemas:
+  - table: test_table
+    columns:
+      - data1
+    encrypted:
+      - column: data1
+        data_type: str
+        tokenized: true
+        token_type: str
+`,
+			ErrInvalidEncryptorConfig},
+		{`
+schemas:
+  - table: test_table
+    columns:
+      - data1
+    encrypted:
+      - column: data1
+        data_type: bytes
+        tokenized: true
+        token_type: bytes
+`,
+			ErrInvalidEncryptorConfig},
+		{`
+schemas:
+  - table: test_table
+    columns:
+      - data1
+    encrypted:
+      - column: data1
+        data_type: str
+        tokenized: true
+        token_type: email
+`,
+			ErrInvalidEncryptorConfig},
+		{`
+schemas:
+  - table: test_table
+    columns:
+      - data1
+    encrypted:
+      - column: data1
+        data_type: int32
+        tokenized: true
+        token_type: str
+`,
+			ErrInvalidEncryptorConfig},
+		{`
+schemas:
+  - table: test_table
+    columns:
+      - data1
+    encrypted:
+      - column: data1
+        data_type: bytes
+        tokenized: true
+        token_type: str
+`,
+			ErrInvalidEncryptorConfig},
+		{`
+schemas:
+  - table: test_table
+    columns:
+      - data1
+    encrypted:
+      - column: data1
+        data_type: bytes
+        tokenized: true
+        token_type: email
+`,
+			ErrInvalidEncryptorConfig},
+	}
+	for i, tcase := range testcases {
+		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		u, ok := err.(interface {
+			Unwrap() error
+		})
+		if ok {
+			err = u.Unwrap()
+		}
+		if tcase.err == err {
+			continue
+		}
+		if err.Error() != tcase.err.Error() {
+			t.Fatalf("[%d] Expect %s, took %s\n", i, tcase.err.Error(), err)
+		}
+	}
+}
