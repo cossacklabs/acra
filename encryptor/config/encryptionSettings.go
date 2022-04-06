@@ -230,8 +230,10 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 	if s.ReEncryptToAcraBlock != nil && *s.ReEncryptToAcraBlock {
 		s.settingMask |= SettingReEncryptionFlag
 	}
+	var tokenType common.TokenType
+	var ok bool
 	if s.TokenType != "" || s.Tokenized {
-		tokenType, ok := tokenTypeNames[s.TokenType]
+		tokenType, ok = tokenTypeNames[s.TokenType]
 		if !ok {
 			return fmt.Errorf("%s: %w", s.TokenType, common.ErrUnknownTokenType)
 		}
@@ -239,29 +241,32 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 			return err
 		}
 	}
+	dataType := common2.EncryptedType_Unknown
 	if s.DataType == "" {
-		// by default all encrypted data is binary
-		s.DataType, _ = common2.EncryptedType_Bytes.ToConfigString()
 		// if DataType empty but configured for tokenization then map TokenType to appropriate DataType
 		if s.TokenType != "" {
-			// we don't validate because it's already validated above
-			tokenType, _ := tokenTypeNames[s.TokenType]
-			s.DataType, err = tokenType.ToEncryptedDataType().ToConfigString()
+			s.DataType, err = common2.TokenTypeToEncryptedDataType(tokenType).ToConfigString()
 			if err != nil {
 				return err
 			}
 		}
 	} else {
+		// set mask only if it set explicitly, not via token_type
 		s.settingMask |= SettingDataTypeFlag
 	}
-	dataType, err := common2.ParseStringEncryptedType(s.DataType)
-	if err != nil {
-		return fmt.Errorf("%s: %w", s.DataType, common2.ErrUnknownEncryptedType)
-	}
-	if err = common2.ValidateEncryptedType(dataType); err != nil {
-		return err
+	if s.DataType != "" {
+		dataType, err = common2.ParseStringEncryptedType(s.DataType)
+		if err != nil {
+			return fmt.Errorf("%s: %w", s.DataType, common2.ErrUnknownEncryptedType)
+		}
+		if err = common2.ValidateEncryptedType(dataType); err != nil {
+			return err
+		}
 	}
 	if s.DefaultDataValue != nil {
+		if dataType == common2.EncryptedType_Unknown {
+			return errors.New("default_data_value used without data_type")
+		}
 		s.settingMask |= SettingDefaultDataValueFlag
 	}
 	if err = common2.ValidateDefaultValue(s.DefaultDataValue, dataType); err != nil {
@@ -289,7 +294,7 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 	if s.Searchable {
 		s.settingMask |= SettingSearchFlag
 	}
-	_, ok := validSettings[s.settingMask]
+	_, ok = validSettings[s.settingMask]
 	if !ok {
 		return ErrInvalidEncryptorConfig
 	}
@@ -383,7 +388,7 @@ func (s *BasicColumnEncryptionSetting) IsEndMasking() bool {
 func (s *BasicColumnEncryptionSetting) GetEncryptedDataType() common2.EncryptedType {
 	// If the configuration file contains some unknown or unsupported token type,
 	// return some safe default.
-	const defaultDataType = common2.EncryptedType_Bytes
+	const defaultDataType = common2.EncryptedType_Unknown
 	dataType, err := common2.ParseStringEncryptedType(s.DataType)
 	if err != nil {
 		return defaultDataType

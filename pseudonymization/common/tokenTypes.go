@@ -18,8 +18,6 @@ package common
 
 import (
 	"errors"
-	"github.com/cossacklabs/acra/encryptor/config/common"
-
 	"github.com/golang/protobuf/proto"
 )
 
@@ -47,23 +45,6 @@ func (x TokenType) ToConfigString() (val string, err error) {
 		return "email", nil
 	}
 	return
-}
-
-// ToEncryptedDataType converts value to appropriate EncryptedType
-func (x TokenType) ToEncryptedDataType() common.EncryptedType {
-	switch x {
-	case TokenType_Int32:
-		return common.EncryptedType_Int32
-	case TokenType_Int64:
-		return common.EncryptedType_Int64
-	case TokenType_String:
-		return common.EncryptedType_String
-	case TokenType_Bytes:
-		return common.EncryptedType_Bytes
-	case TokenType_Email:
-		return common.EncryptedType_String
-	}
-	return common.EncryptedType_Unknown
 }
 
 // Validation errors
