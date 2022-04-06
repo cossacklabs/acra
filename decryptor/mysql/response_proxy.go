@@ -500,6 +500,7 @@ func (handler *Handler) processTextDataRow(ctx context.Context, rowData []byte, 
 		if err != nil {
 			return nil, err
 		}
+
 		decrCtx, value, err := handler.onColumnDecryption(ctx, i, value, false, fields[i])
 		if err != nil {
 			fieldLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).

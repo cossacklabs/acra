@@ -1973,7 +1973,7 @@ class CensorBlacklistTest(BaseCensorTest):
     CENSOR_CONFIG_FILE = abs_path('tests/acra-censor_configs/acra-censor_blacklist.yaml')
     def testBlacklist(self):
         connection_args = ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
-                           user=DB_USER, password=DB_USER_PASSWORD,
+                           user=DB_USER, password=DB_USER_PASSWORD, raw=True,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                            ssl_key=TEST_TLS_CLIENT_KEY,
                            ssl_cert=TEST_TLS_CLIENT_CERT)
@@ -2013,7 +2013,7 @@ class CensorWhitelistTest(BaseCensorTest):
     CENSOR_CONFIG_FILE = abs_path('tests/acra-censor_configs/acra-censor_whitelist.yaml')
     def testWhitelist(self):
         connection_args = ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
-                           user=DB_USER, password=DB_USER_PASSWORD,
+                           user=DB_USER, password=DB_USER_PASSWORD, raw=True,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                            ssl_key=TEST_TLS_CLIENT_KEY,
                            ssl_cert=TEST_TLS_CLIENT_CERT)
@@ -3533,7 +3533,7 @@ class TestPostgreSQLParseQueryErrorSkipExit(AcraCatchLogsMixin, BaseTestCase):
     def executePreparedStatement(self, query):
         return AsyncpgExecutor(ConnectionArgs(
             host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
-            user=DB_USER, password=DB_USER_PASSWORD,
+            user=DB_USER, password=DB_USER_PASSWORD, raw=True,
             format=AsyncpgExecutor.BinaryFormat,
             ssl_ca=TEST_TLS_CA,
             ssl_key=TEST_TLS_CLIENT_KEY,
@@ -3582,7 +3582,7 @@ class TestPostgreSQLParseQueryErrorExit(AcraCatchLogsMixin, BaseTestCase):
     def executePreparedStatement(self, query):
         return AsyncpgExecutor(ConnectionArgs(
             host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
-            user=DB_USER, password=DB_USER_PASSWORD,
+            user=DB_USER, password=DB_USER_PASSWORD, raw=True,
             ssl_ca=TEST_TLS_CA,
             ssl_key=TEST_TLS_CLIENT_KEY,
             ssl_cert=TEST_TLS_CLIENT_CERT
@@ -4243,6 +4243,7 @@ class TestMysqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
                            user=DB_USER, password=DB_USER_PASSWORD,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                            ssl_key=TEST_TLS_CLIENT_KEY,
+                           raw=True,
                            ssl_cert=TEST_TLS_CLIENT_CERT)
         ).execute_prepared_statement(query)
 
@@ -4264,6 +4265,7 @@ class TestMysqlBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
                            user=DB_USER, password=DB_USER_PASSWORD,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                            ssl_key=TEST_TLS_CLIENT_KEY,
+                           raw=True,
                            ssl_cert=TEST_TLS_CLIENT_CERT)
         ).execute_prepared_statement(query, args=args)
 
@@ -4284,10 +4286,9 @@ class TestPostgresqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCas
             args = []
         return Psycopg2Executor(ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
                            user=DB_USER, password=DB_USER_PASSWORD,
-                           dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
+                           dbname=DB_NAME, ssl_ca=TEST_TLS_CA, raw=True,
                            ssl_key=TEST_TLS_CLIENT_KEY,
-                           ssl_cert=TEST_TLS_CLIENT_CERT)
-                                ).execute_prepared_statement(query, args)
+                           ssl_cert=TEST_TLS_CLIENT_CERT)).execute_prepared_statement(query, args)
 
 
 class TestPostgresqlTextPreparedStatementWholeCell(TestPostgresqlTextPreparedStatement):
@@ -5888,7 +5889,7 @@ class TestPgPlaceholders(BaseTestCase):
 
     def testPgPlaceholders(self):
         connection_args = ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
-                                         user=DB_USER, password=DB_USER_PASSWORD,
+                                         user=DB_USER, password=DB_USER_PASSWORD, raw=True,
                                          dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                                          ssl_key=TEST_TLS_CLIENT_KEY,
                                          ssl_cert=TEST_TLS_CLIENT_CERT)
@@ -8057,7 +8058,7 @@ class TestEmptyPreparedStatementQueryPostgresql(BaseTestCase):
         # no matter which connector to use
         executor = AsyncpgExecutor(ConnectionArgs(
             host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
-            user=DB_USER, password=DB_USER_PASSWORD,
+            user=DB_USER, password=DB_USER_PASSWORD, raw=True,
             format=AsyncpgExecutor.BinaryFormat,
             ssl_ca=TEST_TLS_CA,
             ssl_key=TEST_TLS_CLIENT_KEY,
@@ -8071,7 +8072,7 @@ class TestEmptyPreparedStatementQueryPostgresql(BaseTestCase):
         # just check that Postgresql deny empty queries for SimpleQuery protocol of queries
         executor = Psycopg2Executor(ConnectionArgs(
             host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
-            user=DB_USER, password=DB_USER_PASSWORD,
+            user=DB_USER, password=DB_USER_PASSWORD, raw=True,
             ssl_ca=TEST_TLS_CA,
             ssl_key=TEST_TLS_CLIENT_KEY,
             ssl_cert=TEST_TLS_CLIENT_CERT
@@ -8094,7 +8095,7 @@ class TestEmptyPreparedStatementQueryMysql(BaseTestCase):
         # no matter which client_id to use
         executor = MysqlExecutor(ConnectionArgs(
             host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
-            user=DB_USER, password=DB_USER_PASSWORD,
+            user=DB_USER, password=DB_USER_PASSWORD, raw=True,
             ssl_ca=TEST_TLS_CA,
             ssl_key=TEST_TLS_CLIENT_KEY,
             ssl_cert=TEST_TLS_CLIENT_CERT))

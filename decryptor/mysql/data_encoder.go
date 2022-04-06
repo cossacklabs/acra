@@ -22,38 +22,38 @@ var ErrConvertToDataType = errors.New("error on converting to data type")
 // BaseMySQLDataProcessor implements processor and encode/decode binary intX values to text format which acceptable by Tokenizer
 type BaseMySQLDataProcessor struct{}
 
-// MySQLDataEncoderProcessor implements processor and encode/decode binary intX values to text format which acceptable by Tokenizer
-type MySQLDataEncoderProcessor struct {
+// DataEncoderProcessor implements processor and encode/decode binary intX values to text format which acceptable by Tokenizer
+type DataEncoderProcessor struct {
 	BaseMySQLDataProcessor
 }
 
-// NewEncodeMySQLDataEncoderProcessor return new data encoder from/to binary format for tokenization
-func NewEncodeMySQLDataEncoderProcessor() *MySQLDataEncoderProcessor {
-	return &MySQLDataEncoderProcessor{
+// NewDataEncoderProcessor return new data encoder from/to binary format for tokenization
+func NewDataEncoderProcessor() *DataEncoderProcessor {
+	return &DataEncoderProcessor{
 		BaseMySQLDataProcessor{},
 	}
 }
 
 // ID return name of processor
-func (p *MySQLDataEncoderProcessor) ID() string {
-	return "MySQLDataEncoderProcessor"
+func (p *DataEncoderProcessor) ID() string {
+	return "DataEncoderProcessor"
 }
 
-// MySQLDataDecoderProcessor implements processor and encode/decode binary intX values to text format which acceptable by Tokenizer
-type MySQLDataDecoderProcessor struct {
+// DataDecoderProcessor implements processor and encode/decode binary intX values to text format which acceptable by Tokenizer
+type DataDecoderProcessor struct {
 	BaseMySQLDataProcessor
 }
 
-// NewDecodeMySQLDataEncoderProcessor return new data encoder from/to binary format for tokenization
-func NewDecodeMySQLDataEncoderProcessor() *MySQLDataDecoderProcessor {
-	return &MySQLDataDecoderProcessor{
+// NewDataDecoderProcessor return new data encoder from/to binary format for tokenization
+func NewDataDecoderProcessor() *DataDecoderProcessor {
+	return &DataDecoderProcessor{
 		BaseMySQLDataProcessor{},
 	}
 }
 
 // ID return name of processor
-func (p *MySQLDataDecoderProcessor) ID() string {
-	return "MySQLDataDecoderProcessor"
+func (p *DataDecoderProcessor) ID() string {
+	return "DataDecoderProcessor"
 }
 
 // here we process encryption/tokenization results before send it to a client
@@ -347,7 +347,7 @@ func (p *BaseMySQLDataProcessor) decodeBinary(ctx context.Context, encoded []byt
 }
 
 // OnColumn encode binary value to text and back. Should be before and after tokenizer processor
-func (p *MySQLDataEncoderProcessor) OnColumn(ctx context.Context, data []byte) (context.Context, []byte, error) {
+func (p *DataEncoderProcessor) OnColumn(ctx context.Context, data []byte) (context.Context, []byte, error) {
 	columnSetting, ok := encryptor.EncryptionSettingFromContext(ctx)
 	if !ok {
 		// for case when data encrypted with acrastructs on app's side and used without any encryption setting
@@ -367,7 +367,7 @@ func (p *MySQLDataEncoderProcessor) OnColumn(ctx context.Context, data []byte) (
 }
 
 // OnColumn encode binary value to text and back. Should be before and after tokenizer processor
-func (p *MySQLDataDecoderProcessor) OnColumn(ctx context.Context, data []byte) (context.Context, []byte, error) {
+func (p *DataDecoderProcessor) OnColumn(ctx context.Context, data []byte) (context.Context, []byte, error) {
 	columnSetting, ok := encryptor.EncryptionSettingFromContext(ctx)
 	if !ok {
 		// for case when data encrypted with acrastructs on app's side and used without any encryption setting
