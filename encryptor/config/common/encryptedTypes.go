@@ -53,7 +53,7 @@ var (
 )
 
 // ValidateEncryptedType return true if value is supported EncryptedType
-func ValidateEncryptedType(value EncryptedType, tokenType common.TokenType) error {
+func ValidateEncryptedType(value EncryptedType) error {
 	supported, ok := supportedEncryptedTypes[value]
 	if !ok {
 		return ErrUnknownEncryptedType

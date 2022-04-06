@@ -259,7 +259,7 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 		if err != nil {
 			return fmt.Errorf("%s: %w", s.DataType, common2.ErrUnknownEncryptedType)
 		}
-		if err = common2.ValidateEncryptedType(dataType, tokenType); err != nil {
+		if err = common2.ValidateEncryptedType(dataType); err != nil {
 			return err
 		}
 	}
