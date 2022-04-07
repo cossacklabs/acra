@@ -2,8 +2,9 @@ package config
 
 import (
 	"errors"
-	"github.com/cossacklabs/acra/masking/common"
 	"testing"
+
+	"github.com/cossacklabs/acra/masking/common"
 )
 
 func TestCryptoEnvelopeDefaultValuesWithDefinedValue(t *testing.T) {
@@ -168,12 +169,13 @@ schemas:
 
 func TestInvalidMasking(t *testing.T) {
 	type testcase struct {
+		name   string
 		config string
 		err    error
 	}
 	testcases := []testcase{
-		// masking can't be searchable
-		{`
+		{"masking can't be searchable",
+			`
 schemas:
   - table: test_table
     columns:
@@ -186,8 +188,9 @@ schemas:
         searchable: true
 `,
 			ErrInvalidEncryptorConfig},
-		// plaintext_length should be > 0
-		{`
+
+		{"plaintext_length should be > 0",
+			`
 schemas:
   - table: test_table
     columns:
@@ -199,8 +202,9 @@ schemas:
         plaintext_side: "right"
 `,
 			common.ErrInvalidPlaintextLength},
-		// invalid crypto_envelope
-		{`
+
+		{"invalid crypto_envelope",
+			`
 schemas:
   - table: test_table
     columns:
@@ -213,8 +217,9 @@ schemas:
         crypto_envelope: "invalid"
 `,
 			ErrInvalidCryptoEnvelopeType},
-		// should be specified plaintext_side
-		{`
+
+		{"should be specified plaintext_side",
+			`
 schemas:
   - table: test_table
     columns:
@@ -225,8 +230,9 @@ schemas:
         plaintext_length: 9
 `,
 			common.ErrInvalidPlaintextSide},
-		// should be specified masking pattern
-		{`
+
+		{"should be specified masking pattern",
+			`
 schemas:
   - table: test_table
     columns:
@@ -237,8 +243,9 @@ schemas:
         plaintext_side: "right"
 `,
 			common.ErrInvalidMaskingPattern},
-		// searchable encryption doesn't support zones
-		{`
+
+		{"searchable encryption doesn't support zones",
+			`
 schemas:
   - table: test_table
     columns:
@@ -249,8 +256,9 @@ schemas:
         zone_id: DDDDDDDDMatNOMYjqVOuhACC
 `,
 			ErrInvalidEncryptorConfig},
-		// tokenization can't be searchable
-		{`
+
+		{"tokenization can't be searchable",
+			`
 schemas:
   - table: test_table
     columns:
@@ -263,7 +271,9 @@ schemas:
 			//pseudonymization.ErrUnknownTokenType
 			// use new declared to avoid cycle import
 			errors.New("unknown token type")},
-		{`
+
+		{"invalid token type",
+			`
 schemas:
   - table: test_table
     columns:
@@ -276,9 +286,8 @@ schemas:
 			// use new declared to avoid cycle import
 			errors.New("unknown token type")},
 
-		// AcraBlock
-		// type aware decryption, all supported types
-		{`
+		{"AcraBlock - type aware decryption, all supported types",
+			`
 schemas:
   - table: test_table
     columns:
@@ -297,8 +306,9 @@ schemas:
         data_type: int64
 `,
 			nil},
-		// type aware decryption, all supported types + masking
-		{`
+
+		{"type aware decryption, all supported types + masking",
+			`
 schemas:
   - table: test_table
     columns:
@@ -323,8 +333,9 @@ schemas:
         data_type: int64
 `,
 			nil},
-		// type aware decryption, all supported types, specified client id
-		{`
+
+		{"type aware decryption, all supported types, specified client id",
+			`
 schemas:
   - table: test_table
     columns:
@@ -347,8 +358,9 @@ schemas:
         client_id: client
 `,
 			nil},
-		// type aware decryption, all supported types, specified client id + masking
-		{`
+
+		{"type aware decryption, all supported types, specified client id + masking",
+			`
 schemas:
   - table: test_table
     columns:
@@ -377,8 +389,9 @@ schemas:
         client_id: client
 `,
 			nil},
-		// type aware decryption, all supported types, specified zone id
-		{`
+
+		{"type aware decryption, all supported types, specified zone id",
+			`
 schemas:
   - table: test_table
     columns:
@@ -401,8 +414,9 @@ schemas:
         zone_id: client
 `,
 			nil},
-		// type aware decryption, all supported types, default value
-		{`
+
+		{"type aware decryption, all supported types, default value",
+			`
 schemas:
   - table: test_table
     columns:
@@ -413,20 +427,28 @@ schemas:
     encrypted:
       - column: data1
         data_type: str
+        on_fail: default
         default_data_value: "str"
+
       - column: data2
         data_type: bytes
+        on_fail: default
         default_data_value: "bytes"
+
       - column: data3
         data_type: int32
+        on_fail: default
         default_data_value: "123"
+
       - column: data4
         data_type: int64
+        on_fail: default
         default_data_value: "123"
 `,
 			nil},
-		// type aware decryption, all supported types, default value, specified client id
-		{`
+
+		{"type aware decryption, all supported types, default value, specified client id",
+			`
 schemas:
   - table: test_table
     columns:
@@ -437,24 +459,32 @@ schemas:
     encrypted:
       - column: data1
         data_type: str
+        on_fail: default
         default_data_value: "str"
         client_id: client
+
       - column: data2
         data_type: bytes
+        on_fail: default
         default_data_value: "bytes"
         client_id: client
+
       - column: data3
         data_type: int32
+        on_fail: default
         default_data_value: "123"
         client_id: client
+
       - column: data4
         data_type: int64
+        on_fail: default
         default_data_value: "123"
         client_id: client
 `,
 			nil},
-		// type aware decryption, all supported types, default value, specified zone id
-		{`
+
+		{"type aware decryption, all supported types, default value, specified zone id",
+			`
 schemas:
   - table: test_table
     columns:
@@ -465,25 +495,32 @@ schemas:
     encrypted:
       - column: data1
         data_type: str
+        on_fail: default
         default_data_value: "str"
         zone_id: zone
+
       - column: data2
         data_type: bytes
+        on_fail: default
         default_data_value: "bytes"
         zone_id: zone
+
       - column: data3
         data_type: int32
+        on_fail: default
         default_data_value: "123"
         zone_id: zone
+
       - column: data4
         data_type: int64
+        on_fail: default
         default_data_value: "123"
         zone_id: zone
 `,
 			nil},
-		// AcraBlock
-		// type aware decryption, all supported types
-		{`
+
+		{"AcraBlock - type aware decryption, all supported types",
+			`
 defaults:
   crypto_envelope: acrastruct
 schemas:
@@ -504,8 +541,9 @@ schemas:
         data_type: int64
 `,
 			nil},
-		// type aware decryption, all supported types, specified client id
-		{`
+
+		{"type aware decryption, all supported types, specified client id",
+			`
 defaults:
   crypto_envelope: acrastruct
 schemas:
@@ -530,8 +568,9 @@ schemas:
         client_id: client
 `,
 			nil},
-		// type aware decryption, all supported types, specified zone id
-		{`
+
+		{"type aware decryption, all supported types, specified zone id",
+			`
 defaults:
   crypto_envelope: acrastruct
 schemas:
@@ -556,8 +595,9 @@ schemas:
         zone_id: client
 `,
 			nil},
-		// type aware decryption, all supported types, default value
-		{`
+
+		{"type aware decryption, all supported types, default value",
+			`
 defaults:
   crypto_envelope: acrastruct
 schemas:
@@ -570,20 +610,28 @@ schemas:
     encrypted:
       - column: data1
         data_type: str
+        on_fail: default
         default_data_value: "str"
+
       - column: data2
         data_type: bytes
+        on_fail: default
         default_data_value: "bytes"
+
       - column: data3
         data_type: int32
+        on_fail: default
         default_data_value: "123"
+
       - column: data4
         data_type: int64
+        on_fail: default
         default_data_value: "123"
 `,
 			nil},
-		// type aware decryption, all supported types, default value, specified client id
-		{`
+
+		{"Acrastruct - type aware decryption, all supported types, default value, specified client id",
+			`
 defaults:
   crypto_envelope: acrastruct
 schemas:
@@ -596,24 +644,32 @@ schemas:
     encrypted:
       - column: data1
         data_type: str
+        on_fail: default
         default_data_value: "str"
         client_id: client
+
       - column: data2
         data_type: bytes
+        on_fail: default
         default_data_value: "bytes"
         client_id: client
+
       - column: data3
         data_type: int32
+        on_fail: default
         default_data_value: "123"
         client_id: client
+
       - column: data4
         data_type: int64
+        on_fail: default
         default_data_value: "123"
         client_id: client
 `,
 			nil},
-		// type aware decryption, all supported types, default value, specified zone id
-		{`
+
+		{"type aware decryption, all supported types, default value, specified zone id",
+			`
 defaults:
   crypto_envelope: acrastruct
 schemas:
@@ -626,24 +682,32 @@ schemas:
     encrypted:
       - column: data1
         data_type: str
+        on_fail: default
         default_data_value: "str"
         zone_id: zone
+
       - column: data2
         data_type: bytes
+        on_fail: default
         default_data_value: "bytes"
         zone_id: zone
+
       - column: data3
         data_type: int32
+        on_fail: default
         default_data_value: "123"
         zone_id: zone
+
       - column: data4
         data_type: int64
+        on_fail: default
         default_data_value: "123"
         zone_id: zone
 `,
 			nil},
 	}
-	for i, tcase := range testcases {
+
+	for _, tcase := range testcases {
 		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config))
 		u, ok := err.(interface {
 			Unwrap() error
@@ -654,8 +718,16 @@ schemas:
 		if tcase.err == err {
 			continue
 		}
+		if tcase.err == nil {
+			t.Fatalf("[%s] Expected nil, took %s\n", tcase.name, err)
+		}
+
+		if err == nil {
+			t.Fatalf("[%s] Expected %s, took nil\n", tcase.name, tcase.err)
+		}
+
 		if err.Error() != tcase.err.Error() {
-			t.Fatalf("[%d] Expect %s, took %s\n", i, tcase.err.Error(), err)
+			t.Fatalf("[%s] Expect %s, took %s\n", tcase.name, tcase.err.Error(), err)
 		}
 	}
 }

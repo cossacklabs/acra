@@ -260,6 +260,11 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 	} else {
 		// set mask only if it set explicitly, not via token_type
 		s.settingMask |= SettingDataTypeFlag
+		// If transparent encryption is enabled, by default we return an error
+		// to a client in case of failure
+		if s.OnFail == "" {
+			s.OnFail = "error"
+		}
 	}
 	if s.DataType != "" {
 		dataType, err = common2.ParseStringEncryptedType(s.DataType)
@@ -270,13 +275,19 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 			return err
 		}
 	}
+
+	if err := common2.ValidateOnFail(s.OnFail); err != nil {
+		return err
+	}
+
 	if s.DefaultDataValue != nil {
 		if dataType == common2.EncryptedType_Unknown {
 			return errors.New("default_data_value used without data_type")
 		}
 		s.settingMask |= SettingDefaultDataValueFlag
-		// TODO: temporary
-		s.OnFail = "default"
+		if s.OnFail != "default" {
+			return fmt.Errorf("default data value is defined, but `on_fail` operation is not \"default\" (%s)", s.OnFail)
+		}
 	}
 	if err = common2.ValidateDefaultValue(s.DefaultDataValue, dataType); err != nil {
 		return fmt.Errorf("invalid default value: %w", err)

@@ -58,7 +58,7 @@ from prometheus_client.parser import text_string_to_metric_families
 from sqlalchemy.dialects import mysql as mysql_dialect
 from sqlalchemy.dialects import postgresql as postgresql_dialect
 from sqlalchemy.dialects.postgresql import BYTEA
-from sqlalchemy.exc import DatabaseError
+from sqlalchemy.exc import DatabaseError, ProgrammingError
 
 import api_pb2
 import api_pb2_grpc
@@ -8661,12 +8661,11 @@ class TestPostgresqlTextTypeAwareDecryptionWithoutDefaults(BaseTransparentEncryp
         columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
                    'value_empty_str')
 
-        result = self.engine2.execute(
-            sa.select([self.test_table])
-                .where(self.test_table.c.id == data['id']))
-        # acra change types for binary data columns and python driver can't decode to correct types
-        with self.assertRaises(UnicodeDecodeError):
-            row = result.fetchone()
+        # DB driver exception is wrapped around ProgrammingError
+        with self.assertRaises(ProgrammingError):
+            self.engine2.execute(
+                sa.select([self.test_table])
+                    .where(self.test_table.c.id == data['id']))
 
         # direct connection should receive binary data according to real scheme
         result = self.engine_raw.execute(
@@ -8718,10 +8717,11 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithoutDefaults(TestPostgresqlBinar
             self.skipTest("Test only for PostgreSQL with TLS")
 
     def testClientIDRead(self):
-        """test decrypting with correct clientID and not decrypting with
+        """
+        test decrypting with correct clientID and not decrypting with
         incorrect clientID or using direct connection to db
-        All result data should be valid for application. Not decrypted data should be returned as is and DB driver
-        should cause error
+        All result data should be valid for application. Not decrypted data
+        should be returned with a custom DB error
         """
         data = {
             'id': get_random_id(),
@@ -8744,8 +8744,8 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithoutDefaults(TestPostgresqlBinar
             sa.select([self.test_table])
                 .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
 
-        with self.assertRaises(UnicodeDecodeError):
-            row = self.executor2.execute_prepared_statement(query, args)[0]
+        with self.assertRaises(asyncpg.exceptions.SyntaxOrAccessError):
+            self.executor2.execute_prepared_statement(query, args)[0]
 
         row = self.raw_executor.execute_prepared_statement(query, args)[0]
         for column in columns:

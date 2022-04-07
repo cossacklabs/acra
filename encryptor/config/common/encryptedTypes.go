@@ -2,9 +2,11 @@ package common
 
 import (
 	"errors"
-	"github.com/cossacklabs/acra/pseudonymization/common"
+	"fmt"
 	"strconv"
 	"unicode/utf8"
+
+	"github.com/cossacklabs/acra/pseudonymization/common"
 )
 
 // ParseStringEncryptedType parse string value to EncryptedType value
@@ -104,4 +106,13 @@ func TokenTypeToEncryptedDataType(tokenType common.TokenType) EncryptedType {
 		return EncryptedType_Bytes
 	}
 	return EncryptedType_Unknown
+}
+
+// ValidateOnFail returns error if `OnFail` value is not supported
+func ValidateOnFail(value string) (err error) {
+	switch {
+	case value == "", value == "error", value == "default":
+		return nil
+	}
+	return fmt.Errorf("unknown on_fail value: '%s'", value)
 }
