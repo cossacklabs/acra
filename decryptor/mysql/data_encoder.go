@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
-	"github.com/cossacklabs/acra/utils"
 	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
@@ -100,32 +99,56 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 
 	case TypeTiny:
 		encoded = make([]byte, 1)
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, utils.BytesToString(data))
+		intValue, err := strconv.ParseInt(string(data), 10, 8)
+		if err != nil {
+			return nil, nil, err
+		}
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int8(intValue))
 		return ctx, encoded, err
 
 	case TypeShort, TypeYear:
 		encoded = make([]byte, 2)
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, utils.BytesToString(data))
+		intValue, err := strconv.ParseInt(string(data), 10, 16)
+		if err != nil {
+			return nil, nil, err
+		}
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int16(intValue))
 		return ctx, encoded, err
 
 	case TypeInt24, TypeLong:
 		encoded = make([]byte, 4)
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, utils.BytesToString(data))
+		intValue, err := strconv.ParseInt(string(data), 10, 32)
+		if err != nil {
+			return nil, nil, err
+		}
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int32(intValue))
 		return ctx, encoded, err
 
 	case TypeLongLong:
 		encoded = make([]byte, 8)
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, utils.BytesToString(data))
+		intValue, err := strconv.ParseInt(string(data), 10, 64)
+		if err != nil {
+			return nil, nil, err
+		}
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int64(intValue))
 		return ctx, encoded, err
 
 	case TypeFloat:
 		encoded = make([]byte, 4)
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, utils.BytesToString(data))
+		floatValue, err := strconv.ParseFloat(string(data), 32)
+		if err != nil {
+			return nil, nil, err
+		}
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, float32(floatValue))
 		return ctx, encoded, err
 
 	case TypeDouble:
 		encoded = make([]byte, 8)
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, utils.BytesToString(data))
+		floatValue, err := strconv.ParseFloat(string(data), 64)
+		if err != nil {
+			return nil, nil, err
+		}
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, floatValue)
 		return ctx, encoded, err
 	}
 
