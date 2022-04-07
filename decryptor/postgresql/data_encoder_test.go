@@ -56,7 +56,7 @@ func TestEncodingDecodingProcessorBinaryIntData(t *testing.T) {
 	}
 	for i, tcase := range testcases {
 		// use -1 as invalid binary size that should be ignored
-		columnInfo := base.NewColumnInfo(0, "", true, -1)
+		columnInfo := base.NewColumnInfo(0, "", true, -1, 0, 0)
 		accessContext := &base.AccessContext{}
 		accessContext.SetColumnInfo(columnInfo)
 		ctx := base.SetAccessContextToContext(context.Background(), accessContext)
@@ -185,7 +185,7 @@ func TestTextMode(t *testing.T) {
 			setting: &config.BasicColumnEncryptionSetting{Tokenized: false, DataType: "str"}},
 	}
 
-	columnInfo := base.NewColumnInfo(0, "", false, 4)
+	columnInfo := base.NewColumnInfo(0, "", false, 4, 0, 0)
 	accessContext := &base.AccessContext{}
 	accessContext.SetColumnInfo(columnInfo)
 	ctx := base.SetAccessContextToContext(context.Background(), accessContext)
@@ -274,7 +274,7 @@ func TestBinaryMode(t *testing.T) {
 			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes"}},
 	}
 
-	columnInfo := base.NewColumnInfo(0, "", true, 4)
+	columnInfo := base.NewColumnInfo(0, "", true, 4, 0, 0)
 	accessContext := &base.AccessContext{}
 	accessContext.SetColumnInfo(columnInfo)
 	ctx := base.SetAccessContextToContext(context.Background(), accessContext)
@@ -339,7 +339,7 @@ func TestEncodingDecodingTextFormat(t *testing.T) {
 	}
 	accessContext := &base.AccessContext{}
 	// use -1 as invalid binary size that should be ignored
-	columnInfo := base.NewColumnInfo(0, "", false, -1)
+	columnInfo := base.NewColumnInfo(0, "", false, -1, 0, 0)
 	accessContext.SetColumnInfo(columnInfo)
 	ctx := base.SetAccessContextToContext(context.Background(), accessContext)
 	envelopeValue := config.CryptoEnvelopeTypeAcraBlock
@@ -347,7 +347,7 @@ func TestEncodingDecodingTextFormat(t *testing.T) {
 	testSetting := config.BasicColumnEncryptionSetting{CryptoEnvelope: &envelopeValue}
 	ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
 	for i, tcase := range testcases {
-		columnInfo = base.NewColumnInfo(0, "", false, len(tcase.inputValue))
+		columnInfo = base.NewColumnInfo(0, "", false, len(tcase.inputValue), 0, 0)
 		accessContext.SetColumnInfo(columnInfo)
 		testSetting.TokenType, err = tcase.tokenType.ToConfigString()
 		if err != nil {
@@ -401,7 +401,7 @@ func TestFailedEncodingInvalidTextValue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	columnInfo := base.NewColumnInfo(0, "", true, 4)
+	columnInfo := base.NewColumnInfo(0, "", true, 4, 0, 0)
 	accessContext := &base.AccessContext{}
 	accessContext.SetColumnInfo(columnInfo)
 	ctx := base.SetAccessContextToContext(context.Background(), accessContext)
@@ -436,7 +436,7 @@ func TestFailedEncodingInvalidBinaryValue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	columnInfo := base.NewColumnInfo(0, "", true, 4)
+	columnInfo := base.NewColumnInfo(0, "", true, 4, 0, 0)
 	accessContext := &base.AccessContext{}
 	accessContext.SetColumnInfo(columnInfo)
 	ctx := base.SetAccessContextToContext(context.Background(), accessContext)

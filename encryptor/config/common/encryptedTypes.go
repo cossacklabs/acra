@@ -18,16 +18,18 @@ func ParseStringEncryptedType(value string) (EncryptedType, error) {
 
 // Data type names as expected in the configuration file.
 var encryptedTypeNames = map[string]EncryptedType{
-	"int32": EncryptedType_Int32,
-	"int64": EncryptedType_Int64,
-	"str":   EncryptedType_String,
-	"bytes": EncryptedType_Bytes,
+	"int32":   EncryptedType_Int32,
+	"int64":   EncryptedType_Int64,
+	"str":     EncryptedType_String,
+	"bytes":   EncryptedType_Bytes,
+	"Unknown": EncryptedType_Unknown,
 }
 var supportedEncryptedTypes = map[EncryptedType]bool{
-	EncryptedType_Int32:  true,
-	EncryptedType_Int64:  true,
-	EncryptedType_String: true,
-	EncryptedType_Bytes:  true,
+	EncryptedType_Int32:   true,
+	EncryptedType_Int64:   true,
+	EncryptedType_String:  true,
+	EncryptedType_Bytes:   true,
+	EncryptedType_Unknown: true,
 }
 
 // ToConfigString converts value to string used in encryptor_config

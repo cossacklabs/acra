@@ -19,16 +19,17 @@ package mysql
 import (
 	"encoding/binary"
 	"errors"
-
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
 )
 
 // ColumnDescription https://dev.mysql.com/doc/internals/en/com-query-response.html#packet-Protocol::ColumnDefinition41
 type ColumnDescription struct {
-	changed bool
+	changed    bool
+	originType Type
 	// field as byte slice
 	data         []byte
+	header       []byte
 	Schema       []byte
 	Table        []byte
 	OrgTable     []byte
@@ -101,15 +102,16 @@ func ParsePrepareStatementResponse(data []byte) (*PrepareStatementResponse, erro
 }
 
 // ParseResultField parses binary field and returns ColumnDescription
-func ParseResultField(data []byte) (*ColumnDescription, error) {
+func ParseResultField(packet *Packet) (*ColumnDescription, error) {
 	field := &ColumnDescription{}
-	field.data = data
+	field.data = packet.data
+	field.header = packet.header
 
 	var n int
 	var err error
 	//skip catalog, always def
 	pos := 0
-	n, err = SkipLengthEncodedString(data)
+	n, err = SkipLengthEncodedString(packet.data)
 	if err != nil {
 
 		return nil, err
@@ -117,35 +119,35 @@ func ParseResultField(data []byte) (*ColumnDescription, error) {
 	pos += n
 
 	//schema
-	field.Schema, n, err = LengthEncodedString(data[pos:])
+	field.Schema, n, err = LengthEncodedString(packet.data[pos:])
 	if err != nil {
 		return nil, err
 	}
 	pos += n
 
 	//table
-	field.Table, n, err = LengthEncodedString(data[pos:])
+	field.Table, n, err = LengthEncodedString(packet.data[pos:])
 	if err != nil {
 		return nil, err
 	}
 	pos += n
 
 	//org_table
-	field.OrgTable, n, err = LengthEncodedString(data[pos:])
+	field.OrgTable, n, err = LengthEncodedString(packet.data[pos:])
 	if err != nil {
 		return nil, err
 	}
 	pos += n
 
 	//name
-	field.Name, n, err = LengthEncodedString(data[pos:])
+	field.Name, n, err = LengthEncodedString(packet.data[pos:])
 	if err != nil {
 		return nil, err
 	}
 	pos += n
 
 	//org_name
-	field.OrgName, n, err = LengthEncodedString(data[pos:])
+	field.OrgName, n, err = LengthEncodedString(packet.data[pos:])
 	if err != nil {
 		return nil, err
 	}
@@ -155,23 +157,23 @@ func ParseResultField(data []byte) (*ColumnDescription, error) {
 	pos++
 
 	//charset
-	field.Charset = binary.LittleEndian.Uint16(data[pos:])
+	field.Charset = binary.LittleEndian.Uint16(packet.data[pos:])
 	pos += 2
 
 	//column length
-	field.ColumnLength = binary.LittleEndian.Uint32(data[pos:])
+	field.ColumnLength = binary.LittleEndian.Uint32(packet.data[pos:])
 	pos += 4
 
 	//type
-	field.Type = Type(data[pos])
+	field.Type = Type(packet.data[pos])
 	pos++
 
 	//flag
-	field.Flag = binary.LittleEndian.Uint16(data[pos:])
+	field.Flag = binary.LittleEndian.Uint16(packet.data[pos:])
 	pos += 2
 
 	//decimals 1
-	field.Decimal = data[pos]
+	field.Decimal = packet.data[pos]
 	pos++
 
 	//filter [0x00][0x00]
@@ -179,23 +181,23 @@ func ParseResultField(data []byte) (*ColumnDescription, error) {
 
 	field.DefaultValue = nil
 	//if more data, command was field list
-	if len(data) > pos {
+	if len(packet.data) > pos {
 		//length of default value lenenc-int
-		field.DefaultValueLength, _, n, err = LengthEncodedInt(data[pos:])
+		field.DefaultValueLength, _, n, err = LengthEncodedInt(packet.data[pos:])
 		if err != nil {
 			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't get length encoded integer of default value length")
 			return nil, err
 		}
 		pos += n
 
-		if pos+int(field.DefaultValueLength) > len(data) {
+		if pos+int(field.DefaultValueLength) > len(packet.data) {
 			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).Errorln("Incorrect position, malformed packet")
 			err = ErrMalformPacket
 			return nil, err
 		}
 
 		//default value string[$len]
-		field.DefaultValue = data[pos:(pos + int(field.DefaultValueLength))]
+		field.DefaultValue = packet.data[pos:(pos + int(field.DefaultValueLength))]
 	}
 	return field, nil
 }
@@ -203,7 +205,7 @@ func ParseResultField(data []byte) (*ColumnDescription, error) {
 // Dump https://dev.mysql.com/doc/internals/en/com-query-response.html#packet-Protocol::ColumnDefinition41
 func (field *ColumnDescription) Dump() []byte {
 	if field.data != nil && !field.changed {
-		return field.data
+		return append(field.header, field.data...)
 	}
 	// column description has 7 length encoded strings. each string have 1-4 bytes with their length
 	// catalog field always has value "def" and 1 byte for length
@@ -243,5 +245,5 @@ func (field *ColumnDescription) Dump() []byte {
 		data = append(data, field.DefaultValue...)
 	}
 
-	return data
+	return append(field.header, data...)
 }
