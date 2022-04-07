@@ -526,7 +526,7 @@ func TestErrorOnFail(t *testing.T) {
 		}
 
 		// Text format
-		columnInfo := base.NewColumnInfo(0, "", false, 4)
+		columnInfo := base.NewColumnInfo(0, "", false, 4, 0, 0)
 		accessContext := &base.AccessContext{}
 		accessContext.SetColumnInfo(columnInfo)
 		textCtx := base.SetAccessContextToContext(ctx, accessContext)
@@ -537,7 +537,7 @@ func TestErrorOnFail(t *testing.T) {
 		}
 
 		// Binary format
-		columnInfo = base.NewColumnInfo(0, "", true, 4)
+		columnInfo = base.NewColumnInfo(0, "", true, 4, 0, 0)
 		accessContext = &base.AccessContext{}
 		accessContext.SetColumnInfo(columnInfo)
 		binaryCtx := base.SetAccessContextToContext(ctx, accessContext)
@@ -578,7 +578,7 @@ func TestEmptyOnFail(t *testing.T) {
 		ctx := encryptor.NewContextWithEncryptionSetting(context.Background(), &testSetting)
 
 		// Text format
-		columnInfo := base.NewColumnInfo(0, "", false, 4)
+		columnInfo := base.NewColumnInfo(0, "", false, 4, 0, 0)
 		accessContext := &base.AccessContext{}
 		accessContext.SetColumnInfo(columnInfo)
 		textCtx := base.SetAccessContextToContext(ctx, accessContext)
@@ -592,7 +592,7 @@ func TestEmptyOnFail(t *testing.T) {
 		}
 
 		// Binary format
-		columnInfo = base.NewColumnInfo(0, "", true, 4)
+		columnInfo = base.NewColumnInfo(0, "", true, 4, 0, 0)
 		accessContext = &base.AccessContext{}
 		accessContext.SetColumnInfo(columnInfo)
 		binaryCtx := base.SetAccessContextToContext(ctx, accessContext)
@@ -771,7 +771,7 @@ func TestDefaultOnFail(t *testing.T) {
 		}
 
 		// Text format
-		columnInfo := base.NewColumnInfo(0, "", false, 4)
+		columnInfo := base.NewColumnInfo(0, "", false, 4, 0, 0)
 		accessContext := &base.AccessContext{}
 		accessContext.SetColumnInfo(columnInfo)
 		textCtx := base.SetAccessContextToContext(ctx, accessContext)
@@ -785,7 +785,7 @@ func TestDefaultOnFail(t *testing.T) {
 		}
 
 		// Binary format
-		columnInfo = base.NewColumnInfo(0, "", true, 4)
+		columnInfo = base.NewColumnInfo(0, "", true, 4, 0, 0)
 		accessContext = &base.AccessContext{}
 		accessContext.SetColumnInfo(columnInfo)
 		binaryCtx := base.SetAccessContextToContext(ctx, accessContext)
