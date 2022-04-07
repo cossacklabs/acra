@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	tokens "github.com/cossacklabs/acra/pseudonymization/common"
+	"github.com/cossacklabs/acra/utils"
 	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
@@ -82,7 +83,7 @@ func (s *PreparedStatement) QueryText() string {
 
 type mysqlBoundValue struct {
 	paramType Type
-	textData  []byte
+	data      []byte
 	format    base.BoundValueFormat
 }
 
@@ -99,10 +100,10 @@ func NewMysqlCopyTextBoundValue(data []byte, format base.BoundValueFormat, param
 		copy(newData, data)
 	}
 
-	return &mysqlBoundValue{textData: newData, format: format, paramType: paramType}
+	return &mysqlBoundValue{data: newData, format: format, paramType: paramType}
 }
 
-// NewMysqlBoundValue create base.BoundValue implementation object based on provided textData and paramType
+// NewMysqlBoundValue create base.BoundValue implementation object based on provided data and paramType
 func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType Type) (base.BoundValue, int, error) {
 	// if we cant find amount of stored bytes for the paramType assume that it is length encoded string
 	storageBytes, ok := NumericTypesStorageBytes[paramType]
@@ -114,13 +115,13 @@ func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType Typ
 		textData := make([]byte, len(value))
 		copy(textData, value)
 
-		return &mysqlBoundValue{textData: textData, format: format, paramType: paramType}, n, nil
+		return &mysqlBoundValue{data: textData, format: format, paramType: paramType}, n, nil
 	}
 
 	switch paramType {
 	case TypeNull:
 		// do nothing
-		return &mysqlBoundValue{textData: nil, format: format, paramType: paramType}, int(storageBytes), nil
+		return &mysqlBoundValue{data: nil, format: format, paramType: paramType}, int(storageBytes), nil
 	case TypeTiny:
 		var numericValue int8
 		err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &numericValue)
@@ -128,7 +129,7 @@ func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType Typ
 			return nil, 0, err
 		}
 		value := []byte(strconv.FormatInt(int64(numericValue), 10))
-		return &mysqlBoundValue{textData: value, format: format, paramType: paramType}, int(storageBytes), nil
+		return &mysqlBoundValue{data: value, format: format, paramType: paramType}, int(storageBytes), nil
 	case TypeShort, TypeYear:
 		var numericValue int16
 		err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &numericValue)
@@ -136,7 +137,7 @@ func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType Typ
 			return nil, 0, err
 		}
 		value := []byte(strconv.FormatInt(int64(numericValue), 10))
-		return &mysqlBoundValue{textData: value, format: format, paramType: paramType}, int(storageBytes), nil
+		return &mysqlBoundValue{data: value, format: format, paramType: paramType}, int(storageBytes), nil
 	case TypeInt24, TypeLong:
 		var numericValue int32
 		err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &numericValue)
@@ -144,7 +145,7 @@ func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType Typ
 			return nil, 0, err
 		}
 		value := []byte(strconv.FormatInt(int64(numericValue), 10))
-		return &mysqlBoundValue{textData: value, format: format, paramType: paramType}, int(storageBytes), nil
+		return &mysqlBoundValue{data: value, format: format, paramType: paramType}, int(storageBytes), nil
 	case TypeLongLong:
 		var numericValue int64
 		err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &numericValue)
@@ -152,7 +153,7 @@ func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType Typ
 			return nil, 0, err
 		}
 		value := []byte(strconv.FormatInt(numericValue, 10))
-		return &mysqlBoundValue{textData: value, format: format, paramType: paramType}, int(storageBytes), nil
+		return &mysqlBoundValue{data: value, format: format, paramType: paramType}, int(storageBytes), nil
 	case TypeFloat:
 		var numericValue float32
 		err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &numericValue)
@@ -160,7 +161,7 @@ func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType Typ
 			return nil, 0, err
 		}
 		value := []byte(strconv.FormatFloat(float64(numericValue), 'G', -1, 32))
-		return &mysqlBoundValue{textData: value, format: format, paramType: paramType}, int(storageBytes), nil
+		return &mysqlBoundValue{data: value, format: format, paramType: paramType}, int(storageBytes), nil
 	case TypeDouble:
 		var numericValue float64
 		err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &numericValue)
@@ -168,7 +169,7 @@ func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType Typ
 			return nil, 0, err
 		}
 		value := []byte(strconv.FormatFloat(numericValue, 'G', -1, 64))
-		return &mysqlBoundValue{textData: value, format: format, paramType: paramType}, int(storageBytes), nil
+		return &mysqlBoundValue{data: value, format: format, paramType: paramType}, int(storageBytes), nil
 
 	default:
 		return nil, 0, fmt.Errorf("found unknown Type in MySQL response packet")
@@ -180,14 +181,18 @@ func (m *mysqlBoundValue) Format() base.BoundValueFormat {
 	return m.format
 }
 
-// Copy create new base.BoundValue with copied textData
+// Copy create new base.BoundValue with copied data
 func (m *mysqlBoundValue) Copy() base.BoundValue {
-	return NewMysqlCopyTextBoundValue(m.textData, m.format, m.paramType)
+	return NewMysqlCopyTextBoundValue(m.data, m.format, m.paramType)
 }
 
 // SetData set new value to BoundValue using ColumnEncryptionSetting if provided
 func (m *mysqlBoundValue) SetData(newData []byte, setting config.ColumnEncryptionSetting) error {
-	m.textData = newData
+	// means that we set encrypted data
+	if !bytes.Equal(m.data, newData) {
+		m.paramType = TypeBlob
+		m.data = newData
+	}
 
 	if setting == nil {
 		return nil
@@ -210,14 +215,14 @@ func (m *mysqlBoundValue) SetData(newData []byte, setting config.ColumnEncryptio
 
 // GetData return BoundValue using ColumnEncryptionSetting if provided
 func (m *mysqlBoundValue) GetData(_ config.ColumnEncryptionSetting) ([]byte, error) {
-	return m.textData, nil
+	return m.data, nil
 }
 
 // Encode format result BoundValue data
 func (m *mysqlBoundValue) Encode() (encoded []byte, err error) {
 	storageBytes, ok := NumericTypesStorageBytes[m.paramType]
 	if !ok {
-		return PutLengthEncodedString(m.textData), nil
+		return PutLengthEncodedString(m.data), nil
 	}
 	// separate error variable for output error from case statements
 	// to not overlap with new err variables inside
@@ -226,45 +231,45 @@ func (m *mysqlBoundValue) Encode() (encoded []byte, err error) {
 	encoded = make([]byte, storageBytes)
 	switch m.paramType {
 	case TypeNull:
-		if m.textData != nil {
+		if m.data != nil {
 			outErr = errors.New("NULL not kept NULL")
 		}
 	case TypeTiny:
-		intValue, err := strconv.ParseInt(string(m.textData), 10, 8)
+		intValue, err := strconv.ParseInt(utils.BytesToString(m.data), 10, 8)
 		if err != nil {
 			return nil, err
 		}
 		outErr = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int8(intValue))
 	case TypeShort, TypeYear:
-		intValue, err := strconv.ParseInt(string(m.textData), 10, 16)
+		intValue, err := strconv.ParseInt(utils.BytesToString(m.data), 10, 16)
 		if err != nil {
 			return nil, err
 		}
 		outErr = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int16(intValue))
 
 	case TypeInt24, TypeLong:
-		intValue, err := strconv.ParseInt(string(m.textData), 10, 32)
+		intValue, err := strconv.ParseInt(utils.BytesToString(m.data), 10, 32)
 		if err != nil {
 			return nil, err
 		}
 		outErr = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int32(intValue))
 
 	case TypeLongLong:
-		intValue, err := strconv.ParseInt(string(m.textData), 10, 64)
+		intValue, err := strconv.ParseInt(utils.BytesToString(m.data), 10, 64)
 		if err != nil {
 			return nil, err
 		}
 		outErr = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, intValue)
 
 	case TypeFloat:
-		floatValue, err := strconv.ParseFloat(string(m.textData), 32)
+		floatValue, err := strconv.ParseFloat(utils.BytesToString(m.data), 32)
 		if err != nil {
 			return nil, err
 		}
 		outErr = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, float32(floatValue))
 
 	case TypeDouble:
-		floatValue, err := strconv.ParseFloat(string(m.textData), 64)
+		floatValue, err := strconv.ParseFloat(utils.BytesToString(m.data), 64)
 		if err != nil {
 			return nil, err
 		}
