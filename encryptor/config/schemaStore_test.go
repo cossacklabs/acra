@@ -851,3 +851,158 @@ schemas:
 		}
 	}
 }
+
+func TestTypeAwarenessOnFailDefaults(t *testing.T) {
+	type testcase struct {
+		name   string
+		onFail string
+		config string
+	}
+	testcases := []testcase{
+		{"By default, onFail is ''",
+			"",
+			`
+schemas:
+  - table: test_table
+    columns:
+      - data
+    encrypted:
+      - column: data`},
+
+		{"onFail is 'error' if data type is defined",
+			"error",
+			`
+schemas:
+  - table: test_table
+    columns:
+      - data_str
+      - data_bytes
+      - data_int32
+      - data_int64
+    encrypted:
+      - column: data_str
+        data_type: str
+      - column: data_bytes
+        data_type: bytes
+      - column: data_int32
+        data_type: int32
+      - column: data_int64
+        data_type: int64`},
+
+		{"onFail is 'default' if explicitly defined",
+			"default",
+			`
+  schemas:
+    - table: test_table
+      columns:
+        - data_str
+        - data_bytes
+        - data_int32
+        - data_int64
+      encrypted:
+        - column: data_str
+          data_type: str
+          on_fail: default
+          default_data_value: string
+
+        - column: data_bytes
+          data_type: bytes
+          on_fail: default
+          default_data_value: Ynl0ZXM=
+
+        - column: data_int32
+          data_type: int32
+          on_fail: default
+          default_data_value: 2147483647
+
+        - column: data_int64
+          data_type: int64
+          on_fail: default
+          default_data_value: 9223372036854775807`},
+	}
+
+	for _, tcase := range testcases {
+		config, err := MapTableSchemaStoreFromConfig([]byte(tcase.config))
+
+		if err != nil {
+			t.Fatalf("[%s] error=%s\n", tcase.name, err)
+		}
+
+		for _, column := range config.schemas["test_table"].EncryptionColumnSettings {
+			if column.GetOnFail() != tcase.onFail {
+				t.Fatalf("[%s] OnFail expected %q but found %q\n", tcase.name, tcase.onFail, column.GetOnFail())
+			}
+		}
+	}
+}
+
+func TestInvalidTypeAwarenessOnFailCombinations(t *testing.T) {
+	type testcase struct {
+		name   string
+		config string
+	}
+	testcases := []testcase{
+		{"OnFail=error and default",
+			`
+schemas:
+  - table: test_table
+    columns:
+      - data
+    encrypted:
+      - column: data
+        data_type: str
+        on_fail: error
+        default_data_value: hidden by cossacklabs`},
+
+		{"Only `default` without `on_fail`",
+			`
+schemas:
+  - table: test_table
+    columns:
+      - data
+    encrypted:
+      - column: data
+        data_type: str
+        default_data_value: hidden by cossacklabs`},
+
+		{"OnFail=unknown",
+			`
+  schemas:
+    - table: test_table
+      columns:
+        - data
+      encrypted:
+        - column: data
+          data_type: str
+          on_fail: unknown`},
+
+		{"OnFail without data_type",
+			`
+      schemas:
+        - table: test_table
+          columns:
+            - data
+          encrypted:
+            - column: data
+              on_fail: error`},
+
+		{"OnFail and default without data_type",
+			`
+              schemas:
+                - table: test_table
+                  columns:
+                    - data
+                  encrypted:
+                    - column: data
+                      on_fail: default
+                      default_data_value: ukraine`},
+	}
+
+	for _, tcase := range testcases {
+		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config))
+
+		if err == nil {
+			t.Fatalf("[%s] expected error, found nil\n", tcase.name)
+		}
+	}
+}

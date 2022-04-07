@@ -44,6 +44,7 @@ const (
 	SettingAcraStructEncryptionFlag
 	SettingDataTypeFlag
 	SettingDefaultDataValueFlag
+	SettingOnFailFlag
 )
 
 // validSettings store all valid combinations of encryption settings
@@ -71,25 +72,29 @@ var validSettings = map[SettingMask]struct{}{
 	// AcraBlock
 
 	// ClientID
-	SettingDataTypeFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag:                               {},
-	SettingDataTypeFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag: {},
+	SettingDataTypeFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag:                                                   {},
+	SettingDataTypeFlag | SettingOnFailFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag:                               {},
+	SettingDataTypeFlag | SettingOnFailFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag: {},
 
 	SettingDataTypeFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag | SettingMaskingFlag | SettingMaskingPlaintextLengthFlag | SettingMaskingPlaintextSideFlag: {},
 
 	// ZoneID
 
-	SettingDataTypeFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag:                               {},
-	SettingDataTypeFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag: {},
+	SettingDataTypeFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag:                                                   {},
+	SettingDataTypeFlag | SettingOnFailFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag:                               {},
+	SettingDataTypeFlag | SettingOnFailFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag: {},
 
 	// AcraStruct
 	// ClientID
-	SettingDataTypeFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag:                               {},
-	SettingDataTypeFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag: {},
+	SettingDataTypeFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag:                                                   {},
+	SettingDataTypeFlag | SettingOnFailFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag:                               {},
+	SettingDataTypeFlag | SettingOnFailFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag: {},
 
 	// ZoneID
 
-	SettingDataTypeFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag:                               {},
-	SettingDataTypeFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag: {},
+	SettingDataTypeFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag:                                                   {},
+	SettingDataTypeFlag | SettingOnFailFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag:                               {},
+	SettingDataTypeFlag | SettingOnFailFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag: {},
 
 	/////////////
 	// SEARCHABLE
@@ -248,6 +253,11 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 			return err
 		}
 	}
+
+	if s.OnFail != "" {
+		s.settingMask |= SettingOnFailFlag
+	}
+
 	dataType := common2.EncryptedType_Unknown
 	if s.DataType == "" {
 		// if DataType empty but configured for tokenization then map TokenType to appropriate DataType
@@ -274,6 +284,8 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 		if err = common2.ValidateEncryptedType(dataType); err != nil {
 			return err
 		}
+	} else if s.OnFail != "" {
+		return errors.New("on_fail is defined without data type")
 	}
 
 	if err := common2.ValidateOnFail(s.OnFail); err != nil {
