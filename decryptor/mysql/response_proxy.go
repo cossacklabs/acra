@@ -665,7 +665,7 @@ func (handler *Handler) QueryResponseHandler(ctx context.Context, packet *Packet
 				handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't parse result field")
 				return err
 			}
-			// updating filed type according to DataType provided in schemaStore
+			// updating field type according to DataType provided in schemaStore
 			updateFieldEncodedType(field, handler.setting.TableSchemaStore())
 
 			if field.Type.IsBinaryType() {

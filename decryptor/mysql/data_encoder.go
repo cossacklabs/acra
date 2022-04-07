@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
+	"github.com/cossacklabs/acra/utils"
 	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
@@ -71,7 +72,6 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 		return ctx, PutLengthEncodedString(data), nil
 	}
 
-	var columnType = columnInfo.DataBinaryType()
 	dataTypeEncoded, isEncoded, err := p.encodeBinaryWithDataType(ctx, data, setting)
 	if err != nil && err != ErrConvertToDataType {
 		return nil, nil, err
@@ -82,6 +82,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 		return ctx, dataTypeEncoded, nil
 	}
 
+	var columnType = columnInfo.DataBinaryType()
 	// in case of error on converting to defined type we should roll back field type and encode it as it was originally
 	if err == ErrConvertToDataType {
 		ctx = base.MarkErrorConvertedDataTypeContext(ctx)
@@ -89,7 +90,6 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 	}
 
 	var encoded []byte
-	var isNumericType bool
 	// After processing, parse the value back and reencode it. Take care for the format to match.
 	// The result must have exact same format as it had. Overflows are unacceptable.
 	switch Type(columnType) {
@@ -100,61 +100,33 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 
 	case TypeTiny:
 		encoded = make([]byte, 1)
-		intValue, err := strconv.ParseInt(string(data), 10, 8)
-		if err != nil {
-			return nil, nil, err
-		}
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int8(intValue))
-		isNumericType = true
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, utils.BytesToString(data))
+		return ctx, encoded, err
 
 	case TypeShort, TypeYear:
 		encoded = make([]byte, 2)
-		intValue, err := strconv.ParseInt(string(data), 10, 16)
-		if err != nil {
-			return nil, nil, err
-		}
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int16(intValue))
-		isNumericType = true
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, utils.BytesToString(data))
+		return ctx, encoded, err
 
 	case TypeInt24, TypeLong:
 		encoded = make([]byte, 4)
-		intValue, err := strconv.ParseInt(string(data), 10, 32)
-		if err != nil {
-			return nil, nil, err
-		}
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int32(intValue))
-		isNumericType = true
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, utils.BytesToString(data))
+		return ctx, encoded, err
 
 	case TypeLongLong:
 		encoded = make([]byte, 8)
-		intValue, err := strconv.ParseInt(string(data), 10, 64)
-		if err != nil {
-			return nil, nil, err
-		}
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int64(intValue))
-		isNumericType = true
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, utils.BytesToString(data))
+		return ctx, encoded, err
 
 	case TypeFloat:
 		encoded = make([]byte, 4)
-		floatValue, err := strconv.ParseFloat(string(data), 32)
-		if err != nil {
-			return nil, nil, err
-		}
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, float32(floatValue))
-		isNumericType = true
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, utils.BytesToString(data))
+		return ctx, encoded, err
 
 	case TypeDouble:
 		encoded = make([]byte, 8)
-		floatValue, err := strconv.ParseFloat(string(data), 64)
-		if err != nil {
-			return nil, nil, err
-		}
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, float64(floatValue))
-		isNumericType = true
-	}
-
-	if isNumericType {
-		return ctx, encoded, nil
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, utils.BytesToString(data))
+		return ctx, encoded, err
 	}
 
 	return ctx, PutLengthEncodedString(data), nil
@@ -171,6 +143,7 @@ func (p *BaseMySQLDataProcessor) encodeBinaryWithDataType(ctx context.Context, d
 				}
 				return PutLengthEncodedString(binValue), true, nil
 			}
+			return data, false, ErrConvertToDataType
 		}
 		return data, false, nil
 	case common.EncryptedType_String:
@@ -300,7 +273,7 @@ func (p *BaseMySQLDataProcessor) decodeBinary(ctx context.Context, encoded []byt
 		if err != nil {
 			break
 		}
-		return ctx, []byte(strconv.FormatInt(int64(numericValue), 10)), nil
+		return ctx, strconv.AppendInt(nil, int64(numericValue), 10), nil
 
 	case TypeShort, TypeYear:
 		var numericValue int16
@@ -308,7 +281,7 @@ func (p *BaseMySQLDataProcessor) decodeBinary(ctx context.Context, encoded []byt
 		if err != nil {
 			break
 		}
-		return ctx, []byte(strconv.FormatInt(int64(numericValue), 10)), nil
+		return ctx, strconv.AppendInt(nil, int64(numericValue), 10), nil
 
 	case TypeInt24, TypeLong:
 		var numericValue int32
@@ -316,7 +289,7 @@ func (p *BaseMySQLDataProcessor) decodeBinary(ctx context.Context, encoded []byt
 		if err != nil {
 			break
 		}
-		return ctx, []byte(strconv.FormatInt(int64(numericValue), 10)), nil
+		return ctx, strconv.AppendInt(nil, int64(numericValue), 10), nil
 
 	case TypeLongLong:
 		var numericValue int64
@@ -324,7 +297,7 @@ func (p *BaseMySQLDataProcessor) decodeBinary(ctx context.Context, encoded []byt
 		if err != nil {
 			break
 		}
-		return ctx, []byte(strconv.FormatInt(int64(numericValue), 10)), nil
+		return ctx, strconv.AppendInt(nil, int64(numericValue), 10), nil
 
 	case TypeFloat:
 		var numericValue float32
@@ -332,7 +305,7 @@ func (p *BaseMySQLDataProcessor) decodeBinary(ctx context.Context, encoded []byt
 		if err != nil {
 			break
 		}
-		return ctx, []byte(strconv.FormatFloat(float64(numericValue), 'G', -1, 32)), nil
+		return ctx, strconv.AppendFloat(nil, float64(numericValue), 'G', -1, 32), nil
 
 	case TypeDouble:
 		var numericValue float64
@@ -340,7 +313,7 @@ func (p *BaseMySQLDataProcessor) decodeBinary(ctx context.Context, encoded []byt
 		if err != nil {
 			break
 		}
-		return ctx, []byte(strconv.FormatFloat(float64(numericValue), 'G', -1, 64)), nil
+		return ctx, strconv.AppendFloat(nil, numericValue, 'G', -1, 32), nil
 	}
 	// binary and string values in binary format we return as is because it is encrypted blob
 	return ctx, encoded, nil

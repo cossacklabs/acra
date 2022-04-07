@@ -76,7 +76,7 @@ func (*MysqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, error
 		switch val.Type {
 		case sqlparser.IntVal:
 			// if data was just tokenized, so we return it as is because it is valid int literal
-			if _, err := strconv.Atoi(string(data)); err == nil {
+			if _, err := strconv.Atoi(utils.BytesToString(data)); err == nil {
 				return data, nil
 			}
 			return encodeDataToHex(val, data)
