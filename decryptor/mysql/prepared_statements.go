@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	tokens "github.com/cossacklabs/acra/pseudonymization/common"
+	"github.com/cossacklabs/acra/utils"
 	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
@@ -234,41 +235,41 @@ func (m *mysqlBoundValue) Encode() (encoded []byte, err error) {
 			outErr = errors.New("NULL not kept NULL")
 		}
 	case TypeTiny:
-		intValue, err := strconv.ParseInt(string(m.data), 10, 8)
+		intValue, err := strconv.ParseInt(utils.BytesToString(m.data), 10, 8)
 		if err != nil {
 			return nil, err
 		}
 		outErr = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int8(intValue))
 	case TypeShort, TypeYear:
-		intValue, err := strconv.ParseInt(string(m.data), 10, 16)
+		intValue, err := strconv.ParseInt(utils.BytesToString(m.data), 10, 16)
 		if err != nil {
 			return nil, err
 		}
 		outErr = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int16(intValue))
 
 	case TypeInt24, TypeLong:
-		intValue, err := strconv.ParseInt(string(m.data), 10, 32)
+		intValue, err := strconv.ParseInt(utils.BytesToString(m.data), 10, 32)
 		if err != nil {
 			return nil, err
 		}
 		outErr = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int32(intValue))
 
 	case TypeLongLong:
-		intValue, err := strconv.ParseInt(string(m.data), 10, 64)
+		intValue, err := strconv.ParseInt(utils.BytesToString(m.data), 10, 64)
 		if err != nil {
 			return nil, err
 		}
 		outErr = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, intValue)
 
 	case TypeFloat:
-		floatValue, err := strconv.ParseFloat(string(m.data), 32)
+		floatValue, err := strconv.ParseFloat(utils.BytesToString(m.data), 32)
 		if err != nil {
 			return nil, err
 		}
 		outErr = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, float32(floatValue))
 
 	case TypeDouble:
-		floatValue, err := strconv.ParseFloat(string(m.data), 64)
+		floatValue, err := strconv.ParseFloat(utils.BytesToString(m.data), 64)
 		if err != nil {
 			return nil, err
 		}
