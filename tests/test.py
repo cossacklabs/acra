@@ -8919,6 +8919,8 @@ class TestMySQLTextTypeAwareDecryptionWithoutDefaults(BaseBinaryMySQLTestCase, B
         incorrect clientID or using direct connection to db
         All result data should be valid for application. Not decrypted data should be returned as is and DB driver
         should cause error
+
+        MySQL decoder should roll back FieldType as well.
         """
         data = {
             'id': get_random_id(),
@@ -9052,7 +9054,7 @@ class TestMySQLBinaryTypeAwareDecryptionWithoutDefaults(TestMySQLTextTypeAwareDe
         All result data should be valid for application. Not decrypted data should be returned as is and DB driver
         should cause error
 
-        MySQL decoded should roll back FieldType as well
+        MySQL decoder should roll back FieldType as well.
         """
         data = {
             'id': get_random_id(),
@@ -9075,6 +9077,7 @@ class TestMySQLBinaryTypeAwareDecryptionWithoutDefaults(TestMySQLTextTypeAwareDe
             sa.select([self.test_table])
                 .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
 
+        # just make sure that it is not failing meant that decoder rollback field types
         row = self.executor2.execute_prepared_statement(query, args)[0]
 
         for column in columns:

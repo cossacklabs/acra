@@ -578,6 +578,7 @@ func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte
 	return output, nil
 }
 
+// extractData retrieve positional data from data row
 func (handler *Handler) extractData(pos int, rowData []byte, field *ColumnDescription) ([]byte, int, error) {
 	// in case of type changing we should process as origin type
 	fieldType := field.Type
@@ -665,7 +666,7 @@ func (handler *Handler) QueryResponseHandler(ctx context.Context, packet *Packet
 				return err
 			}
 			// updating filed type according to DataType provided in schemaStore
-			updatedFieldEncodedType(field, handler.setting.TableSchemaStore())
+			updateFieldEncodedType(field, handler.setting.TableSchemaStore())
 
 			if field.Type.IsBinaryType() {
 				handler.logger.WithField("column_index", i).Debugln("Binary field")

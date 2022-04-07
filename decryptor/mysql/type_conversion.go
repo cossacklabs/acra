@@ -5,8 +5,8 @@ import (
 	"github.com/cossacklabs/acra/encryptor/config/common"
 )
 
-// updatedFieldEncodedType change the field type according to provided DataType
-func updatedFieldEncodedType(field *ColumnDescription, schemaStore config.TableSchemaStore) {
+// updateFieldEncodedType change the field type according to provided DataType
+func updateFieldEncodedType(field *ColumnDescription, schemaStore config.TableSchemaStore) {
 	tableSchema := schemaStore.GetTableSchema(string(field.Table))
 	if tableSchema == nil {
 		return
