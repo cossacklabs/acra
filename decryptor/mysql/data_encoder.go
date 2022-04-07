@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
+	"github.com/cossacklabs/acra/utils"
 	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
@@ -99,7 +100,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 
 	case TypeTiny:
 		encoded = make([]byte, 1)
-		intValue, err := strconv.ParseInt(string(data), 10, 8)
+		intValue, err := strconv.ParseInt(utils.BytesToString(data), 10, 8)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -108,7 +109,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 
 	case TypeShort, TypeYear:
 		encoded = make([]byte, 2)
-		intValue, err := strconv.ParseInt(string(data), 10, 16)
+		intValue, err := strconv.ParseInt(utils.BytesToString(data), 10, 16)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -117,7 +118,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 
 	case TypeInt24, TypeLong:
 		encoded = make([]byte, 4)
-		intValue, err := strconv.ParseInt(string(data), 10, 32)
+		intValue, err := strconv.ParseInt(utils.BytesToString(data), 10, 32)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -126,7 +127,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 
 	case TypeLongLong:
 		encoded = make([]byte, 8)
-		intValue, err := strconv.ParseInt(string(data), 10, 64)
+		intValue, err := strconv.ParseInt(utils.BytesToString(data), 10, 64)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -135,7 +136,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 
 	case TypeFloat:
 		encoded = make([]byte, 4)
-		floatValue, err := strconv.ParseFloat(string(data), 32)
+		floatValue, err := strconv.ParseFloat(utils.BytesToString(data), 32)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -144,7 +145,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 
 	case TypeDouble:
 		encoded = make([]byte, 8)
-		floatValue, err := strconv.ParseFloat(string(data), 64)
+		floatValue, err := strconv.ParseFloat(utils.BytesToString(data), 64)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -179,7 +180,7 @@ func (p *BaseMySQLDataProcessor) encodeBinaryWithDataType(ctx context.Context, d
 		return data, false, nil
 	case common.EncryptedType_Int32:
 		encoded := make([]byte, 4)
-		intValue, err := strconv.ParseInt(string(data), 10, 32)
+		intValue, err := strconv.ParseInt(utils.BytesToString(data), 10, 32)
 		if err != nil {
 			if newVal := setting.GetDefaultDataValue(); newVal != nil {
 				intValue, err = strconv.ParseInt(*newVal, 10, 32)
@@ -195,7 +196,7 @@ func (p *BaseMySQLDataProcessor) encodeBinaryWithDataType(ctx context.Context, d
 
 	case common.EncryptedType_Int64:
 		encoded := make([]byte, 8)
-		intValue, err := strconv.ParseInt(string(data), 10, 64)
+		intValue, err := strconv.ParseInt(utils.BytesToString(data), 10, 64)
 		if err != nil {
 			if newVal := setting.GetDefaultDataValue(); newVal != nil {
 				intValue, err = strconv.ParseInt(*newVal, 10, 64)
@@ -206,7 +207,7 @@ func (p *BaseMySQLDataProcessor) encodeBinaryWithDataType(ctx context.Context, d
 				return data, false, ErrConvertToDataType
 			}
 		}
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int64(intValue))
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, intValue)
 		return encoded, true, err
 	}
 
@@ -236,7 +237,7 @@ func (p *BaseMySQLDataProcessor) encodeTextWithDataType(ctx context.Context, dat
 		}
 		return data, false, nil
 	case common.EncryptedType_Int32, common.EncryptedType_Int64:
-		_, err := strconv.ParseInt(string(data), 10, 64)
+		_, err := strconv.ParseInt(utils.BytesToString(data), 10, 64)
 		// if it's valid string literal and decrypted, return as is
 		if err == nil {
 			return PutLengthEncodedString(data), true, nil
