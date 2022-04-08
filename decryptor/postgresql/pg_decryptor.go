@@ -537,7 +537,6 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 			// Massage the packet. This should not normally fail. If it does, the client will not receive the packet.
 			err := proxy.handleDatabasePacket(packetCtx, packetHandler, logger)
 			if decryptionError, ok := err.(*EncodingError); ok {
-				logger.Debugln("G1gg1l3s: sending error to the client")
 				if err = proxy.sendClientError(decryptionError.Error(), logger); err != nil {
 					logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
 						WithError(err).Errorln("Can't send packet")
