@@ -483,27 +483,29 @@ func TestErrorOnFail(t *testing.T) {
 		err       error
 	}
 
+	column := "gopher"
+
 	// test all possible cases with happy and error paths with `on_fail = error`.
 	// check only whether error is returned or not
 	testcases := []testcase{
 		// decryption successfull, we expect no error
 		{"string_decrypted", "str", markDecrypted, nil},
 		// decryption failed, we expect error
-		{"string_not_decrypted", "str", markNotDecrypted, &EncodingError{}},
+		{"string_not_decrypted", "str", markNotDecrypted, base.NewEncodingError(column)},
 
 		// decryption successfull, we expect no error
 		{"bytes_decrypted", "bytes", markDecrypted, nil},
 		// decryption failed, we expect error
-		{"bytes_not_decrypted", "bytes", markNotDecrypted, &EncodingError{}},
+		{"bytes_not_decrypted", "bytes", markNotDecrypted, base.NewEncodingError(column)},
 
 		// int doesn't care about marked context
 		// valid int returns no error
 		{"-2147483648", "int32", false, nil},
 		// parsing error returns error
-		{"invalid_int32", "int32", false, &EncodingError{}},
+		{"invalid_int32", "int32", false, base.NewEncodingError(column)},
 
 		{"-9223372036854775808", "int64", false, nil},
-		{"invalid_int64", "int64", false, &EncodingError{}},
+		{"invalid_int64", "int64", false, base.NewEncodingError(column)},
 
 		// unknown type returns no error
 		{"unknown_type_decrypted", "bees", markDecrypted, nil},
@@ -517,6 +519,7 @@ func TestErrorOnFail(t *testing.T) {
 
 	for _, tcase := range testcases {
 		testSetting := config.BasicColumnEncryptionSetting{
+			Name:     column,
 			DataType: tcase.dataType,
 			OnFail:   "error",
 		}
@@ -532,7 +535,7 @@ func TestErrorOnFail(t *testing.T) {
 		textCtx := base.SetAccessContextToContext(ctx, accessContext)
 
 		_, _, err = encoder.OnColumn(textCtx, []byte(tcase.input))
-		if err != tcase.err {
+		if !errors.Is(err, tcase.err) {
 			t.Fatalf("[%s] expected error=%q, but found %q", tcase.input, tcase.err, err)
 		}
 
@@ -543,7 +546,7 @@ func TestErrorOnFail(t *testing.T) {
 		binaryCtx := base.SetAccessContextToContext(ctx, accessContext)
 
 		_, _, err = encoder.OnColumn(binaryCtx, []byte(tcase.input))
-		if err != tcase.err {
+		if !errors.Is(err, tcase.err) {
 			t.Fatalf("[%s] expected error=%q, but found %q", tcase.input, tcase.err, err)
 		}
 	}
