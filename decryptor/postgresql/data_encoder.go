@@ -326,6 +326,6 @@ func onFail(setting config.ColumnEncryptionSetting, logger *logrus.Entry) (encod
 	case action == "error":
 		return nil, &EncodingError{}
 	default:
-		return nil, fmt.Errorf("unknown action")
+		return nil, fmt.Errorf("unknown action: %q", action)
 	}
 }
