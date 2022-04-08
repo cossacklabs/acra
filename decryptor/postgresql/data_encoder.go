@@ -275,7 +275,7 @@ func (v *intValue) asText() []byte {
 	return []byte(v.strValue)
 }
 
-// encodeDefault returns wrapped default value from settings ready for encdoing
+// encodeDefault returns wrapped default value from settings ready for encoding
 // returns nil if something went wrong, which in many cases indicates that the
 // original value should be returned as it is
 func encodeDefault(setting config.ColumnEncryptionSetting, logger *logrus.Entry) encodingValue {
