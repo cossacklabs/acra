@@ -57,6 +57,7 @@ const (
 	poisonPrivateKey   = "poison_key"
 	poisonPublicKey    = "poison_key.pub"
 	poisonSymmetricKey = "poison_key_sym"
+	legacyWebConfigKey = "auth_key"
 )
 
 // ErrUnrecognizedKeyPurpose describe key mismatch error
@@ -835,6 +836,11 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 		return &keystore.KeyDescription{
 			ID:      poisonSymmetricKey,
 			Purpose: PurposePoisonRecordSymmetricKey,
+		}, nil
+	case legacyWebConfigKey:
+		return &keystore.KeyDescription{
+			ID:      fileInfo.Name(),
+			Purpose: PurposeLegacy,
 		}, nil
 	}
 

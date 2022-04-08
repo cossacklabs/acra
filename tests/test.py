@@ -6184,6 +6184,7 @@ class TestAcraIgnoresLegacyKeys(AcraCatchLogsMixin, BaseTestCase):
     """
 
     legacy_key_files = [
+        'auth_key',
         'testclientid',
         'testclientid.pub',
         'testclientid_server',
