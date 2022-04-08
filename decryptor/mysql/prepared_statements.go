@@ -2,11 +2,15 @@ package mysql
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/cossacklabs/acra/encryptor"
+	"github.com/cossacklabs/acra/logging"
 	tokens "github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/utils"
+	"net"
 	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
@@ -280,4 +284,104 @@ func (m *mysqlBoundValue) Encode() (encoded []byte, err error) {
 	}
 
 	return encoded, outErr
+}
+
+// PreparedStatementFieldTracker track and replace DataType for column and param ColumnDefinition
+type PreparedStatementFieldTracker struct {
+	proxyHandler *Handler
+	// shared value that indicates number of param packet
+	paramsCounter int
+	columnsNum    uint16
+}
+
+// NewPreparedStatementFieldTracker create new PreparedStatementFieldTracker
+func NewPreparedStatementFieldTracker(handler *Handler, columnNum uint16) PreparedStatementFieldTracker {
+	return PreparedStatementFieldTracker{
+		proxyHandler: handler,
+		columnsNum:   columnNum,
+	}
+}
+
+// ParamsTrackHandler ResponseHandler used to track prepared statement params
+func (p *PreparedStatementFieldTracker) ParamsTrackHandler(ctx context.Context, packet *Packet, _, clientConnection net.Conn) error {
+	clientSession := base.ClientSessionFromContext(ctx)
+	if clientSession == nil {
+		p.proxyHandler.logger.Warningln("No packet without ClientSession in context")
+		return nil
+	}
+	items := encryptor.PlaceholderSettingsFromClientSession(clientSession)
+	if items == nil {
+		p.proxyHandler.logger.Debugln("No packet with registered recognized encryption settings")
+		return nil
+	}
+
+	p.proxyHandler.logger.Debugln("Parse param ColumnDefinition")
+	if packet.IsEOF() {
+		p.proxyHandler.resetQueryHandler()
+		// if columns_num > 0 column definition block will follow
+		// https://dev.mysql.com/doc/internals/en/com-stmt-prepare-response.html
+		if p.columnsNum > 0 {
+			p.proxyHandler.setQueryHandler(p.ColumnsTrackHandler)
+		}
+
+		if _, err := clientConnection.Write(packet.Dump()); err != nil {
+			p.proxyHandler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
+				Debugln("Can't proxy output")
+		}
+		return nil
+	}
+
+	field, err := ParseResultField(packet)
+	if err != nil {
+		p.proxyHandler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't parse result field")
+		return err
+	}
+
+	setting, ok := items[p.paramsCounter]
+	if ok {
+		newFieldType, ok := mapEncryptedTypeToField(setting.GetEncryptedDataType())
+		if ok {
+			field.originType = field.Type
+			field.Type = Type(newFieldType)
+			field.changed = true
+		}
+	}
+
+	if _, err := clientConnection.Write(field.Dump()); err != nil {
+		p.proxyHandler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
+			Debugln("Can't proxy output")
+	}
+
+	p.paramsCounter++
+	return nil
+}
+
+// ColumnsTrackHandler ResponseHandler used to track prepared statement columns
+func (p *PreparedStatementFieldTracker) ColumnsTrackHandler(ctx context.Context, packet *Packet, _, clientConnection net.Conn) error {
+	p.proxyHandler.logger.Debugln("Parse column ColumnDefinition")
+	if packet.IsEOF() {
+		p.proxyHandler.resetQueryHandler()
+
+		if _, err := clientConnection.Write(packet.Dump()); err != nil {
+			p.proxyHandler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
+				Debugln("Can't proxy output")
+		}
+		return nil
+	}
+
+	field, err := ParseResultField(packet)
+	if err != nil {
+		p.proxyHandler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't parse result field")
+		return err
+	}
+
+	// updating field type according to DataType provided in schemaStore
+	updateFieldEncodedType(field, p.proxyHandler.setting.TableSchemaStore())
+
+	if _, err := clientConnection.Write(field.Dump()); err != nil {
+		p.proxyHandler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
+			Debugln("Can't proxy output")
+	}
+
+	return nil
 }
