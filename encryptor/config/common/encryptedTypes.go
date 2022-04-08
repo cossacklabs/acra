@@ -25,7 +25,7 @@ const (
 
 	// ResponseOnFailDefault indicates that default value should be returned
 	// instead of failed one.
-	ResponseOnFailDefault ResponseOnFail = "default"
+	ResponseOnFailDefault ResponseOnFail = "default_value"
 
 	// ResponseOnFailError indicates that db-specific error should be returned
 	// to a client

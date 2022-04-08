@@ -428,22 +428,22 @@ schemas:
     encrypted:
       - column: data1
         data_type: str
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "str"
 
       - column: data2
         data_type: bytes
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "bytes"
 
       - column: data3
         data_type: int32
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "123"
 
       - column: data4
         data_type: int64
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "123"
 `,
 			nil},
@@ -460,25 +460,25 @@ schemas:
     encrypted:
       - column: data1
         data_type: str
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "str"
         client_id: client
 
       - column: data2
         data_type: bytes
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "bytes"
         client_id: client
 
       - column: data3
         data_type: int32
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "123"
         client_id: client
 
       - column: data4
         data_type: int64
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "123"
         client_id: client
 `,
@@ -496,25 +496,25 @@ schemas:
     encrypted:
       - column: data1
         data_type: str
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "str"
         zone_id: zone
 
       - column: data2
         data_type: bytes
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "bytes"
         zone_id: zone
 
       - column: data3
         data_type: int32
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "123"
         zone_id: zone
 
       - column: data4
         data_type: int64
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "123"
         zone_id: zone
 `,
@@ -611,22 +611,22 @@ schemas:
     encrypted:
       - column: data1
         data_type: str
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "str"
 
       - column: data2
         data_type: bytes
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "bytes"
 
       - column: data3
         data_type: int32
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "123"
 
       - column: data4
         data_type: int64
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "123"
 `,
 			nil},
@@ -645,25 +645,25 @@ schemas:
     encrypted:
       - column: data1
         data_type: str
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "str"
         client_id: client
 
       - column: data2
         data_type: bytes
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "bytes"
         client_id: client
 
       - column: data3
         data_type: int32
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "123"
         client_id: client
 
       - column: data4
         data_type: int64
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "123"
         client_id: client
 `,
@@ -683,25 +683,25 @@ schemas:
     encrypted:
       - column: data1
         data_type: str
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "str"
         zone_id: zone
 
       - column: data2
         data_type: bytes
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "bytes"
         zone_id: zone
 
       - column: data3
         data_type: int32
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "123"
         zone_id: zone
 
       - column: data4
         data_type: int64
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "123"
         zone_id: zone
 `,
@@ -861,7 +861,7 @@ func TestTypeAwarenessOnFailDefaults(t *testing.T) {
 	}
 	testcases := []testcase{
 		{"By default, onFail is ''",
-			"",
+			common2.ResponseOnFailEmpty,
 			`
 schemas:
   - table: test_table
@@ -871,7 +871,7 @@ schemas:
       - column: data`},
 
 		{"onFail is 'error' if data type is defined",
-			"error",
+			common2.ResponseOnFailError,
 			`
 schemas:
   - table: test_table
@@ -891,7 +891,7 @@ schemas:
         data_type: int64`},
 
 		{"onFail is 'default' if explicitly defined",
-			"default",
+			common2.ResponseOnFailDefault,
 			`
   schemas:
     - table: test_table
@@ -903,22 +903,22 @@ schemas:
       encrypted:
         - column: data_str
           data_type: str
-          response_on_fail: default
+          response_on_fail: default_value
           default_data_value: string
 
         - column: data_bytes
           data_type: bytes
-          response_on_fail: default
+          response_on_fail: default_value
           default_data_value: Ynl0ZXM=
 
         - column: data_int32
           data_type: int32
-          response_on_fail: default
+          response_on_fail: default_value
           default_data_value: 2147483647
 
         - column: data_int64
           data_type: int64
-          response_on_fail: default
+          response_on_fail: default_value
           default_data_value: 9223372036854775807`},
 	}
 
@@ -995,7 +995,7 @@ schemas:
                     - data
                   encrypted:
                     - column: data
-                      response_on_fail: default
+                      response_on_fail: default_value
                       default_data_value: ukraine`},
 	}
 

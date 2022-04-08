@@ -14,22 +14,22 @@ schemas:
     encrypted:
       - column: value_str
         data_type: "str"
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "value_str"
 
       - column: value_bytes
         data_type: "bytes"
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "dmFsdWVfYnl0ZXM="
 
       - column: value_int32
         data_type: "int32"
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "32"
 
       - column: value_int64
         data_type: "int64"
-        response_on_fail: default
+        response_on_fail: default_value
         default_data_value: "64"
 
       - column: value_null_str
