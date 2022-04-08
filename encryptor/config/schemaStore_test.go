@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	common2 "github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/cossacklabs/acra/masking/common"
 )
 
@@ -855,7 +856,7 @@ schemas:
 func TestTypeAwarenessOnFailDefaults(t *testing.T) {
 	type testcase struct {
 		name   string
-		onFail string
+		onFail common2.ResponseOnFail
 		config string
 	}
 	testcases := []testcase{

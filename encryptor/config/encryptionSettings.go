@@ -180,11 +180,8 @@ type BasicColumnEncryptionSetting struct {
 	// string for str/email/int32/int64 ans base64 string for binary data
 	DefaultDataValue *string `yaml:"default_data_value"`
 	// an action that should be performed on failure
-	// for type awareness decryption the default is "error", which indicates
-	// the the error should be returned to a user
-	// to return a default value, use  "default" together with
-	// `default_data_value` field
-	ResponseOnFail string `yaml:"response_on_fail"`
+	// possible actions are "ciphertext", "error" or "default"
+	ResponseOnFail common2.ResponseOnFail `yaml:"response_on_fail"`
 
 	// Data pseudonymization (tokenization)
 	Tokenized              bool   `yaml:"tokenized"`
@@ -254,7 +251,7 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 		}
 	}
 
-	if s.ResponseOnFail != "" {
+	if s.ResponseOnFail != common2.ResponseOnFailEmpty {
 		s.settingMask |= SettingOnFailFlag
 	}
 
@@ -272,8 +269,8 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 		s.settingMask |= SettingDataTypeFlag
 		// If transparent encryption is enabled, by default we return an error
 		// to a client in case of failure
-		if s.ResponseOnFail == "" {
-			s.ResponseOnFail = "error"
+		if s.ResponseOnFail == common2.ResponseOnFailEmpty {
+			s.ResponseOnFail = common2.ResponseOnFailError
 		}
 	}
 	if s.DataType != "" {
@@ -297,7 +294,7 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 			return errors.New("default_data_value used without data_type")
 		}
 		s.settingMask |= SettingDefaultDataValueFlag
-		if s.ResponseOnFail != "default" {
+		if s.ResponseOnFail != common2.ResponseOnFailDefault {
 			return fmt.Errorf("default data value is defined, but `response_on_fail` operation is not \"default\" (%s)", s.ResponseOnFail)
 		}
 	}
@@ -451,8 +448,8 @@ func (s *BasicColumnEncryptionSetting) applyDefaults(defaults defaultValues) {
 }
 
 // GetResponseOnFail returns the action that should be performed on failure
-// Valid values are "", "error" and "default"
-func (s *BasicColumnEncryptionSetting) GetResponseOnFail() string {
+// Valid values are "", "ciphertext", "error" and "default"
+func (s *BasicColumnEncryptionSetting) GetResponseOnFail() common2.ResponseOnFail {
 	return s.ResponseOnFail
 }
 

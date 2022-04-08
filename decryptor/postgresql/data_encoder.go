@@ -309,14 +309,16 @@ func encodeDefault(setting config.ColumnEncryptionSetting, logger *logrus.Entry)
 // which indicates that original value should be returned as is.
 func onFail(setting config.ColumnEncryptionSetting, logger *logrus.Entry) (encodingValue, error) {
 	action := setting.GetResponseOnFail()
-	switch {
-	case action == "":
+	switch action {
+	case common2.ResponseOnFailEmpty, common2.ResponseOnFailCiphertext:
 		return nil, nil
-	case action == "default":
+
+	case common2.ResponseOnFailDefault:
 		return encodeDefault(setting, logger), nil
-	case action == "error":
+
+	case common2.ResponseOnFailError:
 		return nil, base.NewEncodingError(setting.ColumnName())
-	default:
-		return nil, fmt.Errorf("unknown action: %q", action)
 	}
+
+	return nil, fmt.Errorf("unknown action: %q", action)
 }

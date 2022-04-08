@@ -610,6 +610,66 @@ func TestEmptyOnFail(t *testing.T) {
 	}
 }
 
+func TestCiphertextOnFail(t *testing.T) {
+	// The same as TestEmptyOnFail but `response_on_fail=ciphertext`
+
+	type testcase struct {
+		input    string
+		dataType string
+	}
+
+	testcases := []testcase{
+		// we don't mark context as decrypted, to trigger
+		// `OnFail` path
+		{"string", "str"},
+		{"bytes", "bytes"},
+		{"invalid_int_32", "int32"},
+		{"invalid_int_64", "int64"},
+		{"unknown_type", "bees"},
+	}
+
+	encoder, err := NewPgSQLDataEncoderProcessor()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tcase := range testcases {
+		testSetting := config.BasicColumnEncryptionSetting{
+			DataType:       tcase.dataType,
+			ResponseOnFail: "ciphertext",
+		}
+		ctx := encryptor.NewContextWithEncryptionSetting(context.Background(), &testSetting)
+
+		// Text format
+		columnInfo := base.NewColumnInfo(0, "", false, 4, 0, 0)
+		accessContext := &base.AccessContext{}
+		accessContext.SetColumnInfo(columnInfo)
+		textCtx := base.SetAccessContextToContext(ctx, accessContext)
+
+		_, output, err := encoder.OnColumn(textCtx, []byte(tcase.input))
+		if err != nil {
+			t.Fatalf("[%s] %q", tcase.input, err)
+		}
+		if !bytes.Equal(output, []byte(tcase.input)) {
+			t.Fatalf("[%s] expected output=%q, but found %q", tcase.input, tcase.input, output)
+		}
+
+		// Binary format
+		columnInfo = base.NewColumnInfo(0, "", true, 4, 0, 0)
+		accessContext = &base.AccessContext{}
+		accessContext.SetColumnInfo(columnInfo)
+		binaryCtx := base.SetAccessContextToContext(ctx, accessContext)
+
+		_, output, err = encoder.OnColumn(binaryCtx, []byte(tcase.input))
+		if err != nil {
+			t.Fatalf("[%s] %q", tcase.input, err)
+		}
+		if !bytes.Equal(output, []byte(tcase.input)) {
+			t.Fatalf("[%s] expected output=%q, but found %q", tcase.input, tcase.input, output)
+		}
+	}
+}
+
 func TestDefaultOnFail(t *testing.T) {
 	type testcase struct {
 		input         string

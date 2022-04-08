@@ -9,6 +9,29 @@ import (
 	"github.com/cossacklabs/acra/pseudonymization/common"
 )
 
+// ResponseOnFail represents possible values for `response_on_fail` field
+type ResponseOnFail string
+
+const (
+	// ResponseOnFailEmpty occurs as a default value of fresh settings
+	// Should be treated in the same way as ResponseOnFail_Ciphertext
+	// TODO: maybe then hide this conversion under the call of
+	//       `GetResponseOnFail`
+	ResponseOnFailEmpty ResponseOnFail = ""
+
+	// ResponseOnFailCiphertext indicates that raw cip value should be returned
+	// as is.
+	ResponseOnFailCiphertext ResponseOnFail = "ciphertext"
+
+	// ResponseOnFailDefault indicates that default value should be returned
+	// instead of failed one.
+	ResponseOnFailDefault ResponseOnFail = "default"
+
+	// ResponseOnFailError indicates that db-specific error should be returned
+	// to a client
+	ResponseOnFailError ResponseOnFail = "error"
+)
+
 // ParseStringEncryptedType parse string value to EncryptedType value
 func ParseStringEncryptedType(value string) (EncryptedType, error) {
 	parsed, ok := encryptedTypeNames[value]
@@ -110,10 +133,13 @@ func TokenTypeToEncryptedDataType(tokenType common.TokenType) EncryptedType {
 	return EncryptedType_Unknown
 }
 
-// ValidateOnFail returns error if `OnFail` value is not supported
-func ValidateOnFail(value string) (err error) {
-	switch {
-	case value == "", value == "error", value == "default":
+// ValidateOnFail returns error if `response_on_fail` value is not supported
+func ValidateOnFail(value ResponseOnFail) (err error) {
+	switch value {
+	case ResponseOnFailEmpty,
+		ResponseOnFailCiphertext,
+		ResponseOnFailDefault,
+		ResponseOnFailError:
 		return nil
 	}
 	return fmt.Errorf("unknown response_on_fail value: '%s'", value)
