@@ -134,7 +134,7 @@ func (p *PgSQLDataEncoderProcessor) OnColumn(ctx context.Context, data []byte) (
 		// for case when data encrypted with acrastructs on app's side and used without any encryption setting
 		columnSetting = &config.BasicColumnEncryptionSetting{}
 	}
-	logger := logging.GetLoggerFromContext(ctx)
+	logger := logging.GetLoggerFromContext(ctx).WithField("column", columnSetting.ColumnName())
 	columnInfo, ok := base.ColumnInfoFromContext(ctx)
 	if !ok {
 		logger.WithField("processor", "PgSQLDataEncoderProcessor").Warningln("No column info in ctx")
@@ -219,7 +219,7 @@ func (p *PgSQLDataDecoderProcessor) OnColumn(ctx context.Context, data []byte) (
 		// for case when data encrypted with acrastructs on app's side and used without any encryption setting
 		columnSetting = &config.BasicColumnEncryptionSetting{}
 	}
-	logger := logging.GetLoggerFromContext(ctx)
+	logger := logging.GetLoggerFromContext(ctx).WithField("column", columnSetting.ColumnName())
 	columnInfo, ok := base.ColumnInfoFromContext(ctx)
 	if !ok {
 		logger.WithField("processor", "PgSQLDataDecoderProcessor").Warningln("No column info in ctx")
