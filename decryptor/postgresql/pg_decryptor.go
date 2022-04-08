@@ -252,7 +252,7 @@ func (proxy *PgProxy) ProxyClientConnection(ctx context.Context, errCh chan<- ba
 		// If the packet has been rejected by AcraCensor, stop here and don't send it to the database.
 		// Also, craft and send the client an error so that they know their query has been rejected.
 		if censored {
-			err := proxy.sendClientError("AcraCensor blocked this query", logger)
+			err := proxy.sendClientError(base.AcraCensorBlockedThisQuery, logger)
 			if err != nil {
 				errCh <- base.NewClientProxyError(err)
 				return
