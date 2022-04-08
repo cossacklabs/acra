@@ -89,7 +89,7 @@ func (s *emptyEncryptionSetting) GetDefaultDataValue() *string {
 	panic("implement me")
 }
 
-func (s *emptyEncryptionSetting) GetOnFail() string {
+func (s *emptyEncryptionSetting) GetResponseOnFail() string {
 	panic("implement me")
 }
 

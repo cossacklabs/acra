@@ -116,5 +116,5 @@ func ValidateOnFail(value string) (err error) {
 	case value == "", value == "error", value == "default":
 		return nil
 	}
-	return fmt.Errorf("unknown on_fail value: '%s'", value)
+	return fmt.Errorf("unknown response_on_fail value: '%s'", value)
 }

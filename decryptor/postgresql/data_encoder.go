@@ -308,7 +308,7 @@ func encodeDefault(setting config.ColumnEncryptionSetting, logger *logrus.Entry)
 // should be encoded, because there is some problem with original, or `nil`
 // which indicates that original value should be returned as is.
 func onFail(setting config.ColumnEncryptionSetting, logger *logrus.Entry) (encodingValue, error) {
-	action := setting.GetOnFail()
+	action := setting.GetResponseOnFail()
 	switch {
 	case action == "":
 		return nil, nil
