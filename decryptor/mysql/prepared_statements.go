@@ -349,6 +349,7 @@ func (p *PreparedStatementFieldTracker) ParamsTrackHandler(ctx context.Context, 
 	if _, err := clientConnection.Write(field.Dump()); err != nil {
 		p.proxyHandler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
 			Debugln("Can't proxy output")
+		return err
 	}
 
 	p.paramsCounter++
@@ -380,6 +381,7 @@ func (p *PreparedStatementFieldTracker) ColumnsTrackHandler(ctx context.Context,
 	if _, err := clientConnection.Write(field.Dump()); err != nil {
 		p.proxyHandler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
 			Debugln("Can't proxy output")
+		return err
 	}
 
 	return nil

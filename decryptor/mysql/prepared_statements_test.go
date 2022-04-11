@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestNewMysqlCopyTextBoundValue(t *testing.T) {
@@ -83,6 +84,10 @@ schemas:
 	fieldPacket.SetData(data)
 
 	server, client := net.Pipe()
+	deadline := time.Now().Add(time.Second)
+	client.SetWriteDeadline(deadline)
+	server.SetReadDeadline(deadline)
+
 	defer client.Close()
 
 	wg := sync.WaitGroup{}
@@ -137,6 +142,11 @@ func TestParamsTrackHandler(t *testing.T) {
 	fieldPacket.SetData(data)
 
 	server, client := net.Pipe()
+
+	deadline := time.Now().Add(time.Second)
+	client.SetWriteDeadline(deadline)
+	server.SetReadDeadline(deadline)
+
 	defer client.Close()
 
 	t.Run("ParamsTrackHandler success", func(t *testing.T) {
