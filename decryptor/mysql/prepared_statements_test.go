@@ -47,9 +47,6 @@ func TestNewMysqlCopyTextBoundValue(t *testing.T) {
 // columnPacketHex is mysql test column packet with Name `id` and table `test_type_aware_decryption_without_defaults`
 var columnPacketHex = "0364656604746573742b746573745f747970655f61776172655f64656372797074696f6e5f776974686f75745f64656661756c74732b746573745f747970655f61776172655f64656372797074696f6e5f776974686f75745f64656661756c74730269640269640c3f000b000000030342000000"
 
-// paramPacketHex is mysql test param packet with Name `?` and table `test_type_aware_decryption_without_defaults`
-var paramPacketHex = "03646566000000013f000c3f0000000000fd8000000000"
-
 func TestColumnsTrackHandler(t *testing.T) {
 	data, err := hex.DecodeString(columnPacketHex)
 	if err != nil {
@@ -120,6 +117,9 @@ schemas:
 	}
 	wg.Wait()
 }
+
+// paramPacketHex is mysql test param packet with Name `?` and table `test_type_aware_decryption_without_defaults`
+var paramPacketHex = "03646566000000013f000c3f0000000000fd8000000000"
 
 func TestParamsTrackHandler(t *testing.T) {
 	data, err := hex.DecodeString(paramPacketHex)

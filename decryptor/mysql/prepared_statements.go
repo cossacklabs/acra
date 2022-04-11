@@ -306,12 +306,12 @@ func NewPreparedStatementFieldTracker(handler *Handler, columnNum uint16) Prepar
 func (p *PreparedStatementFieldTracker) ParamsTrackHandler(ctx context.Context, packet *Packet, _, clientConnection net.Conn) error {
 	clientSession := base.ClientSessionFromContext(ctx)
 	if clientSession == nil {
-		p.proxyHandler.logger.Warningln("packet without ClientSession in context")
+		p.proxyHandler.logger.Warningln("Packet without ClientSession in context")
 	}
 
 	items := encryptor.PlaceholderSettingsFromClientSession(clientSession)
 	if items == nil {
-		p.proxyHandler.logger.Debugln("packet with registered recognized encryption settings")
+		p.proxyHandler.logger.Debugln("Packet with registered recognized encryption settings")
 	}
 
 	p.proxyHandler.logger.Debugln("Parse param ColumnDefinition")
