@@ -29,26 +29,21 @@ func (p *PgSQLDataEncoderProcessor) ID() string {
 	return "PgSQLDataEncoderProcessor"
 }
 
-// here we process encryption/tokenization results before send it to a client
-// acra decrypts or de-tokenize SQL literals, so we should convert string SQL literals to binary format
-// if client expects int, then parse INT literals and convert to binary 4/8 byte format
-// if expects bytes, then pass as is
-// if expects string, then leave as is if it is valid string or encode to hex
-// if it is encrypted data then we return default values or as is if applicable (binary data)
-func (p *PgSQLDataEncoderProcessor) encodeBinary(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
+func (p *PgSQLDataEncoderProcessor) encodeToValue(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, encodingValue, error) {
+	logger = logger.WithField("column", setting.ColumnName()).WithField("decrypted", base.IsDecryptedFromContext(ctx))
 	if len(data) == 0 {
-		return ctx, data, nil
+		return ctx, &identityValue{data}, nil
 	}
 	switch setting.GetEncryptedDataType() {
 	case common2.EncryptedType_String, common2.EncryptedType_Bytes:
 		if !base.IsDecryptedFromContext(ctx) {
-			if value, err := encodeOnFail(setting, logger); err != nil {
+			value, err := encodeOnFail(setting, logger)
+			if err != nil {
 				return ctx, nil, err
 			} else if value != nil {
-				return ctx, value.asBinary(), nil
+				return ctx, value, nil
 			}
 		}
-		return ctx, data, nil
 	case common2.EncryptedType_Int32, common2.EncryptedType_Int64:
 		size := 8
 		if setting.GetEncryptedDataType() == common2.EncryptedType_Int32 {
@@ -56,66 +51,25 @@ func (p *PgSQLDataEncoderProcessor) encodeBinary(ctx context.Context, data []byt
 		}
 		// convert back from text to binary
 		strValue := string(data)
+		// if it's valid string literal and decrypted, return as is
 		value, err := strconv.ParseInt(strValue, 10, 64)
-		// we don't return error to not cause connection drop on Acra side and pass it to app to deal with it
 		if err == nil {
 			val := intValue{size, value, strValue}
-			return ctx, val.asBinary(), nil
-		}
-		if value, err := encodeOnFail(setting, logger); err != nil {
-			return ctx, nil, err
-		} else if value != nil {
-			return ctx, value.asBinary(), nil
-		}
-		logger.WithError(err).Errorln("Can't decode int value and no default value")
-		return ctx, data, nil
-
-	}
-
-	return ctx, data, nil
-}
-
-// encodeText converts data according to Text format received after decryption/de-tokenization according to ColumnEncryptionSetting
-// binary -> hex encoded
-// string/email -> string if valid UTF8/ASCII otherwise hex encoded
-// integers as is
-// not decrypted data that left in binary format we replace with default values (integers) or encode to hex (binary, strings)
-func (p *PgSQLDataEncoderProcessor) encodeText(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
-	logger = logger.WithField("column", setting.ColumnName()).WithField("decrypted", base.IsDecryptedFromContext(ctx))
-	logger.Debugln("Encode text")
-	if len(data) == 0 {
-		return ctx, data, nil
-	}
-	switch setting.GetEncryptedDataType() {
-	case common2.EncryptedType_String, common2.EncryptedType_Bytes:
-		if !base.IsDecryptedFromContext(ctx) {
-			if value, err := encodeOnFail(setting, logger); err != nil {
-				return ctx, nil, err
-			} else if value != nil {
-				return ctx, value.asText(), nil
-			}
-		}
-	case common2.EncryptedType_Int32, common2.EncryptedType_Int64:
-		_, err := strconv.ParseInt(string(data), 10, 64)
-		// if it's valid string literal and decrypted, return as is
-		if err == nil {
-			return ctx, data, nil
+			return ctx, &val, nil
 		}
 		// if it's encrypted binary, then it is binary array that is invalid int literal
 		if !base.IsDecryptedFromContext(ctx) {
-			if value, err := encodeOnFail(setting, logger); err != nil {
+			value, err := encodeOnFail(setting, logger)
+			if err != nil {
 				return ctx, nil, err
 			} else if value != nil {
-				return ctx, value.asText(), nil
+				return ctx, value, nil
 			}
 		}
 		logger.Warningln("Can't decode int value and no default value")
-		return ctx, data, nil
+		return ctx, &identityValue{data}, nil
 	}
-	if utils.IsPrintablePostgresqlString(data) {
-		return ctx, data, nil
-	}
-	return ctx, utils.PgEncodeToHex(data), nil
+	return ctx, newByteSequence(data), nil
 }
 
 // OnColumn encode binary value to text and back. Should be before and after tokenizer processor
@@ -132,10 +86,17 @@ func (p *PgSQLDataEncoderProcessor) OnColumn(ctx context.Context, data []byte) (
 		// we can't do anything
 		return ctx, data, nil
 	}
-	if columnInfo.IsBinaryFormat() {
-		return p.encodeBinary(ctx, data, columnSetting, columnInfo, logger)
+
+	ctx, value, err := p.encodeToValue(ctx, data, columnSetting, columnInfo, logger)
+
+	if err != nil || value == nil {
+		return ctx, data, err
 	}
-	return p.encodeText(ctx, data, columnSetting, columnInfo, logger)
+
+	if columnInfo.IsBinaryFormat() {
+		return ctx, value.asBinary(), nil
+	}
+	return ctx, value.asText(), nil
 }
 
 // PgSQLDataDecoderProcessor implements processor and decode binary/text values from DB
@@ -236,6 +197,10 @@ type byteSequenceValue struct {
 	seq []byte
 }
 
+func newByteSequence(seq []byte) encodingValue {
+	return &byteSequenceValue{seq}
+}
+
 func (v *byteSequenceValue) asBinary() []byte { return v.seq }
 func (v *byteSequenceValue) asText() []byte {
 	if utils.IsPrintablePostgresqlString(v.seq) {
@@ -265,6 +230,14 @@ func (v *intValue) asBinary() []byte {
 func (v *intValue) asText() []byte {
 	return []byte(v.strValue)
 }
+
+// identityValue is an encodingValue that just returns data as is
+type identityValue struct {
+	data []byte
+}
+
+func (v *identityValue) asBinary() []byte { return v.data }
+func (v *identityValue) asText() []byte   { return v.data }
 
 // encodeDefault returns wrapped default value from settings ready for encoding
 // returns nil if something went wrong, which in many cases indicates that the
