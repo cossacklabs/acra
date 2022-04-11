@@ -74,6 +74,7 @@ var validSettings = map[SettingMask]struct{}{
 	// ClientID
 	SettingDataTypeFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag:                                                   {},
 	SettingDataTypeFlag | SettingOnFailFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag:                               {},
+	SettingDataTypeFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag:                     {},
 	SettingDataTypeFlag | SettingOnFailFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag: {},
 
 	SettingDataTypeFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag | SettingMaskingFlag | SettingMaskingPlaintextLengthFlag | SettingMaskingPlaintextSideFlag: {},
@@ -82,18 +83,21 @@ var validSettings = map[SettingMask]struct{}{
 
 	SettingDataTypeFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag:                                                   {},
 	SettingDataTypeFlag | SettingOnFailFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag:                               {},
+	SettingDataTypeFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag:                     {},
 	SettingDataTypeFlag | SettingOnFailFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag: {},
 
 	// AcraStruct
 	// ClientID
 	SettingDataTypeFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag:                                                   {},
 	SettingDataTypeFlag | SettingOnFailFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag:                               {},
+	SettingDataTypeFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag:                     {},
 	SettingDataTypeFlag | SettingOnFailFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag: {},
 
 	// ZoneID
 
 	SettingDataTypeFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag:                                                   {},
 	SettingDataTypeFlag | SettingOnFailFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag:                               {},
+	SettingDataTypeFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag:                     {},
 	SettingDataTypeFlag | SettingOnFailFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag: {},
 
 	/////////////
@@ -253,6 +257,18 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 
 	if s.ResponseOnFail != common2.ResponseOnFailEmpty {
 		s.settingMask |= SettingOnFailFlag
+	} else if s.DefaultDataValue != nil {
+		// if `response_on_fail` is not defined, but `default_data_value` is,
+		// then we automatically set `response_on_fail` to default value
+		// to simplify configuration for the user
+		s.ResponseOnFail = common2.ResponseOnFailDefault
+	} else {
+		// Otherwise, default action is to return ciphertext
+		s.ResponseOnFail = common2.ResponseOnFailCiphertext
+	}
+
+	if err := common2.ValidateOnFail(s.ResponseOnFail); err != nil {
+		return err
 	}
 
 	dataType := common2.EncryptedType_Unknown
@@ -267,12 +283,8 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 	} else {
 		// set mask only if it set explicitly, not via token_type
 		s.settingMask |= SettingDataTypeFlag
-		// If transparent encryption is enabled, by default we return an error
-		// to a client in case of failure
-		if s.ResponseOnFail == common2.ResponseOnFailEmpty {
-			s.ResponseOnFail = common2.ResponseOnFailError
-		}
 	}
+
 	if s.DataType != "" {
 		dataType, err = common2.ParseStringEncryptedType(s.DataType)
 		if err != nil {
@@ -281,12 +293,6 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 		if err = common2.ValidateEncryptedType(dataType); err != nil {
 			return err
 		}
-	} else if s.ResponseOnFail != "" {
-		return errors.New("response_on_fail is defined without data type")
-	}
-
-	if err := common2.ValidateOnFail(s.ResponseOnFail); err != nil {
-		return err
 	}
 
 	if s.DefaultDataValue != nil {

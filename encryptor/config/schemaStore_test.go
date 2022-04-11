@@ -860,8 +860,8 @@ func TestTypeAwarenessOnFailDefaults(t *testing.T) {
 		config string
 	}
 	testcases := []testcase{
-		{"By default, onFail is ''",
-			common2.ResponseOnFailEmpty,
+		{"By default, onFail is 'ciphertext'",
+			common2.ResponseOnFailCiphertext,
 			`
 schemas:
   - table: test_table
@@ -870,8 +870,8 @@ schemas:
     encrypted:
       - column: data`},
 
-		{"onFail is 'error' if data type is defined",
-			common2.ResponseOnFailError,
+		{"onFail is 'ciphertext' if data type is defined",
+			common2.ResponseOnFailCiphertext,
 			`
 schemas:
   - table: test_table
@@ -890,36 +890,90 @@ schemas:
       - column: data_int64
         data_type: int64`},
 
-		{"onFail is 'default' if explicitly defined",
+		{"onFail is 'default_vaue' if explicitly defined",
 			common2.ResponseOnFailDefault,
 			`
-  schemas:
-    - table: test_table
-      columns:
-        - data_str
-        - data_bytes
-        - data_int32
-        - data_int64
-      encrypted:
-        - column: data_str
-          data_type: str
-          response_on_fail: default_value
-          default_data_value: string
+schemas:
+  - table: test_table
+    columns:
+      - data_str
+      - data_bytes
+      - data_int32
+      - data_int64
+    encrypted:
+      - column: data_str
+        data_type: str
+        response_on_fail: default_value
+        default_data_value: string
 
-        - column: data_bytes
-          data_type: bytes
-          response_on_fail: default_value
-          default_data_value: Ynl0ZXM=
+      - column: data_bytes
+        data_type: bytes
+        response_on_fail: default_value
+        default_data_value: Ynl0ZXM=
 
-        - column: data_int32
-          data_type: int32
-          response_on_fail: default_value
-          default_data_value: 2147483647
+      - column: data_int32
+        data_type: int32
+        response_on_fail: default_value
+        default_data_value: 2147483647
 
-        - column: data_int64
-          data_type: int64
-          response_on_fail: default_value
-          default_data_value: 9223372036854775807`},
+      - column: data_int64
+        data_type: int64
+        response_on_fail: default_value
+        default_data_value: 9223372036854775807`},
+
+		{"onFail is 'error' if explicitly defined",
+			common2.ResponseOnFailError,
+			`
+schemas:
+  - table: test_table
+    columns:
+      - data_str
+      - data_bytes
+      - data_int32
+      - data_int64
+    encrypted:
+      - column: data_str
+        data_type: str
+        response_on_fail: error
+
+      - column: data_bytes
+        data_type: bytes
+        response_on_fail: error
+
+      - column: data_int32
+        data_type: int32
+        response_on_fail: error
+
+      - column: data_int64
+        data_type: int64
+        response_on_fail: error`},
+
+		{"onFail is implicitly 'default_value' if 'default_data_value' is defined",
+			common2.ResponseOnFailDefault,
+			`
+schemas:
+  - table: test_table
+    columns:
+      - data_str
+      - data_bytes
+      - data_int32
+      - data_int64
+    encrypted:
+    - column: data_str
+      data_type: str
+      default_data_value: string
+
+    - column: data_bytes
+      data_type: bytes
+      default_data_value: Ynl0ZXM=
+
+    - column: data_int32
+      data_type: int32
+      default_data_value: 2147483647
+
+    - column: data_int64
+      data_type: int64
+      default_data_value: 9223372036854775807`},
 	}
 
 	for _, tcase := range testcases {
@@ -955,7 +1009,7 @@ schemas:
         response_on_fail: error
         default_data_value: hidden by cossacklabs`},
 
-		{"Only `default` without `response_on_fail`",
+		{"OnFail=unknown",
 			`
 schemas:
   - table: test_table
@@ -964,39 +1018,39 @@ schemas:
     encrypted:
       - column: data
         data_type: str
-        default_data_value: hidden by cossacklabs`},
-
-		{"OnFail=unknown",
-			`
-  schemas:
-    - table: test_table
-      columns:
-        - data
-      encrypted:
-        - column: data
-          data_type: str
-          response_on_fail: unknown`},
+        response_on_fail: unknown`},
 
 		{"OnFail without data_type",
 			`
-      schemas:
-        - table: test_table
-          columns:
-            - data
-          encrypted:
-            - column: data
-              response_on_fail: error`},
+schemas:
+  - table: test_table
+    columns:
+      - data
+    encrypted:
+      - column: data
+        response_on_fail: error`},
 
 		{"OnFail and default without data_type",
 			`
-              schemas:
-                - table: test_table
-                  columns:
-                    - data
-                  encrypted:
-                    - column: data
-                      response_on_fail: default_value
-                      default_data_value: ukraine`},
+schemas:
+  - table: test_table
+    columns:
+      - data
+    encrypted:
+      - column: data
+        response_on_fail: default_value
+        default_data_value: ukraine`},
+		{"OnFai=ciphertext and default",
+			`
+schemas:
+  - table: test_table
+    columns:
+      - data
+    encrypted:
+      - column: data
+        data_type: str
+        response_on_fail: ciphertext
+        default_data_value: oops`},
 	}
 
 	for _, tcase := range testcases {
