@@ -6,16 +6,16 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/logging"
-	tokens "github.com/cossacklabs/acra/pseudonymization/common"
-	"github.com/cossacklabs/acra/utils"
 	"net"
 	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
+	"github.com/cossacklabs/acra/logging"
+	tokens "github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/sqlparser"
+	"github.com/cossacklabs/acra/utils"
 )
 
 // ErrStatementNotFound Err returned by prepared statement registry.
@@ -302,7 +302,7 @@ func NewPreparedStatementFieldTracker(handler *Handler, columnNum uint16) Prepar
 	}
 }
 
-// ParamsTrackHandler implements ResponseHandler to track prepare statement columns
+// ParamsTrackHandler implements ResponseHandler to track prepare statement params
 func (p *PreparedStatementFieldTracker) ParamsTrackHandler(ctx context.Context, packet *Packet, _, clientConnection net.Conn) error {
 	clientSession := base.ClientSessionFromContext(ctx)
 	if clientSession == nil {
