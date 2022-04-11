@@ -42,7 +42,7 @@ func (p *PgSQLDataEncoderProcessor) encodeBinary(ctx context.Context, data []byt
 	switch setting.GetEncryptedDataType() {
 	case common2.EncryptedType_String, common2.EncryptedType_Bytes:
 		if !base.IsDecryptedFromContext(ctx) {
-			if value, err := onFail(setting, logger); err != nil {
+			if value, err := encodeOnFail(setting, logger); err != nil {
 				return ctx, nil, err
 			} else if value != nil {
 				return ctx, value.asBinary(), nil
@@ -62,7 +62,7 @@ func (p *PgSQLDataEncoderProcessor) encodeBinary(ctx context.Context, data []byt
 			val := intValue{size, value, strValue}
 			return ctx, val.asBinary(), nil
 		}
-		if value, err := onFail(setting, logger); err != nil {
+		if value, err := encodeOnFail(setting, logger); err != nil {
 			return ctx, nil, err
 		} else if value != nil {
 			return ctx, value.asBinary(), nil
@@ -89,7 +89,7 @@ func (p *PgSQLDataEncoderProcessor) encodeText(ctx context.Context, data []byte,
 	switch setting.GetEncryptedDataType() {
 	case common2.EncryptedType_String, common2.EncryptedType_Bytes:
 		if !base.IsDecryptedFromContext(ctx) {
-			if value, err := onFail(setting, logger); err != nil {
+			if value, err := encodeOnFail(setting, logger); err != nil {
 				return ctx, nil, err
 			} else if value != nil {
 				return ctx, value.asText(), nil
@@ -103,7 +103,7 @@ func (p *PgSQLDataEncoderProcessor) encodeText(ctx context.Context, data []byte,
 		}
 		// if it's encrypted binary, then it is binary array that is invalid int literal
 		if !base.IsDecryptedFromContext(ctx) {
-			if value, err := onFail(setting, logger); err != nil {
+			if value, err := encodeOnFail(setting, logger); err != nil {
 				return ctx, nil, err
 			} else if value != nil {
 				return ctx, value.asText(), nil
@@ -304,10 +304,10 @@ func encodeDefault(setting config.ColumnEncryptionSetting, logger *logrus.Entry)
 	return nil
 }
 
-// onFail returns either an error, which should be returned, or value, which
+// encodeOnFail returns either an error, which should be returned, or value, which
 // should be encoded, because there is some problem with original, or `nil`
 // which indicates that original value should be returned as is.
-func onFail(setting config.ColumnEncryptionSetting, logger *logrus.Entry) (encodingValue, error) {
+func encodeOnFail(setting config.ColumnEncryptionSetting, logger *logrus.Entry) (encodingValue, error) {
 	action := setting.GetResponseOnFail()
 	switch action {
 	case common2.ResponseOnFailEmpty, common2.ResponseOnFailCiphertext:
