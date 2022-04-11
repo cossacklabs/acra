@@ -773,6 +773,12 @@ func (handler *Handler) PreparedStatementResponseHandler(ctx context.Context, pa
 	}
 
 	handler.resetQueryHandler()
+	// if prams_num > 0 params definition block will follow
+	// https://dev.mysql.com/doc/internals/en/com-stmt-prepare-response.html
+	if response.ParamsNum > 0 {
+		fieldTracker := NewPreparedStatementFieldTracker(handler, response.ColumnsNum)
+		handler.setQueryHandler(fieldTracker.ParamsTrackHandler)
+	}
 	handler.logger.Debugln("Prepared Statement registered successfully")
 	return nil
 }
