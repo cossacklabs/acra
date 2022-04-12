@@ -19,7 +19,7 @@ const (
 	//       `GetResponseOnFail`
 	ResponseOnFailEmpty ResponseOnFail = ""
 
-	// ResponseOnFailCiphertext indicates that raw cip value should be returned
+	// ResponseOnFailCiphertext indicates that raw ciphertext value should be returned
 	// as is.
 	ResponseOnFailCiphertext ResponseOnFail = "ciphertext"
 
