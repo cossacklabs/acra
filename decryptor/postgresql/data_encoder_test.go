@@ -11,6 +11,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
+	common2 "github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/utils"
@@ -169,7 +170,7 @@ func TestTextMode(t *testing.T) {
 			setting: &config.BasicColumnEncryptionSetting{
 				Tokenized:        false,
 				DataType:         "int32",
-				ResponseOnFail:   "default_value",
+				ResponseOnFail:   common2.ResponseOnFailDefault,
 				DefaultDataValue: &strDefaultValue,
 			},
 		},
@@ -276,7 +277,7 @@ func TestBinaryMode(t *testing.T) {
 			encodeErr:   nil,
 			setting: &config.BasicColumnEncryptionSetting{
 				DataType:         "int32",
-				ResponseOnFail:   "default_value",
+				ResponseOnFail:   common2.ResponseOnFailDefault,
 				DefaultDataValue: &strDefaultValue,
 			},
 		},
@@ -444,7 +445,7 @@ func TestFailedEncodingInvalidTextValue(t *testing.T) {
 	strValue := utils.BytesToString(testData)
 	testSetting = config.BasicColumnEncryptionSetting{
 		DataType:         "int32",
-		ResponseOnFail:   "default_value",
+		ResponseOnFail:   common2.ResponseOnFailDefault,
 		DefaultDataValue: &strValue,
 	}
 	ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
@@ -479,7 +480,7 @@ func TestFailedEncodingInvalidBinaryValue(t *testing.T) {
 	strValue := utils.BytesToString(testData)
 	testSetting = config.BasicColumnEncryptionSetting{
 		DataType:         "bytes",
-		ResponseOnFail:   "default_value",
+		ResponseOnFail:   common2.ResponseOnFailDefault,
 		DefaultDataValue: &strValue,
 	}
 	ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
@@ -546,7 +547,7 @@ func TestErrorOnFail(t *testing.T) {
 		testSetting := config.BasicColumnEncryptionSetting{
 			Name:           column,
 			DataType:       tcase.dataType,
-			ResponseOnFail: "error",
+			ResponseOnFail: common2.ResponseOnFailError,
 		}
 		ctx := encryptor.NewContextWithEncryptionSetting(context.Background(), &testSetting)
 		if tcase.decrypted {
@@ -601,7 +602,7 @@ func TestEmptyOnFail(t *testing.T) {
 	for _, tcase := range testcases {
 		testSetting := config.BasicColumnEncryptionSetting{
 			DataType:       tcase.dataType,
-			ResponseOnFail: "",
+			ResponseOnFail: common2.ResponseOnFailEmpty,
 		}
 		ctx := encryptor.NewContextWithEncryptionSetting(context.Background(), &testSetting)
 
@@ -661,7 +662,7 @@ func TestCiphertextOnFail(t *testing.T) {
 	for _, tcase := range testcases {
 		testSetting := config.BasicColumnEncryptionSetting{
 			DataType:       tcase.dataType,
-			ResponseOnFail: "ciphertext",
+			ResponseOnFail: common2.ResponseOnFailCiphertext,
 		}
 		ctx := encryptor.NewContextWithEncryptionSetting(context.Background(), &testSetting)
 
@@ -850,7 +851,7 @@ func TestDefaultOnFail(t *testing.T) {
 	for _, tcase := range testcases {
 		testSetting := config.BasicColumnEncryptionSetting{
 			DataType:         tcase.dataType,
-			ResponseOnFail:   "default_value",
+			ResponseOnFail:   common2.ResponseOnFailDefault,
 			DefaultDataValue: &tcase.defaultValue,
 		}
 		ctx := encryptor.NewContextWithEncryptionSetting(context.Background(), &testSetting)
