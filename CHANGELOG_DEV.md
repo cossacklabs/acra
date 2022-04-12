@@ -1,3 +1,6 @@
+# 0.93.0 - 2022-04-07
+- Extend config with `on_fail` field, which indicates wheter to return error ("error") to a client, or default values ("default") in case of error.
+
 ## 0.93.0 - 2022-04-06
 - MySQL transparent decryption with replacing type's metadata
 - Refactored MySQL internal data encoding/decoding structure by implementing separate `DataDecoderProcessor` and `DataEncoderProcessor`

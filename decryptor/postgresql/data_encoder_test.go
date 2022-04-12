@@ -4,16 +4,18 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"strings"
+	"testing"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
+	common2 "github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
-	"strconv"
-	"strings"
-	"testing"
 )
 
 // TestEncodingDecodingProcessorBinaryIntData checks decoding binary INT values to string SQL literals and back
@@ -159,8 +161,19 @@ func TestTextMode(t *testing.T) {
 			logMessage: `Can't decode int value and no default value`},
 
 		// encryption/decryption integer data, not tokenization
-		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte(strDefaultValue), decodeErr: nil, encodeErr: nil,
-			setting: &config.BasicColumnEncryptionSetting{Tokenized: false, DataType: "int32", DefaultDataValue: &strDefaultValue}},
+		{
+			input:       []byte("some data"),
+			decodedData: []byte("some data"),
+			encodedData: []byte(strDefaultValue),
+			decodeErr:   nil,
+			encodeErr:   nil,
+			setting: &config.BasicColumnEncryptionSetting{
+				Tokenized:        false,
+				DataType:         "int32",
+				ResponseOnFail:   common2.ResponseOnFailDefault,
+				DefaultDataValue: &strDefaultValue,
+			},
+		},
 
 		// invalid binary hex value that should be returned as is. Also encoded into hex due to invalid hex value
 		{input: []byte("\\xTT"), decodedData: []byte("\\xTT"), encodedData: []byte("\\x5c785454"), decodeErr: nil, encodeErr: nil,
@@ -256,8 +269,18 @@ func TestBinaryMode(t *testing.T) {
 			logMessage: `Can't decode int value and no default value`},
 
 		// encryption/decryption integer data, not tokenization
-		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte{0, 0, 0, 1}, decodeErr: nil, encodeErr: nil,
-			setting: &config.BasicColumnEncryptionSetting{DataType: "int32", DefaultDataValue: &strDefaultValue}},
+		{
+			input:       []byte("some data"),
+			decodedData: []byte("some data"),
+			encodedData: []byte{0, 0, 0, 1},
+			decodeErr:   nil,
+			encodeErr:   nil,
+			setting: &config.BasicColumnEncryptionSetting{
+				DataType:         "int32",
+				ResponseOnFail:   common2.ResponseOnFailDefault,
+				DefaultDataValue: &strDefaultValue,
+			},
+		},
 
 		// invalid binary hex value that should be returned as is. Also encoded into hex due to invalid hex value
 		{input: []byte("\\xTT"), decodedData: []byte("\\xTT"), encodedData: []byte("\\xTT"), decodeErr: nil, encodeErr: nil,
@@ -290,6 +313,7 @@ func TestBinaryMode(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		fmt.Printf("[%d]\n", i)
 		if decodeErr != tcase.decodeErr {
 			t.Fatalf("[%d] Incorrect decode error. Expect %s, took %s\n", i, tcase.decodeErr, decodeErr)
 		}
@@ -411,20 +435,23 @@ func TestFailedEncodingInvalidTextValue(t *testing.T) {
 	// without default value
 	_, data, err := encoder.OnColumn(ctx, testData)
 	if err != nil {
-		t.Fatal("Expects nil on encode error")
+		t.Fatal("Expected nil on encode error")
+	}
+	if !bytes.Equal(data, testData) {
+		t.Fatal("Result data should be the same")
 	}
 
 	// invalid int32 valid value
 	strValue := utils.BytesToString(testData)
-	testSetting = config.BasicColumnEncryptionSetting{DataType: "int32", DefaultDataValue: &strValue}
+	testSetting = config.BasicColumnEncryptionSetting{
+		DataType:         "int32",
+		ResponseOnFail:   common2.ResponseOnFailDefault,
+		DefaultDataValue: &strValue,
+	}
 	ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
 	_, data, err = encoder.OnColumn(ctx, testData)
-	numErr, ok := err.(*strconv.NumError)
-	if !ok {
-		t.Fatal("Expect strconv.NumError")
-	}
-	if numErr.Err != strconv.ErrSyntax {
-		t.Fatalf("Expect ErrSyntax, took %s\n", numErr.Err)
+	if err != nil {
+		t.Fatal("Expected nil on encode error")
 	}
 	if !bytes.Equal(data, testData) {
 		t.Fatal("Result data should be the same")
@@ -444,25 +471,427 @@ func TestFailedEncodingInvalidBinaryValue(t *testing.T) {
 	ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
 	testData := []byte("invalid base64 value")
 	// without default value
-	_, data, err := encoder.OnColumn(ctx, testData)
+	_, _, err = encoder.OnColumn(ctx, testData)
 	if err != nil {
 		t.Fatal("Expects nil on encode error")
 	}
 
 	// invalid int32 valid value
 	strValue := utils.BytesToString(testData)
-	testSetting = config.BasicColumnEncryptionSetting{DataType: "bytes", DefaultDataValue: &strValue}
+	testSetting = config.BasicColumnEncryptionSetting{
+		DataType:         "bytes",
+		ResponseOnFail:   common2.ResponseOnFailDefault,
+		DefaultDataValue: &strValue,
+	}
 	ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
 	logger := logrus.New()
 	entry := logrus.NewEntry(logger)
 	logBuffer := &bytes.Buffer{}
 	logger.SetOutput(logBuffer)
 	ctx = logging.SetLoggerToContext(ctx, entry)
-	_, data, err = encoder.OnColumn(ctx, testData)
+	_, data, _ := encoder.OnColumn(ctx, testData)
 	if !bytes.Contains(logBuffer.Bytes(), []byte("Can't decode base64 default value")) {
 		t.Fatal("Expects warning about failed decoding")
 	}
 	if !bytes.Equal(data, testData) {
 		t.Fatal("Result data should be the same")
+	}
+}
+
+func TestErrorOnFail(t *testing.T) {
+	markDecrypted := true
+	markNotDecrypted := false
+
+	type testcase struct {
+		input     string
+		dataType  string
+		decrypted bool
+		err       error
+	}
+
+	column := "gopher"
+
+	// test all possible cases with happy and error paths with `response_on_fail = error`.
+	// check only whether error is returned or not
+	testcases := []testcase{
+		// decryption successfull, we expect no error
+		{"string_decrypted", "str", markDecrypted, nil},
+		// decryption failed, we expect error
+		{"string_not_decrypted", "str", markNotDecrypted, base.NewEncodingError(column)},
+
+		// decryption successfull, we expect no error
+		{"bytes_decrypted", "bytes", markDecrypted, nil},
+		// decryption failed, we expect error
+		{"bytes_not_decrypted", "bytes", markNotDecrypted, base.NewEncodingError(column)},
+
+		// int doesn't care about marked context
+		// valid int returns no error
+		{"-2147483648", "int32", false, nil},
+		// parsing error returns error
+		{"invalid_int32", "int32", false, base.NewEncodingError(column)},
+
+		{"-9223372036854775808", "int64", false, nil},
+		{"invalid_int64", "int64", false, base.NewEncodingError(column)},
+
+		// unknown type returns no error
+		{"unknown_type_decrypted", "bees", markDecrypted, nil},
+		{"unknown_type_not_decrypted", "bees", markNotDecrypted, nil},
+	}
+
+	encoder, err := NewPgSQLDataEncoderProcessor()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tcase := range testcases {
+		testSetting := config.BasicColumnEncryptionSetting{
+			Name:           column,
+			DataType:       tcase.dataType,
+			ResponseOnFail: common2.ResponseOnFailError,
+		}
+		ctx := encryptor.NewContextWithEncryptionSetting(context.Background(), &testSetting)
+		if tcase.decrypted {
+			ctx = base.MarkDecryptedContext(ctx)
+		}
+
+		// Text format
+		columnInfo := base.NewColumnInfo(0, "", false, 4, 0, 0)
+		accessContext := &base.AccessContext{}
+		accessContext.SetColumnInfo(columnInfo)
+		textCtx := base.SetAccessContextToContext(ctx, accessContext)
+
+		_, _, err = encoder.OnColumn(textCtx, []byte(tcase.input))
+		if !errors.Is(err, tcase.err) {
+			t.Fatalf("[%s] expected error=%q, but found %q", tcase.input, tcase.err, err)
+		}
+
+		// Binary format
+		columnInfo = base.NewColumnInfo(0, "", true, 4, 0, 0)
+		accessContext = &base.AccessContext{}
+		accessContext.SetColumnInfo(columnInfo)
+		binaryCtx := base.SetAccessContextToContext(ctx, accessContext)
+
+		_, _, err = encoder.OnColumn(binaryCtx, []byte(tcase.input))
+		if !errors.Is(err, tcase.err) {
+			t.Fatalf("[%s] expected error=%q, but found %q", tcase.input, tcase.err, err)
+		}
+	}
+}
+
+func TestEmptyOnFail(t *testing.T) {
+	type testcase struct {
+		input    string
+		dataType string
+	}
+
+	testcases := []testcase{
+		// we don't mark context as decrypted, to trigger
+		// `OnFail` path
+		{"string", "str"},
+		{"bytes", "bytes"},
+		{"invalid_int_32", "int32"},
+		{"invalid_int_64", "int64"},
+		{"unknown_type", "bees"},
+	}
+
+	encoder, err := NewPgSQLDataEncoderProcessor()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tcase := range testcases {
+		testSetting := config.BasicColumnEncryptionSetting{
+			DataType:       tcase.dataType,
+			ResponseOnFail: common2.ResponseOnFailEmpty,
+		}
+		ctx := encryptor.NewContextWithEncryptionSetting(context.Background(), &testSetting)
+
+		// Text format
+		columnInfo := base.NewColumnInfo(0, "", false, 4, 0, 0)
+		accessContext := &base.AccessContext{}
+		accessContext.SetColumnInfo(columnInfo)
+		textCtx := base.SetAccessContextToContext(ctx, accessContext)
+
+		_, output, err := encoder.OnColumn(textCtx, []byte(tcase.input))
+		if err != nil {
+			t.Fatalf("[%s] %q", tcase.input, err)
+		}
+		if !bytes.Equal(output, []byte(tcase.input)) {
+			t.Fatalf("[%s] expected output=%q, but found %q", tcase.input, tcase.input, output)
+		}
+
+		// Binary format
+		columnInfo = base.NewColumnInfo(0, "", true, 4, 0, 0)
+		accessContext = &base.AccessContext{}
+		accessContext.SetColumnInfo(columnInfo)
+		binaryCtx := base.SetAccessContextToContext(ctx, accessContext)
+
+		_, output, err = encoder.OnColumn(binaryCtx, []byte(tcase.input))
+		if err != nil {
+			t.Fatalf("[%s] %q", tcase.input, err)
+		}
+		if !bytes.Equal(output, []byte(tcase.input)) {
+			t.Fatalf("[%s] expected output=%q, but found %q", tcase.input, tcase.input, output)
+		}
+	}
+}
+
+func TestCiphertextOnFail(t *testing.T) {
+	// The same as TestEmptyOnFail but `response_on_fail=ciphertext`
+
+	type testcase struct {
+		input    string
+		dataType string
+	}
+
+	testcases := []testcase{
+		// we don't mark context as decrypted, to trigger
+		// `OnFail` path
+		{"string", "str"},
+		{"bytes", "bytes"},
+		{"invalid_int_32", "int32"},
+		{"invalid_int_64", "int64"},
+		{"unknown_type", "bees"},
+	}
+
+	encoder, err := NewPgSQLDataEncoderProcessor()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tcase := range testcases {
+		testSetting := config.BasicColumnEncryptionSetting{
+			DataType:       tcase.dataType,
+			ResponseOnFail: common2.ResponseOnFailCiphertext,
+		}
+		ctx := encryptor.NewContextWithEncryptionSetting(context.Background(), &testSetting)
+
+		// Text format
+		columnInfo := base.NewColumnInfo(0, "", false, 4, 0, 0)
+		accessContext := &base.AccessContext{}
+		accessContext.SetColumnInfo(columnInfo)
+		textCtx := base.SetAccessContextToContext(ctx, accessContext)
+
+		_, output, err := encoder.OnColumn(textCtx, []byte(tcase.input))
+		if err != nil {
+			t.Fatalf("[%s] %q", tcase.input, err)
+		}
+		if !bytes.Equal(output, []byte(tcase.input)) {
+			t.Fatalf("[%s] expected output=%q, but found %q", tcase.input, tcase.input, output)
+		}
+
+		// Binary format
+		columnInfo = base.NewColumnInfo(0, "", true, 4, 0, 0)
+		accessContext = &base.AccessContext{}
+		accessContext.SetColumnInfo(columnInfo)
+		binaryCtx := base.SetAccessContextToContext(ctx, accessContext)
+
+		_, output, err = encoder.OnColumn(binaryCtx, []byte(tcase.input))
+		if err != nil {
+			t.Fatalf("[%s] %q", tcase.input, err)
+		}
+		if !bytes.Equal(output, []byte(tcase.input)) {
+			t.Fatalf("[%s] expected output=%q, but found %q", tcase.input, tcase.input, output)
+		}
+	}
+}
+
+func TestDefaultOnFail(t *testing.T) {
+	type testcase struct {
+		input         string
+		dataType      string
+		defaultValue  string
+		markDecrypted bool
+		textOutput    []byte
+		binaryOutput  []byte
+	}
+
+	testcases := []testcase{
+		{
+			input:         "string_decrypted",
+			dataType:      "str",
+			defaultValue:  "",
+			markDecrypted: true,
+			textOutput:    []byte("string_decrypted"),
+			binaryOutput:  []byte("string_decrypted"),
+		},
+
+		{
+			input:         "string_not_decrypted",
+			dataType:      "str",
+			defaultValue:  "default",
+			markDecrypted: false,
+			textOutput:    []byte("default"),
+			binaryOutput:  []byte("default"),
+		},
+
+		{
+			input:         "bytes_decrypted",
+			dataType:      "bytes",
+			defaultValue:  "",
+			markDecrypted: true,
+			textOutput:    []byte("bytes_decrypted"),
+			binaryOutput:  []byte("bytes_decrypted"),
+		},
+
+		{
+			input:         "bytes_not_decrypted",
+			dataType:      "bytes",
+			defaultValue:  "Y29zc2Fja2xhYnM=",
+			markDecrypted: false,
+			textOutput:    []byte("cossacklabs"),
+			binaryOutput:  []byte("cossacklabs"),
+		},
+
+		{
+			input:         "bytes_not_decrypted_parse_error",
+			dataType:      "bytes",
+			defaultValue:  "добрий вечір",
+			markDecrypted: false,
+			textOutput:    []byte("bytes_not_decrypted_parse_error"),
+			binaryOutput:  []byte("bytes_not_decrypted_parse_error"),
+		},
+
+		{
+			input:         "123456",
+			dataType:      "int32",
+			defaultValue:  "",
+			markDecrypted: true,
+			textOutput:    []byte("123456"),
+			binaryOutput:  []byte{0x00, 0x01, 0xe2, 0x40},
+		},
+
+		{
+			input:         "invalid_int32_decrypted",
+			dataType:      "int32",
+			defaultValue:  "",
+			markDecrypted: true,
+			textOutput:    []byte("invalid_int32_decrypted"),
+			binaryOutput:  []byte("invalid_int32_decrypted"),
+		},
+
+		{
+			input:         "invalid_int32_not_decrypted",
+			dataType:      "int32",
+			defaultValue:  "123456",
+			markDecrypted: false,
+			textOutput:    []byte("123456"),
+			binaryOutput:  []byte{0x00, 0x01, 0xe2, 0x40},
+		},
+
+		{
+			input:         "invalid_int32_invalid_default",
+			dataType:      "int32",
+			defaultValue:  "invalid_int32",
+			markDecrypted: true,
+			textOutput:    []byte("invalid_int32_invalid_default"),
+			binaryOutput:  []byte("invalid_int32_invalid_default"),
+		},
+
+		{
+			input:         "-987654",
+			dataType:      "int64",
+			defaultValue:  "",
+			markDecrypted: true,
+			textOutput:    []byte("-987654"),
+			binaryOutput:  []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xf0, 0xed, 0xfa},
+		},
+
+		{
+			input:         "invalid_int64_not_decrypted",
+			dataType:      "int64",
+			defaultValue:  "-987654",
+			markDecrypted: false,
+			textOutput:    []byte("-987654"),
+			binaryOutput:  []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xf0, 0xed, 0xfa},
+		},
+
+		{
+			input:         "invalid_int64_decrypted",
+			dataType:      "int64",
+			defaultValue:  "",
+			markDecrypted: true,
+			textOutput:    []byte("invalid_int64_decrypted"),
+			binaryOutput:  []byte("invalid_int64_decrypted"),
+		},
+
+		{
+			input:         "invalid_int64_invalid_default",
+			dataType:      "int64",
+			defaultValue:  "буль буль",
+			markDecrypted: true,
+			textOutput:    []byte("invalid_int64_invalid_default"),
+			binaryOutput:  []byte("invalid_int64_invalid_default"),
+		},
+
+		{
+			input:         "unknown_decrypted",
+			dataType:      "some unknown type",
+			defaultValue:  "",
+			markDecrypted: true,
+			textOutput:    []byte("unknown_decrypted"),
+			binaryOutput:  []byte("unknown_decrypted"),
+		},
+
+		{
+			input:         "unknown_not_decrypted",
+			dataType:      "some unknown type",
+			defaultValue:  "",
+			markDecrypted: false,
+			textOutput:    []byte("unknown_not_decrypted"),
+			binaryOutput:  []byte("unknown_not_decrypted"),
+		},
+	}
+
+	encoder, err := NewPgSQLDataEncoderProcessor()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tcase := range testcases {
+		testSetting := config.BasicColumnEncryptionSetting{
+			DataType:         tcase.dataType,
+			ResponseOnFail:   common2.ResponseOnFailDefault,
+			DefaultDataValue: &tcase.defaultValue,
+		}
+		ctx := encryptor.NewContextWithEncryptionSetting(context.Background(), &testSetting)
+		if tcase.markDecrypted {
+			ctx = base.MarkDecryptedContext(ctx)
+		}
+
+		// Text format
+		columnInfo := base.NewColumnInfo(0, "", false, 4, 0, 0)
+		accessContext := &base.AccessContext{}
+		accessContext.SetColumnInfo(columnInfo)
+		textCtx := base.SetAccessContextToContext(ctx, accessContext)
+
+		_, output, err := encoder.OnColumn(textCtx, []byte(tcase.input))
+		if err != nil {
+			t.Fatalf("[%s] %q", tcase.input, err)
+		}
+		if !bytes.Equal(output, []byte(tcase.textOutput)) {
+			t.Fatalf("[%s] expected output=%q, but found %q", tcase.input, tcase.textOutput, output)
+		}
+
+		// Binary format
+		columnInfo = base.NewColumnInfo(0, "", true, 4, 0, 0)
+		accessContext = &base.AccessContext{}
+		accessContext.SetColumnInfo(columnInfo)
+		binaryCtx := base.SetAccessContextToContext(ctx, accessContext)
+
+		_, output, err = encoder.OnColumn(binaryCtx, []byte(tcase.input))
+		if err != nil {
+			t.Fatalf("[%s] %q", tcase.input, err)
+		}
+		if !bytes.Equal(output, []byte(tcase.binaryOutput)) {
+			t.Fatalf(
+				"[%s] expected output=%x (%q), but found %x (%q)",
+				tcase.input,
+				tcase.binaryOutput,
+				tcase.binaryOutput,
+				output,
+				output,
+			)
+		}
 	}
 }

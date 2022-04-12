@@ -58,7 +58,7 @@ from prometheus_client.parser import text_string_to_metric_families
 from sqlalchemy.dialects import mysql as mysql_dialect
 from sqlalchemy.dialects import postgresql as postgresql_dialect
 from sqlalchemy.dialects.postgresql import BYTEA
-from sqlalchemy.exc import DatabaseError
+from sqlalchemy.exc import DatabaseError, ProgrammingError
 
 import api_pb2
 import api_pb2_grpc
@@ -9030,10 +9030,320 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithoutDefaults(TestPostgresqlBinar
             sa.select([self.test_table])
                 .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
 
+        # Check that raw bytes were returned, which would not be valid utf
         with self.assertRaises(UnicodeDecodeError):
             row = self.executor2.execute_prepared_statement(query, args)[0]
 
         row = self.raw_executor.execute_prepared_statement(query, args)[0]
+        for column in columns:
+            if 'null' in column or 'empty' in column:
+                # asyncpg decodes None values as empty str/bytes value
+                self.assertFalse(row[column])
+                continue
+            value = utils.memoryview_to_bytes(row[column])
+            self.assertIsInstance(value, bytes, column)
+            self.assertNotEqual(data[column], value, column)
+
+class TestPostgresqlBinaryTypeAwareDecryptionWithError(TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults):
+    # test table used for queries and data mapping into python types
+    test_table = sa.Table(
+        # use new object of metadata to avoid name conflict
+        'test_type_aware_decryption_with_error', sa.MetaData(),
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.Text),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.Integer),
+        sa.Column('value_int64', sa.BigInteger),
+        sa.Column('value_null_str', sa.Text, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.Integer, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.Text, nullable=False, default=''),
+        extend_existing=True
+    )
+    # schema table used to generate table in the database with binary column types
+    schema_table = sa.Table(
+        'test_type_aware_decryption_with_error', sa.MetaData(),
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.LargeBinary),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.LargeBinary),
+        sa.Column('value_int64', sa.LargeBinary),
+        sa.Column('value_null_str', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
+        extend_existing=True
+    )
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+
+    def checkSkip(self):
+        if not (TEST_POSTGRESQL and TEST_WITH_TLS):
+            self.skipTest("Test only for PostgreSQL with TLS")
+
+    def testClientIDRead(self):
+        """
+        test decrypting with correct clientID and not decrypting with
+        incorrect clientID or using direct connection to db
+        All result data should be valid for application. Not decrypted data
+        should cause driver specific error
+        """
+        data = {
+            'id': get_random_id(),
+            'value_str': random_str(),
+            'value_bytes': random_bytes(),
+            'value_int32': random_int32(),
+            'value_int64': random_int64(),
+            'value_null_str': None,
+            'value_null_int32': None,
+            'value_empty_str': ''
+        }
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        ######
+        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64',
+                   'value_null_str', 'value_null_int32', 'value_empty_str')
+        query, args = self.compileQuery(self.test_table.insert(), data)
+        self.executor1.execute_prepared_statement(query, args)
+
+        query, args = self.compileQuery(
+            sa.select([self.test_table])
+                .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
+
+        # We expect db-driver error
+        with self.assertRaises(asyncpg.exceptions.SyntaxOrAccessError) as ex:
+            row = self.executor2.execute_prepared_statement(query, args)[0]
+
+        self.assertEqual('encoding error in column "value_str"', str(ex.exception))
+
+        row = self.raw_executor.execute_prepared_statement(query, args)[0]
+        for column in columns:
+            if 'null' in column or 'empty' in column:
+                # asyncpg decodes None values as empty str/bytes value
+                self.assertFalse(row[column])
+                continue
+            value = utils.memoryview_to_bytes(row[column])
+            self.assertIsInstance(value, bytes, column)
+            self.assertNotEqual(data[column], value, column)
+
+
+class TestPostgresqlTextTypeAwareDecryptionWithError(BaseTransparentEncryption):
+    # test table used for queries and data mapping into python types
+    test_table = sa.Table(
+        # use new object of metadata to avoid name conflict
+        'test_type_aware_decryption_with_error', sa.MetaData(),
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.Text),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.Integer),
+        sa.Column('value_int64', sa.BigInteger),
+        sa.Column('value_null_str', sa.Text, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.Integer, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.Text, nullable=False, default=''),
+    )
+    # schema table used to generate table in the database with binary column types
+    schema_table = sa.Table(
+        'test_type_aware_decryption_with_error', sa.MetaData(),
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.LargeBinary),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.LargeBinary),
+        sa.Column('value_int64', sa.LargeBinary),
+        sa.Column('value_null_str', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
+    )
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+
+    def checkSkip(self):
+        if not (TEST_POSTGRESQL and TEST_WITH_TLS):
+            self.skipTest("Test only for PostgreSQL with TLS")
+
+    def testClientIDRead(self):
+        """
+        test decrypting with correct clientID and not decrypting with
+        incorrect clientID or using direct connection to db
+        All result data should be valid for application. Not decrypted data
+        should cause a db-driver error.
+        """
+        data = {
+            'id': get_random_id(),
+            'value_str': random_str(),
+            'value_bytes': random_bytes(),
+            'value_int32': random_int32(),
+            'value_int64': random_int64(),
+            'value_null_str': None,
+            'value_null_int32': None,
+            'value_empty_str': ''
+        }
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        self.engine1.execute(self.test_table.insert(), data)
+        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64',
+                   'value_null_str', 'value_null_int32', 'value_empty_str')
+
+        # our custom error is wrapped around sqlalchemy's ProgrammingError
+        with self.assertRaises(ProgrammingError) as ex:
+            self.engine2.execute(
+                sa.select([self.test_table])
+                    .where(self.test_table.c.id == data['id']))
+
+        self.assertEqual('encoding error in column "value_str"\n', str(ex.exception.orig))
+
+        # direct connection should receive binary data according to real scheme
+        result = self.engine_raw.execute(
+            sa.select([self.test_table])
+                .where(self.test_table.c.id == data['id']))
+        row = result.fetchone()
+        for column in columns:
+            if 'null' in column or 'empty' in column:
+                # asyncpg decodes None values as empty str/bytes value
+                self.assertFalse(row[column])
+                continue
+            value = utils.memoryview_to_bytes(row[column])
+            self.assertIsInstance(value, bytes, column)
+            self.assertNotEqual(data[column], value, column)
+
+
+# `response_on_fail` is `ciphertext` if not defined. That's why the code is
+# exactly the same as inTestPostgresqlBinaryTypeAwareDecryptionWithoutDefaults
+class TestPostgresqlBinaryTypeAwareDecryptionWithCiphertext(TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults):
+    # test table used for queries and data mapping into python types
+    test_table = sa.Table(
+        # use new object of metadata to avoid name conflict
+        'test_type_aware_decryption_without_defaults', sa.MetaData(),
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.Text),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.Integer),
+        sa.Column('value_int64', sa.BigInteger),
+        sa.Column('value_null_str', sa.Text, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.Integer, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.Text, nullable=False, default=''),
+        extend_existing=True
+    )
+    # schema table used to generate table in the database with binary column types
+    schema_table = sa.Table(
+        'test_type_aware_decryption_without_defaults', metadata,
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.LargeBinary),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.LargeBinary),
+        sa.Column('value_int64', sa.LargeBinary),
+        sa.Column('value_null_str', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
+        extend_existing=True
+    )
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+
+    def checkSkip(self):
+        if not (TEST_POSTGRESQL and TEST_WITH_TLS):
+            self.skipTest("Test only for PostgreSQL with TLS")
+
+    def testClientIDRead(self):
+        """test decrypting with correct clientID and not decrypting with
+        incorrect clientID or using direct connection to db
+        All result data should be valid for application. Not decrypted data should be returned as is and DB driver
+        should cause error
+        """
+        data = {
+            'id': get_random_id(),
+            'value_str': random_str(),
+            'value_bytes': random_bytes(),
+            'value_int32': random_int32(),
+            'value_int64': random_int64(),
+            'value_null_str': None,
+            'value_null_int32': None,
+            'value_empty_str': ''
+        }
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        ######
+        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
+                   'value_empty_str')
+        query, args = self.compileQuery(self.test_table.insert(), data)
+        self.executor1.execute_prepared_statement(query, args)
+
+        query, args = self.compileQuery(
+            sa.select([self.test_table])
+                .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
+
+        # Check that raw bytes were returned, which would not be valid utf
+        with self.assertRaises(UnicodeDecodeError):
+            row = self.executor2.execute_prepared_statement(query, args)[0]
+
+        row = self.raw_executor.execute_prepared_statement(query, args)[0]
+        for column in columns:
+            if 'null' in column or 'empty' in column:
+                # asyncpg decodes None values as empty str/bytes value
+                self.assertFalse(row[column])
+                continue
+            value = utils.memoryview_to_bytes(row[column])
+            self.assertIsInstance(value, bytes, column)
+            self.assertNotEqual(data[column], value, column)
+
+# `response_on_fail` is `ciphertext` if not defined. That's why the code is
+# exactly the same as inTestPostgresqlTextTypeAwareDecryptionWithoutDefaults
+class TestPostgresqlTextTypeAwareDecryptionWithCiphertext(BaseTransparentEncryption):
+    # test table used for queries and data mapping into python types
+    test_table = sa.Table(
+        # use new object of metadata to avoid name conflict
+        'test_type_aware_decryption_with_ciphertext', sa.MetaData(),
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.Text),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.Integer),
+        sa.Column('value_int64', sa.BigInteger),
+        sa.Column('value_null_str', sa.Text, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.Integer, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.Text, nullable=False, default=''),
+    )
+    # schema table used to generate table in the database with binary column types
+    schema_table = sa.Table(
+        'test_type_aware_decryption_with_ciphertext', sa.MetaData(),
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.LargeBinary),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.LargeBinary),
+        sa.Column('value_int64', sa.LargeBinary),
+        sa.Column('value_null_str', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
+    )
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+
+    def checkSkip(self):
+        if not (TEST_POSTGRESQL and TEST_WITH_TLS):
+            self.skipTest("Test only for PostgreSQL with TLS")
+
+    def testClientIDRead(self):
+        """test decrypting with correct clientID and not decrypting with
+        incorrect clientID or using direct connection to db
+        All result data should be valid for application. Not decrypted data should be returned as is and DB driver
+        should cause error
+        """
+        data = {
+            'id': get_random_id(),
+            'value_str': random_str(),
+            'value_bytes': random_bytes(),
+            'value_int32': random_int32(),
+            'value_int64': random_int64(),
+            'value_null_str': None,
+            'value_null_int32': None,
+            'value_empty_str': ''
+        }
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        self.engine1.execute(self.test_table.insert(), data)
+        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
+                   'value_empty_str')
+
+        result = self.engine2.execute(
+            sa.select([self.test_table])
+                .where(self.test_table.c.id == data['id']))
+        # acra change types for binary data columns and python driver can't decode to correct types
+        with self.assertRaises(UnicodeDecodeError):
+            row = result.fetchone()
+
+        # direct connection should receive binary data according to real scheme
+        result = self.engine_raw.execute(
+            sa.select([self.test_table])
+                .where(self.test_table.c.id == data['id']))
+        row = result.fetchone()
         for column in columns:
             if 'null' in column or 'empty' in column:
                 # asyncpg decodes None values as empty str/bytes value
