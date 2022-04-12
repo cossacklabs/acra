@@ -9108,7 +9108,8 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithError(TestPostgresqlBinaryForma
         # We expect db-driver error
         with self.assertRaises(asyncpg.exceptions.SyntaxOrAccessError) as ex:
             row = self.executor2.execute_prepared_statement(query, args)[0]
-            self.assertIn("encoding error", str(ex))
+
+        self.assertEqual('encoding error in column "value_str"', str(ex.exception))
 
         row = self.raw_executor.execute_prepared_statement(query, args)[0]
         for column in columns:
@@ -9180,7 +9181,8 @@ class TestPostgresqlTextTypeAwareDecryptionWithError(BaseTransparentEncryption):
             self.engine2.execute(
                 sa.select([self.test_table])
                     .where(self.test_table.c.id == data['id']))
-            self.assertIn("encoding error", str(ex))
+
+        self.assertEqual('encoding error in column "value_str"\n', str(ex.exception.orig))
 
         # direct connection should receive binary data according to real scheme
         result = self.engine_raw.execute(
