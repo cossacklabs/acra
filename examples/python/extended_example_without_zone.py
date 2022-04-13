@@ -15,19 +15,35 @@
 import argparse
 import json
 
-from sqlalchemy.dialects import postgresql
 from sqlalchemy import (Table, Column, Integer, MetaData, select, LargeBinary, Text, BigInteger)
-from common import get_engine, get_default, register_common_cli_params
+from sqlalchemy.dialects import postgresql
 
+from common import get_engine, get_default, register_common_cli_params
 
 metadata = MetaData()
 test_table = Table(
-    'test', metadata,
+    'test', MetaData(),
     Column('id', Integer, primary_key=True, nullable=False),
-    Column('data', LargeBinary, nullable=True),
+    Column('data_str', Text, nullable=True),
     Column('masking', LargeBinary, nullable=True),
     Column('token_i32', Integer, nullable=True),
+    Column('data_i32', Integer, nullable=True),
     Column('token_i64', BigInteger, nullable=True),
+    Column('data_i64', BigInteger, nullable=True),
+    Column('token_str', Text, nullable=True),
+    Column('token_bytes', LargeBinary, nullable=True),
+    Column('token_email', Text, nullable=True),
+)
+# _schema_test_table used to generate table in the database with binary column types
+_schema_test_table = Table(
+    'test', metadata,
+    Column('id', Integer, primary_key=True, nullable=False),
+    Column('data_str', LargeBinary, nullable=True),
+    Column('masking', LargeBinary, nullable=True),
+    Column('token_i32', Integer, nullable=True),
+    Column('data_i32', LargeBinary, nullable=True),
+    Column('token_i64', BigInteger, nullable=True),
+    Column('data_i64', LargeBinary, nullable=True),
     Column('token_str', Text, nullable=True),
     Column('token_bytes', LargeBinary, nullable=True),
     Column('token_email', Text, nullable=True),
@@ -61,7 +77,7 @@ def print_data(connection, columns, table=test_table):
             query = select(table_columns)
             extra_columns = [i.name for i in table.columns if i.name not in default_columns]
     except AttributeError:
-        print("\n\n{0}\nprobably you used incorrect column name\n{0}\n\n".format('*'*30))
+        print("\n\n{0}\nprobably you used incorrect column name\n{0}\n\n".format('*' * 30))
         raise
         exit(1)
 
@@ -92,7 +108,7 @@ def write_data(data, connection, table=test_table):
     if isinstance(data, dict):
         rows = [data]
     for row in rows:
-        for k in ('data', 'email', 'token_bytes', 'masking'):
+        for k in ('data_str', 'data_i64', 'data_i32', 'email', 'token_bytes', 'masking'):
             if k in row:
                 row[k] = row[k].encode('ascii')
         connection.execute(

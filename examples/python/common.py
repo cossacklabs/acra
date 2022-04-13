@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 
 def register_common_cli_params(parser):
     parser.add_argument('--db_name', type=str,
-                        default=get_default('db_name', 'acra'),
+                        default=get_default('db_name', 'test'),
                         help='Database name')
     parser.add_argument('--db_user', type=str,
                         default=get_default('db_user','test'),
