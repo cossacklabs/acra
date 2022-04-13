@@ -1,3 +1,6 @@
+## 0.93.0 - 2022-04-14
+- Don't encode into hex space ascii characters
+
 ## 0.93.0 - 2022-04-06
 - MySQL transparent decryption with replacing type's metadata
 - Refactored MySQL internal data encoding/decoding structure by implementing separate `DataDecoderProcessor` and `DataEncoderProcessor`
