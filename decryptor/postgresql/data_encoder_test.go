@@ -3,6 +3,7 @@ package postgresql
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"errors"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
@@ -326,6 +327,8 @@ func TestEncodingDecodingTextFormat(t *testing.T) {
 	}
 	testcases := []testcase{
 		{inputValue: []byte(`valid string`), outputValue: []byte(`valid string`), binValue: []byte(`valid string`), tokenType: common.TokenType_String},
+		{inputValue: []byte("\n\t~ []!@#$%^&*()_+[]"), outputValue: []byte("\n\t~ []!@#$%^&*()_+[]"), binValue: []byte("\n\t~ []!@#$%^&*()_+[]"), tokenType: common.TokenType_String},
+		{inputValue: []byte{0, 1, 2, 3}, outputValue: []byte(`\x` + hex.EncodeToString([]byte{0, 1, 2, 3})), binValue: []byte{0, 1, 2, 3}, tokenType: common.TokenType_String},
 		{inputValue: []byte(`valid string`), outputValue: []byte(`valid string`), binValue: []byte(`valid string`), tokenType: common.TokenType_Email},
 		// input hex encoded value that looks like a valid string should be returned as string literal
 		{inputValue: []byte(`\x76616c696420737472696e67`), outputValue: []byte(`valid string`), binValue: []byte(`valid string`), tokenType: common.TokenType_Bytes},

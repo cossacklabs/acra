@@ -28,8 +28,8 @@ func IsPrintableEscapeChar(c byte) bool {
 	return false
 }
 
-// IsPrintablePostgresqlString returns true if it's valid ASCII or utf8 string except '\' character that used as escape
-// character in strings
+// IsPrintablePostgresqlString returns true if it's valid ASCII printable + space characters, or utf8 printable string
+//except '\' character that used as escape character in strings
 func IsPrintablePostgresqlString(data []byte) bool {
 	if len(data) == 0 {
 		return true
@@ -38,7 +38,7 @@ func IsPrintablePostgresqlString(data []byte) bool {
 	stringValue := BytesToString(data)
 	// '\' is special case because PostgreSQL escapes it
 	for _, c := range stringValue {
-		if c == '\\' || !unicode.IsPrint(c) {
+		if !(unicode.IsSpace(c) || unicode.IsPrint(c)) || c == '\\' {
 			return false
 		}
 	}
