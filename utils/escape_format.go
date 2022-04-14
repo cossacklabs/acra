@@ -18,6 +18,7 @@ package utils
 
 import (
 	"unicode"
+	"unicode/utf8"
 )
 
 // IsPrintableEscapeChar returns true if character is ASCII printable (code between 32 and 126)
@@ -28,17 +29,20 @@ func IsPrintableEscapeChar(c byte) bool {
 	return false
 }
 
-// IsPrintablePostgresqlString returns true if it's valid ASCII printable + space characters, or utf8 printable string
-//except '\' character that used as escape character in strings
+// IsPrintablePostgresqlString returns true if it's valid utf8 string
+// except '\' character that used as escape character in strings
 func IsPrintablePostgresqlString(data []byte) bool {
 	if len(data) == 0 {
 		return true
+	}
+	if !utf8.Valid(data) {
+		return false
 	}
 	// convert byte slice to string to work with Runes instead of bytes
 	stringValue := BytesToString(data)
 	// '\' is special case because PostgreSQL escapes it
 	for _, c := range stringValue {
-		if !(unicode.IsSpace(c) || unicode.IsPrint(c)) || c == '\\' {
+		if (unicode.IsControl(c) && !unicode.IsSpace(c)) || c == '\\' {
 			return false
 		}
 	}
