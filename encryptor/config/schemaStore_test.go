@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	common2 "github.com/cossacklabs/acra/encryptor/config/common"
@@ -1058,6 +1059,58 @@ schemas:
 
 		if err == nil {
 			t.Fatalf("[%s] expected error, found nil\n", tcase.name)
+		}
+	}
+}
+
+func TestDeprecateTokenized(t *testing.T) {
+	tokenTypes := []string{
+		"str", "email", "int64", "int32", "bytes",
+	}
+
+	for _, token := range tokenTypes {
+		config := fmt.Sprintf(`
+schemas:
+  - table: test_table
+    columns:
+      - data
+    encrypted:
+      - column: data
+        tokenized: true
+        token_type: %s
+`, token)
+		_, err := MapTableSchemaStoreFromConfig([]byte(config))
+		if err != nil {
+			t.Fatalf("[tokenize: true, token_type: %s] %s", token, err)
+		}
+
+		config = fmt.Sprintf(`
+schemas:
+  - table: test_table
+    columns:
+      - data
+    encrypted:
+      - column: data
+        token_type: %s
+`, token)
+		_, err = MapTableSchemaStoreFromConfig([]byte(config))
+		if err != nil {
+			t.Fatalf("[token_type: %s] %s", token, err)
+		}
+
+		config = fmt.Sprintf(`
+schemas:
+  - table: test_table
+    columns:
+      - data
+    encrypted:
+      - column: data
+        consistent_tokenization: true
+        token_type: %s
+`, token)
+		_, err = MapTableSchemaStoreFromConfig([]byte(config))
+		if err != nil {
+			t.Fatalf("[consistent_tokenization: true, token_type: %s] %s", token, err)
 		}
 	}
 }

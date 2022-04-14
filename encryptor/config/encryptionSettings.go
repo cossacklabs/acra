@@ -125,15 +125,22 @@ var validSettings = map[SettingMask]struct{}{
 	// TOKENIZATION
 	// default clientID
 	SettingTokenizationFlag | SettingTokenTypeFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag: {},
+	SettingTokenTypeFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                           {},
 
 	SettingTokenizationFlag | SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingReEncryptionFlag:                                  {},
 	SettingTokenizationFlag | SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag: {},
+	SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingReEncryptionFlag:                                                            {},
+	SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                           {},
 	// specified clientID
 	SettingTokenizationFlag | SettingTokenTypeFlag | SettingClientIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                                     {},
 	SettingTokenizationFlag | SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingClientIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag: {},
+	SettingTokenTypeFlag | SettingClientIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                                                               {},
+	SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingClientIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                           {},
 	// specified zoneID
 	SettingTokenizationFlag | SettingTokenTypeFlag | SettingZoneIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                                     {},
 	SettingTokenizationFlag | SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingZoneIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag: {},
+	SettingTokenTypeFlag | SettingZoneIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                                                               {},
+	SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingZoneIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                           {},
 }
 
 // Token type names as expected in the configuration file.
@@ -188,6 +195,10 @@ type BasicColumnEncryptionSetting struct {
 	ResponseOnFail common2.ResponseOnFail `yaml:"response_on_fail"`
 
 	// Data pseudonymization (tokenization)
+
+	// Tokenized is DEPRECATED, but left to provide backwards compatibility.
+	// Was used to enable tokenization. Right now the `TokenType` serves that
+	// purpose: if it's not empty, tokenization is enabled.
 	Tokenized              bool   `yaml:"tokenized"`
 	ConsistentTokenization bool   `yaml:"consistent_tokenization"`
 	TokenType              string `yaml:"token_type"`
@@ -308,7 +319,7 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 		return fmt.Errorf("invalid default value: %w", err)
 	}
 
-	if s.Tokenized {
+	if s.Tokenized || s.TokenType != "" {
 		s.settingMask |= SettingTokenizationFlag
 		s.settingMask |= SettingTokenTypeFlag
 		if s.ConsistentTokenization {
@@ -379,7 +390,7 @@ func (s *BasicColumnEncryptionSetting) ZoneID() []byte {
 
 // IsTokenized returns true if the column should be tokenized.
 func (s *BasicColumnEncryptionSetting) IsTokenized() bool {
-	return s.Tokenized
+	return s.Tokenized || s.TokenType != ""
 }
 
 // IsConsistentTokenization returns true if column tokens should be consistent.
