@@ -9399,9 +9399,10 @@ class TestMySQLBinaryTypeAwareDecryptionWithoutDefaults(TestMySQLTextTypeAwareDe
             value = utils.memoryview_to_bytes(row[column])
             self.assertIsInstance(value, bytearray, column)
             self.assertNotEqual(data[column], value, column)
+
 class TestPostgresqlConnectWithTLSPrefer(BaseTestCase):
     def checkSkip(self):
-        if TEST_WITH_TLS:
+        if TEST_WITH_TLS or not TEST_POSTGRESQL:
             self.skipTest("running tests with TLS")
 
     def with_tls(self):
