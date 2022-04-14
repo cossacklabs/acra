@@ -598,6 +598,14 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 			switch {
 			case packetHandler.IsSSLRequestDeny():
 				logger.Debugln("Deny ssl request")
+				// In case of deny ssl, the client can send plain startup message
+				// again. To handle this, we reload client thread to reset the state
+				if err := proxy.stopClientThread(logger); err != nil {
+					errCh <- base.NewDBProxyError(err)
+					return
+				}
+				go proxy.ProxyClientConnection(ctx, errCh)
+
 				if err = packetHandler.sendMessageType(); err != nil {
 					errCh <- base.NewDBProxyError(err)
 					return
@@ -605,6 +613,8 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 				timer.ObserveDuration()
 
 			case packetHandler.IsSSLRequestAllowed():
+				logger.Debugln("SSL allow")
+
 				tlsClientConnection, dbTLSConnection, err := proxy.handleSSLRequest(packetHandler, logger)
 				if err != nil {
 					logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).WithError(err).Errorln("Can't process SSL request")
