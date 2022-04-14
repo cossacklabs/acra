@@ -1,3 +1,6 @@
+# 0.93.0 - 2022-04-14
+- Deprecate `tokenized` option and use non-empty `token_type` to indicate tokenization.
+
 # 0.93.0 - 2022-04-07
 - Extend config with `on_fail` field, which indicates wheter to return error ("error") to a client, or default values ("default") in case of error.
 
