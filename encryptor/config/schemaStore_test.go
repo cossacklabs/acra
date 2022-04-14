@@ -1114,3 +1114,31 @@ schemas:
 		}
 	}
 }
+
+func TestInvalidTokenizationCombinations(t *testing.T) {
+	type testcase struct {
+		name   string
+		config string
+	}
+	testcases := []testcase{
+		{"Tokenized: false and token_type non empty",
+			`
+schemas:
+  - table: test_table
+    columns:
+      - data
+    encrypted:
+      - column: data
+        tokenized: false
+        token_type: str
+    `},
+	}
+
+	for _, tcase := range testcases {
+		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config))
+
+		if err == nil {
+			t.Fatalf("[%s] expected error, found nil\n", tcase.name)
+		}
+	}
+}
