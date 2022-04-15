@@ -1142,6 +1142,18 @@ schemas:
       - column: data
         tokenized: true
   `},
+
+		{"tokenized: true with empty token_type",
+			`
+schemas:
+  - table: test_table
+    columns:
+      - data
+    encrypted:
+      - column: data
+        tokenized: true
+        token_type: ""
+  `},
 	}
 
 	for _, tcase := range testcases {
