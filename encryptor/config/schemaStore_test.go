@@ -1,12 +1,14 @@
 package config
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"testing"
 
 	common2 "github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/cossacklabs/acra/masking/common"
+	log "github.com/sirupsen/logrus"
 )
 
 func TestCryptoEnvelopeDefaultValuesWithDefinedValue(t *testing.T) {
@@ -1148,5 +1150,30 @@ schemas:
 		if err == nil {
 			t.Fatalf("[%s] expected error, found nil\n", tcase.name)
 		}
+	}
+}
+
+func TestTokenizedDeprecationWarning(t *testing.T) {
+	config := `
+    schemas:
+      - table: test_table
+        columns:
+          - data
+        encrypted:
+          - column: data
+            tokenized: true
+            token_type: str`
+
+	buff := bytes.NewBuffer([]byte{})
+	log.SetOutput(buff)
+	_, err := MapTableSchemaStoreFromConfig([]byte(config))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	output := buff.Bytes()
+	msg := "Setting `tokenized` flag is not necessary anymore and will be ignored"
+	if !bytes.Contains(output, []byte(msg)) {
+		t.Fatal("warning is not found but expected")
 	}
 }

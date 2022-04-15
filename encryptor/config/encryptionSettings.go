@@ -23,6 +23,7 @@ import (
 	common2 "github.com/cossacklabs/acra/encryptor/config/common"
 	maskingCommon "github.com/cossacklabs/acra/masking/common"
 	"github.com/cossacklabs/acra/pseudonymization/common"
+	log "github.com/sirupsen/logrus"
 )
 
 // SettingMask bitmask used to store info about encryptor configuration
@@ -262,6 +263,7 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 		} else if !tokenized && s.TokenType != "" {
 			return errors.New("`tokenized` is disabled, but `token_type` is provided")
 		}
+		log.Warnln("Setting `tokenized` flag is not necessary anymore and will be ignored")
 	}
 
 	var tokenType common.TokenType
