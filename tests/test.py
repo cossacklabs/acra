@@ -9427,25 +9427,20 @@ class TestPostgresqlConnectWithTLSPrefer(BaseTestCase):
             raise
 
     def testPlainConnectionAfterDeny(self):
-
-        loop = asyncio.get_event_loop()
-
-        # We use raw connecitons to specify ssl='prefer'
-        # which would ask for ssl connection first.
-        # And then after receiving a deny, it would ask for a plain connection
-        conn = loop.run_until_complete(
-            asyncpg.connect(
+        async def _testPlainConnectionAfterDeny():
+            # We use raw connecitons to specify ssl='prefer'
+            # which would ask for ssl connection first.
+            # And then after receiving a deny, it would ask for a plain connection
+            conn = await asyncpg.connect(
                 host=DB_HOST, port=self.ACRASERVER_PORT, database=DB_NAME,
                 user=DB_USER, password=DB_USER_PASSWORD,
                 ssl='prefer',
                 **asyncpg_connect_args
             )
-        )
+            await conn.fetch('SELECT 1', timeout=STATEMENT_TIMEOUT)
 
-        loop.run_until_complete(
-            conn.fetch('SELECT 1', timeout=STATEMENT_TIMEOUT)
-        )
-
+        loop = asyncio.new_event_loop()  # create new to avoid concurrent usage of the loop in the current thread and allow parallel execution in the future
+        loop.run_until_complete(_testPlainConnectionAfterDeny())
 
 
 if __name__ == '__main__':
