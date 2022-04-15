@@ -19,8 +19,9 @@ package base
 import (
 	"context"
 	"fmt"
-	"github.com/cossacklabs/acra/network"
 	"net"
+
+	"github.com/cossacklabs/acra/network"
 
 	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/encryptor/config"
@@ -220,3 +221,7 @@ func OnlyDefaultEncryptorSettings(store config.TableSchemaStore) bool {
 		config.SettingDefaultDataValueFlag|
 		config.SettingDataTypeFlag) == 0
 }
+
+// AcraCensorBlockedThisQuery is an error message, that is sent to the user in case of
+// query blockage
+const AcraCensorBlockedThisQuery = "AcraCensor blocked this query"

@@ -1,5 +1,10 @@
-## 0.93.0 - 2022-04-14
+## 0.93.0 - 2022-04-15
 - Don't encode into hex space ascii characters
+# 0.93.0 - 2022-04-14
+- Fix processing of a plain startup message after the `ssl deny`.
+
+# 0.93.0 - 2022-04-07
+- Extend config with `on_fail` field, which indicates wheter to return error ("error") to a client, or default values ("default") in case of error.
 
 ## 0.93.0 - 2022-04-06
 - MySQL transparent decryption with replacing type's metadata
