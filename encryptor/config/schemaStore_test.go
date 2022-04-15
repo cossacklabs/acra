@@ -1130,6 +1130,16 @@ schemas:
         tokenized: false
         token_type: str
     `},
+		{"tokenized: true without token_type",
+			`
+schemas:
+  - table: test_table
+    columns:
+      - data
+    encrypted:
+      - column: data
+        tokenized: true
+  `},
 	}
 
 	for _, tcase := range testcases {
