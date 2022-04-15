@@ -19,8 +19,6 @@ package common
 import (
 	"context"
 	"errors"
-	"github.com/cossacklabs/acra/keystore/filesystem"
-	"github.com/cossacklabs/acra/utils"
 	"io"
 	"net"
 	url_ "net/url"
@@ -28,6 +26,9 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/cossacklabs/acra/keystore/filesystem"
+	"github.com/cossacklabs/acra/utils"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
@@ -185,6 +186,12 @@ func (server *SServer) handleClientSession(clientID []byte, clientSession *Clien
 	// subscribe on clientID changes after switching connection to TLS and using ClientID from TLS certificates
 	proxy.AddClientIDObserver(accessContext)
 	clientSession.ctx = base.SetAccessContextToContext(clientSession.ctx, accessContext)
+
+	// We launch two goroutines to serve the client and db-side asynchronously.
+	// Synchronous processing, like:
+	// read from client - edit - send to server - read response - edit - send to the client
+	// doesn't work because, because some messages are asynchronous (for example
+	// https://www.postgresql.org/docs/current/protocol-flow.html#PROTOCOL-ASYNC)
 	server.backgroundWorkersSync.Add(1)
 	go func() {
 		defer server.backgroundWorkersSync.Done()

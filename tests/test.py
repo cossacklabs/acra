@@ -9400,6 +9400,49 @@ class TestMySQLBinaryTypeAwareDecryptionWithoutDefaults(TestMySQLTextTypeAwareDe
             self.assertIsInstance(value, bytearray, column)
             self.assertNotEqual(data[column], value, column)
 
+class TestPostgresqlConnectWithTLSPrefer(BaseTestCase):
+    def checkSkip(self):
+        if TEST_WITH_TLS or not TEST_POSTGRESQL:
+            self.skipTest("running tests with TLS")
+
+    def with_tls(self):
+        return False
+
+    def fork_acra(self,  popen_kwargs: dict=None, **acra_kwargs: dict):
+        kwargs = {
+            'client_id': TLS_CERT_CLIENT_ID_1,
+            'tls_client_id_from_cert': False,
+        }
+        acra_kwargs.update(kwargs)
+        return super().fork_acra(popen_kwargs, **acra_kwargs)
+
+    def setUp(self):
+        self.checkSkip()
+        try:
+            if not self.EXTERNAL_ACRA:
+                self.acra = self.fork_acra()
+
+        except:
+            self.tearDown()
+            raise
+
+    def testPlainConnectionAfterDeny(self):
+        async def _testPlainConnectionAfterDeny():
+            # We use raw connecitons to specify ssl='prefer'
+            # which would ask for ssl connection first.
+            # And then after receiving a deny, it would ask for a plain connection
+            conn = await asyncpg.connect(
+                host=DB_HOST, port=self.ACRASERVER_PORT, database=DB_NAME,
+                user=DB_USER, password=DB_USER_PASSWORD,
+                ssl='prefer',
+                **asyncpg_connect_args
+            )
+            await conn.fetch('SELECT 1', timeout=STATEMENT_TIMEOUT)
+
+        loop = asyncio.new_event_loop()  # create new to avoid concurrent usage of the loop in the current thread and allow parallel execution in the future
+        loop.run_until_complete(_testPlainConnectionAfterDeny())
+
+
 if __name__ == '__main__':
     import xmlrunner
     output_path = os.environ.get('TEST_XMLOUTPUT', '')
