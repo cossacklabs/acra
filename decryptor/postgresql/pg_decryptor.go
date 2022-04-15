@@ -408,9 +408,9 @@ func (proxy *PgProxy) sendClientError(msg string, logger *log.Entry) error {
 	return nil
 }
 
-// stopClientThread sends a signal to a client thread to stop. Returns error in
+// stopProxyClientConnection sends a signal to a client thread to stop. Returns error in
 // case of an error or timeout. Is used to stop and reload client with TLS
-func (proxy *PgProxy) stopClientThread(logger *log.Entry) error {
+func (proxy *PgProxy) stopProxyClientConnection(logger *log.Entry) error {
 	proxy.stopClient = true
 	// stop reading from client in goroutine
 	if err := proxy.clientConnection.SetDeadline(time.Now()); err != nil {
@@ -453,7 +453,7 @@ func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, logger *log.Entry)
 		return nil, nil, network.ErrEmptyTLSConfig
 	}
 	logger.Debugln("Start tls proxy")
-	if err := proxy.stopClientThread(logger); err != nil {
+	if err := proxy.stopProxyClientConnection(logger); err != nil {
 		return nil, nil, err
 	}
 	logger.Debugln("Init tls with client")
@@ -600,7 +600,7 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 				logger.Debugln("Deny ssl request")
 				// In case of deny ssl, the client can send plain startup message
 				// again. To handle this, we reload client thread to reset the state
-				if err := proxy.stopClientThread(logger); err != nil {
+				if err := proxy.stopProxyClientConnection(logger); err != nil {
 					errCh <- base.NewDBProxyError(err)
 					return
 				}
