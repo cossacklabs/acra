@@ -431,7 +431,11 @@ func (proxy *PgProxy) stopProxyClientConnection(logger *log.Entry) error {
 		return errors.New("can't stop background goroutine")
 	}
 
-	// TODO: why twice?
+	// Reset the deadline
+	// From the https://pkg.go.dev/net#Conn:
+	//
+	//   A zero value for t means I/O operations will not time out.
+	//
 	if err := proxy.clientConnection.SetDeadline(time.Time{}); err != nil {
 		logger.
 			WithError(err).
