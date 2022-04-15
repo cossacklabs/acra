@@ -267,12 +267,10 @@ schemas:
       - data1
     encrypted:
       - column: data1
-        tokenized: true
+        token_type: int32
         searchable: true
 `,
-			//pseudonymization.ErrUnknownTokenType
-			// use new declared to avoid cycle import
-			errors.New("unknown token type")},
+			errors.New("invalid encryptor config")},
 
 		{"invalid token type",
 			`

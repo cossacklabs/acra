@@ -255,14 +255,18 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 		s.settingMask |= SettingReEncryptionFlag
 	}
 
-	tokenizeEnabled := (s.Tokenized != nil && *s.Tokenized)
-	if s.Tokenized != nil && !*s.Tokenized && s.TokenType != "" {
-		return errors.New("`tokenized` is disabled, but `token_type` is provided")
+	if s.Tokenized != nil {
+		tokenized := *s.Tokenized
+		if tokenized && s.TokenType == "" {
+			return errors.New("`tokenized` is provided without `token_type`")
+		} else if !tokenized && s.TokenType != "" {
+			return errors.New("`tokenized` is disabled, but `token_type` is provided")
+		}
 	}
 
 	var tokenType common.TokenType
 	var ok bool
-	if s.TokenType != "" || tokenizeEnabled {
+	if s.TokenType != "" {
 		tokenType, ok = tokenTypeNames[s.TokenType]
 		if !ok {
 			return fmt.Errorf("%s: %w", s.TokenType, common.ErrUnknownTokenType)
@@ -325,7 +329,7 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 		return fmt.Errorf("invalid default value: %w", err)
 	}
 
-	if tokenizeEnabled || s.TokenType != "" {
+	if s.TokenType != "" {
 		s.settingMask |= SettingTokenizationFlag
 		s.settingMask |= SettingTokenTypeFlag
 		if s.ConsistentTokenization {
@@ -396,7 +400,7 @@ func (s *BasicColumnEncryptionSetting) ZoneID() []byte {
 
 // IsTokenized returns true if the column should be tokenized.
 func (s *BasicColumnEncryptionSetting) IsTokenized() bool {
-	return s.TokenType != "" || (s.Tokenized != nil && *s.Tokenized)
+	return s.TokenType != ""
 }
 
 // IsConsistentTokenization returns true if column tokens should be consistent.
