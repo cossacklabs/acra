@@ -97,7 +97,7 @@ const (
 	ReadyForQueryMessageType byte = 'Z'
 	RowDescriptionType       byte = 'T'
 	ParameterDescriptionType byte = 't'
-	TLSTimeout                    = time.Second * 2
+	ClientStopTimeout             = time.Second * 2
 )
 
 // Specific for PgSQL values of data format
@@ -112,11 +112,11 @@ type PgProxy struct {
 	session                 base.ClientSession
 	clientConnection        net.Conn
 	dbConnection            net.Conn
-	TLSCh                   chan bool
+	stopClient              bool
+	ClientStopResponse      chan bool
 	ctx                     context.Context
 	queryObserverManager    base.QueryObserverManager
 	censor                  acracensor.AcraCensorInterface
-	tlsSwitch               bool
 	decryptionObserver      base.ColumnDecryptionObserver
 	protocolState           *PgProtocolState
 	setting                 base.ProxySetting
@@ -152,7 +152,7 @@ func NewPgProxy(session base.ClientSession, parser *sqlparser.Parser, setting ba
 		session:                 session,
 		clientConnection:        session.ClientConnection(),
 		dbConnection:            session.DatabaseConnection(),
-		TLSCh:                   make(chan bool),
+		ClientStopResponse:      make(chan bool),
 		ctx:                     session.Context(),
 		queryObserverManager:    observerManager,
 		setting:                 setting,
@@ -220,9 +220,9 @@ func (proxy *PgProxy) ProxyClientConnection(ctx context.Context, errCh chan<- ba
 		spanEndFunc()
 
 		if err = packet.ReadClientPacket(); err != nil {
-			if proxy.tlsSwitch {
-				proxy.tlsSwitch = false
-				proxy.TLSCh <- true
+			if proxy.stopClient {
+				proxy.stopClient = false
+				proxy.ClientStopResponse <- true
 				return
 			}
 			// log message with debug level because only here we expect and can meet errors with closed connections io.EOF
@@ -408,6 +408,45 @@ func (proxy *PgProxy) sendClientError(msg string, logger *log.Entry) error {
 	return nil
 }
 
+// stopProxyClientConnection sends a signal to a client thread to stop. Returns error in
+// case of an error or timeout. Is used to stop and reload client with TLS
+func (proxy *PgProxy) stopProxyClientConnection(logger *log.Entry) error {
+	proxy.stopClient = true
+	// stop reading from client in goroutine
+	if err := proxy.clientConnection.SetDeadline(time.Now()); err != nil {
+		logger.
+			WithError(err).
+			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSetDeadlineToClientConnection).
+			Errorln("Can't set deadline")
+		return err
+	}
+
+	select {
+	case <-proxy.ClientStopResponse:
+	case <-time.NewTimer(ClientStopTimeout).C:
+		logger.
+			// TODO: which event code
+			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+			Errorln("Can't stop background goroutine")
+		return errors.New("can't stop background goroutine")
+	}
+
+	// Reset the deadline
+	// From the https://pkg.go.dev/net#Conn:
+	//
+	//   A zero value for t means I/O operations will not time out.
+	//
+	if err := proxy.clientConnection.SetDeadline(time.Time{}); err != nil {
+		logger.
+			WithError(err).
+			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSetDeadlineToClientConnection).
+			Errorln("Can't set deadline")
+		return err
+	}
+	logger.Debugln("Stop client connection")
+	return nil
+}
+
 // handleSSLRequest return wrapped with tls (client's, db's connections, nil) or (nil, nil, error)
 func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, logger *log.Entry) (net.Conn, net.Conn, error) {
 	// if server allow SSLRequest than we wrap our connections with tls
@@ -418,25 +457,7 @@ func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, logger *log.Entry)
 		return nil, nil, network.ErrEmptyTLSConfig
 	}
 	logger.Debugln("Start tls proxy")
-	proxy.tlsSwitch = true
-	// stop reading from client in goroutine
-	if err := proxy.clientConnection.SetDeadline(time.Now()); err != nil {
-		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSetDeadlineToClientConnection).
-			Errorln("Can't set deadline")
-		return nil, nil, err
-	}
-	select {
-	case <-proxy.TLSCh:
-		proxy.TLSCh = nil
-		break
-	case <-time.NewTimer(TLSTimeout).C:
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).Errorln("Can't stop background goroutine to start tls handshake")
-		return nil, nil, errors.New("can't stop background goroutine")
-	}
-	logger.Debugln("Stop client connection")
-	if err := proxy.clientConnection.SetDeadline(time.Time{}); err != nil {
-		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSetDeadlineToClientConnection).
-			Errorln("Can't set deadline")
+	if err := proxy.stopProxyClientConnection(logger); err != nil {
 		return nil, nil, err
 	}
 	logger.Debugln("Init tls with client")
@@ -581,6 +602,14 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 			switch {
 			case packetHandler.IsSSLRequestDeny():
 				logger.Debugln("Deny ssl request")
+				// In case of deny ssl, the client can send plain startup message
+				// again. To handle this, we reload client thread to reset the state
+				if err := proxy.stopProxyClientConnection(logger); err != nil {
+					errCh <- base.NewDBProxyError(err)
+					return
+				}
+				go proxy.ProxyClientConnection(ctx, errCh)
+
 				if err = packetHandler.sendMessageType(); err != nil {
 					errCh <- base.NewDBProxyError(err)
 					return
@@ -588,6 +617,8 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 				timer.ObserveDuration()
 
 			case packetHandler.IsSSLRequestAllowed():
+				logger.Debugln("SSL allow")
+
 				tlsClientConnection, dbTLSConnection, err := proxy.handleSSLRequest(packetHandler, logger)
 				if err != nil {
 					logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).WithError(err).Errorln("Can't process SSL request")
