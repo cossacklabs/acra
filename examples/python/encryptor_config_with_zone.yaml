@@ -47,3 +47,4 @@ schemas:
       - email
     encrypted:
       - column: email
+
