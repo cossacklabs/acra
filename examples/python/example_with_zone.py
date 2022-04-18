@@ -14,7 +14,7 @@
 # coding: utf-8
 import argparse
 import ssl
-from sqlalchemy import (Table, Column, Integer, MetaData, select, LargeBinary, Text, cast)
+from sqlalchemy import (Table, Column, Integer, MetaData, select, LargeBinary, Text, literal_column)
 from sqlalchemy.dialects.postgresql import BYTEA
 from acrawriter import create_acrastruct
 from common import get_engine, get_default, get_zone, register_common_cli_params
@@ -25,7 +25,7 @@ def print_data(zone_id, connection):
     console"""
     result = connection.execute(
         # explicitly pass zone id before related data
-        select([cast(zone_id.encode('utf-8'), BYTEA), test_table]))
+        select([literal_column("'{}'".format(zone_id)), test_table]))
     result = result.fetchall()
     ZONE_ID_INDEX = 0
     print("use zone_id: ", zone_id)
@@ -33,8 +33,8 @@ def print_data(zone_id, connection):
     for row in result:
         print(
             "{:<3} - {} - {} - {}\n".format(
-            row['id'], row[ZONE_ID_INDEX].decode('utf-8'),
-            row['data'].decode('utf-8', errors='ignore'), row['raw_data']))
+                row['id'], row[ZONE_ID_INDEX],
+                row['data'].decode('utf-8', errors='ignore').rstrip(), row['raw_data']))
 
 
 def write_data(data, connection, sslcontext=None):
@@ -45,10 +45,7 @@ def write_data(data, connection, sslcontext=None):
     encrypted_data = create_acrastruct(
         data.encode('utf-8'), key, zone_id.encode('utf-8'))
 
-    connection.execute(
-        test_table.insert(), data=encrypted_data,
-        zone_id=zone_id.encode('utf-8'),
-        raw_data=data)
+    connection.execute(test_table.insert(), data=encrypted_data, raw_data=data)
 
 
 if __name__ == '__main__':
@@ -67,7 +64,6 @@ if __name__ == '__main__':
     test_table = Table(
         'test_example_with_zone', metadata,
         Column('id', Integer, primary_key=True, nullable=False),
-        Column('zone_id', LargeBinary, nullable=True),
         Column('data', LargeBinary, nullable=False),
         Column('raw_data', Text, nullable=False),
     )
