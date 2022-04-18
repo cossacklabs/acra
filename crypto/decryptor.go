@@ -39,17 +39,6 @@ func (d DecryptHandler) OnCryptoEnvelope(ctx context.Context, container []byte) 
 			"zone_id":                 string(accessContext.GetZoneID()),
 		}).WithError(err).Warningln("Can't decrypt SerializedContainer")
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
-
-		// if old container matched deserialize to return as is
-		if base.IsOldContainerFromContext(ctx) {
-			oldContainer, _, err := DeserializeEncryptedData(container)
-			if err != nil {
-				logger.WithError(err).Warningln("Can't deserialize SerializedContainer")
-				return nil, err
-			}
-			return oldContainer, nil
-		}
-
 		return container, nil
 	}
 	base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()

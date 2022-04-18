@@ -154,12 +154,17 @@ func (wrapper *OldContainerDetectorWrapper) OnAcraStruct(ctx context.Context, ac
 		return nil, err
 	}
 
-	// set in context that old container was found
-	if !base.IsOldContainerFromContext(ctx) {
-		ctx = base.MarkOldContainerContext(ctx)
+	processedData, err := wrapper.detector.OnCryptoEnvelope(ctx, serialized)
+	if err != nil {
+		return nil, err
 	}
 
-	return wrapper.detector.OnCryptoEnvelope(ctx, serialized)
+	// return old container in case of unavailability to decrypt it
+	if bytes.Equal(processedData, serialized) {
+		return acraStruct, nil
+	}
+
+	return processedData, nil
 }
 
 // OnAcraBlock implementation of acrablock.Processor
@@ -169,12 +174,17 @@ func (wrapper *OldContainerDetectorWrapper) OnAcraBlock(ctx context.Context, acr
 		return nil, err
 	}
 
-	// set in context that old container was found
-	if !base.IsOldContainerFromContext(ctx) {
-		ctx = base.MarkOldContainerContext(ctx)
+	processedData, err := wrapper.detector.OnCryptoEnvelope(ctx, serialized)
+	if err != nil {
+		return nil, err
 	}
 
-	return wrapper.detector.OnCryptoEnvelope(ctx, serialized)
+	// return old container in case of unavailability to decrypt it
+	if bytes.Equal(processedData, serialized) {
+		return acraBlock, nil
+	}
+
+	return processedData, nil
 }
 
 // OnCryptoEnvelope used to pretend BackWrapper as callback for EnvelopeDetector
