@@ -153,3 +153,15 @@ func MarkErrorConvertedDataTypeContext(ctx context.Context) context.Context {
 func IsErrorConvertedDataTypeFromContext(ctx context.Context) bool {
 	return ctx.Value(errorConvertedDataTypeCtxKey{}) != nil
 }
+
+type oldContainerCtxKey struct{}
+
+// MarkOldContainerContext save flag in context that data is old container AcraStruct/AcraBlock
+func MarkOldContainerContext(ctx context.Context) context.Context {
+	return context.WithValue(ctx, oldContainerCtxKey{}, true)
+}
+
+// IsOldContainerFromContext return true if data was old container AcraStruct/AcraBlock
+func IsOldContainerFromContext(ctx context.Context) bool {
+	return ctx.Value(oldContainerCtxKey{}) != nil
+}

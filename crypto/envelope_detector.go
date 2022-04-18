@@ -154,6 +154,11 @@ func (wrapper *OldContainerDetectorWrapper) OnAcraStruct(ctx context.Context, ac
 		return nil, err
 	}
 
+	// set in context that old container was found
+	if !base.IsOldContainerFromContext(ctx) {
+		ctx = base.MarkOldContainerContext(ctx)
+	}
+
 	return wrapper.detector.OnCryptoEnvelope(ctx, serialized)
 }
 
@@ -162,6 +167,11 @@ func (wrapper *OldContainerDetectorWrapper) OnAcraBlock(ctx context.Context, acr
 	serialized, err := SerializeEncryptedData(acraBlock, AcraBlockEnvelopeID)
 	if err != nil {
 		return nil, err
+	}
+
+	// set in context that old container was found
+	if !base.IsOldContainerFromContext(ctx) {
+		ctx = base.MarkOldContainerContext(ctx)
 	}
 
 	return wrapper.detector.OnCryptoEnvelope(ctx, serialized)
