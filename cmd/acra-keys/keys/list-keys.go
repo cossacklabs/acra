@@ -97,7 +97,7 @@ func PrintKeys(keys []keystore.KeyDescription, writer io.Writer, params ListKeys
 	if params.UseJSON() {
 		return printKeysJSON(keys, writer)
 	}
-	return printKeysTable(keys, writer)
+	return keystore.PrintKeysTable(keys, writer)
 }
 
 func printKeysJSON(keys []keystore.KeyDescription, writer io.Writer) error {
@@ -115,45 +115,3 @@ const (
 	extraIDHeader = "Client/Zone ID"
 	idHeader      = "Key ID"
 )
-
-func printKeysTable(keys []keystore.KeyDescription, writer io.Writer) error {
-	maxPurposeLen := len(purposeHeader)
-	maxExtraIDLen := len(extraIDHeader)
-	maxKeyIDLen := len(idHeader)
-	for _, key := range keys {
-		if len(key.Purpose) > maxPurposeLen {
-			maxPurposeLen = len(key.Purpose)
-		}
-		if len(key.ClientID) > maxExtraIDLen {
-			maxExtraIDLen = len(key.ClientID)
-		}
-		if len(key.ZoneID) > maxExtraIDLen {
-			maxExtraIDLen = len(key.ZoneID)
-		}
-		if len(key.ID) > maxKeyIDLen {
-			maxKeyIDLen = len(key.ID)
-		}
-	}
-
-	fmt.Fprintf(writer, "%-*s | %-*s | %s\n", maxPurposeLen, purposeHeader, maxExtraIDLen, extraIDHeader, idHeader)
-
-	separator := make([]byte, maxPurposeLen+maxExtraIDLen+maxKeyIDLen+6)
-	for i := range separator {
-		separator[i] = '-'
-	}
-	separator[maxPurposeLen+1] = byte('+')
-	separator[maxPurposeLen+maxExtraIDLen+4] = byte('+')
-	fmt.Fprintln(writer, string(separator))
-
-	for _, key := range keys {
-		var extraID string
-		if key.ClientID != nil {
-			extraID = string(key.ClientID)
-		}
-		if key.ZoneID != nil {
-			extraID = string(key.ZoneID)
-		}
-		fmt.Fprintf(writer, "%-*s | %-*s | %s\n", maxPurposeLen, key.Purpose, maxExtraIDLen, extraID, key.ID)
-	}
-	return nil
-}

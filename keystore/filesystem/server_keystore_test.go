@@ -19,7 +19,6 @@ package filesystem
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -1581,11 +1580,11 @@ func TestListKeysSamePaths(t *testing.T) {
 	buff := bytes.NewBuffer([]byte{})
 
 	expectedKeys := getAllExpectedKeys()
-	printKeysTable(expectedKeys, buff)
+	keystore.PrintKeysTable(expectedKeys, buff)
 	expected := buff.String()
 
 	buff.Reset()
-	printKeysTable(all, buff)
+	keystore.PrintKeysTable(all, buff)
 	found := buff.String()
 
 	fmt.Fprintln(os.Stderr, "=> Expected Keys")
@@ -1635,11 +1634,11 @@ func TestListKeysDifferentPaths(t *testing.T) {
 	buff := bytes.NewBuffer([]byte{})
 
 	expectedKeys := getAllExpectedKeys()
-	printKeysTable(expectedKeys, buff)
+	keystore.PrintKeysTable(expectedKeys, buff)
 	expected := buff.String()
 
 	buff.Reset()
-	printKeysTable(all, buff)
+	keystore.PrintKeysTable(all, buff)
 	found := buff.String()
 
 	fmt.Fprintln(os.Stderr, "=> Expected Keys")
@@ -1650,53 +1649,4 @@ func TestListKeysDifferentPaths(t *testing.T) {
 	if expected != found {
 		t.Fatal("lists are different")
 	}
-}
-
-// copied from `acra-keys list` code
-func printKeysTable(keys []keystore.KeyDescription, writer io.Writer) error {
-	const (
-		purposeHeader = "Key purpose"
-		extraIDHeader = "Client/Zone ID"
-		idHeader      = "Key ID"
-	)
-
-	maxPurposeLen := len(purposeHeader)
-	maxExtraIDLen := len(extraIDHeader)
-	maxKeyIDLen := len(idHeader)
-	for _, key := range keys {
-		if len(key.Purpose) > maxPurposeLen {
-			maxPurposeLen = len(key.Purpose)
-		}
-		if len(key.ClientID) > maxExtraIDLen {
-			maxExtraIDLen = len(key.ClientID)
-		}
-		if len(key.ZoneID) > maxExtraIDLen {
-			maxExtraIDLen = len(key.ZoneID)
-		}
-		if len(key.ID) > maxKeyIDLen {
-			maxKeyIDLen = len(key.ID)
-		}
-	}
-
-	fmt.Fprintf(writer, "%-*s | %-*s | %s\n", maxPurposeLen, purposeHeader, maxExtraIDLen, extraIDHeader, idHeader)
-
-	separator := make([]byte, maxPurposeLen+maxExtraIDLen+maxKeyIDLen+6)
-	for i := range separator {
-		separator[i] = '-'
-	}
-	separator[maxPurposeLen+1] = byte('+')
-	separator[maxPurposeLen+maxExtraIDLen+4] = byte('+')
-	fmt.Fprintln(writer, string(separator))
-
-	for _, key := range keys {
-		var extraID string
-		if key.ClientID != nil {
-			extraID = string(key.ClientID)
-		}
-		if key.ZoneID != nil {
-			extraID = string(key.ZoneID)
-		}
-		fmt.Fprintf(writer, "%-*s | %-*s | %s\n", maxPurposeLen, key.Purpose, maxExtraIDLen, extraID, key.ID)
-	}
-	return nil
 }
