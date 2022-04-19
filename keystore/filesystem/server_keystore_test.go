@@ -19,6 +19,7 @@ package filesystem
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -1319,6 +1320,10 @@ func TestKeyStore_GetPoisonKeyPair(t *testing.T) {
 func getKeystore() (*KeyStore, string, error) {
 	keyDir, err := ioutil.TempDir(os.TempDir(), "testKeystore")
 
+	if err != nil {
+		return nil, "", err
+	}
+
 	encryptor, err := keystore.NewSCellKeyEncryptor([]byte("some key"))
 	if err != nil {
 		return nil, "", err
@@ -1328,7 +1333,7 @@ func getKeystore() (*KeyStore, string, error) {
 		Encryptor(encryptor).
 		Storage(&fileStorage{}).
 		Build()
-	return keyStore, keyDir, nil
+	return keyStore, keyDir, err
 }
 
 func TestPoisonKeyGeneration(t *testing.T) {
@@ -1502,4 +1507,151 @@ func TestPoisonKeyGeneration(t *testing.T) {
 			t.Fatal("Second symmetric key should be the oldest one")
 		}
 	})
+}
+
+const (
+	clientID  = "cossack"
+	dataEncID = "cossack-data-enc"
+	hmacEncID = "cossack-hmac"
+	zoneID    = "sich"
+)
+
+func generateEveryKey(keyStore *KeyStore, t *testing.T) (totalKeys int) {
+	totalKeys = 0
+	if err := keyStore.GenerateClientIDSymmetricKey([]byte(clientID)); err != nil {
+		t.Fatal(err)
+	}
+	totalKeys++
+	if err := keyStore.GenerateDataEncryptionKeys([]byte(clientID)); err != nil {
+		t.Fatal(err)
+	}
+	totalKeys += 2
+	if err := keyStore.GenerateHmacKey([]byte(hmacEncID)); err != nil {
+		t.Fatal(err)
+	}
+	totalKeys++
+	if err := keyStore.GenerateLogKey(); err != nil {
+		t.Fatal(err)
+	}
+	totalKeys++
+	if err := keyStore.GeneratePoisonKeyPair(); err != nil {
+		t.Fatal(err)
+	}
+	totalKeys += 2
+	if err := keyStore.GeneratePoisonSymmetricKey(); err != nil {
+		t.Fatal(err)
+	}
+	totalKeys++
+	if err := keyStore.GenerateZoneIDSymmetricKey([]byte(zoneID)); err != nil {
+		t.Fatal(err)
+	}
+	totalKeys++
+	return totalKeys
+}
+
+func TestListKeysSamePaths(t *testing.T) {
+	keyStore, path, err := getKeystore()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer os.RemoveAll(path)
+
+	length := generateEveryKey(keyStore, t)
+
+	all, err := keyStore.ListKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	printKeysTable(all, os.Stderr)
+	if len(all) != length {
+		t.Fatalf("expected %d keys, but found %d", length, len(all))
+	}
+}
+
+func TestListKeysDifferentPaths(t *testing.T) {
+	keyPrivateDir, err := ioutil.TempDir(os.TempDir(), "private")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(keyPrivateDir)
+
+	keyPublicDir, err := ioutil.TempDir(os.TempDir(), "public")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(keyPublicDir)
+
+	encryptor, err := keystore.NewSCellKeyEncryptor([]byte("some key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	keyStore, err := NewFilesystemKeyStoreTwoPath(keyPrivateDir, keyPublicDir, encryptor)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	length := generateEveryKey(keyStore, t)
+
+	all, err := keyStore.ListKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	printKeysTable(all, os.Stderr)
+	if len(all) != length {
+		t.Fatalf("expected %d keys, but found %d", length, len(all))
+	}
+}
+
+// copied from `acra-keys list` code
+func printKeysTable(keys []keystore.KeyDescription, writer io.Writer) error {
+	const (
+		purposeHeader = "Key purpose"
+		extraIDHeader = "Client/Zone ID"
+		idHeader      = "Key ID"
+	)
+
+	maxPurposeLen := len(purposeHeader)
+	maxExtraIDLen := len(extraIDHeader)
+	maxKeyIDLen := len(idHeader)
+	for _, key := range keys {
+		if len(key.Purpose) > maxPurposeLen {
+			maxPurposeLen = len(key.Purpose)
+		}
+		if len(key.ClientID) > maxExtraIDLen {
+			maxExtraIDLen = len(key.ClientID)
+		}
+		if len(key.ZoneID) > maxExtraIDLen {
+			maxExtraIDLen = len(key.ZoneID)
+		}
+		if len(key.ID) > maxKeyIDLen {
+			maxKeyIDLen = len(key.ID)
+		}
+	}
+
+	fmt.Fprintf(writer, "%-*s | %-*s | %s\n", maxPurposeLen, purposeHeader, maxExtraIDLen, extraIDHeader, idHeader)
+
+	separator := make([]byte, maxPurposeLen+maxExtraIDLen+maxKeyIDLen+6)
+	for i := range separator {
+		separator[i] = '-'
+	}
+	separator[maxPurposeLen+1] = byte('+')
+	separator[maxPurposeLen+maxExtraIDLen+4] = byte('+')
+	fmt.Fprintln(writer, string(separator))
+
+	for _, key := range keys {
+		var extraID string
+		if key.ClientID != nil {
+			extraID = string(key.ClientID)
+		}
+		if key.ZoneID != nil {
+			extraID = string(key.ZoneID)
+		}
+		fmt.Fprintf(writer, "%-*s | %-*s | %s\n", maxPurposeLen, key.Purpose, maxExtraIDLen, extraID, key.ID)
+	}
+	return nil
 }

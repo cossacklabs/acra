@@ -766,19 +766,19 @@ func (store *KeyStore) GenerateDataEncryptionKeys(id []byte) error {
 
 // ListKeys enumerates keys present in the keystore.
 func (store *KeyStore) ListKeys() ([]keystore.KeyDescription, error) {
-	privateKeys, err := store.describeDir(store.privateKeyDirectory)
+	keys, err := store.describeDir(store.privateKeyDirectory)
 	if err != nil {
 		return nil, err
 	}
 
-	publicKeys, err := store.describeDir(store.publicKeyDirectory)
-	if err != nil {
-		return nil, err
+	if store.publicKeyDirectory != store.privateKeyDirectory {
+		publicKeys, err := store.describeDir(store.publicKeyDirectory)
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, publicKeys...)
 	}
 
-	keys := make([]keystore.KeyDescription, 0)
-	keys = append(keys, privateKeys...)
-	keys = append(keys, publicKeys...)
 	return keys, nil
 }
 
