@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -1516,37 +1517,47 @@ const (
 	zoneID    = "sich"
 )
 
-func generateEveryKey(keyStore *KeyStore, t *testing.T) (totalKeys int) {
-	totalKeys = 0
+func generateEveryKey(keyStore *KeyStore, t *testing.T) {
 	if err := keyStore.GenerateClientIDSymmetricKey([]byte(clientID)); err != nil {
 		t.Fatal(err)
 	}
-	totalKeys++
 	if err := keyStore.GenerateDataEncryptionKeys([]byte(clientID)); err != nil {
 		t.Fatal(err)
 	}
-	totalKeys += 2
 	if err := keyStore.GenerateHmacKey([]byte(hmacEncID)); err != nil {
 		t.Fatal(err)
 	}
-	totalKeys++
 	if err := keyStore.GenerateLogKey(); err != nil {
 		t.Fatal(err)
 	}
-	totalKeys++
 	if err := keyStore.GeneratePoisonKeyPair(); err != nil {
 		t.Fatal(err)
 	}
-	totalKeys += 2
 	if err := keyStore.GeneratePoisonSymmetricKey(); err != nil {
 		t.Fatal(err)
 	}
-	totalKeys++
 	if err := keyStore.GenerateZoneIDSymmetricKey([]byte(zoneID)); err != nil {
 		t.Fatal(err)
 	}
-	totalKeys++
-	return totalKeys
+}
+
+func getAllExpectedKeys() []keystore.KeyDescription {
+	expectedKeys := []keystore.KeyDescription{
+		{ID: "poison_key", Purpose: PurposePoisonRecordKeyPair},
+		{ID: "poison_key.pub", Purpose: PurposePoisonRecordKeyPair},
+		{ID: "poison_key_sym", Purpose: PurposePoisonRecordSymmetricKey},
+		{ID: "cossack-hmac_hmac", Purpose: PurposeSearchHMAC, ClientID: []byte(hmacEncID)},
+		{ID: "cossack_storage", Purpose: PurposeStorageClientPrivateKey, ClientID: []byte(clientID)},
+		{ID: "cossack_storage.pub", Purpose: PurposeStorageClientPublicKey, ClientID: []byte(clientID)},
+		{ID: "cossack_storage_sym", Purpose: PurposeStorageClientSymmetricKey, ClientID: []byte(clientID)},
+		{ID: "secure_log_key", Purpose: PurposeAuditLog},
+		{ID: "sich_zone_sym", Purpose: PurposeStorageZoneSymmetricKey, ZoneID: []byte(zoneID)},
+	}
+	// sort to compare consistently
+	sort.Slice(expectedKeys, func(i, j int) bool {
+		return expectedKeys[i].ID < expectedKeys[j].ID
+	})
+	return expectedKeys
 }
 
 func TestListKeysSamePaths(t *testing.T) {
@@ -1557,16 +1568,33 @@ func TestListKeysSamePaths(t *testing.T) {
 
 	defer os.RemoveAll(path)
 
-	length := generateEveryKey(keyStore, t)
+	generateEveryKey(keyStore, t)
 
 	all, err := keyStore.ListKeys()
 	if err != nil {
 		t.Fatal(err)
 	}
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].ID < all[j].ID
+	})
 
-	printKeysTable(all, os.Stderr)
-	if len(all) != length {
-		t.Fatalf("expected %d keys, but found %d", length, len(all))
+	buff := bytes.NewBuffer([]byte{})
+
+	expectedKeys := getAllExpectedKeys()
+	printKeysTable(expectedKeys, buff)
+	expected := buff.String()
+
+	buff.Reset()
+	printKeysTable(all, buff)
+	found := buff.String()
+
+	fmt.Fprintln(os.Stderr, "=> Expected Keys")
+	fmt.Fprintln(os.Stderr, expected)
+	fmt.Fprintln(os.Stderr, "=> Actual Keys")
+	fmt.Fprintln(os.Stderr, found)
+
+	if expected != found {
+		t.Fatal("lists are different")
 	}
 }
 
@@ -1594,16 +1622,33 @@ func TestListKeysDifferentPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	length := generateEveryKey(keyStore, t)
+	generateEveryKey(keyStore, t)
 
 	all, err := keyStore.ListKeys()
 	if err != nil {
 		t.Fatal(err)
 	}
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].ID < all[j].ID
+	})
 
-	printKeysTable(all, os.Stderr)
-	if len(all) != length {
-		t.Fatalf("expected %d keys, but found %d", length, len(all))
+	buff := bytes.NewBuffer([]byte{})
+
+	expectedKeys := getAllExpectedKeys()
+	printKeysTable(expectedKeys, buff)
+	expected := buff.String()
+
+	buff.Reset()
+	printKeysTable(all, buff)
+	found := buff.String()
+
+	fmt.Fprintln(os.Stderr, "=> Expected Keys")
+	fmt.Fprintln(os.Stderr, expected)
+	fmt.Fprintln(os.Stderr, "=> Actual Keys")
+	fmt.Fprintln(os.Stderr, found)
+
+	if expected != found {
+		t.Fatal("lists are different")
 	}
 }
 

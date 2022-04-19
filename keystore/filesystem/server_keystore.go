@@ -922,9 +922,8 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 
 	if penultimateKeyPart == "log" && lastKeyPart == "key" {
 		return &keystore.KeyDescription{
-			ID:       fileInfo.Name(),
-			Purpose:  PurposeAuditLog,
-			ClientID: []byte(strings.Join(components[:len(components)-2], "_")),
+			ID:      fileInfo.Name(),
+			Purpose: PurposeAuditLog,
 		}, nil
 	}
 
