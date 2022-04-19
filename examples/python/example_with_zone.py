@@ -14,7 +14,7 @@
 # coding: utf-8
 import argparse
 import ssl
-from sqlalchemy import (Table, Column, Integer, MetaData, select, LargeBinary, Text, literal_column)
+from sqlalchemy import (Table, Column, Integer, MetaData, select, LargeBinary, Text, literal)
 from sqlalchemy.dialects.postgresql import BYTEA
 from acrawriter import create_acrastruct
 from common import get_engine, get_default, get_zone, register_common_cli_params
@@ -25,7 +25,7 @@ def print_data(zone_id, connection):
     console"""
     result = connection.execute(
         # explicitly pass zone id before related data
-        select([literal_column("'{}'".format(zone_id)), test_table]))
+        select([literal(zone_id), test_table]))
     result = result.fetchall()
     ZONE_ID_INDEX = 0
     print("use zone_id: ", zone_id)

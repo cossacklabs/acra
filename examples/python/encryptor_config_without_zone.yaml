@@ -49,5 +49,5 @@ schemas:
     encrypted:
       - column: data
         data_type: bytes
-        # base64 bytes value
-        default_data_value: ZGVmYXVsdAo=
+        # base64 bytes value `test-data`
+        default_data_value: dGVzdC1kYXRhCg
