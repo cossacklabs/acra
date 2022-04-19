@@ -2,6 +2,7 @@
 - Fix output of `acra-keys list` for keystore v1: record duplication and wrong client id for log key.
 
 # 0.93.0 - 2022-04-14
+- Deprecate `tokenized` option and use non-empty `token_type` to indicate tokenization.
 - Fix processing of a plain startup message after the `ssl deny`.
 
 # 0.93.0 - 2022-04-07
