@@ -1,3 +1,6 @@
+# 0.93.0 - 2022-04-19
+- Fix output of `acra-keys list` for keystore v1: record duplication and wrong client id for log key.
+
 # 0.93.0 - 2022-04-14
 - Fix processing of a plain startup message after the `ssl deny`.
 
