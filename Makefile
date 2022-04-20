@@ -155,7 +155,7 @@ endef
 .PHONY: help \
     build install test_go test_python test test_all clean \
     docker-build docker-push docker-clean docker \
-    pkg deb rpm
+    pkg deb rpm install_dev_deps
 
 #----- Help --------------------------------------------------------------------
 
@@ -167,7 +167,7 @@ help:
 		/^## / { split($$0,a,/## /); comment = a[2] }\
 		/^[a-zA-Z-][a-zA-Z_-]*:.*?/ {\
 			if (length(comment) == 0) { next };\
-			printf "  $(COLOR_TARGET)%-15s$(COLOR_DEFAULT) %s\n", $$1, comment;\
+			printf "  $(COLOR_TARGET)%-16s$(COLOR_DEFAULT) %s\n", $$1, comment;\
 			comment = "" }'\
 		$(MAKEFILE_LIST)
 	@printf "\n$(COLOR_MENU)Properties allowed for overriding:$(COLOR_DEFAULT)\n"
@@ -243,6 +243,13 @@ clean:
 keys: install
 	@chmod +x scripts/generate-keys.sh
 	@scripts/generate-keys.sh
+
+## Install development dependencies
+install_dev_deps:
+	go install golang.org/x/tools/cmd/goyacc
+	go install github.com/swaggo/swag/cmd/swag@latest
+	go install github.com/tinylib/msgp@latest
+	go install github.com/vektra/mockery/v2@latest
 
 ##---- Docker ------------------------------------------------------------------
 
