@@ -1,3 +1,6 @@
+# 0.93.0 - 2022-04-20
+- Add `make install_dev_deps` for development dependencies installation.
+
 # 0.93.0 - 2022-04-19
 - Fix output of `acra-keys list` for keystore v1: record duplication and wrong client id for log key.
 
