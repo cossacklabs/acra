@@ -283,7 +283,11 @@ func (p *pgBoundValue) setEncryptedData(newData []byte, setting config.ColumnEnc
 	case base.TextFormat:
 		// here we take encrypted data and encode it to SQL String value that contains binary data in hex format
 		// or pass it as is if it is already valid string (all other SQL literals)
-		p.data = encryptor.PgEncodeToHexString(newData)
+		if utils.IsPrintablePostgresqlString(newData) {
+			p.data = newData
+		} else {
+			p.data = encryptor.PgEncodeToHexString(newData)
+		}
 		return nil
 	case base.BinaryFormat:
 		// all our encryption operations applied over text format values to be compatible with text format

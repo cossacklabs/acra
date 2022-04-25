@@ -35,7 +35,18 @@ func (p *PgSQLDataEncoderProcessor) encodeToValue(ctx context.Context, data []by
 		return ctx, &identityValue{data}, nil
 	}
 	switch setting.GetEncryptedDataType() {
-	case common2.EncryptedType_String, common2.EncryptedType_Bytes:
+	case common2.EncryptedType_String:
+		if !base.IsDecryptedFromContext(ctx) {
+			value, err := encodeOnFail(setting, logger)
+			if err != nil {
+				return ctx, nil, err
+			} else if value != nil {
+				return ctx, value, nil
+			}
+		}
+		// decrypted values return as is, without any encoding
+		return ctx, &identityValue{data}, nil
+	case common2.EncryptedType_Bytes:
 		if !base.IsDecryptedFromContext(ctx) {
 			value, err := encodeOnFail(setting, logger)
 			if err != nil {
@@ -156,7 +167,7 @@ func (p *PgSQLDataDecoderProcessor) decodeText(ctx context.Context, data []byte,
 		decodedData, err := utils.DecodeEscaped(data)
 		if err != nil {
 			logger.WithError(err).Errorln("Can't decode binary data for decryption")
-			return ctx, data, nil
+			return ctx, data, err
 		}
 		return ctx, decodedData, nil
 	}

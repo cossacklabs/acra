@@ -176,8 +176,12 @@ func TestTextMode(t *testing.T) {
 			},
 		},
 
+		// string values can contain hex values and should be returned as is
+		{input: []byte("\\xTT"), decodedData: []byte("\\xTT"), encodedData: []byte("\\xTT"), decodeErr: hex.InvalidByteError('T'), encodeErr: nil,
+			setting: &config.BasicColumnEncryptionSetting{Tokenized: false, DataType: "str"}},
+
 		// invalid binary hex value that should be returned as is. Also encoded into hex due to invalid hex value
-		{input: []byte("\\xTT"), decodedData: []byte("\\xTT"), encodedData: []byte("\\x5c785454"), decodeErr: nil, encodeErr: nil,
+		{input: []byte("\\xTT"), decodedData: []byte("\\xTT"), encodedData: []byte("\\x5c785454"), decodeErr: hex.InvalidByteError('T'), encodeErr: nil,
 			setting: &config.BasicColumnEncryptionSetting{Tokenized: false, DataType: "bytes"}},
 		// printable valid value returned as is
 		{input: []byte("valid string"), decodedData: []byte("valid string"), encodedData: []byte("valid string"), decodeErr: nil, encodeErr: nil,
@@ -212,9 +216,6 @@ func TestTextMode(t *testing.T) {
 		logBuffer.Reset()
 		ctx = encryptor.NewContextWithEncryptionSetting(ctx, tcase.setting)
 		_, decodedData, decodeErr := decoder.OnColumn(ctx, tcase.input)
-		if err != nil {
-			t.Fatal(err)
-		}
 		if decodeErr != tcase.decodeErr {
 			t.Fatalf("[%d] Incorrect decode error. Expect %s, took %s\n", i, tcase.decodeErr, decodeErr)
 		}
@@ -352,7 +353,8 @@ func TestEncodingDecodingTextFormat(t *testing.T) {
 	testcases := []testcase{
 		{inputValue: []byte(`valid string`), outputValue: []byte(`valid string`), binValue: []byte(`valid string`), tokenType: common.TokenType_String},
 		{inputValue: []byte("\n\t~ []!@#$%^&*()_+[]"), outputValue: []byte("\n\t~ []!@#$%^&*()_+[]"), binValue: []byte("\n\t~ []!@#$%^&*()_+[]"), tokenType: common.TokenType_String},
-		{inputValue: []byte{0, 1, 2, 3}, outputValue: []byte(`\x` + hex.EncodeToString([]byte{0, 1, 2, 3})), binValue: []byte{0, 1, 2, 3}, tokenType: common.TokenType_String},
+		{inputValue: []byte{0, 1, 2, 3}, outputValue: []byte{0, 1, 2, 3}, binValue: []byte{0, 1, 2, 3}, tokenType: common.TokenType_String},
+		{inputValue: []byte("#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abc"), outputValue: []byte("#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abc"), binValue: []byte("#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abc"), tokenType: common.TokenType_String},
 		{inputValue: []byte(`valid string`), outputValue: []byte(`valid string`), binValue: []byte(`valid string`), tokenType: common.TokenType_Email},
 		// input hex encoded value that looks like a valid string should be returned as string literal
 		{inputValue: []byte(`\x76616c696420737472696e67`), outputValue: []byte(`valid string`), binValue: []byte(`valid string`), tokenType: common.TokenType_Bytes},
@@ -370,14 +372,18 @@ func TestEncodingDecodingTextFormat(t *testing.T) {
 	accessContext.SetColumnInfo(columnInfo)
 	ctx := base.SetAccessContextToContext(context.Background(), accessContext)
 	envelopeValue := config.CryptoEnvelopeTypeAcraBlock
+	reencryptToAcraBlock := true
 	// assign value with pointer and change value in the loop below
-	testSetting := config.BasicColumnEncryptionSetting{CryptoEnvelope: &envelopeValue}
+	testSetting := config.BasicColumnEncryptionSetting{CryptoEnvelope: &envelopeValue, Name: "name", ReEncryptToAcraBlock: &reencryptToAcraBlock}
 	ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
 	for i, tcase := range testcases {
 		columnInfo = base.NewColumnInfo(0, "", false, len(tcase.inputValue), 0, 0)
 		accessContext.SetColumnInfo(columnInfo)
 		testSetting.TokenType, err = tcase.tokenType.ToConfigString()
 		if err != nil {
+			t.Fatal(err)
+		}
+		if err := testSetting.Init(); err != nil {
 			t.Fatal(err)
 		}
 		_, binValue, err := decoder.OnColumn(ctx, tcase.inputValue)

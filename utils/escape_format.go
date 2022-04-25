@@ -17,7 +17,7 @@ limitations under the License.
 package utils
 
 import (
-	"unicode"
+	"bytes"
 	"unicode/utf8"
 )
 
@@ -38,13 +38,8 @@ func IsPrintablePostgresqlString(data []byte) bool {
 	if !utf8.Valid(data) {
 		return false
 	}
-	// convert byte slice to string to work with Runes instead of bytes
-	stringValue := BytesToString(data)
-	// '\' is special case because PostgreSQL escapes it
-	for _, c := range stringValue {
-		if (unicode.IsControl(c) && !unicode.IsSpace(c)) || c == '\\' {
-			return false
-		}
+	if bytes.Contains(data, []byte{'\\'}) {
+		return false
 	}
 	return true
 }

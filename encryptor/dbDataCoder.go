@@ -94,11 +94,8 @@ func (*MysqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, error
 	return nil, errUnsupportedExpression
 }
 
-// PgEncodeToHexString return data as is if it's valid UTF string otherwise encode to hex with \x prefix
+// PgEncodeToHexString encodes to hex with \x prefix
 func PgEncodeToHexString(data []byte) []byte {
-	if utils.IsPrintablePostgresqlString(data) {
-		return data
-	}
 	newVal := make([]byte, len(pgHexStringPrefix)+hex.EncodedLen(len(data)))
 	copy(newVal, pgHexStringPrefix)
 	hex.Encode(newVal[len(pgHexStringPrefix):], data)
@@ -172,9 +169,20 @@ func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, 
 				return data, nil
 			}
 			// otherwise change type and pass it below for hex encoding
-			val.Type = sqlparser.StrVal
+			val.Type = sqlparser.PgEscapeString
 			fallthrough
-		case sqlparser.PgEscapeString, sqlparser.StrVal:
+		case sqlparser.StrVal:
+			// if it is valid string, return as is. otherwise there is binary data, and we should encode it
+			if utils.IsPrintablePostgresqlString(data) {
+				return data, nil
+			}
+			val.Type = sqlparser.PgEscapeString
+			fallthrough
+		case sqlparser.PgEscapeString:
+			// valid strings we pass as is without extra encoding
+			if utils.IsPrintablePostgresqlString(data) {
+				return data, nil
+			}
 			return PgEncodeToHexString(data), nil
 		}
 	}
