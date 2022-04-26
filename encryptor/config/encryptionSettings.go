@@ -23,6 +23,7 @@ import (
 	common2 "github.com/cossacklabs/acra/encryptor/config/common"
 	maskingCommon "github.com/cossacklabs/acra/masking/common"
 	"github.com/cossacklabs/acra/pseudonymization/common"
+	log "github.com/sirupsen/logrus"
 )
 
 // SettingMask bitmask used to store info about encryptor configuration
@@ -125,15 +126,22 @@ var validSettings = map[SettingMask]struct{}{
 	// TOKENIZATION
 	// default clientID
 	SettingTokenizationFlag | SettingTokenTypeFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag: {},
+	SettingTokenTypeFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                           {},
 
 	SettingTokenizationFlag | SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingReEncryptionFlag:                                  {},
 	SettingTokenizationFlag | SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag: {},
+	SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingReEncryptionFlag:                                                            {},
+	SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                           {},
 	// specified clientID
 	SettingTokenizationFlag | SettingTokenTypeFlag | SettingClientIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                                     {},
 	SettingTokenizationFlag | SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingClientIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag: {},
+	SettingTokenTypeFlag | SettingClientIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                                                               {},
+	SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingClientIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                           {},
 	// specified zoneID
 	SettingTokenizationFlag | SettingTokenTypeFlag | SettingZoneIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                                     {},
 	SettingTokenizationFlag | SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingZoneIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag: {},
+	SettingTokenTypeFlag | SettingZoneIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                                                               {},
+	SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingZoneIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                           {},
 }
 
 // Token type names as expected in the configuration file.
@@ -188,7 +196,11 @@ type BasicColumnEncryptionSetting struct {
 	ResponseOnFail common2.ResponseOnFail `yaml:"response_on_fail"`
 
 	// Data pseudonymization (tokenization)
-	Tokenized              bool   `yaml:"tokenized"`
+
+	// Tokenized is DEPRECATED, but left to provide backwards compatibility.
+	// Was used to enable tokenization. Right now the `TokenType` serves that
+	// purpose: if it's not empty, tokenization is enabled.
+	Tokenized              *bool  `yaml:"tokenized"`
 	ConsistentTokenization bool   `yaml:"consistent_tokenization"`
 	TokenType              string `yaml:"token_type"`
 
@@ -243,9 +255,20 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 	if s.ReEncryptToAcraBlock != nil && *s.ReEncryptToAcraBlock {
 		s.settingMask |= SettingReEncryptionFlag
 	}
+
+	if s.Tokenized != nil {
+		tokenized := *s.Tokenized
+		if tokenized && s.TokenType == "" {
+			return errors.New("`tokenized` is provided without `token_type`")
+		} else if !tokenized && s.TokenType != "" {
+			return errors.New("`tokenized` is disabled, but `token_type` is provided")
+		}
+		log.Warnln("Setting `tokenized` flag is not necessary anymore and will be ignored")
+	}
+
 	var tokenType common.TokenType
 	var ok bool
-	if s.TokenType != "" || s.Tokenized {
+	if s.TokenType != "" {
 		tokenType, ok = tokenTypeNames[s.TokenType]
 		if !ok {
 			return fmt.Errorf("%s: %w", s.TokenType, common.ErrUnknownTokenType)
@@ -308,7 +331,7 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 		return fmt.Errorf("invalid default value: %w", err)
 	}
 
-	if s.Tokenized {
+	if s.TokenType != "" {
 		s.settingMask |= SettingTokenizationFlag
 		s.settingMask |= SettingTokenTypeFlag
 		if s.ConsistentTokenization {
@@ -379,7 +402,7 @@ func (s *BasicColumnEncryptionSetting) ZoneID() []byte {
 
 // IsTokenized returns true if the column should be tokenized.
 func (s *BasicColumnEncryptionSetting) IsTokenized() bool {
-	return s.Tokenized
+	return s.TokenType != ""
 }
 
 // IsConsistentTokenization returns true if column tokens should be consistent.

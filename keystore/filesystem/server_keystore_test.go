@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -1319,6 +1320,10 @@ func TestKeyStore_GetPoisonKeyPair(t *testing.T) {
 func getKeystore() (*KeyStore, string, error) {
 	keyDir, err := ioutil.TempDir(os.TempDir(), "testKeystore")
 
+	if err != nil {
+		return nil, "", err
+	}
+
 	encryptor, err := keystore.NewSCellKeyEncryptor([]byte("some key"))
 	if err != nil {
 		return nil, "", err
@@ -1328,7 +1333,7 @@ func getKeystore() (*KeyStore, string, error) {
 		Encryptor(encryptor).
 		Storage(&fileStorage{}).
 		Build()
-	return keyStore, keyDir, nil
+	return keyStore, keyDir, err
 }
 
 func TestPoisonKeyGeneration(t *testing.T) {
@@ -1502,4 +1507,146 @@ func TestPoisonKeyGeneration(t *testing.T) {
 			t.Fatal("Second symmetric key should be the oldest one")
 		}
 	})
+}
+
+const (
+	clientID  = "cossack"
+	dataEncID = "cossack-data-enc"
+	hmacEncID = "cossack-hmac"
+	zoneID    = "sich"
+)
+
+func generateEveryKey(keyStore *KeyStore, t *testing.T) {
+	if err := keyStore.GenerateClientIDSymmetricKey([]byte(clientID)); err != nil {
+		t.Fatal(err)
+	}
+	if err := keyStore.GenerateDataEncryptionKeys([]byte(clientID)); err != nil {
+		t.Fatal(err)
+	}
+	if err := keyStore.GenerateHmacKey([]byte(hmacEncID)); err != nil {
+		t.Fatal(err)
+	}
+	if err := keyStore.GenerateLogKey(); err != nil {
+		t.Fatal(err)
+	}
+	if err := keyStore.GeneratePoisonKeyPair(); err != nil {
+		t.Fatal(err)
+	}
+	if err := keyStore.GeneratePoisonSymmetricKey(); err != nil {
+		t.Fatal(err)
+	}
+	if err := keyStore.GenerateZoneIDSymmetricKey([]byte(zoneID)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func getAllExpectedKeys() []keystore.KeyDescription {
+	expectedKeys := []keystore.KeyDescription{
+		{ID: "poison_key", Purpose: PurposePoisonRecordKeyPair},
+		{ID: "poison_key.pub", Purpose: PurposePoisonRecordKeyPair},
+		{ID: "poison_key_sym", Purpose: PurposePoisonRecordSymmetricKey},
+		{ID: "cossack-hmac_hmac", Purpose: PurposeSearchHMAC, ClientID: []byte(hmacEncID)},
+		{ID: "cossack_storage", Purpose: PurposeStorageClientPrivateKey, ClientID: []byte(clientID)},
+		{ID: "cossack_storage.pub", Purpose: PurposeStorageClientPublicKey, ClientID: []byte(clientID)},
+		{ID: "cossack_storage_sym", Purpose: PurposeStorageClientSymmetricKey, ClientID: []byte(clientID)},
+		{ID: "secure_log_key", Purpose: PurposeAuditLog},
+		{ID: "sich_zone_sym", Purpose: PurposeStorageZoneSymmetricKey, ZoneID: []byte(zoneID)},
+	}
+	// sort to compare consistently
+	sort.Slice(expectedKeys, func(i, j int) bool {
+		return expectedKeys[i].ID < expectedKeys[j].ID
+	})
+	return expectedKeys
+}
+
+func TestListKeysSamePaths(t *testing.T) {
+	keyStore, path, err := getKeystore()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer os.RemoveAll(path)
+
+	generateEveryKey(keyStore, t)
+
+	all, err := keyStore.ListKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].ID < all[j].ID
+	})
+
+	buff := bytes.NewBuffer([]byte{})
+
+	expectedKeys := getAllExpectedKeys()
+	keystore.PrintKeysTable(expectedKeys, buff)
+	expected := buff.String()
+
+	buff.Reset()
+	keystore.PrintKeysTable(all, buff)
+	found := buff.String()
+
+	fmt.Fprintln(os.Stderr, "=> Expected Keys")
+	fmt.Fprintln(os.Stderr, expected)
+	fmt.Fprintln(os.Stderr, "=> Actual Keys")
+	fmt.Fprintln(os.Stderr, found)
+
+	if expected != found {
+		t.Fatal("lists are different")
+	}
+}
+
+func TestListKeysDifferentPaths(t *testing.T) {
+	keyPrivateDir, err := ioutil.TempDir(os.TempDir(), "private")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(keyPrivateDir)
+
+	keyPublicDir, err := ioutil.TempDir(os.TempDir(), "public")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(keyPublicDir)
+
+	encryptor, err := keystore.NewSCellKeyEncryptor([]byte("some key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	keyStore, err := NewFilesystemKeyStoreTwoPath(keyPrivateDir, keyPublicDir, encryptor)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	generateEveryKey(keyStore, t)
+
+	all, err := keyStore.ListKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].ID < all[j].ID
+	})
+
+	buff := bytes.NewBuffer([]byte{})
+
+	expectedKeys := getAllExpectedKeys()
+	keystore.PrintKeysTable(expectedKeys, buff)
+	expected := buff.String()
+
+	buff.Reset()
+	keystore.PrintKeysTable(all, buff)
+	found := buff.String()
+
+	fmt.Fprintln(os.Stderr, "=> Expected Keys")
+	fmt.Fprintln(os.Stderr, expected)
+	fmt.Fprintln(os.Stderr, "=> Actual Keys")
+	fmt.Fprintln(os.Stderr, found)
+
+	if expected != found {
+		t.Fatal("lists are different")
+	}
 }
