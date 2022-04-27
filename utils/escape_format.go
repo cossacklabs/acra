@@ -17,7 +17,6 @@ limitations under the License.
 package utils
 
 import (
-	"bytes"
 	"unicode/utf8"
 )
 
@@ -36,9 +35,6 @@ func IsPrintablePostgresqlString(data []byte) bool {
 		return true
 	}
 	if !utf8.Valid(data) {
-		return false
-	}
-	if bytes.Contains(data, []byte{'\\'}) {
 		return false
 	}
 	return true
