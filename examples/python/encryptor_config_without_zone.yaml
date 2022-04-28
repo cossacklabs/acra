@@ -40,3 +40,14 @@ schemas:
       - email
     encrypted:
       - column: email
+
+  - table: test_example_without_zone
+    columns:
+      - id
+      - data
+      - raw_data
+    encrypted:
+      - column: data
+        data_type: bytes
+        # base64 bytes value `test-data`
+        default_data_value: dGVzdC1kYXRhCg
