@@ -766,19 +766,19 @@ func (store *KeyStore) GenerateDataEncryptionKeys(id []byte) error {
 
 // ListKeys enumerates keys present in the keystore.
 func (store *KeyStore) ListKeys() ([]keystore.KeyDescription, error) {
-	privateKeys, err := store.describeDir(store.privateKeyDirectory)
+	keys, err := store.describeDir(store.privateKeyDirectory)
 	if err != nil {
 		return nil, err
 	}
 
-	publicKeys, err := store.describeDir(store.publicKeyDirectory)
-	if err != nil {
-		return nil, err
+	if store.publicKeyDirectory != store.privateKeyDirectory {
+		publicKeys, err := store.describeDir(store.publicKeyDirectory)
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, publicKeys...)
 	}
 
-	keys := make([]keystore.KeyDescription, 0)
-	keys = append(keys, privateKeys...)
-	keys = append(keys, publicKeys...)
 	return keys, nil
 }
 
@@ -922,9 +922,8 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 
 	if penultimateKeyPart == "log" && lastKeyPart == "key" {
 		return &keystore.KeyDescription{
-			ID:       fileInfo.Name(),
-			Purpose:  PurposeAuditLog,
-			ClientID: []byte(strings.Join(components[:len(components)-2], "_")),
+			ID:      fileInfo.Name(),
+			Purpose: PurposeAuditLog,
 		}, nil
 	}
 

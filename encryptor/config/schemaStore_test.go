@@ -1,11 +1,14 @@
 package config
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"testing"
 
 	common2 "github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/cossacklabs/acra/masking/common"
+	log "github.com/sirupsen/logrus"
 )
 
 func TestCryptoEnvelopeDefaultValuesWithDefinedValue(t *testing.T) {
@@ -266,12 +269,10 @@ schemas:
       - data1
     encrypted:
       - column: data1
-        tokenized: true
+        token_type: int32
         searchable: true
 `,
-			//pseudonymization.ErrUnknownTokenType
-			// use new declared to avoid cycle import
-			errors.New("unknown token type")},
+			errors.New("invalid encryptor config")},
 
 		{"invalid token type",
 			`
@@ -1059,5 +1060,132 @@ schemas:
 		if err == nil {
 			t.Fatalf("[%s] expected error, found nil\n", tcase.name)
 		}
+	}
+}
+
+func TestDeprecateTokenized(t *testing.T) {
+	tokenTypes := []string{
+		"str", "email", "int64", "int32", "bytes",
+	}
+
+	for _, token := range tokenTypes {
+		config := fmt.Sprintf(`
+schemas:
+  - table: test_table
+    columns:
+      - data
+    encrypted:
+      - column: data
+        tokenized: true
+        token_type: %s
+`, token)
+		_, err := MapTableSchemaStoreFromConfig([]byte(config))
+		if err != nil {
+			t.Fatalf("[tokenize: true, token_type: %s] %s", token, err)
+		}
+
+		config = fmt.Sprintf(`
+schemas:
+  - table: test_table
+    columns:
+      - data
+    encrypted:
+      - column: data
+        token_type: %s
+`, token)
+		_, err = MapTableSchemaStoreFromConfig([]byte(config))
+		if err != nil {
+			t.Fatalf("[token_type: %s] %s", token, err)
+		}
+
+		config = fmt.Sprintf(`
+schemas:
+  - table: test_table
+    columns:
+      - data
+    encrypted:
+      - column: data
+        consistent_tokenization: true
+        token_type: %s
+`, token)
+		_, err = MapTableSchemaStoreFromConfig([]byte(config))
+		if err != nil {
+			t.Fatalf("[consistent_tokenization: true, token_type: %s] %s", token, err)
+		}
+	}
+}
+
+func TestInvalidTokenizationCombinations(t *testing.T) {
+	type testcase struct {
+		name   string
+		config string
+	}
+	testcases := []testcase{
+		{"Tokenized: false and token_type non empty",
+			`
+schemas:
+  - table: test_table
+    columns:
+      - data
+    encrypted:
+      - column: data
+        tokenized: false
+        token_type: str
+    `},
+		{"tokenized: true without token_type",
+			`
+schemas:
+  - table: test_table
+    columns:
+      - data
+    encrypted:
+      - column: data
+        tokenized: true
+  `},
+
+		{"tokenized: true with empty token_type",
+			`
+schemas:
+  - table: test_table
+    columns:
+      - data
+    encrypted:
+      - column: data
+        tokenized: true
+        token_type: ""
+  `},
+	}
+
+	for _, tcase := range testcases {
+		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config))
+
+		if err == nil {
+			t.Fatalf("[%s] expected error, found nil\n", tcase.name)
+		}
+	}
+}
+
+func TestTokenizedDeprecationWarning(t *testing.T) {
+	config := `
+    schemas:
+      - table: test_table
+        columns:
+          - data
+        encrypted:
+          - column: data
+            tokenized: true
+            token_type: str`
+
+	buff := bytes.NewBuffer([]byte{})
+	log.SetOutput(buff)
+	_, err := MapTableSchemaStoreFromConfig([]byte(config))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	output := buff.Bytes()
+	msg := "Setting `tokenized` flag is not necessary anymore and will be ignored"
+	if !bytes.Contains(output, []byte(msg)) {
+		t.Fatal("warning is not found but expected")
 	}
 }
