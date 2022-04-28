@@ -6472,6 +6472,26 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         self.checkDefaultIdEncryption(**context)
         self.assertEqual(rows[0]['searchable_acrablock'], search_term)
 
+    def testDeserializeOldContainerOnDecryptionFail(self):
+        acrastruct = create_acrastruct_with_client_id(b'somedata', TLS_CERT_CLIENT_ID_1)
+
+        context = self.get_context_data()
+        context['raw_data'] = acrastruct
+        search_term = context['searchable_acrablock']
+
+        # Insert searchable data and raw AcraStruct
+        self.insertRow(context)
+
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+                .where(self.encryptor_table.c.searchable_acrablock == sa.bindparam('searchable_acrablock')),
+            {'searchable_acrablock': search_term})
+        self.assertEqual(len(rows), 1)
+        self.checkDefaultIdEncryption(**context)
+
+        # AcraStruct should be as is - not serialized inside general container
+        self.assertEqual(rows[0]['raw_data'], acrastruct)
+
     def testSearchWithEncryptedData(self):
         context = self.get_context_data()
         not_encrypted_term = context['raw_data']

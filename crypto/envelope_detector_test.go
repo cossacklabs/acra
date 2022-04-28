@@ -103,21 +103,8 @@ func TestOldContainerDetectorWrapper(t *testing.T) {
 					t.Fatal("OnColumn error ", err)
 				}
 
-				if len(outBuffer) <= len(tcase.Data) {
-					t.Fatal("Invalid outBuffer length")
-				}
-
-				internal, envelopeID, err := DeserializeEncryptedData(outBuffer)
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				if envelopeID != tcase.envelopeID {
-					t.Fatal("invalid envelopeID - should be", tcase.envelopeID)
-				}
-
-				if !bytes.Equal(internal, tcase.Data) {
-					t.Fatal("deserialized internal container is not equals to initial data")
+				if len(outBuffer) != len(tcase.Data) {
+					t.Fatal("Invalid outBuffer length - outBuffer should be the same")
 				}
 			}
 		})
