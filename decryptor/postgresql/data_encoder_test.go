@@ -181,7 +181,7 @@ func TestTextMode(t *testing.T) {
 		{input: []byte("\\xTT"), decodedData: []byte("\\xTT"), encodedData: []byte("\\xTT"), decodeErr: hex.InvalidByteError('T'), encodeErr: nil,
 			setting: &config.BasicColumnEncryptionSetting{DataType: "str"}},
 
-		// invalid binary hex value that should be returned as is. Also encoded into hex due to invalid hex value
+		// invalid binary hex value that should not be decoded on Decode stage and processed as is and encode into hex format
 		{input: []byte("\\xTT"), decodedData: []byte("\\xTT"), encodedData: []byte("\\x5c785454"), decodeErr: hex.InvalidByteError('T'), encodeErr: nil,
 			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes"}},
 
@@ -295,7 +295,7 @@ func TestBinaryMode(t *testing.T) {
 			},
 		},
 
-		// invalid binary hex value that should be returned as is. Also encoded into hex due to invalid hex value
+		// invalid binary hex value that should not be decoded on Decode stage and processed as is and encode into hex format
 		{input: []byte("\\xTT"), decodedData: []byte("\\xTT"), encodedData: []byte("\\xTT"), decodeErr: nil, encodeErr: nil,
 			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes"}},
 		// printable valid value returned as is

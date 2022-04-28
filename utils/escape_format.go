@@ -29,7 +29,6 @@ func IsPrintableEscapeChar(c byte) bool {
 }
 
 // IsPrintablePostgresqlString returns true if it's valid utf8 string
-// except '\' character that used as escape character in strings
 func IsPrintablePostgresqlString(data []byte) bool {
 	if len(data) == 0 {
 		return true
