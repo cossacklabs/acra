@@ -34,8 +34,5 @@ func IsPrintablePostgresqlString(data []byte) bool {
 	if len(data) == 0 {
 		return true
 	}
-	if !utf8.Valid(data) {
-		return false
-	}
-	return true
+	return utf8.Valid(data)
 }
