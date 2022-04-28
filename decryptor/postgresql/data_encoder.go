@@ -83,15 +83,14 @@ func (p *PgSQLDataEncoderProcessor) encodeToValue(ctx context.Context, data []by
 	}
 	// here we process AcraStruct/AcraBlock decryption without any encryptor config that defines data_type/token_type
 	// values. If it was decrypted then we return it as valid bytea value
-	// If it wasn't decrypted (due to inappropriate keys or not AcraStructs as payload) then we return it in same way
-	// as it come to us.
 	if base.IsDecryptedFromContext(ctx) {
 		return ctx, &byteSequenceValue{seq: data}, nil
-	} else {
-		encodedValue, ok := getEncodedValueFromContext(ctx)
-		if ok {
-			return ctx, &identityValue{encodedValue}, nil
-		}
+	}
+	// If it wasn't decrypted (due to inappropriate keys or not AcraStructs as payload) then we return it in same way
+	// as it come to us.
+	encodedValue, ok := getEncodedValueFromContext(ctx)
+	if ok {
+		return ctx, &identityValue{encodedValue}, nil
 	}
 	return ctx, &identityValue{data}, nil
 }
