@@ -777,6 +777,13 @@ func (tkn *Tokenizer) scanLiteralIdentifier() (int, []byte) {
 	if buffer.Len() == 0 {
 		return LEX_ERROR, buffer.Bytes()
 	}
+
+	// Double-quoted identifiers in PostgreSQL are case-sensitive.
+	// We need to remember which identifiers were wrapped with quotes so the query
+	// can be properly recreated later from the AST using .Format() method.
+	if quoteSeen && tkn.IsPostgreSQL() {
+		return DOUBLE_QUOTE_STRING, buffer.Bytes()
+	}
 	return ID, buffer.Bytes()
 }
 
