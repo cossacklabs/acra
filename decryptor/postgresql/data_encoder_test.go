@@ -3,6 +3,7 @@ package postgresql
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -144,6 +145,8 @@ func TestTextMode(t *testing.T) {
 		logMessage  string
 	}
 	strDefaultValue := "123"
+	const stringWithControlCharacters = "#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_'\"`abc"
+	encodedStringWithControlCharacters := "\\x" + hex.EncodeToString([]byte("#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_'\"`abc"))
 	testcases := []testcase{
 		// decoder expects valid string and pass as is, so no errors. but on encode operation it expects valid int literal
 		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte("some data"),
@@ -174,12 +177,26 @@ func TestTextMode(t *testing.T) {
 			},
 		},
 
-		// invalid binary hex value that should be returned as is. Also encoded into hex due to invalid hex value
-		{input: []byte("\\xTT"), decodedData: []byte("\\xTT"), encodedData: []byte("\\x5c785454"), decodeErr: nil, encodeErr: nil,
+		// string values can contain hex values and should be returned as is
+		{input: []byte("\\xTT"), decodedData: []byte("\\xTT"), encodedData: []byte("\\xTT"), decodeErr: hex.InvalidByteError('T'), encodeErr: nil,
+			setting: &config.BasicColumnEncryptionSetting{DataType: "str"}},
+
+		// invalid binary hex value that should not be decoded on Decode stage and processed as is and encode into hex format
+		{input: []byte("\\xTT"), decodedData: []byte("\\xTT"), encodedData: []byte("\\x5c785454"), decodeErr: hex.InvalidByteError('T'), encodeErr: nil,
 			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes"}},
-		// printable valid value returned as is
-		{input: []byte("valid string"), decodedData: []byte("valid string"), encodedData: []byte("valid string"), decodeErr: nil, encodeErr: nil,
+
+		{input: []byte(encodedStringWithControlCharacters), decodedData: []byte(stringWithControlCharacters), encodedData: []byte(encodedStringWithControlCharacters), decodeErr: nil, encodeErr: nil,
 			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes"}},
+
+		{input: []byte(stringWithControlCharacters), decodedData: []byte(stringWithControlCharacters), encodedData: []byte(stringWithControlCharacters), decodeErr: nil, encodeErr: nil,
+			setting: nil},
+		{input: []byte(encodedStringWithControlCharacters), decodedData: []byte(stringWithControlCharacters), encodedData: []byte(stringWithControlCharacters), decodeErr: nil, encodeErr: nil,
+			setting: nil},
+		{input: []byte(stringWithControlCharacters), decodedData: []byte(stringWithControlCharacters), encodedData: []byte(stringWithControlCharacters), decodeErr: nil, encodeErr: nil,
+			setting: &config.BasicColumnEncryptionSetting{DataType: ""}},
+		{input: []byte(encodedStringWithControlCharacters), decodedData: []byte(stringWithControlCharacters), encodedData: []byte(stringWithControlCharacters), decodeErr: nil, encodeErr: nil,
+			setting: &config.BasicColumnEncryptionSetting{DataType: ""}},
+
 		{input: []byte("valid string"), decodedData: []byte("valid string"), encodedData: []byte("valid string"), decodeErr: nil, encodeErr: nil,
 			setting: &config.BasicColumnEncryptionSetting{DataType: "str"}},
 
@@ -210,9 +227,6 @@ func TestTextMode(t *testing.T) {
 		logBuffer.Reset()
 		ctx = encryptor.NewContextWithEncryptionSetting(ctx, tcase.setting)
 		_, decodedData, decodeErr := decoder.OnColumn(ctx, tcase.input)
-		if err != nil {
-			t.Fatal(err)
-		}
 		if decodeErr != tcase.decodeErr {
 			t.Fatalf("[%d] Incorrect decode error. Expect %s, took %s\n", i, tcase.decodeErr, decodeErr)
 		}
@@ -224,7 +238,7 @@ func TestTextMode(t *testing.T) {
 			t.Fatalf("[%d] Incorrect encode error. Expect %s, took %s\n", i, tcase.encodeErr.Error(), encodeErr.Error())
 		}
 		if !bytes.Equal(encodedData, tcase.encodedData) {
-			t.Fatalf("[%d] Result data should be the same\n", i)
+			t.Fatalf("[%d] Result data should be the same. Expect %s, took %s.\n", i, string(tcase.encodedData), string(encodedData))
 		}
 		if len(tcase.logMessage) > 0 && !strings.Contains(logBuffer.String(), tcase.logMessage) {
 			t.Fatal("Log buffer doesn't contain expected message")
@@ -281,7 +295,7 @@ func TestBinaryMode(t *testing.T) {
 			},
 		},
 
-		// invalid binary hex value that should be returned as is. Also encoded into hex due to invalid hex value
+		// invalid binary hex value that should not be decoded on Decode stage and processed as is and encode into hex format
 		{input: []byte("\\xTT"), decodedData: []byte("\\xTT"), encodedData: []byte("\\xTT"), decodeErr: nil, encodeErr: nil,
 			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes"}},
 		// printable valid value returned as is
@@ -332,7 +346,7 @@ func TestBinaryMode(t *testing.T) {
 	}
 }
 
-func TestEncodingDecodingTextFormat(t *testing.T) {
+func TestEncodingDecodingTextFormatWithTokenType(t *testing.T) {
 	encoder, err := NewPgSQLDataEncoderProcessor()
 	if err != nil {
 		t.Fatal(err)
@@ -349,9 +363,28 @@ func TestEncodingDecodingTextFormat(t *testing.T) {
 	}
 	testcases := []testcase{
 		{inputValue: []byte(`valid string`), outputValue: []byte(`valid string`), binValue: []byte(`valid string`), tokenType: common.TokenType_String},
+		// string values should be left as is
+		{inputValue: []byte{0, 1, 2, 3}, outputValue: []byte{0, 1, 2, 3}, binValue: []byte{0, 1, 2, 3}, tokenType: common.TokenType_String},
+		// valid string with newline\tab characters should be encoded as is
+		{
+			inputValue:  []byte("\n\t#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abc"),
+			outputValue: []byte("\n\t#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abc"),
+			binValue:    []byte("\n\t#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abc"),
+			tokenType:   common.TokenType_String},
+		// same for email
 		{inputValue: []byte(`valid string`), outputValue: []byte(`valid string`), binValue: []byte(`valid string`), tokenType: common.TokenType_Email},
+		// string values should be left as is
+		{inputValue: []byte{0, 1, 2, 3}, outputValue: []byte{0, 1, 2, 3}, binValue: []byte{0, 1, 2, 3}, tokenType: common.TokenType_Email},
+		// valid string with newline\tab characters should be encoded as is
+		{
+			inputValue:  []byte("\n\t#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abc"),
+			outputValue: []byte("\n\t#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abc"),
+			binValue:    []byte("\n\t#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abc"),
+			tokenType:   common.TokenType_Email},
+
 		// input hex encoded value that looks like a valid string should be returned as string literal
-		{inputValue: []byte(`\x76616c696420737472696e67`), outputValue: []byte(`valid string`), binValue: []byte(`valid string`), tokenType: common.TokenType_Bytes},
+		{inputValue: []byte(`\x76616c696420737472696e67`), outputValue: []byte(`\x76616c696420737472696e67`), binValue: []byte(`valid string`), tokenType: common.TokenType_Bytes},
+		{inputValue: []byte(`\x00010203`), outputValue: []byte(`\x00010203`), binValue: []byte{0, 1, 2, 3}, tokenType: common.TokenType_Bytes},
 
 		// max int32
 		{inputValue: []byte(`2147483647`), outputValue: []byte(`2147483647`), binValue: []byte(`2147483647`), tokenType: common.TokenType_Int32},
@@ -366,14 +399,18 @@ func TestEncodingDecodingTextFormat(t *testing.T) {
 	accessContext.SetColumnInfo(columnInfo)
 	ctx := base.SetAccessContextToContext(context.Background(), accessContext)
 	envelopeValue := config.CryptoEnvelopeTypeAcraBlock
+	reencryptToAcraBlock := true
 	// assign value with pointer and change value in the loop below
-	testSetting := config.BasicColumnEncryptionSetting{CryptoEnvelope: &envelopeValue}
-	ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
 	for i, tcase := range testcases {
 		columnInfo = base.NewColumnInfo(0, "", false, len(tcase.inputValue), 0, 0)
 		accessContext.SetColumnInfo(columnInfo)
+		testSetting := config.BasicColumnEncryptionSetting{CryptoEnvelope: &envelopeValue, Name: "name", ReEncryptToAcraBlock: &reencryptToAcraBlock}
+		ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
 		testSetting.TokenType, err = tcase.tokenType.ToConfigString()
 		if err != nil {
+			t.Fatal(err)
+		}
+		if err := testSetting.Init(); err != nil {
 			t.Fatal(err)
 		}
 		_, binValue, err := decoder.OnColumn(ctx, tcase.inputValue)
@@ -581,16 +618,17 @@ func TestEmptyOnFail(t *testing.T) {
 	type testcase struct {
 		input    string
 		dataType string
+		output   string
 	}
 
 	testcases := []testcase{
 		// we don't mark context as decrypted, to trigger
 		// `OnFail` path
-		{"string", "str"},
-		{"bytes", "bytes"},
-		{"invalid_int_32", "int32"},
-		{"invalid_int_64", "int64"},
-		{"unknown_type", "bees"},
+		{"string", "str", "string"},
+		{"bytes", "bytes", "\\x6279746573"},
+		{"invalid_int_32", "int32", "invalid_int_32"},
+		{"invalid_int_64", "int64", "invalid_int_64"},
+		{"unknown_type", "bees", "unknown_type"},
 	}
 
 	encoder, err := NewPgSQLDataEncoderProcessor()
@@ -615,7 +653,7 @@ func TestEmptyOnFail(t *testing.T) {
 		if err != nil {
 			t.Fatalf("[%s] %q", tcase.input, err)
 		}
-		if !bytes.Equal(output, []byte(tcase.input)) {
+		if !bytes.Equal(output, []byte(tcase.output)) {
 			t.Fatalf("[%s] expected output=%q, but found %q", tcase.input, tcase.input, output)
 		}
 
@@ -629,6 +667,7 @@ func TestEmptyOnFail(t *testing.T) {
 		if err != nil {
 			t.Fatalf("[%s] %q", tcase.input, err)
 		}
+		// in binary format expect value as is
 		if !bytes.Equal(output, []byte(tcase.input)) {
 			t.Fatalf("[%s] expected output=%q, but found %q", tcase.input, tcase.input, output)
 		}
@@ -641,16 +680,17 @@ func TestCiphertextOnFail(t *testing.T) {
 	type testcase struct {
 		input    string
 		dataType string
+		output   string
 	}
 
 	testcases := []testcase{
 		// we don't mark context as decrypted, to trigger
 		// `OnFail` path
-		{"string", "str"},
-		{"bytes", "bytes"},
-		{"invalid_int_32", "int32"},
-		{"invalid_int_64", "int64"},
-		{"unknown_type", "bees"},
+		{"string", "str", "string"},
+		{"bytes", "bytes", "\\x6279746573"},
+		{"invalid_int_32", "int32", "invalid_int_32"},
+		{"invalid_int_64", "int64", "invalid_int_64"},
+		{"unknown_type", "bees", "unknown_type"},
 	}
 
 	encoder, err := NewPgSQLDataEncoderProcessor()
@@ -675,8 +715,8 @@ func TestCiphertextOnFail(t *testing.T) {
 		if err != nil {
 			t.Fatalf("[%s] %q", tcase.input, err)
 		}
-		if !bytes.Equal(output, []byte(tcase.input)) {
-			t.Fatalf("[%s] expected output=%q, but found %q", tcase.input, tcase.input, output)
+		if !bytes.Equal(output, []byte(tcase.output)) {
+			t.Fatalf("[%s] expected output=%q, but found %q", tcase.input, tcase.output, output)
 		}
 
 		// Binary format
@@ -689,6 +729,7 @@ func TestCiphertextOnFail(t *testing.T) {
 		if err != nil {
 			t.Fatalf("[%s] %q", tcase.input, err)
 		}
+		// binary format expects as is
 		if !bytes.Equal(output, []byte(tcase.input)) {
 			t.Fatalf("[%s] expected output=%q, but found %q", tcase.input, tcase.input, output)
 		}
@@ -729,7 +770,7 @@ func TestDefaultOnFail(t *testing.T) {
 			dataType:      "bytes",
 			defaultValue:  "",
 			markDecrypted: true,
-			textOutput:    []byte("bytes_decrypted"),
+			textOutput:    []byte("\\x62797465735f646563727970746564"),
 			binaryOutput:  []byte("bytes_decrypted"),
 		},
 
@@ -738,7 +779,7 @@ func TestDefaultOnFail(t *testing.T) {
 			dataType:      "bytes",
 			defaultValue:  "Y29zc2Fja2xhYnM=",
 			markDecrypted: false,
-			textOutput:    []byte("cossacklabs"),
+			textOutput:    []byte("\\x636f737361636b6c616273"),
 			binaryOutput:  []byte("cossacklabs"),
 		},
 
@@ -747,7 +788,7 @@ func TestDefaultOnFail(t *testing.T) {
 			dataType:      "bytes",
 			defaultValue:  "добрий вечір",
 			markDecrypted: false,
-			textOutput:    []byte("bytes_not_decrypted_parse_error"),
+			textOutput:    []byte("\\x62797465735f6e6f745f6465637279707465645f70617273655f6572726f72"),
 			binaryOutput:  []byte("bytes_not_decrypted_parse_error"),
 		},
 
@@ -828,8 +869,10 @@ func TestDefaultOnFail(t *testing.T) {
 			dataType:      "some unknown type",
 			defaultValue:  "",
 			markDecrypted: true,
-			textOutput:    []byte("unknown_decrypted"),
-			binaryOutput:  []byte("unknown_decrypted"),
+			// returns encoded value due to base feature of Acra is decryption AcraStructs/AcraBlocks even without config
+			// due to existing acrawriter that allows to encrypt data on app's side
+			textOutput:   []byte("\\x756e6b6e6f776e5f646563727970746564"),
+			binaryOutput: []byte("unknown_decrypted"),
 		},
 
 		{
