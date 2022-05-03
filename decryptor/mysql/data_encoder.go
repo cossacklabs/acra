@@ -72,14 +72,14 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 		return ctx, base.PutLengthEncodedString(data), nil
 	}
 
-	dataTypeEncoded, isEncoded, err := p.encodeBinaryWithDataType(ctx, data, setting, logger)
+	encodingValue, err := p.encodeValueWithDataType(ctx, data, setting, logger)
 	if err != nil && err != ErrConvertToDataType {
 		return nil, nil, err
 	}
 
 	// in case of successful encoding with defined data type return encoded data
-	if isEncoded {
-		return ctx, dataTypeEncoded, nil
+	if encodingValue != nil {
+		return ctx, encodingValue.AsMysqlBinary(), nil
 	}
 
 	var columnType = columnInfo.DataBinaryType()
@@ -156,107 +156,44 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 	return ctx, base.PutLengthEncodedString(data), nil
 }
 
-func (p *BaseMySQLDataProcessor) encodeBinaryWithDataType(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, logger *logrus.Entry) ([]byte, bool, error) {
-	switch setting.GetEncryptedDataType() {
-	case common.EncryptedType_Bytes:
+func (p *BaseMySQLDataProcessor) encodeValueWithDataType(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, logger *logrus.Entry) (base.EncodingValue, error) {
+	dataType := setting.GetEncryptedDataType()
+	switch dataType {
+	case common.EncryptedType_String, common.EncryptedType_Bytes:
 		if !base.IsDecryptedFromContext(ctx) {
 			value, err := base.EncodeOnFail(setting, logger)
 			if err != nil {
-				return data, false, err
+				return nil, err
 			} else if value != nil {
-				return value.AsMysqlBinary(), true, nil
+				return value, nil
 			}
-			return data, false, ErrConvertToDataType
+			return nil, ErrConvertToDataType
 		}
-		return data, false, nil
-	case common.EncryptedType_String:
-		if !base.IsDecryptedFromContext(ctx) {
-			value, err := base.EncodeOnFail(setting, logger)
-			if err != nil {
-				return data, false, err
-			} else if value != nil {
-				return value.AsMysqlBinary(), true, nil
-			}
-			return data, false, ErrConvertToDataType
-		}
-		return data, false, nil
-	case common.EncryptedType_Int32:
-		encoded := make([]byte, 4)
-		intValue, err := strconv.ParseInt(utils.BytesToString(data), 10, 32)
-		if err != nil {
-			value, err := base.EncodeOnFail(setting, logger)
-			if err != nil {
-				return data, false, err
-			} else if value != nil {
-				return value.AsMysqlBinary(), true, nil
-			}
-			return data, false, ErrConvertToDataType
-		}
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int32(intValue))
-		return encoded, true, err
-
-	case common.EncryptedType_Int64:
-		encoded := make([]byte, 8)
-		intValue, err := strconv.ParseInt(utils.BytesToString(data), 10, 64)
-		if err != nil {
-			value, err := base.EncodeOnFail(setting, logger)
-			if err != nil {
-				return data, false, err
-			} else if value != nil {
-				return value.AsMysqlBinary(), true, nil
-			}
-			return data, false, ErrConvertToDataType
-		}
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, intValue)
-		return encoded, true, err
-	}
-
-	return data, false, nil
-}
-
-func (p *BaseMySQLDataProcessor) encodeTextWithDataType(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, logger *logrus.Entry) ([]byte, bool, error) {
-	switch setting.GetEncryptedDataType() {
-	case common.EncryptedType_String:
-		if !base.IsDecryptedFromContext(ctx) {
-			value, err := base.EncodeOnFail(setting, logger)
-			if err != nil {
-				return data, false, err
-			} else if value != nil {
-				return value.AsMysqlText(), true, nil
-			}
-			return data, false, ErrConvertToDataType
-		}
-		return data, false, nil
-	case common.EncryptedType_Bytes:
-		if !base.IsDecryptedFromContext(ctx) {
-			value, err := base.EncodeOnFail(setting, logger)
-			if err != nil {
-				return data, false, err
-			} else if value != nil {
-				return value.AsMysqlText(), true, nil
-			}
-			return data, false, ErrConvertToDataType
-		}
-		return data, false, nil
+		return nil, nil
 	case common.EncryptedType_Int32, common.EncryptedType_Int64:
-		_, err := strconv.ParseInt(utils.BytesToString(data), 10, 64)
+		strValue := utils.BytesToString(data)
+		intValue, err := strconv.ParseInt(strValue, 10, 64)
 		// if it's valid string literal and decrypted, return as is
 		if err == nil {
-			return base.PutLengthEncodedString(data), true, nil
+			size := 4
+			if dataType == common.EncryptedType_Int64 {
+				size = 8
+			}
+			return base.NewIntValue(size, intValue, strValue), nil
 		}
 		// if it's encrypted binary, then it is binary array that is invalid int literal
 		if !base.IsDecryptedFromContext(ctx) {
 			value, err := base.EncodeOnFail(setting, logger)
 			if err != nil {
-				return data, false, err
+				return nil, err
 			} else if value != nil {
-				return value.AsMysqlText(), true, nil
+				return value, nil
 			}
-			return data, false, ErrConvertToDataType
+			return nil, ErrConvertToDataType
 		}
 	}
 
-	return data, false, nil
+	return nil, nil
 }
 
 func (p *BaseMySQLDataProcessor) encodeText(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
@@ -267,14 +204,14 @@ func (p *BaseMySQLDataProcessor) encodeText(ctx context.Context, data []byte, se
 		return ctx, base.PutLengthEncodedString(data), nil
 	}
 
-	dataTypeEncoded, isEncoded, err := p.encodeTextWithDataType(ctx, data, setting, logger)
+	encodingValue, err := p.encodeValueWithDataType(ctx, data, setting, logger)
 	if err != nil && err != ErrConvertToDataType {
 		return nil, nil, err
 	}
 
 	// in case of successful encoding with defined data type return encoded data
-	if isEncoded {
-		return ctx, dataTypeEncoded, nil
+	if encodingValue != nil {
+		return ctx, encodingValue.AsMysqlText(), nil
 	}
 
 	// in case of error on converting to defined type we should roll back field type and encode it as it was originally
