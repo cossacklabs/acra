@@ -3,7 +3,6 @@ package mysql
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"strconv"
@@ -73,7 +72,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 		return ctx, base.PutLengthEncodedString(data), nil
 	}
 
-	dataTypeEncoded, isEncoded, err := p.encodeBinaryWithDataType(ctx, data, setting)
+	dataTypeEncoded, isEncoded, err := p.encodeBinaryWithDataType(ctx, data, setting, logger)
 	if err != nil && err != ErrConvertToDataType {
 		return nil, nil, err
 	}
@@ -157,24 +156,26 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 	return ctx, base.PutLengthEncodedString(data), nil
 }
 
-func (p *BaseMySQLDataProcessor) encodeBinaryWithDataType(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting) ([]byte, bool, error) {
+func (p *BaseMySQLDataProcessor) encodeBinaryWithDataType(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, logger *logrus.Entry) ([]byte, bool, error) {
 	switch setting.GetEncryptedDataType() {
 	case common.EncryptedType_Bytes:
 		if !base.IsDecryptedFromContext(ctx) {
-			if newValue := setting.GetDefaultDataValue(); newValue != nil {
-				binValue, err := base64.StdEncoding.DecodeString(*newValue)
-				if err != nil {
-					return data, false, err
-				}
-				return base.PutLengthEncodedString(binValue), true, nil
+			value, err := base.EncodeOnFail(setting, logger)
+			if err != nil {
+				return data, false, err
+			} else if value != nil {
+				return value.AsMysqlBinary(), true, nil
 			}
 			return data, false, ErrConvertToDataType
 		}
 		return data, false, nil
 	case common.EncryptedType_String:
 		if !base.IsDecryptedFromContext(ctx) {
-			if value := setting.GetDefaultDataValue(); value != nil {
-				return base.PutLengthEncodedString([]byte(*value)), true, nil
+			value, err := base.EncodeOnFail(setting, logger)
+			if err != nil {
+				return data, false, err
+			} else if value != nil {
+				return value.AsMysqlBinary(), true, nil
 			}
 			return data, false, ErrConvertToDataType
 		}
@@ -183,14 +184,13 @@ func (p *BaseMySQLDataProcessor) encodeBinaryWithDataType(ctx context.Context, d
 		encoded := make([]byte, 4)
 		intValue, err := strconv.ParseInt(utils.BytesToString(data), 10, 32)
 		if err != nil {
-			if newVal := setting.GetDefaultDataValue(); newVal != nil {
-				intValue, err = strconv.ParseInt(*newVal, 10, 32)
-				if err != nil {
-					return data, false, ErrConvertToDataType
-				}
-			} else {
-				return data, false, ErrConvertToDataType
+			value, err := base.EncodeOnFail(setting, logger)
+			if err != nil {
+				return data, false, err
+			} else if value != nil {
+				return value.AsMysqlBinary(), true, nil
 			}
+			return data, false, ErrConvertToDataType
 		}
 		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int32(intValue))
 		return encoded, true, err
@@ -199,14 +199,13 @@ func (p *BaseMySQLDataProcessor) encodeBinaryWithDataType(ctx context.Context, d
 		encoded := make([]byte, 8)
 		intValue, err := strconv.ParseInt(utils.BytesToString(data), 10, 64)
 		if err != nil {
-			if newVal := setting.GetDefaultDataValue(); newVal != nil {
-				intValue, err = strconv.ParseInt(*newVal, 10, 64)
-				if err != nil {
-					return data, false, ErrConvertToDataType
-				}
-			} else {
-				return data, false, ErrConvertToDataType
+			value, err := base.EncodeOnFail(setting, logger)
+			if err != nil {
+				return data, false, err
+			} else if value != nil {
+				return value.AsMysqlBinary(), true, nil
 			}
+			return data, false, ErrConvertToDataType
 		}
 		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, intValue)
 		return encoded, true, err

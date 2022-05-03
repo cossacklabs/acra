@@ -48,6 +48,8 @@ type EncodingValue interface {
 	// AsPostgresText returns value encoded in postgres text format
 	AsPostgresText() []byte
 
+	// AsMysqlBinary returns value encoded in mysql binary format
+	AsMysqlBinary() []byte
 	// AsMysqlText returns value encoded in mysql text format
 	AsMysqlText() []byte
 }
@@ -74,6 +76,13 @@ func (v *ByteSequenceValue) AsPostgresBinary() []byte {
 func (v *ByteSequenceValue) AsPostgresText() []byte {
 	// all bytes should be encoded as valid bytea value
 	return utils.PgEncodeToHex(v.seq)
+}
+
+// AsMysqlBinary returns value encoded in mysql binary format
+// For a byte sequence value (string or []byte) this is the same as text
+// encoding
+func (v *ByteSequenceValue) AsMysqlBinary() []byte {
+	return v.AsMysqlText()
 }
 
 // AsMysqlText returns value encoded in mysql text format
@@ -113,6 +122,19 @@ func (v *IntValue) AsPostgresText() []byte {
 	return []byte(v.strValue)
 }
 
+// AsMysqlBinary returns value encoded in mysql binary format
+// For an int value it is a little endian encoded integer
+func (v *IntValue) AsMysqlBinary() []byte {
+	newData := make([]byte, v.size)
+	switch v.size {
+	case 4:
+		binary.LittleEndian.PutUint32(newData, uint32(v.value))
+	case 8:
+		binary.LittleEndian.PutUint64(newData, uint64(v.value))
+	}
+	return newData
+}
+
 // AsMysqlText returns value encoded in mysql text format
 // For an int this is a length encoded string of that integer
 func (v *IntValue) AsMysqlText() []byte {
@@ -138,6 +160,12 @@ func (v *IdentityValue) AsPostgresBinary() []byte {
 // AsPostgresText returns value encoded in postgres text format
 // For identity value this means returning value as it is
 func (v *IdentityValue) AsPostgresText() []byte {
+	return v.data
+}
+
+// AsMysqlBinary returns value encoded in mysql binary format
+// For identity value this means returning value as it is
+func (v *IdentityValue) AsMysqlBinary() []byte {
 	return v.data
 }
 
