@@ -112,7 +112,7 @@ func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType Typ
 	// if we cant find amount of stored bytes for the paramType assume that it is length encoded string
 	storageBytes, ok := NumericTypesStorageBytes[paramType]
 	if !ok {
-		value, n, err := LengthEncodedString(data)
+		value, n, err := base.LengthEncodedString(data)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -226,7 +226,7 @@ func (m *mysqlBoundValue) GetData(_ config.ColumnEncryptionSetting) ([]byte, err
 func (m *mysqlBoundValue) Encode() (encoded []byte, err error) {
 	storageBytes, ok := NumericTypesStorageBytes[m.paramType]
 	if !ok {
-		return PutLengthEncodedString(m.data), nil
+		return base.PutLengthEncodedString(m.data), nil
 	}
 	// separate error variable for output error from case statements
 	// to not overlap with new err variables inside

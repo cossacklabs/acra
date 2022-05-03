@@ -14,13 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package mysql
+package base
 
 import (
 	"errors"
+	"io"
+
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
-	"io"
 )
 
 // ErrMalformPacket if packet parsing failed

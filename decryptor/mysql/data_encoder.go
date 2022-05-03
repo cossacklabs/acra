@@ -6,8 +6,9 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
-	"github.com/cossacklabs/acra/utils"
 	"strconv"
+
+	"github.com/cossacklabs/acra/utils"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
@@ -69,7 +70,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 
 	if len(data) == 0 {
 		// we still need to encode result data as it might be null field in db
-		return ctx, PutLengthEncodedString(data), nil
+		return ctx, base.PutLengthEncodedString(data), nil
 	}
 
 	dataTypeEncoded, isEncoded, err := p.encodeBinaryWithDataType(ctx, data, setting)
@@ -153,7 +154,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 		return ctx, encoded, err
 	}
 
-	return ctx, PutLengthEncodedString(data), nil
+	return ctx, base.PutLengthEncodedString(data), nil
 }
 
 func (p *BaseMySQLDataProcessor) encodeBinaryWithDataType(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting) ([]byte, bool, error) {
@@ -165,7 +166,7 @@ func (p *BaseMySQLDataProcessor) encodeBinaryWithDataType(ctx context.Context, d
 				if err != nil {
 					return data, false, err
 				}
-				return PutLengthEncodedString(binValue), true, nil
+				return base.PutLengthEncodedString(binValue), true, nil
 			}
 			return data, false, ErrConvertToDataType
 		}
@@ -173,7 +174,7 @@ func (p *BaseMySQLDataProcessor) encodeBinaryWithDataType(ctx context.Context, d
 	case common.EncryptedType_String:
 		if !base.IsDecryptedFromContext(ctx) {
 			if value := setting.GetDefaultDataValue(); value != nil {
-				return PutLengthEncodedString([]byte(*value)), true, nil
+				return base.PutLengthEncodedString([]byte(*value)), true, nil
 			}
 			return data, false, ErrConvertToDataType
 		}
@@ -219,7 +220,7 @@ func (p *BaseMySQLDataProcessor) encodeTextWithDataType(ctx context.Context, dat
 	case common.EncryptedType_String:
 		if !base.IsDecryptedFromContext(ctx) {
 			if value := setting.GetDefaultDataValue(); value != nil {
-				return PutLengthEncodedString([]byte(*value)), true, nil
+				return base.PutLengthEncodedString([]byte(*value)), true, nil
 			}
 			return data, false, ErrConvertToDataType
 		}
@@ -231,7 +232,7 @@ func (p *BaseMySQLDataProcessor) encodeTextWithDataType(ctx context.Context, dat
 				if err != nil {
 					return nil, false, err
 				}
-				return PutLengthEncodedString(binValue), true, nil
+				return base.PutLengthEncodedString(binValue), true, nil
 			}
 			return data, false, ErrConvertToDataType
 		}
@@ -240,12 +241,12 @@ func (p *BaseMySQLDataProcessor) encodeTextWithDataType(ctx context.Context, dat
 		_, err := strconv.ParseInt(utils.BytesToString(data), 10, 64)
 		// if it's valid string literal and decrypted, return as is
 		if err == nil {
-			return PutLengthEncodedString(data), true, nil
+			return base.PutLengthEncodedString(data), true, nil
 		}
 		// if it's encrypted binary, then it is binary array that is invalid int literal
 		if !base.IsDecryptedFromContext(ctx) {
 			if newVal := setting.GetDefaultDataValue(); newVal != nil {
-				return PutLengthEncodedString([]byte(*newVal)), true, nil
+				return base.PutLengthEncodedString([]byte(*newVal)), true, nil
 			}
 			return data, false, ErrConvertToDataType
 		}
@@ -259,7 +260,7 @@ func (p *BaseMySQLDataProcessor) encodeText(ctx context.Context, data []byte, se
 	logger.Debugln("Encode text")
 	if len(data) == 0 {
 		// we still need to encode result data as it might be null field in db
-		return ctx, PutLengthEncodedString(data), nil
+		return ctx, base.PutLengthEncodedString(data), nil
 	}
 
 	dataTypeEncoded, isEncoded, err := p.encodeTextWithDataType(ctx, data, setting)
@@ -277,7 +278,7 @@ func (p *BaseMySQLDataProcessor) encodeText(ctx context.Context, data []byte, se
 		ctx = base.MarkErrorConvertedDataTypeContext(ctx)
 	}
 
-	return ctx, PutLengthEncodedString(data), nil
+	return ctx, base.PutLengthEncodedString(data), nil
 }
 
 func (p *BaseMySQLDataProcessor) decodeBinary(ctx context.Context, encoded []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
