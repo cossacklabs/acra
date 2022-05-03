@@ -166,13 +166,13 @@ func (v *IdentityValue) AsPostgresText() []byte {
 // AsMysqlBinary returns value encoded in mysql binary format
 // For identity value this means returning value as it is
 func (v *IdentityValue) AsMysqlBinary() []byte {
-	return v.data
+	return PutLengthEncodedString(v.data)
 }
 
 // AsMysqlText returns value encoded in mysql text format
 // For identity value this means returning value as it is
 func (v *IdentityValue) AsMysqlText() []byte {
-	return v.data
+	return PutLengthEncodedString(v.data)
 }
 
 // EncodeDefault returns wrapped default value from settings ready for encoding
