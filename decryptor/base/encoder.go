@@ -141,37 +141,37 @@ func (v *IntValue) AsMysqlText() []byte {
 	return PutLengthEncodedString([]byte(v.strValue))
 }
 
-// IdentityValue is an encodingValue that just returns data as is
-type IdentityValue struct {
+// StringValue is an EncodingValue that encodes data into string format
+type StringValue struct {
 	data []byte
 }
 
-// NewIdentityValue returns EncodingValue as identity value
-func NewIdentityValue(data []byte) EncodingValue {
-	return &IdentityValue{data}
+// NewStringValue returns string EncodingValue
+func NewStringValue(data []byte) EncodingValue {
+	return &StringValue{data}
 }
 
 // AsPostgresBinary returns value encoded in postgres binary format
-// For identity value this means returning value as it is
-func (v *IdentityValue) AsPostgresBinary() []byte {
+// In other words, it returns data as it is
+func (v *StringValue) AsPostgresBinary() []byte {
 	return v.data
 }
 
 // AsPostgresText returns value encoded in postgres text format
-// For identity value this means returning value as it is
-func (v *IdentityValue) AsPostgresText() []byte {
+// In other words, it returns data as it is
+func (v *StringValue) AsPostgresText() []byte {
 	return v.data
 }
 
 // AsMysqlBinary returns value encoded in mysql binary format
-// For identity value this means returning value as it is
-func (v *IdentityValue) AsMysqlBinary() []byte {
+// In other words, it encodes data into length encoded string
+func (v *StringValue) AsMysqlBinary() []byte {
 	return PutLengthEncodedString(v.data)
 }
 
 // AsMysqlText returns value encoded in mysql text format
-// For identity value this means returning value as it is
-func (v *IdentityValue) AsMysqlText() []byte {
+// In other words, it encodes data into length encoded string
+func (v *StringValue) AsMysqlText() []byte {
 	return PutLengthEncodedString(v.data)
 }
 
@@ -189,7 +189,7 @@ func EncodeDefault(setting config.ColumnEncryptionSetting, logger *logrus.Entry)
 
 	switch dataType {
 	case common.EncryptedType_String:
-		return &IdentityValue{[]byte(*strValue)}
+		return NewStringValue([]byte(*strValue))
 	case common.EncryptedType_Bytes:
 		binValue, err := base64.StdEncoding.DecodeString(*strValue)
 		if err != nil {

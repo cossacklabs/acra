@@ -30,7 +30,7 @@ func (p *PgSQLDataEncoderProcessor) ID() string {
 func (p *PgSQLDataEncoderProcessor) encodeToValue(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, base.EncodingValue, error) {
 	logger = logger.WithField("column", setting.ColumnName()).WithField("decrypted", base.IsDecryptedFromContext(ctx))
 	if len(data) == 0 {
-		return ctx, base.NewIdentityValue(data), nil
+		return ctx, base.NewStringValue(data), nil
 	}
 	switch setting.GetEncryptedDataType() {
 	case common2.EncryptedType_String:
@@ -43,7 +43,7 @@ func (p *PgSQLDataEncoderProcessor) encodeToValue(ctx context.Context, data []by
 			}
 		}
 		// decrypted values return as is, without any encoding
-		return ctx, base.NewIdentityValue(data), nil
+		return ctx, base.NewStringValue(data), nil
 	case common2.EncryptedType_Bytes:
 		if !base.IsDecryptedFromContext(ctx) {
 			value, err := base.EncodeOnFail(setting, logger)
@@ -77,7 +77,7 @@ func (p *PgSQLDataEncoderProcessor) encodeToValue(ctx context.Context, data []by
 			}
 		}
 		logger.Warningln("Can't decode int value and no default value")
-		return ctx, base.NewIdentityValue(data), nil
+		return ctx, base.NewStringValue(data), nil
 	}
 	// here we process AcraStruct/AcraBlock decryption without any encryptor config that defines data_type/token_type
 	// values. If it was decrypted then we return it as valid bytea value
@@ -88,9 +88,9 @@ func (p *PgSQLDataEncoderProcessor) encodeToValue(ctx context.Context, data []by
 	// as it come to us.
 	encodedValue, ok := getEncodedValueFromContext(ctx)
 	if ok {
-		return ctx, base.NewIdentityValue(encodedValue), nil
+		return ctx, base.NewStringValue(encodedValue), nil
 	}
-	return ctx, base.NewIdentityValue(data), nil
+	return ctx, base.NewStringValue(data), nil
 }
 
 // OnColumn encode binary value to text and back. Should be before and after tokenizer processor
