@@ -53,7 +53,7 @@ func (p *PgSQLDataEncoderProcessor) encodeToValue(ctx context.Context, data []by
 				return ctx, value, nil
 			}
 		}
-		return ctx, base.NewByteSequenceValue(data), nil
+		return ctx, base.NewBytesValue(data), nil
 	case common2.EncryptedType_Int32, common2.EncryptedType_Int64:
 		size := 8
 		if setting.GetEncryptedDataType() == common2.EncryptedType_Int32 {
@@ -82,7 +82,7 @@ func (p *PgSQLDataEncoderProcessor) encodeToValue(ctx context.Context, data []by
 	// here we process AcraStruct/AcraBlock decryption without any encryptor config that defines data_type/token_type
 	// values. If it was decrypted then we return it as valid bytea value
 	if base.IsDecryptedFromContext(ctx) {
-		return ctx, base.NewByteSequenceValue(data), nil
+		return ctx, base.NewBytesValue(data), nil
 	}
 	// If it wasn't decrypted (due to inappropriate keys or not AcraStructs as payload) then we return it in same way
 	// as it come to us.

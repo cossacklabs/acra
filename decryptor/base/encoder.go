@@ -54,40 +54,38 @@ type EncodingValue interface {
 	AsMysqlText() []byte
 }
 
-// ByteSequenceValue is an abstraction over all byte-sequence values -- strings
-// and []byte (because they are encoded in the same way)
-type ByteSequenceValue struct {
+// BytesValue is an EncodingValue that represents byte array
+type BytesValue struct {
 	seq []byte
 }
 
-// NewByteSequenceValue returns EncodingValue from a byte-string-like data
-func NewByteSequenceValue(seq []byte) EncodingValue {
-	return &ByteSequenceValue{seq}
+// NewBytesValue returns EncodingValue from a byte array
+func NewBytesValue(seq []byte) EncodingValue {
+	return &BytesValue{seq}
 }
 
 // AsPostgresBinary returns value encoded in postgres binary format
-// For a byte sequence value (string or []byte) this is an identity operation
-func (v *ByteSequenceValue) AsPostgresBinary() []byte {
+// For a byte sequence value this is an identity operation
+func (v *BytesValue) AsPostgresBinary() []byte {
 	return v.seq
 }
 
 // AsPostgresText returns value encoded in postgres text format
-// For a byte sequence value (string or []byte) this is a hex encoded string
-func (v *ByteSequenceValue) AsPostgresText() []byte {
+// For a byte sequence value this is a hex encoded string
+func (v *BytesValue) AsPostgresText() []byte {
 	// all bytes should be encoded as valid bytea value
 	return utils.PgEncodeToHex(v.seq)
 }
 
 // AsMysqlBinary returns value encoded in mysql binary format
-// For a byte sequence value (string or []byte) this is the same as text
-// encoding
-func (v *ByteSequenceValue) AsMysqlBinary() []byte {
+// For a byte sequence value this is the same as text encoding
+func (v *BytesValue) AsMysqlBinary() []byte {
 	return v.AsMysqlText()
 }
 
 // AsMysqlText returns value encoded in mysql text format
-// For a byte sequence value (string or []byte) this is a length encoded string
-func (v *ByteSequenceValue) AsMysqlText() []byte {
+// For a byte sequence value this is a length encoded string
+func (v *BytesValue) AsMysqlText() []byte {
 	return PutLengthEncodedString(v.seq)
 }
 
@@ -196,7 +194,7 @@ func EncodeDefault(setting config.ColumnEncryptionSetting, logger *logrus.Entry)
 			logger.WithError(err).Errorln("Can't decode base64 default value")
 			return nil
 		}
-		return &ByteSequenceValue{seq: binValue}
+		return &BytesValue{seq: binValue}
 	case common.EncryptedType_Int32, common.EncryptedType_Int64:
 		size := 8
 		if dataType == common.EncryptedType_Int32 {
