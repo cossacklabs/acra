@@ -47,6 +47,9 @@ type EncodingValue interface {
 	AsPostgresBinary() []byte
 	// AsPostgresText returns value encoded in postgres text format
 	AsPostgresText() []byte
+
+	// AsMysqlText returns value encoded in mysql text format
+	AsMysqlText() []byte
 }
 
 // ByteSequenceValue is an abstraction over all byte-sequence values -- strings
@@ -71,6 +74,12 @@ func (v *ByteSequenceValue) AsPostgresBinary() []byte {
 func (v *ByteSequenceValue) AsPostgresText() []byte {
 	// all bytes should be encoded as valid bytea value
 	return utils.PgEncodeToHex(v.seq)
+}
+
+// AsMysqlText returns value encoded in mysql text format
+// For a byte sequence value (string or []byte) this is a length encoded string
+func (v *ByteSequenceValue) AsMysqlText() []byte {
+	return PutLengthEncodedString(v.seq)
 }
 
 // IntValue represents a {size*8}-bit integer ready for encoding
@@ -104,6 +113,12 @@ func (v *IntValue) AsPostgresText() []byte {
 	return []byte(v.strValue)
 }
 
+// AsMysqlText returns value encoded in mysql text format
+// For an int this is a length encoded string of that integer
+func (v *IntValue) AsMysqlText() []byte {
+	return PutLengthEncodedString([]byte(v.strValue))
+}
+
 // IdentityValue is an encodingValue that just returns data as is
 type IdentityValue struct {
 	data []byte
@@ -123,6 +138,12 @@ func (v *IdentityValue) AsPostgresBinary() []byte {
 // AsPostgresText returns value encoded in postgres text format
 // For identity value this means returning value as it is
 func (v *IdentityValue) AsPostgresText() []byte {
+	return v.data
+}
+
+// AsMysqlText returns value encoded in mysql text format
+// For identity value this means returning value as it is
+func (v *IdentityValue) AsMysqlText() []byte {
 	return v.data
 }
 

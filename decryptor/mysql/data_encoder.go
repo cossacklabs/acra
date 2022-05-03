@@ -215,24 +215,26 @@ func (p *BaseMySQLDataProcessor) encodeBinaryWithDataType(ctx context.Context, d
 	return data, false, nil
 }
 
-func (p *BaseMySQLDataProcessor) encodeTextWithDataType(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting) ([]byte, bool, error) {
+func (p *BaseMySQLDataProcessor) encodeTextWithDataType(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, logger *logrus.Entry) ([]byte, bool, error) {
 	switch setting.GetEncryptedDataType() {
 	case common.EncryptedType_String:
 		if !base.IsDecryptedFromContext(ctx) {
-			if value := setting.GetDefaultDataValue(); value != nil {
-				return base.PutLengthEncodedString([]byte(*value)), true, nil
+			value, err := base.EncodeOnFail(setting, logger)
+			if err != nil {
+				return data, false, err
+			} else if value != nil {
+				return value.AsMysqlText(), true, nil
 			}
 			return data, false, ErrConvertToDataType
 		}
 		return data, false, nil
 	case common.EncryptedType_Bytes:
 		if !base.IsDecryptedFromContext(ctx) {
-			if newValue := setting.GetDefaultDataValue(); newValue != nil {
-				binValue, err := base64.StdEncoding.DecodeString(*newValue)
-				if err != nil {
-					return nil, false, err
-				}
-				return base.PutLengthEncodedString(binValue), true, nil
+			value, err := base.EncodeOnFail(setting, logger)
+			if err != nil {
+				return data, false, err
+			} else if value != nil {
+				return value.AsMysqlText(), true, nil
 			}
 			return data, false, ErrConvertToDataType
 		}
@@ -245,8 +247,11 @@ func (p *BaseMySQLDataProcessor) encodeTextWithDataType(ctx context.Context, dat
 		}
 		// if it's encrypted binary, then it is binary array that is invalid int literal
 		if !base.IsDecryptedFromContext(ctx) {
-			if newVal := setting.GetDefaultDataValue(); newVal != nil {
-				return base.PutLengthEncodedString([]byte(*newVal)), true, nil
+			value, err := base.EncodeOnFail(setting, logger)
+			if err != nil {
+				return data, false, err
+			} else if value != nil {
+				return value.AsMysqlText(), true, nil
 			}
 			return data, false, ErrConvertToDataType
 		}
@@ -263,7 +268,7 @@ func (p *BaseMySQLDataProcessor) encodeText(ctx context.Context, data []byte, se
 		return ctx, base.PutLengthEncodedString(data), nil
 	}
 
-	dataTypeEncoded, isEncoded, err := p.encodeTextWithDataType(ctx, data, setting)
+	dataTypeEncoded, isEncoded, err := p.encodeTextWithDataType(ctx, data, setting, logger)
 	if err != nil && err != ErrConvertToDataType {
 		return nil, nil, err
 	}
