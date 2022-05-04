@@ -753,19 +753,19 @@ func (tkn *Tokenizer) scanBitLiteral() (int, []byte) {
 
 func (tkn *Tokenizer) scanLiteralIdentifier() (int, []byte) {
 	buffer := &bytes2.Buffer{}
-	quoteSeen := false
+	var quoteSeen *uint16
 	for {
-		if quoteSeen {
+		if quoteSeen != nil {
 			if !tkn.dialect.QuoteHandler().IsIdentifierQuote(byte(tkn.lastChar)) {
 				break
 			}
-			quoteSeen = false
+			quoteSeen = nil
 			buffer.WriteByte(tkn.dialect.QuoteHandler().GetIdentifierQuote())
 			tkn.next()
 			continue
 		}
 		if tkn.dialect.QuoteHandler().IsIdentifierQuote(byte(tkn.lastChar)) {
-			quoteSeen = true
+			quoteSeen = &tkn.lastChar
 		} else if tkn.lastChar == eofChar {
 			// Premature EOF.
 			return LEX_ERROR, buffer.Bytes()
@@ -781,8 +781,8 @@ func (tkn *Tokenizer) scanLiteralIdentifier() (int, []byte) {
 	// Double-quoted identifiers in PostgreSQL are case-sensitive.
 	// We need to remember which identifiers were wrapped with quotes so the query
 	// can be properly recreated later from the AST using .Format() method.
-	if quoteSeen && tkn.IsPostgreSQL() {
-		return DOUBLE_QUOTE_STRING, buffer.Bytes()
+	if quoteSeen != nil && tkn.IsPostgreSQL() {
+		return stringTokenType[*quoteSeen], buffer.Bytes()
 	}
 	return ID, buffer.Bytes()
 }

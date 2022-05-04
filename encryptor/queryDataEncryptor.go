@@ -86,7 +86,7 @@ func (encryptor *QueryDataEncryptor) ID() string {
 // encryptInsertQuery encrypt data in insert query in VALUES and ON DUPLICATE KEY UPDATE statements
 func (encryptor *QueryDataEncryptor) encryptInsertQuery(ctx context.Context, insert *sqlparser.Insert, bindPlaceholders map[int]config.ColumnEncryptionSetting) (bool, error) {
 	tableName := insert.Table.Name
-	schema := encryptor.schemaStore.GetTableSchema(tableName.String())
+	schema := encryptor.schemaStore.GetTableSchema(tableName.RawValue())
 	if schema == nil {
 		// unsupported table, we have not schema and query hasn't columns description
 		logrus.Debugf("Hasn't schema for table %s", tableName)
