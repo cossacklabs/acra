@@ -30,18 +30,22 @@ const (
 	ErQueryInterruptedState = "70100"
 )
 
-func newQueryInterruptedError() *SQLError {
+// QueryExecutionWasInterrupted is a default message of the mysql's Query
+// interrupted error
+const QueryExecutionWasInterrupted = "Query execution was interrupted"
+
+func newQueryInterruptedError(msg string) *SQLError {
 	e := new(SQLError)
 	e.Code = ErQueryInterruptedCode
 	e.State = ErQueryInterruptedState
-	e.Message = "Query execution was interrupted"
+	e.Message = msg
 	return e
 }
 
 // NewQueryInterruptedError return packed QueryInterrupted error
 // https://dev.mysql.com/doc/internals/en/packet-ERR_Packet.html
-func NewQueryInterruptedError(isProtocol41 bool) []byte {
-	mysqlError := newQueryInterruptedError()
+func NewQueryInterruptedError(isProtocol41 bool, msg string) []byte {
+	mysqlError := newQueryInterruptedError(msg)
 	var data []byte
 	if isProtocol41 {
 		// 1 byte ErrPacket flag + 2 bytes of error code = 3
