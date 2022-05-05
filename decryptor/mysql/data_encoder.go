@@ -71,7 +71,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 
 	if len(data) == 0 {
 		// we still need to encode result data as it might be null field in db
-		return ctx, base.PutLengthEncodedString(data), nil
+		return ctx, PutLengthEncodedString(data), nil
 	}
 
 	encodingValue, err := p.encodeValueWithDataType(ctx, data, setting, logger)
@@ -155,7 +155,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 		return ctx, encoded, err
 	}
 
-	return ctx, base.PutLengthEncodedString(data), nil
+	return ctx, PutLengthEncodedString(data), nil
 }
 
 func (p *BaseMySQLDataProcessor) encodeValueWithDataType(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, logger *logrus.Entry) (base.EncodingValue, error) {
@@ -202,7 +202,7 @@ func (p *BaseMySQLDataProcessor) encodeText(ctx context.Context, data []byte, se
 	logger.Debugln("Encode text")
 	if len(data) == 0 {
 		// we still need to encode result data as it might be null field in db
-		return ctx, base.PutLengthEncodedString(data), nil
+		return ctx, PutLengthEncodedString(data), nil
 	}
 
 	encodingValue, err := p.encodeValueWithDataType(ctx, data, setting, logger)
@@ -220,7 +220,7 @@ func (p *BaseMySQLDataProcessor) encodeText(ctx context.Context, data []byte, se
 		ctx = base.MarkErrorConvertedDataTypeContext(ctx)
 	}
 
-	return ctx, base.PutLengthEncodedString(data), nil
+	return ctx, PutLengthEncodedString(data), nil
 }
 
 func (p *BaseMySQLDataProcessor) decodeBinary(ctx context.Context, encoded []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
@@ -341,7 +341,7 @@ func (v *bytesValue) AsBinary() []byte {
 // AsText returns value encoded in mysql text format
 // For a byte sequence value this is a length encoded string
 func (v *bytesValue) AsText() []byte {
-	return base.PutLengthEncodedString(v.bytes)
+	return PutLengthEncodedString(v.bytes)
 }
 
 // intValue represents a {size*8}-bit integer ready for encoding
@@ -367,7 +367,7 @@ func (v *intValue) AsBinary() []byte {
 // AsText returns value encoded in mysql text format
 // For an int this is a length encoded string of that integer
 func (v *intValue) AsText() []byte {
-	return base.PutLengthEncodedString(v.strValue)
+	return PutLengthEncodedString(v.strValue)
 }
 
 // stringValue is an EncodingValue that encodes data into string format
@@ -378,13 +378,13 @@ type stringValue struct {
 // AsBinary returns value encoded in mysql binary format
 // In other words, it encodes data into length encoded string
 func (v *stringValue) AsBinary() []byte {
-	return base.PutLengthEncodedString(v.data)
+	return PutLengthEncodedString(v.data)
 }
 
 // AsText returns value encoded in mysql text format
 // In other words, it encodes data into length encoded string
 func (v *stringValue) AsText() []byte {
-	return base.PutLengthEncodedString(v.data)
+	return PutLengthEncodedString(v.data)
 }
 
 // mysqlValueFactory is a factory that produces values that can encode into

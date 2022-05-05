@@ -19,8 +19,6 @@ package mysql
 import (
 	"encoding/binary"
 	"errors"
-
-	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
 )
@@ -113,7 +111,7 @@ func ParseResultField(packet *Packet) (*ColumnDescription, error) {
 	var err error
 	//skip catalog, always def
 	pos := 0
-	n, err = base.SkipLengthEncodedString(packet.data)
+	n, err = SkipLengthEncodedString(packet.data)
 	if err != nil {
 
 		return nil, err
@@ -121,35 +119,35 @@ func ParseResultField(packet *Packet) (*ColumnDescription, error) {
 	pos += n
 
 	//schema
-	field.Schema, n, err = base.LengthEncodedString(packet.data[pos:])
+	field.Schema, n, err = LengthEncodedString(packet.data[pos:])
 	if err != nil {
 		return nil, err
 	}
 	pos += n
 
 	//table
-	field.Table, n, err = base.LengthEncodedString(packet.data[pos:])
+	field.Table, n, err = LengthEncodedString(packet.data[pos:])
 	if err != nil {
 		return nil, err
 	}
 	pos += n
 
 	//org_table
-	field.OrgTable, n, err = base.LengthEncodedString(packet.data[pos:])
+	field.OrgTable, n, err = LengthEncodedString(packet.data[pos:])
 	if err != nil {
 		return nil, err
 	}
 	pos += n
 
 	//name
-	field.Name, n, err = base.LengthEncodedString(packet.data[pos:])
+	field.Name, n, err = LengthEncodedString(packet.data[pos:])
 	if err != nil {
 		return nil, err
 	}
 	pos += n
 
 	//org_name
-	field.OrgName, n, err = base.LengthEncodedString(packet.data[pos:])
+	field.OrgName, n, err = LengthEncodedString(packet.data[pos:])
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +183,7 @@ func ParseResultField(packet *Packet) (*ColumnDescription, error) {
 	//if more data, command was field list
 	if len(packet.data) > pos {
 		//length of default value lenenc-int
-		field.DefaultValueLength, _, n, err = base.LengthEncodedInt(packet.data[pos:])
+		field.DefaultValueLength, _, n, err = LengthEncodedInt(packet.data[pos:])
 		if err != nil {
 			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't get length encoded integer of default value length")
 			return nil, err
@@ -194,7 +192,7 @@ func ParseResultField(packet *Packet) (*ColumnDescription, error) {
 
 		if pos+int(field.DefaultValueLength) > len(packet.data) {
 			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).Errorln("Incorrect position, malformed packet")
-			err = base.ErrMalformPacket
+			err = ErrMalformPacket
 			return nil, err
 		}
 
@@ -220,30 +218,30 @@ func (field *ColumnDescription) Dump() []byte {
 
 	data := make([]byte, 0, l)
 
-	data = append(data, base.PutLengthEncodedString([]byte("def"))...)
+	data = append(data, PutLengthEncodedString([]byte("def"))...)
 
-	data = append(data, base.PutLengthEncodedString(field.Schema)...)
+	data = append(data, PutLengthEncodedString(field.Schema)...)
 
-	data = append(data, base.PutLengthEncodedString(field.Table)...)
-	data = append(data, base.PutLengthEncodedString(field.OrgTable)...)
+	data = append(data, PutLengthEncodedString(field.Table)...)
+	data = append(data, PutLengthEncodedString(field.OrgTable)...)
 
-	data = append(data, base.PutLengthEncodedString(field.Name)...)
-	data = append(data, base.PutLengthEncodedString(field.OrgName)...)
+	data = append(data, PutLengthEncodedString(field.Name)...)
+	data = append(data, PutLengthEncodedString(field.OrgName)...)
 
 	// length of fixed-length fields
 	// https://dev.mysql.com/doc/internals/en/com-query-response.html#column-definition
 	data = append(data, 0x0c)
 
-	data = append(data, base.Uint16ToBytes(field.Charset)...)
-	data = append(data, base.Uint32ToBytes(field.ColumnLength)...)
+	data = append(data, Uint16ToBytes(field.Charset)...)
+	data = append(data, Uint32ToBytes(field.ColumnLength)...)
 	data = append(data, byte(field.Type))
-	data = append(data, base.Uint16ToBytes(field.Flag)...)
+	data = append(data, Uint16ToBytes(field.Flag)...)
 	data = append(data, field.Decimal)
 	// filler
 	data = append(data, 0, 0)
 
 	if field.DefaultValue != nil {
-		data = append(data, base.Uint64ToBytes(field.DefaultValueLength)...)
+		data = append(data, Uint64ToBytes(field.DefaultValueLength)...)
 		data = append(data, field.DefaultValue...)
 	}
 

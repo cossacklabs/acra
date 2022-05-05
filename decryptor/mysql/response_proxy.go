@@ -20,16 +20,15 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"github.com/cossacklabs/acra/keystore/filesystem"
+	"github.com/cossacklabs/acra/sqlparser"
+	"go.opencensus.io/trace"
 	"io"
 	"net"
 	"strconv"
 	"time"
 
-	"github.com/cossacklabs/acra/keystore/filesystem"
-	"github.com/cossacklabs/acra/sqlparser"
-	"go.opencensus.io/trace"
-
-	acracensor "github.com/cossacklabs/acra/acra-censor"
+	"github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
@@ -497,7 +496,7 @@ func (handler *Handler) processTextDataRow(ctx context.Context, rowData []byte, 
 	handler.logger.Debugln("Process data rows in text protocol")
 	for i := range fields {
 		fieldLogger = handler.logger.WithField("field_index", i)
-		value, n, err := base.LengthEncodedString(rowData[pos:])
+		value, n, err := LengthEncodedString(rowData[pos:])
 		if err != nil {
 			return nil, err
 		}
@@ -535,7 +534,7 @@ func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte
 	}
 
 	if rowData[0] != OkPacket {
-		return nil, base.ErrMalformPacket
+		return nil, ErrMalformPacket
 	}
 
 	// https://dev.mysql.com/doc/internals/en/binary-protocol-resultset-row.html
@@ -610,7 +609,7 @@ func (handler *Handler) extractData(pos int, rowData []byte, field *ColumnDescri
 		return rowData[pos : pos+8], 8, nil
 
 	case TypeDecimal, TypeNewDecimal, TypeBit, TypeEnum, TypeSet, TypeGeometry, TypeDate, TypeNewDate, TypeTimestamp, TypeDatetime, TypeTime, TypeVarchar, TypeTinyBlob, TypeMediumBlob, TypeLongBlob, TypeBlob, TypeVarString, TypeString:
-		value, n, err := base.LengthEncodedString(rowData[pos:])
+		value, n, err := LengthEncodedString(rowData[pos:])
 		if err != nil {
 			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
 				Errorln("Can't handle length encoded string non binary value")
@@ -654,7 +653,7 @@ func (handler *Handler) QueryResponseHandler(ctx context.Context, packet *Packet
 				if fieldPacket.IsEOF() {
 					if i != fieldCount {
 						handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).Errorln("EOF and field count != current row packet count")
-						return base.ErrMalformPacket
+						return ErrMalformPacket
 					}
 					output = append(output, fieldPacket)
 					break
