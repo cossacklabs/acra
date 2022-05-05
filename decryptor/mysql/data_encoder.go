@@ -20,6 +20,8 @@ import (
 // ErrConvertToDataType error that indicates if data type conversion was failed
 var ErrConvertToDataType = errors.New("error on converting to data type")
 
+var valueFactory base.EncodingValueFactory = &mysqlValueFactory{}
+
 // BaseMySQLDataProcessor implements processor and encode/decode binary intX values to text format which acceptable by Tokenizer
 type BaseMySQLDataProcessor struct{}
 
@@ -161,7 +163,7 @@ func (p *BaseMySQLDataProcessor) encodeValueWithDataType(ctx context.Context, da
 	switch dataType {
 	case common.EncryptedType_String, common.EncryptedType_Bytes:
 		if !base.IsDecryptedFromContext(ctx) {
-			value, err := base.EncodeOnFail(setting, &base.ValueFactoryPlug{}, logger)
+			value, err := base.EncodeOnFail(setting, &mysqlValueFactory{}, logger)
 			if err != nil {
 				return nil, err
 			} else if value != nil {
@@ -175,15 +177,14 @@ func (p *BaseMySQLDataProcessor) encodeValueWithDataType(ctx context.Context, da
 		intValue, err := strconv.ParseInt(strValue, 10, 64)
 		// if it's valid string literal and decrypted, return as is
 		if err == nil {
-			size := 4
-			if dataType == common.EncryptedType_Int64 {
-				size = 8
+			if dataType == common.EncryptedType_Int32 {
+				return valueFactory.NewInt32Value(int32(intValue), data), nil
 			}
-			return base.NewIntValue(size, intValue, strValue), nil
+			return valueFactory.NewInt64Value(intValue, data), nil
 		}
 		// if it's encrypted binary, then it is binary array that is invalid int literal
 		if !base.IsDecryptedFromContext(ctx) {
-			value, err := base.EncodeOnFail(setting, &base.ValueFactoryPlug{}, logger)
+			value, err := base.EncodeOnFail(setting, valueFactory, logger)
 			if err != nil {
 				return nil, err
 			} else if value != nil {
@@ -324,4 +325,124 @@ func (p *DataDecoderProcessor) OnColumn(ctx context.Context, data []byte) (conte
 		return p.decodeBinary(ctx, data, columnSetting, columnInfo, logger)
 	}
 	return ctx, data, nil
+}
+
+// bytesValue is an EncodingValue that represents byte array
+type bytesValue struct {
+	bytes []byte
+}
+
+// AsPostgresBinary returns value encoded in postgres binary format
+// For a byte sequence value this is an identity operation
+func (v *bytesValue) AsPostgresBinary() []byte {
+	panic("REMOVE THIS")
+}
+
+// AsPostgresText returns value encoded in postgres text format
+// For a byte sequence value this is a hex encoded string
+func (v *bytesValue) AsPostgresText() []byte {
+	panic("REMOVE THIS")
+}
+
+// AsMysqlBinary returns value encoded in mysql binary format
+// For a byte sequence value this is the same as text encoding
+func (v *bytesValue) AsMysqlBinary() []byte {
+	return v.AsMysqlText()
+}
+
+// AsMysqlText returns value encoded in mysql text format
+// For a byte sequence value this is a length encoded string
+func (v *bytesValue) AsMysqlText() []byte {
+	return base.PutLengthEncodedString(v.bytes)
+}
+
+// intValue represents a {size*8}-bit integer ready for encoding
+type intValue struct {
+	size     int
+	intValue int64
+	strValue []byte
+}
+
+// AsPostgresBinary returns value encoded in postgres binary format
+// For an int value it is a big endian encoded integer
+func (v *intValue) AsPostgresBinary() []byte {
+	panic("REMOVE THIS")
+}
+
+// AsPostgresText returns value encoded in postgres text format
+// For an int this means returning textual representation of the integer
+func (v *intValue) AsPostgresText() []byte {
+	panic("REMOVE THIS")
+}
+
+// AsMysqlBinary returns value encoded in mysql binary format
+// For an int value it is a little endian encoded integer
+func (v *intValue) AsMysqlBinary() []byte {
+	newData := make([]byte, v.size)
+	switch v.size {
+	case 4:
+		binary.LittleEndian.PutUint32(newData, uint32(v.intValue))
+	case 8:
+		binary.LittleEndian.PutUint64(newData, uint64(v.intValue))
+	}
+	return newData
+}
+
+// AsMysqlText returns value encoded in mysql text format
+// For an int this is a length encoded string of that integer
+func (v *intValue) AsMysqlText() []byte {
+	return base.PutLengthEncodedString(v.strValue)
+}
+
+// stringValue is an EncodingValue that encodes data into string format
+type stringValue struct {
+	data []byte
+}
+
+// AsPostgresBinary returns value encoded in postgres binary format
+// In other words, it returns data as it is
+func (v *stringValue) AsPostgresBinary() []byte {
+	panic("REMOVE THIS")
+}
+
+// AsPostgresText returns value encoded in postgres text format
+// In other words, it returns data as it is
+func (v *stringValue) AsPostgresText() []byte {
+	panic("REMOVE THIS")
+}
+
+// AsMysqlBinary returns value encoded in mysql binary format
+// In other words, it encodes data into length encoded string
+func (v *stringValue) AsMysqlBinary() []byte {
+	return base.PutLengthEncodedString(v.data)
+}
+
+// AsMysqlText returns value encoded in mysql text format
+// In other words, it encodes data into length encoded string
+func (v *stringValue) AsMysqlText() []byte {
+	return base.PutLengthEncodedString(v.data)
+}
+
+// mysqlValueFactory is a factory that produces values that can encode into
+// mysql format
+type mysqlValueFactory struct{}
+
+// NewStringValue creates a value that encodes as a str
+func (*mysqlValueFactory) NewStringValue(str []byte) base.EncodingValue {
+	return &stringValue{data: str}
+}
+
+// NewBytesValue creates a value that encodes as bytes
+func (*mysqlValueFactory) NewBytesValue(bytes []byte) base.EncodingValue {
+	return &bytesValue{bytes}
+}
+
+// NewInt32Value creates a value that encodes as int32
+func (*mysqlValueFactory) NewInt32Value(intVal int32, strVal []byte) base.EncodingValue {
+	return &intValue{size: 4, intValue: int64(intVal), strValue: strVal}
+}
+
+// NewInt64Value creates a value that encodes as int64
+func (*mysqlValueFactory) NewInt64Value(intVal int64, strVal []byte) base.EncodingValue {
+	return &intValue{size: 8, intValue: intVal, strValue: strVal}
 }
