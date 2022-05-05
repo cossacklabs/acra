@@ -117,9 +117,9 @@ func (p *PgSQLDataEncoderProcessor) OnColumn(ctx context.Context, data []byte) (
 	}
 
 	if columnInfo.IsBinaryFormat() {
-		return ctx, value.AsPostgresBinary(), nil
+		return ctx, value.AsBinary(), nil
 	}
-	return ctx, value.AsPostgresText(), nil
+	return ctx, value.AsText(), nil
 }
 
 // PgSQLDataDecoderProcessor implements processor and decode binary/text values from DB
@@ -239,29 +239,17 @@ type bytesValue struct {
 	bytes []byte
 }
 
-// AsPostgresBinary returns value encoded in postgres binary format
+// AsBinary returns value encoded in postgres binary format
 // For a byte sequence value this is an identity operation
-func (v *bytesValue) AsPostgresBinary() []byte {
+func (v *bytesValue) AsBinary() []byte {
 	return v.bytes
 }
 
-// AsPostgresText returns value encoded in postgres text format
+// AsText returns value encoded in postgres text format
 // For a byte sequence value this is a hex encoded string
-func (v *bytesValue) AsPostgresText() []byte {
+func (v *bytesValue) AsText() []byte {
 	// all bytes should be encoded as valid bytea value
 	return utils.PgEncodeToHex(v.bytes)
-}
-
-// AsMysqlBinary returns value encoded in mysql binary format
-// For a byte sequence value this is the same as text encoding
-func (v *bytesValue) AsMysqlBinary() []byte {
-	panic("REMOVE THIS")
-}
-
-// AsMysqlText returns value encoded in mysql text format
-// For a byte sequence value this is a length encoded string
-func (v *bytesValue) AsMysqlText() []byte {
-	panic("REMOVE THIS")
 }
 
 // intValue represents a {size*8}-bit integer ready for encoding
@@ -271,9 +259,9 @@ type intValue struct {
 	strValue []byte
 }
 
-// AsPostgresBinary returns value encoded in postgres binary format
+// AsBinary returns value encoded in postgres binary format
 // For an int value it is a big endian encoded integer
-func (v *intValue) AsPostgresBinary() []byte {
+func (v *intValue) AsBinary() []byte {
 	newData := make([]byte, v.size)
 	switch v.size {
 	case 4:
@@ -284,22 +272,10 @@ func (v *intValue) AsPostgresBinary() []byte {
 	return newData
 }
 
-// AsPostgresText returns value encoded in postgres text format
+// AsText returns value encoded in postgres text format
 // For an int this means returning textual representation of the integer
-func (v *intValue) AsPostgresText() []byte {
+func (v *intValue) AsText() []byte {
 	return v.strValue
-}
-
-// AsMysqlBinary returns value encoded in mysql binary format
-// For an int value it is a little endian encoded integer
-func (v *intValue) AsMysqlBinary() []byte {
-	panic("REMOVE THIS")
-}
-
-// AsMysqlText returns value encoded in mysql text format
-// For an int this is a length encoded string of that integer
-func (v *intValue) AsMysqlText() []byte {
-	panic("REMOVE THIS")
 }
 
 // stringValue is an EncodingValue that encodes data into string format
@@ -307,28 +283,16 @@ type stringValue struct {
 	data []byte
 }
 
-// AsPostgresBinary returns value encoded in postgres binary format
+// AsBinary returns value encoded in postgres binary format
 // In other words, it returns data as it is
-func (v *stringValue) AsPostgresBinary() []byte {
+func (v *stringValue) AsBinary() []byte {
 	return v.data
 }
 
-// AsPostgresText returns value encoded in postgres text format
+// AsText returns value encoded in postgres text format
 // In other words, it returns data as it is
-func (v *stringValue) AsPostgresText() []byte {
+func (v *stringValue) AsText() []byte {
 	return v.data
-}
-
-// AsMysqlBinary returns value encoded in mysql binary format
-// In other words, it encodes data into length encoded string
-func (v *stringValue) AsMysqlBinary() []byte {
-	panic("REMOVE THIS")
-}
-
-// AsMysqlText returns value encoded in mysql text format
-// In other words, it encodes data into length encoded string
-func (v *stringValue) AsMysqlText() []byte {
-	panic("REMOVE THIS")
 }
 
 // postgresValueFactory is a factory that produces values that can encode into

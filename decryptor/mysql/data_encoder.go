@@ -81,7 +81,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 
 	// in case of successful encoding with defined data type return encoded data
 	if encodingValue != nil {
-		return ctx, encodingValue.AsMysqlBinary(), nil
+		return ctx, encodingValue.AsBinary(), nil
 	}
 
 	var columnType = columnInfo.DataBinaryType()
@@ -212,7 +212,7 @@ func (p *BaseMySQLDataProcessor) encodeText(ctx context.Context, data []byte, se
 
 	// in case of successful encoding with defined data type return encoded data
 	if encodingValue != nil {
-		return ctx, encodingValue.AsMysqlText(), nil
+		return ctx, encodingValue.AsText(), nil
 	}
 
 	// in case of error on converting to defined type we should roll back field type and encode it as it was originally
@@ -332,27 +332,15 @@ type bytesValue struct {
 	bytes []byte
 }
 
-// AsPostgresBinary returns value encoded in postgres binary format
-// For a byte sequence value this is an identity operation
-func (v *bytesValue) AsPostgresBinary() []byte {
-	panic("REMOVE THIS")
-}
-
-// AsPostgresText returns value encoded in postgres text format
-// For a byte sequence value this is a hex encoded string
-func (v *bytesValue) AsPostgresText() []byte {
-	panic("REMOVE THIS")
-}
-
-// AsMysqlBinary returns value encoded in mysql binary format
+// AsBinary returns value encoded in mysql binary format
 // For a byte sequence value this is the same as text encoding
-func (v *bytesValue) AsMysqlBinary() []byte {
-	return v.AsMysqlText()
+func (v *bytesValue) AsBinary() []byte {
+	return v.AsText()
 }
 
-// AsMysqlText returns value encoded in mysql text format
+// AsText returns value encoded in mysql text format
 // For a byte sequence value this is a length encoded string
-func (v *bytesValue) AsMysqlText() []byte {
+func (v *bytesValue) AsText() []byte {
 	return base.PutLengthEncodedString(v.bytes)
 }
 
@@ -363,21 +351,9 @@ type intValue struct {
 	strValue []byte
 }
 
-// AsPostgresBinary returns value encoded in postgres binary format
-// For an int value it is a big endian encoded integer
-func (v *intValue) AsPostgresBinary() []byte {
-	panic("REMOVE THIS")
-}
-
-// AsPostgresText returns value encoded in postgres text format
-// For an int this means returning textual representation of the integer
-func (v *intValue) AsPostgresText() []byte {
-	panic("REMOVE THIS")
-}
-
-// AsMysqlBinary returns value encoded in mysql binary format
+// AsBinary returns value encoded in mysql binary format
 // For an int value it is a little endian encoded integer
-func (v *intValue) AsMysqlBinary() []byte {
+func (v *intValue) AsBinary() []byte {
 	newData := make([]byte, v.size)
 	switch v.size {
 	case 4:
@@ -388,9 +364,9 @@ func (v *intValue) AsMysqlBinary() []byte {
 	return newData
 }
 
-// AsMysqlText returns value encoded in mysql text format
+// AsText returns value encoded in mysql text format
 // For an int this is a length encoded string of that integer
-func (v *intValue) AsMysqlText() []byte {
+func (v *intValue) AsText() []byte {
 	return base.PutLengthEncodedString(v.strValue)
 }
 
@@ -399,27 +375,15 @@ type stringValue struct {
 	data []byte
 }
 
-// AsPostgresBinary returns value encoded in postgres binary format
-// In other words, it returns data as it is
-func (v *stringValue) AsPostgresBinary() []byte {
-	panic("REMOVE THIS")
-}
-
-// AsPostgresText returns value encoded in postgres text format
-// In other words, it returns data as it is
-func (v *stringValue) AsPostgresText() []byte {
-	panic("REMOVE THIS")
-}
-
-// AsMysqlBinary returns value encoded in mysql binary format
+// AsBinary returns value encoded in mysql binary format
 // In other words, it encodes data into length encoded string
-func (v *stringValue) AsMysqlBinary() []byte {
+func (v *stringValue) AsBinary() []byte {
 	return base.PutLengthEncodedString(v.data)
 }
 
-// AsMysqlText returns value encoded in mysql text format
+// AsText returns value encoded in mysql text format
 // In other words, it encodes data into length encoded string
-func (v *stringValue) AsMysqlText() []byte {
+func (v *stringValue) AsText() []byte {
 	return base.PutLengthEncodedString(v.data)
 }
 

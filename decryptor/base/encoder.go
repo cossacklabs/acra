@@ -2,12 +2,10 @@ package base
 
 import (
 	"encoding/base64"
-	"encoding/binary"
 	"fmt"
 	"strconv"
 
 	"github.com/cossacklabs/acra/encryptor/config"
-	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/encryptor/config/common"
@@ -43,15 +41,10 @@ func NewEncodingError(column string) error {
 // EncodingValue represents a (possibly parsed and prepared) value that is
 // ready to be encoded
 type EncodingValue interface {
-	// AsPostgresBinary returns value encoded in postgres binary format
-	AsPostgresBinary() []byte
-	// AsPostgresText returns value encoded in postgres text format
-	AsPostgresText() []byte
-
-	// AsMysqlBinary returns value encoded in mysql binary format
-	AsMysqlBinary() []byte
-	// AsMysqlText returns value encoded in mysql text format
-	AsMysqlText() []byte
+	// AssBinary returns value encoded in a binary format
+	AsBinary() []byte
+	// AsText returns value encoded in a text format
+	AsText() []byte
 }
 
 // EncodingValueFactory represents a factory that produces ready for encoding
@@ -65,125 +58,6 @@ type EncodingValueFactory interface {
 	NewInt32Value(intVal int32, strVal []byte) EncodingValue
 	// NewInt64Value creates a value that encodes as int64
 	NewInt64Value(intVal int64, strVal []byte) EncodingValue
-}
-
-// BytesValue is an EncodingValue that represents byte array
-type BytesValue struct {
-	seq []byte
-}
-
-// NewBytesValue returns EncodingValue from a byte array
-func NewBytesValue(seq []byte) EncodingValue {
-	return &BytesValue{seq}
-}
-
-// AsPostgresBinary returns value encoded in postgres binary format
-// For a byte sequence value this is an identity operation
-func (v *BytesValue) AsPostgresBinary() []byte {
-	return v.seq
-}
-
-// AsPostgresText returns value encoded in postgres text format
-// For a byte sequence value this is a hex encoded string
-func (v *BytesValue) AsPostgresText() []byte {
-	// all bytes should be encoded as valid bytea value
-	return utils.PgEncodeToHex(v.seq)
-}
-
-// AsMysqlBinary returns value encoded in mysql binary format
-// For a byte sequence value this is the same as text encoding
-func (v *BytesValue) AsMysqlBinary() []byte {
-	return v.AsMysqlText()
-}
-
-// AsMysqlText returns value encoded in mysql text format
-// For a byte sequence value this is a length encoded string
-func (v *BytesValue) AsMysqlText() []byte {
-	return PutLengthEncodedString(v.seq)
-}
-
-// IntValue represents a {size*8}-bit integer ready for encoding
-type IntValue struct {
-	size     int
-	value    int64
-	strValue string
-}
-
-// NewIntValue returns EncodingValue from integer with size*8 bits
-func NewIntValue(size int, value int64, strValue string) EncodingValue {
-	return &IntValue{size, value, strValue}
-}
-
-// AsPostgresBinary returns value encoded in postgres binary format
-// For an int value it is a big endian encoded integer
-func (v *IntValue) AsPostgresBinary() []byte {
-	newData := make([]byte, v.size)
-	switch v.size {
-	case 4:
-		binary.BigEndian.PutUint32(newData, uint32(v.value))
-	case 8:
-		binary.BigEndian.PutUint64(newData, uint64(v.value))
-	}
-	return newData
-}
-
-// AsPostgresText returns value encoded in postgres text format
-// For an int this means returning textual representation of the integer
-func (v *IntValue) AsPostgresText() []byte {
-	return []byte(v.strValue)
-}
-
-// AsMysqlBinary returns value encoded in mysql binary format
-// For an int value it is a little endian encoded integer
-func (v *IntValue) AsMysqlBinary() []byte {
-	newData := make([]byte, v.size)
-	switch v.size {
-	case 4:
-		binary.LittleEndian.PutUint32(newData, uint32(v.value))
-	case 8:
-		binary.LittleEndian.PutUint64(newData, uint64(v.value))
-	}
-	return newData
-}
-
-// AsMysqlText returns value encoded in mysql text format
-// For an int this is a length encoded string of that integer
-func (v *IntValue) AsMysqlText() []byte {
-	return PutLengthEncodedString([]byte(v.strValue))
-}
-
-// StringValue is an EncodingValue that encodes data into string format
-type StringValue struct {
-	data []byte
-}
-
-// NewStringValue returns string EncodingValue
-func NewStringValue(data []byte) EncodingValue {
-	return &StringValue{data}
-}
-
-// AsPostgresBinary returns value encoded in postgres binary format
-// In other words, it returns data as it is
-func (v *StringValue) AsPostgresBinary() []byte {
-	return v.data
-}
-
-// AsPostgresText returns value encoded in postgres text format
-// In other words, it returns data as it is
-func (v *StringValue) AsPostgresText() []byte {
-	return v.data
-}
-
-// AsMysqlBinary returns value encoded in mysql binary format
-// In other words, it encodes data into length encoded string
-func (v *StringValue) AsMysqlBinary() []byte {
-	return PutLengthEncodedString(v.data)
-}
-
-// AsMysqlText returns value encoded in mysql text format
-// In other words, it encodes data into length encoded string
-func (v *StringValue) AsMysqlText() []byte {
-	return PutLengthEncodedString(v.data)
 }
 
 // EncodeDefault returns wrapped default value from settings ready for encoding
@@ -244,28 +118,4 @@ func EncodeOnFail(setting config.ColumnEncryptionSetting, valueFactory EncodingV
 	}
 
 	return nil, fmt.Errorf("unknown action: %q", action)
-}
-
-// ValueFactoryPlug is a temporary factory which will be removed when
-// each backend (postgres or mysql) implements its own one
-type ValueFactoryPlug struct{}
-
-// NewStringValue creates a value that encodes as a str
-func (plug *ValueFactoryPlug) NewStringValue(str []byte) EncodingValue {
-	return NewStringValue(str)
-}
-
-// NewBytesValue creates a value that encodes as bytes
-func (plug *ValueFactoryPlug) NewBytesValue(bytes []byte) EncodingValue {
-	return NewBytesValue(bytes)
-}
-
-// NewInt32Value creates a value that encodes as int32
-func (plug *ValueFactoryPlug) NewInt32Value(intVal int32, strVal []byte) EncodingValue {
-	return NewIntValue(4, int64(intVal), string(strVal))
-}
-
-// NewInt64Value creates a value that encodes as int64
-func (plug *ValueFactoryPlug) NewInt64Value(intVal int64, strVal []byte) EncodingValue {
-	return NewIntValue(8, int64(intVal), string(strVal))
 }
