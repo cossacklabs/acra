@@ -35,7 +35,7 @@ func (p *PgSQLDataEncoderProcessor) encodeToValue(ctx context.Context, data []by
 	switch setting.GetEncryptedDataType() {
 	case common2.EncryptedType_String:
 		if !base.IsDecryptedFromContext(ctx) {
-			value, err := base.EncodeOnFail(setting, logger)
+			value, err := base.EncodeOnFail(setting, &base.ValueFactoryPlug{}, logger)
 			if err != nil {
 				return ctx, nil, err
 			} else if value != nil {
@@ -46,7 +46,7 @@ func (p *PgSQLDataEncoderProcessor) encodeToValue(ctx context.Context, data []by
 		return ctx, base.NewStringValue(data), nil
 	case common2.EncryptedType_Bytes:
 		if !base.IsDecryptedFromContext(ctx) {
-			value, err := base.EncodeOnFail(setting, logger)
+			value, err := base.EncodeOnFail(setting, &base.ValueFactoryPlug{}, logger)
 			if err != nil {
 				return ctx, nil, err
 			} else if value != nil {
@@ -69,7 +69,7 @@ func (p *PgSQLDataEncoderProcessor) encodeToValue(ctx context.Context, data []by
 		}
 		// if it's encrypted binary, then it is binary array that is invalid int literal
 		if !base.IsDecryptedFromContext(ctx) {
-			value, err := base.EncodeOnFail(setting, logger)
+			value, err := base.EncodeOnFail(setting, &base.ValueFactoryPlug{}, logger)
 			if err != nil {
 				return ctx, nil, err
 			} else if value != nil {

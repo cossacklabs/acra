@@ -161,7 +161,7 @@ func (p *BaseMySQLDataProcessor) encodeValueWithDataType(ctx context.Context, da
 	switch dataType {
 	case common.EncryptedType_String, common.EncryptedType_Bytes:
 		if !base.IsDecryptedFromContext(ctx) {
-			value, err := base.EncodeOnFail(setting, logger)
+			value, err := base.EncodeOnFail(setting, &base.ValueFactoryPlug{}, logger)
 			if err != nil {
 				return nil, err
 			} else if value != nil {
@@ -183,7 +183,7 @@ func (p *BaseMySQLDataProcessor) encodeValueWithDataType(ctx context.Context, da
 		}
 		// if it's encrypted binary, then it is binary array that is invalid int literal
 		if !base.IsDecryptedFromContext(ctx) {
-			value, err := base.EncodeOnFail(setting, logger)
+			value, err := base.EncodeOnFail(setting, &base.ValueFactoryPlug{}, logger)
 			if err != nil {
 				return nil, err
 			} else if value != nil {
