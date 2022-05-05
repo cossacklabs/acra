@@ -499,6 +499,12 @@ func TestExtractSetValues(t *testing.T) {
 			{Key: "search_path", Scope: "local"}: "value2",
 		},
 	}, {
+		sql: "set local search_path to 'value1', 'value2'",
+		out: map[SetKey]interface{}{
+			{Key: "search_path", Scope: "local"}: "value1",
+			{Key: "search_path", Scope: "local"}: "value2",
+		},
+	}, {
 		sql:   "set session sql_safe_updates = 1",
 		out:   map[SetKey]interface{}{{Key: "sql_safe_updates", Scope: "session"}: int64(1)},
 		scope: "session",
