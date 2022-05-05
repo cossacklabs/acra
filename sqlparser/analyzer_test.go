@@ -447,7 +447,7 @@ func TestExtractSetValues(t *testing.T) {
 		scope: "session",
 	}, {
 		sql:   "SET GLOBAL wait_timeout = 3600",
-		out:   map[SetKey]interface{}{{Key: "wait_timeout", Scope: "session"}: int64(3600)},
+		out:   map[SetKey]interface{}{{Key: "wait_timeout", Scope: "global"}: int64(3600)},
 		scope: "global",
 	}, {
 		sql:   "set session transaction isolation level repeatable read",
@@ -477,6 +477,27 @@ func TestExtractSetValues(t *testing.T) {
 		sql:   "set session sql_safe_updates = 0",
 		out:   map[SetKey]interface{}{{Key: "sql_safe_updates", Scope: "session"}: int64(0)},
 		scope: "session",
+	}, {
+		sql: "set search_path to 'value'",
+		out: map[SetKey]interface{}{{Key: "search_path", Scope: "session"}: "value"},
+	}, {
+		sql: "set global search_path to 'value'",
+		out: map[SetKey]interface{}{{Key: "search_path", Scope: "global"}: "value"},
+	}, {
+		sql: "set local search_path to 'value'",
+		out: map[SetKey]interface{}{{Key: "search_path", Scope: "local"}: "value"},
+	}, {
+		sql: "set local search_path to value",
+		out: map[SetKey]interface{}{{Key: "search_path", Scope: "local"}: "value"},
+	}, {
+		sql: "set local search_path to DEFAULT",
+		out: map[SetKey]interface{}{{Key: "search_path", Scope: "local"}: "default"},
+	}, {
+		sql: "set local search_path to value1, value2",
+		out: map[SetKey]interface{}{
+			{Key: "search_path", Scope: "local"}: "value1",
+			{Key: "search_path", Scope: "local"}: "value2",
+		},
 	}, {
 		sql:   "set session sql_safe_updates = 1",
 		out:   map[SetKey]interface{}{{Key: "sql_safe_updates", Scope: "session"}: int64(1)},
