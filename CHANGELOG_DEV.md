@@ -1,3 +1,6 @@
+# 0.93.0 - 2022-05-04
+- Add mysql support for `response_on_fail` options.
+
 # 0.93.0 - 2022-04-20
 - Add `make install_dev_deps` for development dependencies installation.
 
