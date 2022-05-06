@@ -870,9 +870,9 @@ func (handler *Handler) ProxyDatabaseConnection(ctx context.Context, errCh chan<
 				errCh <- base.NewDBProxyError(err)
 				return
 			}
-			// Close the connections
-			errCh <- base.NewDBProxyError(nil)
-			return
+			// Continue serving packet, though we should skip them till the end
+			// of the response.
+			continue
 		}
 
 		if err != nil {
