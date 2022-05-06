@@ -20,15 +20,16 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"github.com/cossacklabs/acra/keystore/filesystem"
-	"github.com/cossacklabs/acra/sqlparser"
-	"go.opencensus.io/trace"
 	"io"
 	"net"
 	"strconv"
 	"time"
 
-	"github.com/cossacklabs/acra/acra-censor"
+	"github.com/cossacklabs/acra/keystore/filesystem"
+	"github.com/cossacklabs/acra/sqlparser"
+	"go.opencensus.io/trace"
+
+	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
@@ -867,7 +868,10 @@ func (handler *Handler) ProxyDatabaseConnection(ctx context.Context, errCh chan<
 					WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
 					Debugln("Can't write response with error to client")
 				errCh <- base.NewDBProxyError(err)
+				return
 			}
+			// Close the connections
+			errCh <- base.NewDBProxyError(nil)
 			return
 		}
 
