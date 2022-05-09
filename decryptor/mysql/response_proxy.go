@@ -149,6 +149,21 @@ const (
 	TypeGeometry
 )
 
+type databaseHandlerState int
+
+const (
+	// stateFirstPacket is the starting state of the handler. Most of the time
+	// it is the same as `serve` expect allows setting some parameters of
+	// connection.
+	stateFirstPacket databaseHandlerState = iota
+	// stateServe is the most common state of the handler. It means normal
+	// processing of packets
+	stateServe
+	// stateSkipResponse is a state of a handler when it skips a select response
+	// from database
+	stateSkipResponse
+)
+
 // ResponseHandler database response header
 type ResponseHandler func(ctx context.Context, packet *Packet, dbConnection, clientConnection net.Conn) error
 
@@ -787,7 +802,7 @@ func (handler *Handler) ProxyDatabaseConnection(ctx context.Context, errCh chan<
 	defer span.End()
 	serverLog := handler.logger.WithField("proxy", "server")
 	serverLog.Debugln("Start proxy db responses")
-	firstPacket := true
+	var state databaseHandlerState = stateFirstPacket
 	var responseHandler ResponseHandler
 	// use pointers to function where should be stored some function that should be called if code return error and interrupt loop
 	// default value empty func to avoid != nil check
@@ -844,8 +859,8 @@ func (handler *Handler) ProxyDatabaseConnection(ctx context.Context, errCh chan<
 		if packet.IsErr() {
 			handler.resetQueryHandler()
 		}
-		if firstPacket {
-			firstPacket = false
+		if state == stateFirstPacket {
+			state = stateServe
 			handler.serverProtocol41 = packet.ServerSupportProtocol41()
 			serverLog.Debugf("Set support protocol 41 %v", handler.serverProtocol41)
 		}
@@ -865,8 +880,9 @@ func (handler *Handler) ProxyDatabaseConnection(ctx context.Context, errCh chan<
 				errCh <- base.NewDBProxyError(err)
 				return
 			}
-			// Continue serving packet, though we should skip them till the end
-			// of the response.
+			// Now we should flush the rest of the database packets because
+			// the client doesn't expect them
+			state = stateSkipResponse
 			continue
 		}
 
