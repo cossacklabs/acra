@@ -296,9 +296,8 @@ func (handler *Handler) ProxyClientConnection(ctx context.Context, errCh chan<- 
 						"for connections AcraServer->Database and CA certificate which will be used to verify certificate " +
 						"from database")
 					handler.logger.Debugln("Send error to db")
-					errPacket := NewQueryInterruptedError(handler.clientProtocol41, QueryExecutionWasInterrupted)
-					packet.SetData(errPacket)
-					if _, err := handler.clientConnection.Write(packet.Dump()); err != nil {
+
+					if err := handler.sendClientError(QueryExecutionWasInterrupted, packet); err != nil {
 						handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
 							Debugln("Can't write response with error to client")
 					}
@@ -395,9 +394,7 @@ func (handler *Handler) ProxyClientConnection(ctx context.Context, errCh chan<- 
 			if err := handler.acracensor.HandleQuery(query); err != nil {
 				censorSpan.End()
 				clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).Errorln("Error on AcraCensor check")
-				errPacket := NewQueryInterruptedError(handler.clientProtocol41, QueryExecutionWasInterrupted)
-				packet.SetData(errPacket)
-				if _, err := handler.clientConnection.Write(packet.Dump()); err != nil {
+				if err := handler.sendClientError(QueryExecutionWasInterrupted, packet); err != nil {
 					handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
 						Errorln("Can't write response with error to client")
 				}
@@ -860,10 +857,8 @@ func (handler *Handler) ProxyDatabaseConnection(ctx context.Context, errCh chan<
 
 		// EncodingError is the only one that we should forward to the client
 		if encodingError, ok := err.(*base.EncodingError); ok {
-			handler.logger.WithError(encodingError).Debugln("Sending encoding error to the client")
-			errPacket := NewQueryInterruptedError(handler.clientProtocol41, encodingError.Error())
-			packet.SetData(errPacket)
-			if _, err := handler.clientConnection.Write(packet.Dump()); err != nil {
+			handler.logger.WithError(err).Debugln("Sending encoding error to the client")
+			if err := handler.sendClientError(encodingError.Error(), packet); err != nil {
 				handler.logger.WithError(err).
 					WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
 					Debugln("Can't write response with error to client")
@@ -881,6 +876,14 @@ func (handler *Handler) ProxyDatabaseConnection(ctx context.Context, errCh chan<
 			return
 		}
 	}
+}
+
+// sendClientError sends an `QueryInterruptedError` with a custom message
+func (handler *Handler) sendClientError(msg string, packet *Packet) error {
+	errPacket := NewQueryInterruptedError(handler.clientProtocol41, msg)
+	packet.SetData(errPacket)
+	_, err := handler.clientConnection.Write(packet.Dump())
+	return err
 }
 
 // AddClientIDObserver subscribe new observer for clientID changes
