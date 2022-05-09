@@ -262,7 +262,7 @@ func forceEOF(yylex interface{}) {
 %type <partitions> opt_partition_clause partition_list
 %type <updateExprs> on_dup_opt
 %type <updateExprs> update_list
-%type <setExprs> set_list transaction_chars
+%type <setExprs> set_list transaction_chars set_to_list
 %type <bytes> charset_or_character_set
 %type <updateExpr> update_expression
 %type <setExpr> set_expression transaction_char isolation_level
@@ -496,7 +496,15 @@ set_statement:
   {
     $$ = &Set{Comments: Comments($2), Exprs: $3}
   }
+| SET comment_opt set_to_list
+  {
+    $$ = &Set{Comments: Comments($2), Exprs: $3}
+  }
 | SET comment_opt set_operation_scope set_list
+  {
+    $$ = &Set{Comments: Comments($2), Scope: $3, Exprs: $4}
+  }
+| SET comment_opt set_operation_scope set_to_list
   {
     $$ = &Set{Comments: Comments($2), Scope: $3, Exprs: $4}
   }
@@ -551,6 +559,8 @@ isolation_level:
     $$ = &SetExpr{Name: NewColIdent("tx_isolation"), Expr: NewStrVal([]byte("serializable"))}
   }
 
+// LOCAL is PostgreSQL specific scope defined here https://www.postgresql.org/docs/current/sql-set.html
+// there is no such scope for MySQL
 set_operation_scope:
   set_session_or_global
   | LOCAL
@@ -3038,9 +3048,15 @@ set_list:
   {
     $$ = append($1, $3)
   }
-| sql_id TO value_expression ',' value_expression
+
+set_to_list:
+  sql_id TO value_expression
   {
-    $$ = SetExprs{&SetExpr{Name: $1, Expr: $3}, &SetExpr{Name: $1, Expr: $5}}
+    $$ = SetExprs{&SetExpr{Name: $1, Expr: $3}}
+  }
+| set_to_list ',' value_expression
+  {
+    $$ = append($1, &SetExpr{Name: $1[0].Name, Expr: $3})
   }
 
 set_expression:
@@ -3056,10 +3072,10 @@ set_expression:
   {
     $$ = &SetExpr{Name: NewColIdent(string($1)), Expr: $2}
   }
-| sql_id TO value_expression
-  {
-    $$ = &SetExpr{Name: $1, Expr: $3}
-  }
+//| sql_id TO value_expression
+//  {
+//    $$ = &SetExpr{Name: $1, Expr: $3}
+//  }
 
 charset_or_character_set:
   CHARSET

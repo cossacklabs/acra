@@ -481,8 +481,14 @@ func TestExtractSetValues(t *testing.T) {
 		sql: "set search_path to 'value'",
 		out: map[SetKey]interface{}{{Key: "search_path", Scope: "session"}: "value"},
 	}, {
-		sql: "set global search_path to 'value'",
-		out: map[SetKey]interface{}{{Key: "search_path", Scope: "global"}: "value"},
+		sql: "set search_path to 'value'",
+		out: map[SetKey]interface{}{{Key: "search_path", Scope: "session"}: "value"},
+	}, {
+		sql: "set global search_path to true",
+		out: map[SetKey]interface{}{{Key: "search_path", Scope: "global"}: int64(1)},
+	}, {
+		sql: "set global search_path to 100",
+		out: map[SetKey]interface{}{{Key: "search_path", Scope: "global"}: int64(100)},
 	}, {
 		sql: "set local search_path to 'value'",
 		out: map[SetKey]interface{}{{Key: "search_path", Scope: "local"}: "value"},
@@ -497,6 +503,13 @@ func TestExtractSetValues(t *testing.T) {
 		out: map[SetKey]interface{}{
 			{Key: "search_path", Scope: "local"}: "value1",
 			{Key: "search_path", Scope: "local"}: "value2",
+		},
+	}, {
+		sql: "set local search_path to value1, value2, true",
+		out: map[SetKey]interface{}{
+			{Key: "search_path", Scope: "local"}: "value1",
+			{Key: "search_path", Scope: "local"}: "value2",
+			{Key: "search_path", Scope: "local"}: int64(1),
 		},
 	}, {
 		sql: "set local search_path to 'value1', 'value2'",
