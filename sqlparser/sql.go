@@ -6378,205 +6378,205 @@ yydefault:
 		}
 	case 600:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line sql.y:3083
+//line sql.y:3079
 		{
 			yyVAL.bytes = []byte("charset")
 		}
 	case 602:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3090
+//line sql.y:3086
 		{
 			yyVAL.expr = NewStrVal([]byte(yyDollar[1].colIdent.String()))
 		}
 	case 603:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3094
+//line sql.y:3090
 		{
 			yyVAL.expr = NewStrVal(yyDollar[1].bytes)
 		}
 	case 604:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3098
+//line sql.y:3094
 		{
 			yyVAL.expr = &Default{}
 		}
 	case 607:
 		yyDollar = yyS[yypt-0 : yypt+1]
-//line sql.y:3107
+//line sql.y:3103
 		{
 			yyVAL.byt = 0
 		}
 	case 608:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line sql.y:3109
+//line sql.y:3105
 		{
 			yyVAL.byt = 1
 		}
 	case 609:
 		yyDollar = yyS[yypt-0 : yypt+1]
-//line sql.y:3112
+//line sql.y:3108
 		{
 			yyVAL.empty = struct{}{}
 		}
 	case 610:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line sql.y:3114
+//line sql.y:3110
 		{
 			yyVAL.empty = struct{}{}
 		}
 	case 611:
 		yyDollar = yyS[yypt-0 : yypt+1]
-//line sql.y:3117
+//line sql.y:3113
 		{
 			yyVAL.str = ""
 		}
 	case 612:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3119
+//line sql.y:3115
 		{
 			yyVAL.str = IgnoreStr
 		}
 	case 613:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3123
+//line sql.y:3119
 		{
 			yyVAL.empty = struct{}{}
 		}
 	case 614:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3125
+//line sql.y:3121
 		{
 			yyVAL.empty = struct{}{}
 		}
 	case 615:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3127
+//line sql.y:3123
 		{
 			yyVAL.empty = struct{}{}
 		}
 	case 616:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3129
+//line sql.y:3125
 		{
 			yyVAL.empty = struct{}{}
 		}
 	case 617:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3131
+//line sql.y:3127
 		{
 			yyVAL.empty = struct{}{}
 		}
 	case 618:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3133
+//line sql.y:3129
 		{
 			yyVAL.empty = struct{}{}
 		}
 	case 619:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3135
+//line sql.y:3131
 		{
 			yyVAL.empty = struct{}{}
 		}
 	case 620:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3137
+//line sql.y:3133
 		{
 			yyVAL.empty = struct{}{}
 		}
 	case 621:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3139
+//line sql.y:3135
 		{
 			yyVAL.empty = struct{}{}
 		}
 	case 622:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3141
+//line sql.y:3137
 		{
 			yyVAL.empty = struct{}{}
 		}
 	case 623:
 		yyDollar = yyS[yypt-0 : yypt+1]
-//line sql.y:3144
+//line sql.y:3140
 		{
 			yyVAL.empty = struct{}{}
 		}
 	case 624:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3146
+//line sql.y:3142
 		{
 			yyVAL.empty = struct{}{}
 		}
 	case 625:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3148
+//line sql.y:3144
 		{
 			yyVAL.empty = struct{}{}
 		}
 	case 626:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3152
+//line sql.y:3148
 		{
 			yyVAL.empty = struct{}{}
 		}
 	case 627:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3154
+//line sql.y:3150
 		{
 			yyVAL.empty = struct{}{}
 		}
 	case 628:
 		yyDollar = yyS[yypt-0 : yypt+1]
-//line sql.y:3157
+//line sql.y:3153
 		{
 			yyVAL.empty = struct{}{}
 		}
 	case 629:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3159
+//line sql.y:3155
 		{
 			yyVAL.empty = struct{}{}
 		}
 	case 630:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3161
+//line sql.y:3157
 		{
 			yyVAL.empty = struct{}{}
 		}
 	case 631:
 		yyDollar = yyS[yypt-0 : yypt+1]
-//line sql.y:3164
+//line sql.y:3160
 		{
 			yyVAL.colIdent = ColIdent{}
 		}
 	case 632:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line sql.y:3166
+//line sql.y:3162
 		{
 			yyVAL.colIdent = yyDollar[2].colIdent
 		}
 	case 633:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3170
+//line sql.y:3166
 		{
 			yyVAL.colIdent = NewColIdent(string(yyDollar[1].bytes))
 		}
 	case 634:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3174
+//line sql.y:3170
 		{
 			yyVAL.colIdent = NewColIdent(string(yyDollar[1].bytes))
 		}
 	case 636:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3181
+//line sql.y:3177
 		{
 			yyVAL.colIdent = NewColIdent(string(yyDollar[1].bytes))
 		}
 	case 637:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3187
+//line sql.y:3183
 		{
 			if yylex.(*Tokenizer).IsMySQL() && !yylex.(*Tokenizer).dialect.(*mysql.MySQLDialect).IsModeANSIOn() {
 				yylex.Error("MySQL dialect configured ANSI_mode=off and doesn't allow double quoted table identifiers")
@@ -6586,7 +6586,7 @@ yydefault:
 		}
 	case 638:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3195
+//line sql.y:3191
 		{
 			if yylex.(*Tokenizer).IsPostgreSQL() {
 				yylex.Error("PostgreSQL dialect doesn't allow to use backtick quotes for table identifiers")
@@ -6596,31 +6596,31 @@ yydefault:
 		}
 	case 639:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3203
+//line sql.y:3199
 		{
 			yyVAL.tableIdent = NewTableIdentWithQuotes(string(yyDollar[1].bytes), '\'')
 		}
 	case 640:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3208
+//line sql.y:3204
 		{
 			yyVAL.tableIdent = NewTableIdent(string(yyDollar[1].bytes))
 		}
 	case 641:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3212
+//line sql.y:3208
 		{
 			yyVAL.tableIdent = NewTableIdent(string(yyDollar[1].bytes))
 		}
 	case 643:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3219
+//line sql.y:3215
 		{
 			yyVAL.tableIdent = NewTableIdent(string(yyDollar[1].bytes))
 		}
 	case 857:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3464
+//line sql.y:3460
 		{
 			if incNesting(yylex) {
 				yylex.Error("max nesting level reached")
@@ -6629,31 +6629,31 @@ yydefault:
 		}
 	case 858:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3473
+//line sql.y:3469
 		{
 			decNesting(yylex)
 		}
 	case 859:
 		yyDollar = yyS[yypt-0 : yypt+1]
-//line sql.y:3478
+//line sql.y:3474
 		{
 			forceEOF(yylex)
 		}
 	case 860:
 		yyDollar = yyS[yypt-0 : yypt+1]
-//line sql.y:3483
+//line sql.y:3479
 		{
 			forceEOF(yylex)
 		}
 	case 861:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3487
+//line sql.y:3483
 		{
 			forceEOF(yylex)
 		}
 	case 862:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line sql.y:3491
+//line sql.y:3487
 		{
 			forceEOF(yylex)
 		}

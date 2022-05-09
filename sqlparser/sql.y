@@ -3072,10 +3072,6 @@ set_expression:
   {
     $$ = &SetExpr{Name: NewColIdent(string($1)), Expr: $2}
   }
-//| sql_id TO value_expression
-//  {
-//    $$ = &SetExpr{Name: $1, Expr: $3}
-//  }
 
 charset_or_character_set:
   CHARSET
