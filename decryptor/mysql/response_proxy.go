@@ -859,37 +859,52 @@ func (handler *Handler) ProxyDatabaseConnection(ctx context.Context, errCh chan<
 		if packet.IsErr() {
 			handler.resetQueryHandler()
 		}
-		if state == stateFirstPacket {
+
+		switch state {
+		case stateSkipResponse:
+			// Ok, EOF or ERROR packets are the last in the query response
+			// sequence. After them, we should continue serving.
+			// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_query_response.html
+			last := packet.IsErr() || packet.IsEOF()
+			if last {
+				state = stateServe
+			}
+			serverLog.WithField("last", last).Debugln("Skipping the packet")
+			continue
+		case stateFirstPacket:
 			state = stateServe
 			handler.serverProtocol41 = packet.ServerSupportProtocol41()
 			serverLog.Debugf("Set support protocol 41 %v", handler.serverProtocol41)
-		}
-		// reset previously matched zoneID
-		accessContext := base.AccessContextFromContext(ctx)
-		accessContext.SetZoneID(nil)
-		responseHandler = handler.getResponseHandler()
-		err = responseHandler(ctx, packet, handler.dbConnection, handler.clientConnection)
+			fallthrough
 
-		// EncodingError is the only one that we should forward to the client
-		if encodingError, ok := err.(*base.EncodingError); ok {
-			handler.logger.WithError(err).Debugln("Sending encoding error to the client")
-			if err := handler.sendClientError(encodingError.Error(), packet); err != nil {
-				handler.logger.WithError(err).
-					WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
-					Debugln("Can't write response with error to client")
+		case stateServe:
+			// reset previously matched zoneID
+			accessContext := base.AccessContextFromContext(ctx)
+			accessContext.SetZoneID(nil)
+			responseHandler = handler.getResponseHandler()
+			err = responseHandler(ctx, packet, handler.dbConnection, handler.clientConnection)
+
+			// EncodingError is the only one that we should forward to the client
+			if encodingError, ok := err.(*base.EncodingError); ok {
+				handler.logger.WithError(err).Debugln("Sending encoding error to the client")
+				if err := handler.sendClientError(encodingError.Error(), packet); err != nil {
+					handler.logger.WithError(err).
+						WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
+						Debugln("Can't write response with error to client")
+					errCh <- base.NewDBProxyError(err)
+					return
+				}
+				// Now we should flush the rest of the database packets because
+				// the client doesn't expect them
+				state = stateSkipResponse
+				continue
+			}
+
+			if err != nil {
+				handler.resetQueryHandler()
 				errCh <- base.NewDBProxyError(err)
 				return
 			}
-			// Now we should flush the rest of the database packets because
-			// the client doesn't expect them
-			state = stateSkipResponse
-			continue
-		}
-
-		if err != nil {
-			handler.resetQueryHandler()
-			errCh <- base.NewDBProxyError(err)
-			return
 		}
 	}
 }
