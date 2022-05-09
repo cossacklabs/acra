@@ -378,6 +378,7 @@ type Set struct {
 const (
 	SessionStr = "session"
 	GlobalStr  = "global"
+	LocalStr   = "local"
 )
 
 // DBDDL represents a CREATE, DROP database statement.

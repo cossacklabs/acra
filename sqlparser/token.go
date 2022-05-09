@@ -279,6 +279,7 @@ var keywords = map[string]int{
 	"localtime":           LOCALTIME,
 	"localtimestamp":      LOCALTIMESTAMP,
 	"lock":                LOCK,
+	"local":               LOCAL,
 	"long":                UNUSED,
 	"longblob":            LONGBLOB,
 	"longtext":            LONGTEXT,

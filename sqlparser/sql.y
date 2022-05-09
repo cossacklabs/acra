@@ -190,7 +190,7 @@ func forceEOF(yylex interface{}) {
 %token <bytes> DATABASES TABLES VITESS_KEYSPACES VITESS_SHARDS VITESS_TABLETS VSCHEMA_TABLES EXTENDED FULL PROCESSLIST
 
 // SET tokens
-%token <bytes> NAMES CHARSET GLOBAL SESSION ISOLATION LEVEL READ WRITE ONLY REPEATABLE COMMITTED UNCOMMITTED SERIALIZABLE
+%token <bytes> NAMES CHARSET GLOBAL SESSION LOCAL ISOLATION LEVEL READ WRITE ONLY REPEATABLE COMMITTED UNCOMMITTED SERIALIZABLE
 
 // Functions
 %token <bytes> CURRENT_TIMESTAMP DATABASE CURRENT_DATE
@@ -262,7 +262,7 @@ func forceEOF(yylex interface{}) {
 %type <partitions> opt_partition_clause partition_list
 %type <updateExprs> on_dup_opt
 %type <updateExprs> update_list
-%type <setExprs> set_list transaction_chars
+%type <setExprs> set_list transaction_chars set_to_list
 %type <bytes> charset_or_character_set
 %type <updateExpr> update_expression
 %type <setExpr> set_expression transaction_char isolation_level
@@ -280,6 +280,7 @@ func forceEOF(yylex interface{}) {
 %type <empty> force_eof ddl_force_eof
 %type <str> charset
 %type <str> set_session_or_global show_session_or_global
+%type <str> set_operation_scope show_operation_scope
 %type <convertType> convert_type
 %type <columnTypes> column_type_list
 %type <columnType> column_type
@@ -495,7 +496,15 @@ set_statement:
   {
     $$ = &Set{Comments: Comments($2), Exprs: $3}
   }
-| SET comment_opt set_session_or_global set_list
+| SET comment_opt set_to_list
+  {
+    $$ = &Set{Comments: Comments($2), Exprs: $3}
+  }
+| SET comment_opt set_operation_scope set_list
+  {
+    $$ = &Set{Comments: Comments($2), Scope: $3, Exprs: $4}
+  }
+| SET comment_opt set_operation_scope set_to_list
   {
     $$ = &Set{Comments: Comments($2), Scope: $3, Exprs: $4}
   }
@@ -549,6 +558,16 @@ isolation_level:
   {
     $$ = &SetExpr{Name: NewColIdent("tx_isolation"), Expr: NewStrVal([]byte("serializable"))}
   }
+
+// LOCAL is PostgreSQL specific scope defined here https://www.postgresql.org/docs/current/sql-set.html
+// there is no such scope for MySQL
+set_operation_scope:
+  set_session_or_global
+  | LOCAL
+  {
+    $$ = LocalStr
+  }
+
 
 set_session_or_global:
   SESSION
@@ -1422,6 +1441,10 @@ show_statement:
   {
     $$ = &Show{Scope: $2, Type: string($3)}
   }
+| SHOW show_operation_scope STATUS ddl_force_eof
+  {
+    $$ = &Show{Scope: $2, Type: string($3)}
+  }
 | SHOW TABLE ddl_force_eof
   {
     $$ = &Show{Type: string($2)}
@@ -1441,6 +1464,10 @@ show_statement:
     }
   }
 | SHOW show_session_or_global VARIABLES ddl_force_eof
+  {
+    $$ = &Show{Scope: $2, Type: string($3)}
+  }
+| SHOW show_operation_scope VARIABLES ddl_force_eof
   {
     $$ = &Show{Scope: $2, Type: string($3)}
   }
@@ -1535,6 +1562,13 @@ like_or_where_opt:
 | WHERE expression
   {
     $$ = &ShowFilter{Filter:$2}
+  }
+
+show_operation_scope:
+  show_session_or_global
+| LOCAL
+  {
+    $$ = LocalStr
   }
 
 show_session_or_global:
@@ -2752,6 +2786,10 @@ value:
   {
     $$ = NewCastVal($1, $2)
   }
+| DEFAULT
+  {
+    $$ = &Default{}
+  }
 
 typecast:
   LIST_ARG
@@ -3009,6 +3047,16 @@ set_list:
 | set_list ',' set_expression
   {
     $$ = append($1, $3)
+  }
+
+set_to_list:
+  sql_id TO value_expression
+  {
+    $$ = SetExprs{&SetExpr{Name: $1, Expr: $3}}
+  }
+| set_to_list ',' value_expression
+  {
+    $$ = append($1, &SetExpr{Name: $1[0].Name, Expr: $3})
   }
 
 set_expression:
@@ -3339,6 +3387,7 @@ non_reserved_keyword:
 | LESS
 | LEVEL
 | LINESTRING
+| LOCAL
 | LONGBLOB
 | LONGTEXT
 | MEDIUMBLOB

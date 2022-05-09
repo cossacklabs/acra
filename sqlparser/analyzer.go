@@ -300,6 +300,9 @@ func ExtractSetValues(sql string) (keyValues map[SetKey]interface{}, scope strin
 	result := make(map[SetKey]interface{})
 	for _, expr := range setStmt.Exprs {
 		scope := SessionStr
+		if setStmt.Scope != "" {
+			scope = setStmt.Scope
+		}
 		key := expr.Name.Lowered()
 		switch {
 		case strings.HasPrefix(key, "@@global."):
