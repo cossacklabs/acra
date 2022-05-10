@@ -248,7 +248,7 @@ func GetTablesWithAliases(tables sqlparser.TableExprs) []*AliasedTableName {
 // hasTablesToEncrypt check that exists schema for any table in tables
 func (encryptor *QueryDataEncryptor) hasTablesToEncrypt(tables []*AliasedTableName) bool {
 	for _, table := range tables {
-		if v := encryptor.schemaStore.GetTableSchema(table.TableName.Name.String()); v != nil {
+		if v := encryptor.schemaStore.GetTableSchema(table.TableName.Name.RawValue()); v != nil {
 			return true
 		}
 	}
@@ -262,7 +262,7 @@ func (encryptor *QueryDataEncryptor) encryptUpdateExpressions(ctx context.Contex
 	for _, expr := range exprs {
 		// recognize table name of column
 		if expr.Name.Qualifier.IsEmpty() {
-			schema = encryptor.schemaStore.GetTableSchema(firstTable.Name.String())
+			schema = encryptor.schemaStore.GetTableSchema(firstTable.Name.RawValue())
 		} else {
 			tableName := qualifierMap[expr.Name.Qualifier.Name.String()]
 			schema = encryptor.schemaStore.GetTableSchema(tableName)

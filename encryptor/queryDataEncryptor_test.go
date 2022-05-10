@@ -382,7 +382,7 @@ schemas:
 
 		// 27. insert with data as simple string for postgresql
 		{
-			Query:             `INSERT INTO "TableWithoutColumnSchema" ('zone_id', 'specified_client_id', 'other_column', 'default_client_id') VALUES ('%s', '%s', 1, '%s')`,
+			Query:             `INSERT INTO "TableWithoutColumnSchema" ("zone_id", "specified_client_id", "other_column", "default_client_id") VALUES ('%s', '%s', 1, '%s')`,
 			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData},
 			ExpectedQueryData: []interface{}{encryptedValue, encryptedValue, encryptedValue},
 			Normalized:        true,

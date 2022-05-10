@@ -765,7 +765,8 @@ func (tkn *Tokenizer) scanLiteralIdentifier() (int, []byte) {
 			continue
 		}
 		if tkn.dialect.QuoteHandler().IsIdentifierQuote(byte(tkn.lastChar)) {
-			quoteSeen = &tkn.lastChar
+			tmp := tkn.lastChar
+			quoteSeen = &tmp
 		} else if tkn.lastChar == eofChar {
 			// Premature EOF.
 			return LEX_ERROR, buffer.Bytes()
