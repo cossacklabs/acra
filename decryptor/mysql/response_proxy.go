@@ -149,6 +149,21 @@ const (
 	TypeGeometry
 )
 
+type databaseHandlerState int
+
+const (
+	// stateFirstPacket is the starting state of the handler. Most of the time
+	// it is the same as `serve` expect allows setting some parameters of
+	// connection.
+	stateFirstPacket databaseHandlerState = iota
+	// stateServe is the most common state of the handler. It means normal
+	// processing of packets
+	stateServe
+	// stateSkipResponse is a state of a handler when it skips a select response
+	// from database
+	stateSkipResponse
+)
+
 // ResponseHandler database response header
 type ResponseHandler func(ctx context.Context, packet *Packet, dbConnection, clientConnection net.Conn) error
 
@@ -296,9 +311,8 @@ func (handler *Handler) ProxyClientConnection(ctx context.Context, errCh chan<- 
 						"for connections AcraServer->Database and CA certificate which will be used to verify certificate " +
 						"from database")
 					handler.logger.Debugln("Send error to db")
-					errPacket := NewQueryInterruptedError(handler.clientProtocol41, QueryExecutionWasInterrupted)
-					packet.SetData(errPacket)
-					if _, err := handler.clientConnection.Write(packet.Dump()); err != nil {
+
+					if err := handler.sendClientError(QueryExecutionWasInterrupted, packet); err != nil {
 						handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
 							Debugln("Can't write response with error to client")
 					}
@@ -395,9 +409,7 @@ func (handler *Handler) ProxyClientConnection(ctx context.Context, errCh chan<- 
 			if err := handler.acracensor.HandleQuery(query); err != nil {
 				censorSpan.End()
 				clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).Errorln("Error on AcraCensor check")
-				errPacket := NewQueryInterruptedError(handler.clientProtocol41, QueryExecutionWasInterrupted)
-				packet.SetData(errPacket)
-				if _, err := handler.clientConnection.Write(packet.Dump()); err != nil {
+				if err := handler.sendClientError(QueryExecutionWasInterrupted, packet); err != nil {
 					handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
 						Errorln("Can't write response with error to client")
 				}
@@ -790,7 +802,7 @@ func (handler *Handler) ProxyDatabaseConnection(ctx context.Context, errCh chan<
 	defer span.End()
 	serverLog := handler.logger.WithField("proxy", "server")
 	serverLog.Debugln("Start proxy db responses")
-	firstPacket := true
+	var state databaseHandlerState = stateFirstPacket
 	var responseHandler ResponseHandler
 	// use pointers to function where should be stored some function that should be called if code return error and interrupt loop
 	// default value empty func to avoid != nil check
@@ -847,40 +859,62 @@ func (handler *Handler) ProxyDatabaseConnection(ctx context.Context, errCh chan<
 		if packet.IsErr() {
 			handler.resetQueryHandler()
 		}
-		if firstPacket {
-			firstPacket = false
+
+		switch state {
+		case stateSkipResponse:
+			// Ok, EOF or ERROR packets are the last in the query response
+			// sequence. After them, we should continue serving.
+			// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_query_response.html
+			last := packet.IsErr() || packet.IsEOF()
+			if last {
+				state = stateServe
+			}
+			serverLog.WithField("last", last).Debugln("Skipping the packet")
+			continue
+		case stateFirstPacket:
+			state = stateServe
 			handler.serverProtocol41 = packet.ServerSupportProtocol41()
 			serverLog.Debugf("Set support protocol 41 %v", handler.serverProtocol41)
-		}
-		// reset previously matched zoneID
-		accessContext := base.AccessContextFromContext(ctx)
-		accessContext.SetZoneID(nil)
-		responseHandler = handler.getResponseHandler()
-		err = responseHandler(ctx, packet, handler.dbConnection, handler.clientConnection)
+			fallthrough
 
-		// EncodingError is the only one that we should forward to the client
-		if encodingError, ok := err.(*base.EncodingError); ok {
-			handler.logger.WithError(encodingError).Debugln("Sending encoding error to the client")
-			errPacket := NewQueryInterruptedError(handler.clientProtocol41, encodingError.Error())
-			packet.SetData(errPacket)
-			if _, err := handler.clientConnection.Write(packet.Dump()); err != nil {
-				handler.logger.WithError(err).
-					WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
-					Debugln("Can't write response with error to client")
+		case stateServe:
+			// reset previously matched zoneID
+			accessContext := base.AccessContextFromContext(ctx)
+			accessContext.SetZoneID(nil)
+			responseHandler = handler.getResponseHandler()
+			err = responseHandler(ctx, packet, handler.dbConnection, handler.clientConnection)
+
+			// EncodingError is the only one that we should forward to the client
+			if encodingError, ok := err.(*base.EncodingError); ok {
+				handler.logger.WithError(err).Debugln("Sending encoding error to the client")
+				if err := handler.sendClientError(encodingError.Error(), packet); err != nil {
+					handler.logger.WithError(err).
+						WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
+						Debugln("Can't write response with error to client")
+					errCh <- base.NewDBProxyError(err)
+					return
+				}
+				// Now we should flush the rest of the database packets because
+				// the client doesn't expect them
+				state = stateSkipResponse
+				continue
+			}
+
+			if err != nil {
+				handler.resetQueryHandler()
 				errCh <- base.NewDBProxyError(err)
 				return
 			}
-			// Continue serving packet, though we should skip them till the end
-			// of the response.
-			continue
-		}
-
-		if err != nil {
-			handler.resetQueryHandler()
-			errCh <- base.NewDBProxyError(err)
-			return
 		}
 	}
+}
+
+// sendClientError sends an `QueryInterruptedError` with a custom message
+func (handler *Handler) sendClientError(msg string, packet *Packet) error {
+	errPacket := NewQueryInterruptedError(handler.clientProtocol41, msg)
+	packet.SetData(errPacket)
+	_, err := handler.clientConnection.Write(packet.Dump())
+	return err
 }
 
 // AddClientIDObserver subscribe new observer for clientID changes

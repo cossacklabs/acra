@@ -153,3 +153,14 @@ schemas:
       - column: value_empty_str
         data_type: "str"
         response_on_fail: ciphertext
+
+  - table: test_proper_db_flushing_on_error
+    columns:
+      - id
+      - value_bytes
+
+    encrypted:
+      # We want to test the proper workflow, so one field will do the trick
+      - column: value_bytes
+        data_type: "bytes"
+        response_on_fail: error

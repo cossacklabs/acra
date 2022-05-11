@@ -9755,6 +9755,110 @@ class TestPostgresqlConnectWithTLSPrefer(BaseTestCase):
         loop = asyncio.new_event_loop()  # create new to avoid concurrent usage of the loop in the current thread and allow parallel execution in the future
         loop.run_until_complete(_testPlainConnectionAfterDeny())
 
+class TestMySQLDbFlushingOnError(BaseBinaryMySQLTestCase, BaseTransparentEncryption):
+    encryptor_table = sa.Table(
+        'test_proper_db_flushing_on_error', sa.MetaData(),
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_bytes', sa.LargeBinary),
+    )
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+
+    def checkSkip(self):
+        if not (TEST_MYSQL and TEST_WITH_TLS):
+            self.skipTest("Test only for MySQL with TLS")
+
+    def testConnectionIsNotAborted(self):
+        """
+        Test that connection is not closed in case of "encoding error". Test
+        that we can reuse connection for queries after.
+        """
+
+        self.encryptor_table.create(bind=self.engine_raw, checkfirst=True)
+        # Insert data that will trigger decryption error
+        corrupted_data = {
+            'id': get_random_id(),
+            'value_bytes': random_bytes(),
+        }
+        self.engine_raw.execute(self.encryptor_table.insert(), corrupted_data)
+
+        with self.engine1.connect() as conn:
+            # Insert some data
+            data = {
+                'id': get_random_id(),
+                'value_bytes': random_bytes(),
+            }
+            conn.execute(self.encryptor_table.insert(), data)
+
+            query = sa \
+                .select([self.encryptor_table]) \
+                .where(self.encryptor_table.c.id == data['id'])
+            row = conn.execute(query).fetchone()
+            self.assertEqual(data['value_bytes'], row['value_bytes'])
+
+            # Expect "encoding error"
+            ids = (data['id'], corrupted_data['id'])
+            query = sa \
+                .select([self.encryptor_table]) \
+                .where(self.encryptor_table.c.id.in_(ids))
+
+            with self.assertRaises(sa.exc.OperationalError) as ex:
+                conn.execute(query).fetchall()
+            self.assertEqual(ex.exception.orig.args, (1317, 'encoding error in column "value_bytes"'))
+
+            # Insert and select new data using the same connection to be sure
+            # it doesn't close or get out of sync
+            data = {
+                'id': get_random_id(),
+                'value_bytes': random_bytes(),
+            }
+            conn.execute(self.encryptor_table.insert(), data)
+
+            query = sa \
+                .select([self.encryptor_table]) \
+                .where(self.encryptor_table.c.id == data['id'])
+            row = conn.execute(query).fetchone()
+            self.assertEqual(data['value_bytes'], row['value_bytes'])
+
+    def testTransactionRollback(self):
+        """
+        Test that connection is not closed in case of "encoding error" and
+        sqlaclchemy can do rollback in transaction after that.
+        """
+
+        self.encryptor_table.create(bind=self.engine_raw, checkfirst=True)
+        # Insert data that will trigger decryption error
+        corrupted_data = {
+            'id': get_random_id(),
+            'value_bytes': random_bytes(),
+        }
+        self.engine_raw.execute(self.encryptor_table.insert(), corrupted_data)
+        data = {
+            'id': get_random_id(),
+            'value_bytes': random_bytes(),
+        }
+        select_data = sa \
+            .select([self.encryptor_table]) \
+            .where(self.encryptor_table.c.id == data['id'])
+
+        with self.assertRaises(sa.exc.OperationalError) as ex:
+            with self.engine1.begin() as conn:
+                conn.execute(self.encryptor_table.insert(), data)
+
+                row = conn.execute(select_data).fetchone()
+                self.assertEqual(data['value_bytes'], row['value_bytes'])
+
+                # Expect "encoding error"
+                ids = (data['id'], corrupted_data['id'])
+                query = sa \
+                    .select([self.encryptor_table]) \
+                    .where(self.encryptor_table.c.id.in_(ids))
+
+                conn.execute(query).fetchall()
+
+        self.assertEqual(ex.exception.orig.args, (1317, 'encoding error in column "value_bytes"'))
+        row = self.engine1.execute(select_data).fetchone()
+        self.assertEqual(row, None)
+
 
 if __name__ == '__main__':
     import xmlrunner
