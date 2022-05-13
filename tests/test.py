@@ -58,7 +58,7 @@ from prometheus_client.parser import text_string_to_metric_families
 from sqlalchemy.dialects import mysql as mysql_dialect
 from sqlalchemy.dialects import postgresql as postgresql_dialect
 from sqlalchemy.dialects.postgresql import BYTEA
-from sqlalchemy.exc import DatabaseError, ProgrammingError
+from sqlalchemy.exc import DatabaseError, OperationalError, ProgrammingError
 
 import api_pb2
 import api_pb2_grpc
@@ -9757,7 +9757,8 @@ class TestPostgresqlConnectWithTLSPrefer(BaseTestCase):
         loop = asyncio.new_event_loop()  # create new to avoid concurrent usage of the loop in the current thread and allow parallel execution in the future
         loop.run_until_complete(_testPlainConnectionAfterDeny())
 
-class TestMySQLDbFlushingOnError(BaseBinaryMySQLTestCase, BaseTransparentEncryption):
+
+class TestDbFlushingOnError(BaseTransparentEncryption):
     encryptor_table = sa.Table(
         'test_proper_db_flushing_on_error', sa.MetaData(),
         sa.Column('id', sa.Integer, primary_key=True),
@@ -9766,8 +9767,8 @@ class TestMySQLDbFlushingOnError(BaseBinaryMySQLTestCase, BaseTransparentEncrypt
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     def checkSkip(self):
-        if not (TEST_MYSQL and TEST_WITH_TLS):
-            self.skipTest("Test only for MySQL with TLS")
+        if not TEST_WITH_TLS:
+            self.skipTest("Test only with TLS")
 
     def testConnectionIsNotAborted(self):
         """
@@ -9803,9 +9804,9 @@ class TestMySQLDbFlushingOnError(BaseBinaryMySQLTestCase, BaseTransparentEncrypt
                 .select([self.encryptor_table]) \
                 .where(self.encryptor_table.c.id.in_(ids))
 
-            with self.assertRaises(sa.exc.OperationalError) as ex:
+            with self.assertRaisesRegex((OperationalError, DatabaseError),
+                                        'encoding error in column "value_bytes"'):
                 conn.execute(query).fetchall()
-            self.assertEqual(ex.exception.orig.args, (1317, 'encoding error in column "value_bytes"'))
 
             # Insert and select new data using the same connection to be sure
             # it doesn't close or get out of sync
@@ -9842,7 +9843,8 @@ class TestMySQLDbFlushingOnError(BaseBinaryMySQLTestCase, BaseTransparentEncrypt
             .select([self.encryptor_table]) \
             .where(self.encryptor_table.c.id == data['id'])
 
-        with self.assertRaises(sa.exc.OperationalError) as ex:
+        with self.assertRaisesRegex((OperationalError, DatabaseError),
+                                    'encoding error in column "value_bytes"'):
             with self.engine1.begin() as conn:
                 conn.execute(self.encryptor_table.insert(), data)
 
@@ -9857,9 +9859,9 @@ class TestMySQLDbFlushingOnError(BaseBinaryMySQLTestCase, BaseTransparentEncrypt
 
                 conn.execute(query).fetchall()
 
-        self.assertEqual(ex.exception.orig.args, (1317, 'encoding error in column "value_bytes"'))
         row = self.engine1.execute(select_data).fetchone()
         self.assertEqual(row, None)
+
 
 class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
     encryptor_table = sa.Table(
@@ -9867,7 +9869,8 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
         sa.Column('id', sa.Integer, primary_key=True),
         sa.Column('value_bytes', sa.LargeBinary),
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config(
+        'tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     def checkSkip(self):
         if not (TEST_POSTGRESQL and TEST_WITH_TLS):
@@ -9891,98 +9894,6 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
         self.executor = executor_with_ssl(
             TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
 
-    def testConnectionIsNotAborted(self):
-        """
-        Test that connection is not closed in case of "encoding error". Test
-        that we can reuse connection for queries after.
-        """
-
-        self.encryptor_table.create(bind=self.engine_raw, checkfirst=True)
-        # Insert data that will trigger decryption error
-        corrupted_data = {
-            'id': get_random_id(),
-            'value_bytes': random_bytes(),
-        }
-        self.engine_raw.execute(self.encryptor_table.insert(), corrupted_data)
-
-        with self.engine1.connect() as conn:
-            # Insert some data
-            data = {
-                'id': get_random_id(),
-                'value_bytes': random_bytes(),
-            }
-            conn.execute(self.encryptor_table.insert(), data)
-
-            query = sa \
-                .select([self.encryptor_table]) \
-                .where(self.encryptor_table.c.id == data['id'])
-            row = conn.execute(query).fetchone()
-            self.assertEqual(data['value_bytes'], row['value_bytes'])
-
-            # Expect "encoding error"
-            ids = (data['id'], corrupted_data['id'])
-            query = sa \
-                .select([self.encryptor_table]) \
-                .where(self.encryptor_table.c.id.in_(ids))
-
-            with self.assertRaises(sa.exc.DatabaseError) as ex:
-                conn.execute(query).fetchall()
-        
-            self.assertEqual(ex.exception.orig.args, ('encoding error in column "value_bytes"\n',))
-
-            # Insert and select new data using the same connection to be sure
-            # it doesn't close or get out of sync
-            data = {
-                'id': get_random_id(),
-                'value_bytes': random_bytes(),
-            }
-            conn.execute(self.encryptor_table.insert(), data)
-
-            query = sa \
-                .select([self.encryptor_table]) \
-                .where(self.encryptor_table.c.id == data['id'])
-            row = conn.execute(query).fetchone()
-            self.assertEqual(data['value_bytes'], row['value_bytes'])
-
-    def testTransactionRollback(self):
-        """
-        Test that connection is not closed in case of "encoding error" and
-        sqlaclchemy can do rollback in transaction after that.
-        """
-
-        self.encryptor_table.create(bind=self.engine_raw, checkfirst=True)
-        # Insert data that will trigger decryption error
-        corrupted_data = {
-            'id': get_random_id(),
-            'value_bytes': random_bytes(),
-        }
-        self.engine_raw.execute(self.encryptor_table.insert(), corrupted_data)
-        data = {
-            'id': get_random_id(),
-            'value_bytes': random_bytes(),
-        }
-        select_data = sa \
-            .select([self.encryptor_table]) \
-            .where(self.encryptor_table.c.id == data['id'])
-
-        with self.assertRaises(sa.exc.DatabaseError) as ex:
-            with self.engine1.begin() as conn:
-                conn.execute(self.encryptor_table.insert(), data)
-
-                row = conn.execute(select_data).fetchone()
-                self.assertEqual(data['value_bytes'], row['value_bytes'])
-
-                # Expect "encoding error"
-                ids = (data['id'], corrupted_data['id'])
-                query = sa \
-                    .select([self.encryptor_table]) \
-                    .where(self.encryptor_table.c.id.in_(ids))
-
-                conn.execute(query).fetchall()
-
-        self.assertEqual(ex.exception.orig.args, ('encoding error in column "value_bytes"\n',))
-        row = self.engine1.execute(select_data).fetchone()
-        self.assertEqual(row, None)
 
     def testPreparedStatementIsNotAborted(self):
         """
