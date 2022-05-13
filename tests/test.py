@@ -10099,6 +10099,73 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
         loop = asyncio.get_event_loop()
         loop.run_until_complete(test())
 
+    def testPreparedCursor(self):
+        """
+        Test that connection is not closed in case of "encoding error" with
+        cursor that fetches `n` rows at a time and then flushes the
+        `PortalSuspended` awaiting the client response.
+        """
+        async def test():
+            self.encryptor_table.create(bind=self.engine_raw, checkfirst=True)
+            # Insert data that will trigger decryption error
+            corrupted_data = {
+                'id': get_random_id(),
+                'value_bytes': random_bytes(),
+            }
+            self.engine_raw.execute(
+                self.encryptor_table.insert(), corrupted_data)
+            data = {
+                'id': get_random_id(),
+                'value_bytes': random_bytes(),
+            }
+
+            conn = await self.executor.connect()
+
+            insert_query = """
+                INSERT INTO test_proper_db_flushing_on_error(id, value_bytes)
+                VALUES ($1, $2)
+            """
+            select_query = """
+                SELECT value_bytes
+                FROM test_proper_db_flushing_on_error
+                WHERE id = $1
+            """
+
+            with self.assertRaises(asyncpg.exceptions.SyntaxOrAccessError) as ex:
+                async with conn.transaction():
+                    await conn.execute(insert_query, data['id'], data['value_bytes'])
+                    row = await conn.fetchrow(select_query, data['id'])
+                    self.assertEqual(data['value_bytes'], row['value_bytes'])
+
+                    # Also insert a bunch of random values
+                    for _ in range(10):
+                        tmp_data = {
+                            'id': get_random_id(),
+                            'value_bytes': random_bytes(),
+                        }
+                        await conn.execute(insert_query, tmp_data['id'], tmp_data['value_bytes'])
+
+                    stmt = await conn.prepare("""
+                        SELECT id, value_bytes
+                        FROM test_proper_db_flushing_on_error
+                        ORDER BY random()
+                    """)
+
+                    # Expect encoding error
+                    cursor = await stmt.cursor()
+                    while True:
+                        rows = await cursor.fetch(2)
+                        if len(rows) == 0:
+                            break
+
+            self.assertEqual(ex.exception.message,
+                             'encoding error in column "value_bytes"')
+            row = await conn.fetchrow(select_query, data['id'])
+            self.assertEqual(row, None)
+
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(test())
+
 
 if __name__ == '__main__':
     import xmlrunner
