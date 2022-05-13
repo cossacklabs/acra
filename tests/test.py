@@ -9859,6 +9859,8 @@ class TestDbFlushingOnError(BaseTransparentEncryption):
 
                 conn.execute(query).fetchall()
 
+        # Most db-drivers do a rollback after an exception, so check
+        # that our data is not saved due to the rollback.
         row = self.engine1.execute(select_data).fetchone()
         self.assertEqual(row, None)
 
@@ -10004,6 +10006,8 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
 
             self.assertEqual(ex.exception.message,
                              'encoding error in column "value_bytes"')
+            # Most db-drivers do a rollback after an exception, so check
+            # that our data is not saved due to the rollback.
             row = await conn.fetchrow(select_query, data['id'])
             self.assertEqual(row, None)
 
