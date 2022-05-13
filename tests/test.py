@@ -9956,7 +9956,7 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
             row = await conn.fetchrow(select_query, data['id'])
             self.assertEqual(data['value_bytes'], row['value_bytes'])
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.new_event_loop()
         loop.run_until_complete(test())
 
     def testTransactionPreparedRollback(self):
@@ -10008,7 +10008,7 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
             row = await conn.fetchrow(select_query, data['id'])
             self.assertEqual(row, None)
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.new_event_loop()
         loop.run_until_complete(test())
 
     def testPreparedCursor(self):
@@ -10074,7 +10074,7 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
             row = await conn.fetchrow(select_query, data['id'])
             self.assertEqual(row, None)
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.new_event_loop()
         loop.run_until_complete(test())
 
 
