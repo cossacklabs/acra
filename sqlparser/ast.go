@@ -26,6 +26,7 @@ import (
 	"github.com/cossacklabs/acra/sqlparser/dependency/sqltypes"
 	"github.com/cossacklabs/acra/sqlparser/dialect"
 	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
+	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
 	"strconv"
 	"strings"
 )
@@ -1797,11 +1798,29 @@ func (node *ColIdent) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// ValueForConfig returns lowercased or non-lowercased value depending on
+// configuration (MySQL only) and which quotes were used to wrap the name in SQL,
+// suitable for usage when checking whether the column should be encrypted.
+func (node *ColIdent) ValueForConfig() string {
+	switch defaultDialect.(type) {
+	case *mysql.MySQLDialect:
+		return node.Lowered()
+	case *postgresql.PostgreSQLDialect:
+		if node.quote != 0 {
+			return node.val
+		}
+
+		return node.Lowered()
+	}
+
+	panic("unreachable code")
+}
+
 // TableIdent is a case sensitive SQL identifier. It will be escaped with
 // backquotes if necessary.
 type TableIdent struct {
-	quote byte
-	v     string
+	quote      byte
+	v, lowered string
 }
 
 // NewTableIdent creates a new TableIdent.
@@ -1841,6 +1860,19 @@ func (node TableIdent) CompliantName() string {
 	return compliantName(node.v)
 }
 
+// Lowered returns a lower-cased table name.
+// This function should generally be used only for optimizing
+// comparisons.
+func (node TableIdent) Lowered() string {
+	if node.v == "" {
+		return ""
+	}
+	if node.lowered == "" {
+		node.lowered = strings.ToLower(node.v)
+	}
+	return node.lowered
+}
+
 // MarshalJSON marshals into JSON.
 func (node TableIdent) MarshalJSON() ([]byte, error) {
 	return json.Marshal(node.v)
@@ -1855,6 +1887,28 @@ func (node *TableIdent) UnmarshalJSON(b []byte) error {
 	}
 	node.v = result
 	return nil
+}
+
+// ValueForConfig returns lowercased or non-lowercased value depending on
+// configuration (MySQL only) and which quotes were used to wrap the name in SQL,
+// suitable for usage when checking whether the column should be encrypted.
+func (node *TableIdent) ValueForConfig() string {
+	switch t := defaultDialect.(type) {
+	case *mysql.MySQLDialect:
+		if t.IsCaseSensitiveTableName() {
+			return node.v
+		}
+
+		return node.Lowered()
+	case *postgresql.PostgreSQLDialect:
+		if node.quote != 0 {
+			return node.v
+		}
+
+		return node.Lowered()
+	}
+
+	panic("unreachable code")
 }
 
 func formatIDForDialect(dialect dialect.Dialect, buf *TrackedBuffer, original, lowered string) {
