@@ -107,6 +107,21 @@ const (
 	dataFormatBinary = 1
 )
 
+type databaseHandlerState int
+
+const (
+	// stateFirstPacket is the starting state of the handler. The handler
+	// first byte of the response can indicate switching to tls. So, we should
+	// not read more than that. This state exists to indicate such special case.
+	stateFirstPacket databaseHandlerState = iota
+	// stateServe is the most common state of the handler. It means normal
+	// processing of packets
+	stateServe
+	// stateSkipResponse is a state of a handler when it skips a response
+	// from database until `ReadyForQuery` is arrived.
+	stateSkipResponse
+)
+
 // PgProxy represents PgSQL database connection between client and database with TLS support
 type PgProxy struct {
 	session                 base.ClientSession
@@ -531,6 +546,8 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 		return
 	}
 
+	var state databaseHandlerState = stateFirstPacket
+
 	// use pointer to function where should be stored some function that should be called if code return error and interrupt loop
 	// default value empty func to avoid != nil check
 	var endLoopSpanFunc = func() {}
@@ -541,9 +558,9 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 		endLoopSpanFunc()
 
 		packetHandler.Reset()
-		if packetHandler.IsAlreadyStarted() {
+		switch state {
+		case stateServe:
 			// General response, which we handle and forward to the client
-
 			if err = packetHandler.ReadPacket(); err != nil {
 				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).WithError(err).Debugln("Can't read packet")
 				errCh <- base.NewDBProxyError(err)
@@ -564,8 +581,11 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 					errCh <- base.NewDBProxyError(err)
 					return
 				}
+				// We need to flush out the rest of the response
+				state = stateSkipResponse
 				continue
 			}
+
 			if err != nil {
 				errCh <- base.NewDBProxyError(err)
 				return
@@ -579,7 +599,8 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 				return
 			}
 			timer.ObserveDuration()
-		} else {
+
+		case stateFirstPacket:
 			// Startup response, which contains only one byte. It's special,
 			// because it can request switching to TLS.
 
@@ -590,7 +611,7 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 			// https://www.postgresql.org/docs/9.1/static/protocol-flow.html#AEN92112
 			// we should know that we shouldn't read anymore bytes
 			// first response from server may contain only one byte of response on SSLRequest
-			packetHandler.SetStarted()
+			state = stateServe
 			logger.Debugln("Read startup message")
 			if err = packetHandler.readMessageType(); err != nil {
 				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).WithError(err).Debugln("Can't read first message type")
@@ -652,6 +673,20 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 				}
 				timer.ObserveDuration()
 			}
+		case stateSkipResponse:
+			endLoopSpanFunc = func() {}
+			if err = packetHandler.ReadPacket(); err != nil {
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).
+					WithError(err).
+					Debugln("Can't read packet")
+				errCh <- base.NewDBProxyError(err)
+				return
+			}
+			last := packetHandler.IsReadyForQuery()
+			if last {
+				state = stateServe
+			}
+			logger.WithField("last", last).Debugln("Skipping the packet")
 		}
 	}
 }
