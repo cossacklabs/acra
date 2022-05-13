@@ -9942,11 +9942,9 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
 
             stmt = await conn.prepare(select_two_query)
 
-            with self.assertRaises(asyncpg.exceptions.SyntaxOrAccessError) as ex:
+            with self.assertRaisesRegex(asyncpg.exceptions.SyntaxOrAccessError,
+                                        'encoding error in column "value_bytes"'):
                 await stmt.fetch(corrupted_data['id'], data['id'])
-
-            self.assertEqual(ex.exception.message,
-                             'encoding error in column "value_bytes"')
 
             # Insert and select new data using the same connection to be sure
             # it doesn't close or get out of sync
@@ -9993,7 +9991,8 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
                 WHERE id = $1
             """
 
-            with self.assertRaises(asyncpg.exceptions.SyntaxOrAccessError) as ex:
+            with self.assertRaisesRegex(asyncpg.exceptions.SyntaxOrAccessError,
+                                        'encoding error in column "value_bytes"'):
                 async with conn.transaction():
                     await conn.execute(insert_query, data['id'], data['value_bytes'])
 
@@ -10004,8 +10003,6 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
                     # Expect encoding error
                     await stmt.fetch(corrupted_data['id'])
 
-            self.assertEqual(ex.exception.message,
-                             'encoding error in column "value_bytes"')
             # Most db-drivers do a rollback after an exception, so check
             # that our data is not saved due to the rollback.
             row = await conn.fetchrow(select_query, data['id'])
@@ -10046,7 +10043,8 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
                 WHERE id = $1
             """
 
-            with self.assertRaises(asyncpg.exceptions.SyntaxOrAccessError) as ex:
+            with self.assertRaisesRegex(asyncpg.exceptions.SyntaxOrAccessError,
+                                        'encoding error in column "value_bytes"'):
                 async with conn.transaction():
                     await conn.execute(insert_query, data['id'], data['value_bytes'])
                     row = await conn.fetchrow(select_query, data['id'])
@@ -10073,8 +10071,6 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
                         if len(rows) == 0:
                             break
 
-            self.assertEqual(ex.exception.message,
-                             'encoding error in column "value_bytes"')
             row = await conn.fetchrow(select_query, data['id'])
             self.assertEqual(row, None)
 
