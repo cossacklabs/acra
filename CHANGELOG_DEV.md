@@ -1,3 +1,6 @@
+# 0.93.0 - 2022-05-13
+- Don't abort connection of postgres after encoding error.
+
 # 0.93.0 - 2022-05-10
 - Don't abort connection of mysql after encoding error.
 
