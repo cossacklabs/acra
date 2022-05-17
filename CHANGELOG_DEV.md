@@ -1,3 +1,6 @@
+# 0.93.0 - 2022-05-17
+- Don't register prepared statements twice.
+
 # 0.93.0 - 2022-05-13
 - Don't abort connection of postgres after encoding error.
 
