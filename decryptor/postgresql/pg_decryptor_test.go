@@ -286,6 +286,126 @@ func TestMultiplePrepareAtOnce(t *testing.T) {
 	}
 }
 
+func TestMultiplePrepareAtOnceWithError(t *testing.T) {
+	logger := logrus.NewEntry(logrus.New())
+	parser := sqlparser.New(sqlparser.ModeDefault)
+	ctx := context.Background()
+
+	beginSQL := "BEGIN"
+	beginName := "__cossack_begin__"
+
+	failSQL := "PLEASE FAIL"
+	failName := "__cossack_fail__"
+
+	selectSQL := "SELECT 1"
+	selectName := "__cossack_select__"
+
+	// Build three "parse" packets to simulate delivery of them at once
+	clientBuffer := bytes.NewBuffer([]byte{})
+	clientWriter := bufio.NewWriter(clientBuffer)
+	if err := writePrepare(clientWriter, beginName, beginSQL); err != nil {
+		t.Fatal(err)
+	}
+	if err := writePrepare(clientWriter, failName, failSQL); err != nil {
+		t.Fatal(err)
+	}
+	if err := writePrepare(clientWriter, selectName, selectSQL); err != nil {
+		t.Fatal(err)
+	}
+	if err := clientWriter.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	clientPacketHandler, err := NewClientSidePacketHandler(clientBuffer, nil, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clientPacketHandler.started = true
+
+	// thre responses one by one: success, error, success
+	dbBuffer := bytes.NewBuffer([]byte{})
+	dbWriter := bufio.NewWriter(dbBuffer)
+	if err := writeZeroPrepareResponse(dbWriter); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeErrorResponse(dbWriter); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeZeroPrepareResponse(dbWriter); err != nil {
+		t.Fatal(err)
+	}
+	if err := dbWriter.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	dbPacketHandler, err := NewDbSidePacketHandler(dbBuffer, nil, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	connectionSession, err := common.NewClientSession(ctx, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proxySetting := base.NewProxySetting(parser, nil, nil, nil, acracensor.NewAcraCensor(), nil, false)
+	proxy, err := NewPgProxy(connectionSession, parser, proxySetting)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Client packets are handled first, before responses arrive
+	for {
+		err := clientPacketHandler.ReadClientPacket()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = proxy.handleClientPacket(ctx, clientPacketHandler, logger)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Then we handle responses
+	for {
+		err := dbPacketHandler.ReadPacket()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = proxy.handleDatabasePacket(ctx, dbPacketHandler, logger)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	registry := proxy.session.PreparedStatementRegistry()
+	beginStmt, err := registry.StatementByName(beginName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	selectStmt, err := registry.StatementByName(selectName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// TODO: uncomment when handling of error packets is fixed
+	// _, err = registry.StatementByName(failName)
+	// if err == nil {
+	// 	t.Fatalf("%q exists but shouldn't", failName)
+	// }
+
+	if beginSQL != beginStmt.QueryText() {
+		t.Fatalf("%q != %q\n", beginSQL, beginStmt.QueryText())
+	}
+
+	if selectSQL != selectStmt.QueryText() {
+		t.Fatalf("%q != %q\n", selectSQL, selectStmt.QueryText())
+	}
+}
+
 //
 // Utils for crafting the packets
 //
@@ -425,4 +545,13 @@ func writeZeroPrepareResponse(w io.Writer) error {
 		return err
 	}
 	return writeZeroRowDescription(w)
+}
+
+func writeErrorResponse(w io.Writer) error {
+	packet, err := NewPgError("something really bad happened")
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(packet)
+	return err
 }
