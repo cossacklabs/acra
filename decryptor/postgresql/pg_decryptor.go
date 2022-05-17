@@ -298,6 +298,11 @@ func (proxy *PgProxy) handleClientPacket(ctx context.Context, packet *PacketHand
 	}
 	switch proxy.protocolState.LastPacketType() {
 	case ParseStatementPacket:
+		// Register prepared statement, though it can produce an error on the db
+		// side. In that case, it should have been removed from the registry,
+		// but for now it is not implemented yet. Therefore, connection with a
+		// large number of prepared statements with errors tend to leak memory,
+		// but on practice it is not that noticeable.
 		if err := proxy.registerPreparedStatement(proxy.protocolState.pendingParse, logger); err != nil {
 			return false, err
 		}
@@ -706,10 +711,9 @@ func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHa
 		return proxy.handleQueryDataPacket(ctx, packet, logger)
 
 	case ParseCompletePacket:
-		// Previously requested prepared statement has been confirmed by the database, register it.
-		preparedStatement := proxy.protocolState.PendingParse()
-		defer proxy.protocolState.forgetPendingParse()
-		return proxy.registerPreparedStatement(preparedStatement, logger)
+		log.WithField("parse", proxy.protocolState.pendingParse).Debugln("ParseComplete")
+		proxy.protocolState.forgetPendingParse()
+		return nil
 
 	case BindCompletePacket:
 		// Previously requested cursor has been confirmed by the database, register it.
