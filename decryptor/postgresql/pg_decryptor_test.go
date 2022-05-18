@@ -417,13 +417,6 @@ func writeUint32(w io.Writer, val uint32) error {
 	return err
 }
 
-func writeUint16(w io.Writer, val uint16) error {
-	int16Buff := [2]byte{}
-	binary.BigEndian.PutUint16(int16Buff[:], val)
-	_, err := w.Write(int16Buff[:])
-	return err
-}
-
 func writeNullString(w io.Writer, str string) error {
 	if _, err := w.Write([]byte(str)); err != nil {
 		return err
@@ -437,34 +430,14 @@ const sizeLen = 4
 const nullLen = 1
 
 func writeParsePacket(w io.Writer, name string, stmt string) error {
-	const paramsLen = 2
-
-	_, err := w.Write([]byte{'P'})
-	if err != nil {
-		return err
+	packet := ParsePacket{
+		name:      []byte(name),
+		query:     []byte(stmt),
+		paramsNum: []byte{0x00, 0x00},
+		params:    []objectID{},
 	}
-
-	size := sizeLen + len(name) + nullLen + len(stmt) + nullLen + paramsLen
-	err = writeUint32(w, uint32(size))
-	if err != nil {
-		return err
-	}
-
-	err = writeNullString(w, name)
-	if err != nil {
-		return err
-	}
-
-	err = writeNullString(w, stmt)
-	if err != nil {
-		return err
-	}
-
-	err = writeUint16(w, uint16(size))
-	if err != nil {
-		return err
-	}
-	return nil
+	_, err := w.Write(packet.Marshal())
+	return err
 }
 
 func writeDescribePacket(w io.Writer, name string) error {
