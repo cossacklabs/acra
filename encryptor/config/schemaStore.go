@@ -27,6 +27,13 @@ type TableSchemaStore interface {
 	GetGlobalSettingsMask() SettingMask
 }
 
+// databaseConfig stores database-specific configuration that can affect connection
+// to the database, how SQL queries are processed and so on
+type databaseConfig struct {
+	// Should we consider unquoted table identifiers to be case-sensitive?
+	MySQLCaseSensitiveID *bool `yaml:"mysql_case_sensitive_identifiers"`
+}
+
 // defaultValues store default values for config
 type defaultValues struct {
 	CryptoEnvelope       *CryptoEnvelopeType `yaml:"crypto_envelope"`
@@ -50,8 +57,9 @@ func (d defaultValues) ShouldReEncryptAcraStructToAcraBlock() bool {
 }
 
 type storeConfig struct {
-	Defaults *defaultValues
-	Schemas  []*tableSchema
+	DatabaseConfig *databaseConfig
+	Defaults       *defaultValues
+	Schemas        []*tableSchema
 }
 
 // MapTableSchemaStore store schemas per table name
