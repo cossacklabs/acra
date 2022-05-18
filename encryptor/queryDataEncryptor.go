@@ -489,6 +489,7 @@ func (encryptor *QueryDataEncryptor) getInsertPlaceholders(ctx context.Context, 
 	// Look for the schema of the table where the INSERT happens.
 	// If we don't have a schema then we don't know what to encrypt, so do nothing.
 	schema := encryptor.schemaStore.GetTableSchema(tableName.String())
+	//schema := encryptor.schemaStore.GetTableSchema(tableName.ValueForConfig())
 	if schema == nil {
 		logger.WithField("table", tableName).Debugln("No encryption schema")
 		return nil, nil
@@ -572,6 +573,7 @@ func (encryptor *QueryDataEncryptor) encryptInsertValues(ctx context.Context, in
 	// Look for the schema of the table where the INSERT happens.
 	// If we don't have a schema then we don't know what to encrypt, so do nothing.
 	schema := encryptor.schemaStore.GetTableSchema(tableName.String())
+	//schema := encryptor.schemaStore.GetTableSchema(tableName.ValueForConfig())
 	if schema == nil {
 		logrus.WithField("table", tableName).Debugln("No encryption schema")
 		return values, false, nil
@@ -606,7 +608,8 @@ func (encryptor *QueryDataEncryptor) encryptUpdateValues(ctx context.Context, up
 	// and we need to take all of that into account. But we're interested only in the first table.
 	// If the updated table does not have a schema entry, there is nothing to encrypt here.
 	tables := GetTablesWithAliases(update.TableExprs)
-	tableName := tables[0].TableName.Name.String()
+	//tableName := tables[0].TableName.Name.String()
+	tableName := tables[0].TableName.Name.ValueForConfig()
 	schema := encryptor.schemaStore.GetTableSchema(tableName)
 	if schema == nil {
 		logrus.WithField("table", tableName).Debugln("No encryption schema")
