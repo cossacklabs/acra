@@ -39,9 +39,9 @@ import (
 	"go.opencensus.io/trace"
 )
 
-// ReadyForQueryPacket - 'Z' ReadyForQuery, 0 0 0 5 length, 'I' idle status
+// ReadyForQuery - 'Z' ReadyForQuery, 0 0 0 5 length, 'I' idle status
 // https://www.postgresql.org/docs/9.3/static/protocol-message-formats.html
-var ReadyForQueryPacket = []byte{'Z', 0, 0, 0, 5, 'I'}
+var ReadyForQuery = []byte{'Z', 0, 0, 0, 5, 'I'}
 
 // TerminatePacket sent by client to close connection with db
 // https://www.postgresql.org/docs/9.4/static/protocol-message-formats.html
@@ -421,8 +421,8 @@ func (proxy *PgProxy) sendClientError(msg string, logger *log.Entry) error {
 	if err := base.CheckReadWrite(n, len(errorMessage), err); err != nil {
 		return err
 	}
-	n, err = proxy.clientConnection.Write(ReadyForQueryPacket)
-	if err := base.CheckReadWrite(n, len(ReadyForQueryPacket), err); err != nil {
+	n, err = proxy.clientConnection.Write(ReadyForQuery)
+	if err := base.CheckReadWrite(n, len(ReadyForQuery), err); err != nil {
 		return err
 	}
 	return nil
@@ -690,6 +690,12 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 			last := packetHandler.IsReadyForQuery()
 			if last {
 				state = stateServe
+				// Process the ReadyForQuery packet to reset the state of the
+				// protocol and do necessary cleanup
+				if err := proxy.handleDatabasePacket(packetCtx, packetHandler, logger); err != nil {
+					errCh <- base.NewDBProxyError(err)
+					return
+				}
 			}
 			logger.WithField("last", last).Debugln("Skipping the packet")
 		}
@@ -725,6 +731,11 @@ func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHa
 
 	case ParameterDescriptionPacket:
 		return proxy.handleParameterDescription(ctx, packet, logger)
+
+	case ReadyForQueryPacket:
+		logger.Debugln("ReadyForQueryPacket")
+		encryptor.DeletePlaceholderSettingsFromClientSession(proxy.session)
+		return nil
 
 	default:
 		// Forward all other uninteresting packets to the client without processing.

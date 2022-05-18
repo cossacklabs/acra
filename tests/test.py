@@ -9927,11 +9927,10 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
                 WHERE id = $1
             """
 
-            # TODO(G1gg1L3s): uncomment when T2572 is fixed
-            # await conn.execute(insert_query, data['id'], data['value_bytes'])
-            #
-            # row = await conn.fetchrow(select_query, data['id'])
-            # self.assertEqual(data['value_bytes'], row['value_bytes'])
+            await conn.execute(insert_query, data['id'], data['value_bytes'])
+            
+            row = await conn.fetchrow(select_query, data['id'])
+            self.assertEqual(data['value_bytes'], row['value_bytes'])
 
             # Expect "encoding error"
             select_two_query = """
