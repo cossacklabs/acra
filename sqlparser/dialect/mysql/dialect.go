@@ -26,8 +26,8 @@ func (dialect *MySQLDialect) QuoteHandler() dialect.QuoteHandler {
 }
 
 // NewMySQLDialect return new MySQLDialect
-func NewMySQLDialect() *MySQLDialect {
-	return &MySQLDialect{}
+func NewMySQLDialect(caseSensitiveTableName bool) *MySQLDialect {
+	return &MySQLDialect{caseSensitiveTableName: caseSensitiveTableName}
 }
 
 // NewANSIMySQLDialect return new MySQLDialect

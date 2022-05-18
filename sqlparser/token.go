@@ -40,7 +40,7 @@ var stringTokenType = map[uint16]int{
 	'`':  BACK_QUOTE_STRING,
 }
 
-var defaultDialect dialect.Dialect = mysql.NewMySQLDialect()
+var defaultDialect dialect.Dialect = mysql.NewMySQLDialect(false)
 
 // SetDefaultDialect set globally default dialect used in old functions with default dialect
 func SetDefaultDialect(dialect dialect.Dialect) {
@@ -94,7 +94,7 @@ func NewStringTokenizerWithDialect(dialect dialect.Dialect, sql string) *Tokeniz
 
 // NewMySQLStringTokenizer create mysql tokenizer for string
 func NewMySQLStringTokenizer(sql string) *Tokenizer {
-	return NewStringTokenizerWithDialect(mysql.NewMySQLDialect(), sql)
+	return NewStringTokenizerWithDialect(mysql.NewMySQLDialect(false), sql)
 }
 
 // NewPostgreSQLStringTokenizer create postgresql tokenizer for string
