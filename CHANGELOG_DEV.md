@@ -1,6 +1,9 @@
 # 0.93.0 - 2022-05-18
 - Reset placeholders in a connection state after `ReadyForQuery` packet.
 
+# 0.93.0 - 2022-05-17
+- Don't register prepared statements twice.
+
 # 0.93.0 - 2022-05-13
 - Don't abort connection of postgres after encoding error.
 
