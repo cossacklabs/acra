@@ -431,12 +431,20 @@ const nullLen = 1
 
 func writeParsePacket(w io.Writer, name string, stmt string) error {
 	packet := ParsePacket{
-		name:      []byte(name),
-		query:     []byte(stmt),
+		name:      append([]byte(name), 0x00),
+		query:     append([]byte(stmt), 0x00),
 		paramsNum: []byte{0x00, 0x00},
 		params:    []objectID{},
 	}
-	_, err := w.Write(packet.Marshal())
+	serialized := packet.Marshal()
+	length := len(serialized) + 4
+	if _, err := w.Write([]byte{'P'}); err != nil {
+		return err
+	}
+	if err := writeUint32(w, uint32(length)); err != nil {
+		return err
+	}
+	_, err := w.Write(serialized)
 	return err
 }
 
