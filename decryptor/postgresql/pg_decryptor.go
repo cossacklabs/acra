@@ -722,6 +722,11 @@ func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHa
 	case ParameterDescriptionPacket:
 		return proxy.handleParameterDescription(ctx, packet, logger)
 
+	case ReadyForQueryPacket:
+		logger.Debugln("ReadyForQueryPacket")
+		encryptor.DeletePlaceholderSettingsFromClientSession(proxy.session)
+		return nil
+
 	default:
 		// Forward all other uninteresting packets to the client without processing.
 		return nil
