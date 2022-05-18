@@ -685,6 +685,12 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 			last := packetHandler.IsReadyForQuery()
 			if last {
 				state = stateServe
+				// Process the ReadyForQuery packet to reset the state of the
+				// protocol and do necessary cleanup
+				if err := proxy.handleDatabasePacket(packetCtx, packetHandler, logger); err != nil {
+					errCh <- base.NewDBProxyError(err)
+					return
+				}
 			}
 			logger.WithField("last", last).Debugln("Skipping the packet")
 		}
