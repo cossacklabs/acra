@@ -1,3 +1,6 @@
+# 0.93.0 - 202-05-19
+- Replace OID in Parse packets, if they are specified.
+
 # 0.93.0 - 2022-05-18
 - Reset placeholders in a connection state after `ReadyForQuery` packet.
 
