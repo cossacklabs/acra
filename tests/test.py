@@ -9443,6 +9443,34 @@ class TestPostgresqlConnectWithTLSPrefer(BaseTestCase):
         loop.run_until_complete(_testPlainConnectionAfterDeny())
 
 
+def TestDifferentCaseTableIdentifiersPostgreSQL(BaseTestCase):
+    def checkSkip(self):
+        if not TEST_WITH_TLS or not TEST_POSTGRESQL:
+            self.skipTest("this test is only for PostgreSQL")
+
+    def testLowerConfigUpperQuery(self):
+        # Lowercase table name in encryptor config, mixed case in SQL query
+        self.raw_engine.execute('CREATE TABLE "TestOne" (id SERIAL PRIMARY KEY, data BYTEA);')
+
+        # TODO: try insert and select with "TestOne" as table name, expect success
+
+        self.raw_engine.execute('DROP TABLE "TestOne";');
+
+
+def TestDifferentCaseTableIdentifiersMySQL(BaseTestCase):
+    def checkSkip(self):
+        if not TEST_WITH_TLS or not (TEST_MYSQL or TEST_MARIADB):
+            self.skipTest("this test is only for MySQL/MariaDB")
+
+    def testLowerConfigUpperQuery(self):
+        # Lowercase table name in encryptor config, mixed case in SQL query
+        self.raw_engine.execute('CREATE TABLE TestOne (id INT PRIMARY KEY AUTO_INCREMENT, data BYTES);')
+
+        # TODO: try insert and select with TestOne as table name, expect success
+
+        self.raw_engine.execute('DROP TABLE TestOne;');
+
+
 if __name__ == '__main__':
     import xmlrunner
     output_path = os.environ.get('TEST_XMLOUTPUT', '')

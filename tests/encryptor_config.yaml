@@ -18,3 +18,11 @@ schemas:
 
   - column: zone_id
     zone_id: DDDDDDDDMatNOMYjqVOuhACC
+
+- table: TestOne
+  columns:
+  - id
+  - data
+
+  encrypted:
+  - column: data
