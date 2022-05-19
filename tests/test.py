@@ -44,6 +44,7 @@ import mysql.connector
 import psycopg2
 import psycopg2.errors
 import psycopg2.extras
+import psycopg as psycopg3
 import pymysql
 import redis
 import requests
@@ -1043,6 +1044,44 @@ class Psycopg2Executor(QueryExecutor):
                 data = cursor.fetchall()
                 utils.memoryview_rows_to_bytes(data)
                 return data
+
+
+class Psycopg3Executor(QueryExecutor):
+    def _execute(self, query, args=None, prepare=None):
+        # We expect postgres placeholders, like $1, $2, $3...
+        # But psycopg expects only %s
+        # TODO: check that numbers are in the correct order
+        query = re.sub(r'\$[0-9]+', '%s', query)
+
+        connection_args = get_connect_args(self.connection_args.port)
+
+        connection_args['sslrootcert'] = self.connection_args.ssl_ca
+        connection_args['sslkey'] = self.connection_args.ssl_key
+        connection_args['sslcert'] = self.connection_args.ssl_cert
+        connection_args['host'] = self.connection_args.host
+        connection_args['dbname'] = self.connection_args.dbname
+
+        with psycopg3.connect(**connection_args) as conn:
+            with conn.cursor(
+                    row_factory=psycopg3.rows.dict_row) as cursor:
+                cursor.execute(query, args, prepare=prepare)
+                try:
+                    data = cursor.fetchall()
+                except psycopg3.ProgrammingError as ex:
+                    # psycopg3 throws an error if we want to fetch rows on
+                    # responseless query, like insert. So ignore it.
+                    if str(ex) == "the last operation didn't produce a result":
+                        return []
+                    else:
+                        raise
+                utils.memoryview_rows_to_bytes(data)
+                return data
+
+    def execute(self, query, args=None):
+        return self._execute(query, args, prepare=False)
+
+    def execute_prepared_statement(self, query, args=None):
+        return self._execute(query, args, prepare=True)
 
 
 class KeyMakerTest(unittest.TestCase):
@@ -10076,6 +10115,34 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
         loop = asyncio.new_event_loop()
         loop.run_until_complete(test())
 
+
+class Psycopg3ExecutorMixin:
+    def setUp(self):
+        super().setUp()
+
+        def executor(ssl_key, ssl_cert, port=self.ACRASERVER_PORT):
+            args = ConnectionArgs(
+                host=get_db_host(), port=port, dbname=DB_NAME,
+                user=DB_USER, password=DB_USER_PASSWORD,
+                ssl_ca=TEST_TLS_CA,
+                ssl_key=ssl_key,
+                ssl_cert=ssl_cert,
+                raw=True,
+            )
+            return Psycopg3Executor(args)
+
+        self.executor1 = executor(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
+        self.executor2 = executor(
+            TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
+        self.raw_executor = executor(
+            TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT, 5432)
+
+
+class TestPostgresqlTypeAwareDecryptionWithDefaultsPsycopg3(Psycopg3ExecutorMixin,
+                                                            TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults):
+    # Psycopg3 includes a type of parameters in a parse string, which is optional
+    # and therefore most of the frontends doesn't do that. So, test also with it.
+    pass
 
 if __name__ == '__main__':
     import xmlrunner
