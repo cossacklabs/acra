@@ -10135,7 +10135,7 @@ class Psycopg3ExecutorMixin:
         self.executor2 = executor(
             TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
         self.raw_executor = executor(
-            TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT, TEST_DB_PORT)
+            TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT, DB_PORT)
 
 
 class TestPostgresqlTypeAwareDecryptionWithDefaultsPsycopg3(Psycopg3ExecutorMixin,
