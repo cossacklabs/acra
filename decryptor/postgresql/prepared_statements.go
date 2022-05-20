@@ -19,6 +19,7 @@ package postgresql
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"strconv"
 
 	"github.com/cossacklabs/acra/encryptor"
@@ -323,21 +324,24 @@ func (p *pgBoundValue) GetData(setting config.ColumnEncryptionSetting) ([]byte, 
 	case base.BinaryFormat:
 		if setting.IsTokenized() || setting.IsSearchable() || setting.OnlyEncryption() {
 			switch setting.GetEncryptedDataType() {
-			case common.EncryptedType_Int32:
-				// explicitly set number to signed, so expansion to int64 will
-				// be correct in case of negative numbers
-				intValue := int32(binary.BigEndian.Uint32(p.data))
-				strValue := strconv.FormatInt(int64(intValue), 10)
-				decodedData = []byte(strValue)
-			case common.EncryptedType_Int64:
+			case common.EncryptedType_Int32, common.EncryptedType_Int64:
 				var value int64
-				if len(p.data) == 4 {
+				switch len(p.data) {
+				// We don't directly suport smallint, but at least we handle them
+				// during insertion
+				case 2:
 					// explicitly set number to signed, so expansion to int64 will
 					// be correct in case of negative numbers
+					intValue := int16(binary.BigEndian.Uint16(p.data))
+					value = int64(intValue)
+				case 4:
 					intValue := int32(binary.BigEndian.Uint32(p.data))
 					value = int64(intValue)
-				} else {
+				case 8:
 					value = int64(binary.BigEndian.Uint64(p.data))
+				default:
+					err := fmt.Errorf("unexpected number of bytes in number: %d", len(p.data))
+					return []byte{}, err
 				}
 				strValue := strconv.FormatInt(value, 10)
 				decodedData = []byte(strValue)

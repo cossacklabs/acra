@@ -342,6 +342,12 @@ func TestNewPgBoundValue(t *testing.T) {
 	})
 }
 
+func i16ToBe(value int) []byte {
+	result := [2]byte{}
+	binary.BigEndian.PutUint16(result[:], uint16(value))
+	return result[:]
+}
+
 func i32ToBe(value int) []byte {
 	result := [4]byte{}
 	binary.BigEndian.PutUint32(result[:], uint32(value))
@@ -389,6 +395,20 @@ func TestPgBoundIntBinaryEncoding(t *testing.T) {
 		{i64ToBe(-222147483648), "-222147483648", "int64"},
 		{i64ToBe(9223372036854775807), "9223372036854775807", "int64"},
 		{i64ToBe(-9223372036854775808), "-9223372036854775808", "int64"},
+
+		{i16ToBe(0), "0", "int32"},
+		{i16ToBe(53), "53", "int32"},
+		{i16ToBe(-53), "-53", "int32"},
+		{i16ToBe(0), "0", "int32"},
+		{i16ToBe(127), "127", "int32"},
+		{i16ToBe(-128), "-128", "int32"},
+
+		{i16ToBe(0), "0", "int64"},
+		{i16ToBe(53), "53", "int64"},
+		{i16ToBe(-53), "-53", "int64"},
+		{i16ToBe(0), "0", "int64"},
+		{i16ToBe(127), "127", "int64"},
+		{i16ToBe(-128), "-128", "int64"},
 	}
 
 	for i, tcase := range testcases {
