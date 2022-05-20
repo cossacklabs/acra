@@ -1046,12 +1046,20 @@ class Psycopg2Executor(QueryExecutor):
                 return data
 
 
+# Place arguments in a linear order
+# For example, if query is "$2 $1 $1 $3" and arguments are [a, b, c]
+# The resulted query would be "%s %s %s %s" and arguments would be [b a a c]
+def replace_pg_placeholders_with_psycopg3(query, args):
+    indexes = re.findall(r'\$([0-9]+)', query)
+    query = re.sub(r'\$[0-9]+', '%s', query)
+    # minus 1 because python uses 0-based array, while postgres 1-based
+    newargs = [args[int(i) - 1] for i in indexes]
+    return query, newargs
+
+
 class Psycopg3Executor(QueryExecutor):
     def _execute(self, query, args=None, prepare=None):
-        # We expect postgres placeholders, like $1, $2, $3...
-        # But psycopg expects only %s
-        # TODO: check that numbers are in the correct order
-        query = re.sub(r'\$[0-9]+', '%s', query)
+        query, args = replace_pg_placeholders_with_psycopg3(query, args)
 
         connection_args = get_connect_args(self.connection_args.port)
 
