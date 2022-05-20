@@ -1,4 +1,7 @@
-# 0.93.0 - 202-05-19
+# 0.93.0 - 2022-05-20
+- Fix normalization of integers during an insertion.
+
+# 0.93.0 - 2022-05-19
 - Replace OID in Parse packets, if they are specified.
 
 # 0.93.0 - 2022-05-18
