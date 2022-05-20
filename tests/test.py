@@ -9443,18 +9443,70 @@ class TestPostgresqlConnectWithTLSPrefer(BaseTestCase):
         loop.run_until_complete(_testPlainConnectionAfterDeny())
 
 
-def TestDifferentCaseTableIdentifiersPostgreSQL(BaseTestCase):
+class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTestCase):
     def checkSkip(self):
         if not TEST_WITH_TLS or not TEST_POSTGRESQL:
             self.skipTest("this test is only for PostgreSQL")
 
+    def runTestCase(self, table_name: str, quoted: bool, should_match: bool):
+        if quoted:
+            table_name = '"' + table_name + '"'
+
+        # create the table
+        self.engine_raw.execute(f"CREATE TABLE {table_name} (id SERIAL PRIMARY KEY, data BYTEA);")
+
+        # generate random id
+        id = get_random_id()
+
+        # insert a record
+        self.engine_raw.execute(f"INSERT INTO {table_name} (id, data) VALUES ({id}, 'test');")
+
+        # fetch a record
+        result = self.engine_raw.execute(f"SELECT FROM {table_name} WHERE id={id};")
+        row = result.fetchone()
+
+        # ensure it is encrypted (if should_match) or ensure it's not encrypted (if not should_match)
+        if should_match:
+            if row["data"] == "test":
+                self.fail(f"Table identifier {table_name} did not match")
+        if not should_match:
+            if row["data"] != "test":
+                self.fail(f"Table identifier {table_name} matched")
+
+        # drop the table
+        self.engine_raw.execute(f"DROP TABLE {table_name};")
+
+    def testLowerConfigLowerQuery(self):
+        # should match, lowercase config identifier == lowercase SQL identifier
+        self.runTestCase("lowercase_table", False, True)
+
+    def testLowerConfigLowerQuotedQuery(self):
+        # should match, lowercase config identifier == lowercase SQL identifier
+        self.runTestCase("lowercase_table", True, True)
+
     def testLowerConfigUpperQuery(self):
-        # Lowercase table name in encryptor config, mixed case in SQL query
-        self.raw_engine.execute('CREATE TABLE "TestOne" (id SERIAL PRIMARY KEY, data BYTEA);')
+        # should match, lowercase config identifier == lowercase SQL identifier (converted)
+        self.runTestCase("LOWERCASE_TABLE", False, True)
 
-        # TODO: try insert and select with "TestOne" as table name, expect success
+    def testLowerConfigUpperQuotedQuery(self):
+        # should NOT match, lowercase config identifier != uppercase SQL identifier
+        self.runTestCase("LOWERCASE_TABLE", True, False)
 
-        self.raw_engine.execute('DROP TABLE "TestOne";');
+    def testUpperConfigLowerQuery(self):
+        # should NOT match, uppercase config identifier != lowercase SQL identifier
+        self.runTestCase("uppercase_table", False, False)
+
+    def testUpperConfigLowerQuotedQuery(self):
+        # should NOT match, uppercase config identifier != lowercase SQL identifier
+        self.runTestCase("uppercase_table", True, False)
+
+    def testUpperConfigUpperQuery(self):
+        # should NOT match, uppercase config identifier != lowercase SQL identifier (converted)
+        self.runTestCase("UPPERCASE_TABLE", False, False)
+
+    def testUpperConfigUpperQuotedQuery(self):
+        # should match, uppercase config identifier == uppercase SQL identifier
+        self.runTestCase("UPPERCASE_TABLE", True, True)
 
 
 def TestDifferentCaseTableIdentifiersMySQL(BaseTestCase):
@@ -9462,13 +9514,62 @@ def TestDifferentCaseTableIdentifiersMySQL(BaseTestCase):
         if not TEST_WITH_TLS or not (TEST_MYSQL or TEST_MARIADB):
             self.skipTest("this test is only for MySQL/MariaDB")
 
+    def runTestCase(self, table_name: str, quoted: bool, should_match: bool):
+        # create the table
+        self.engine_raw.execute(f"CREATE TABLE {table_name} (id INT PRIMARY KEY AUTO_INCREMENT, data BYTES);")
+
+        # generate random id
+        id = get_random_id()
+
+        # insert a record
+        self.engine_raw.execute(f"INSERT INTO {table_name} (id, data) VALUES ({id}, \"test\");")
+
+        # fetch a record
+        result = self.engine_raw.execute(f"SELECT FROM {table_name} WHERE id={id};")
+        row = result.fetchone()
+
+        # ensure it is encrypted (if should_match) or ensure it's not encrypted (if not should_match)
+        if should_match:
+            if row["data"] == "test":
+                self.fail(f"Table identifier {table_name} did not match")
+        if not should_match:
+            if row["data"] != "test":
+                self.fail(f"Table identifier {table_name} matched")
+
+        # drop the table
+        self.engine_raw.execute(f"DROP TABLE {table_name};")
+
+    def testLowerConfigLowerQuery(self):
+        # should match, lowercase config identifier == lowercase SQL identifier
+        self.runTestCase("lowercase_table", False, True)
+
+    def testLowerConfigLowerQuotedQuery(self):
+        # should match, lowercase config identifier == lowercase SQL identifier
+        self.runTestCase("lowercase_table", True, True)
+
     def testLowerConfigUpperQuery(self):
-        # Lowercase table name in encryptor config, mixed case in SQL query
-        self.raw_engine.execute('CREATE TABLE TestOne (id INT PRIMARY KEY AUTO_INCREMENT, data BYTES);')
+        # should match, lowercase config identifier == lowercase SQL identifier (converted)
+        self.runTestCase("LOWERCASE_TABLE", False, True)
 
-        # TODO: try insert and select with TestOne as table name, expect success
+    def testLowerConfigUpperQuotedQuery(self):
+        # should NOT match, lowercase config identifier != uppercase SQL identifier
+        self.runTestCase("LOWERCASE_TABLE", True, False)
 
-        self.raw_engine.execute('DROP TABLE TestOne;');
+    def testUpperConfigLowerQuery(self):
+        # should NOT match, uppercase config identifier != lowercase SQL identifier
+        self.runTestCase("uppercase_table", False, False)
+
+    def testUpperConfigLowerQuotedQuery(self):
+        # should NOT match, uppercase config identifier != lowercase SQL identifier
+        self.runTestCase("uppercase_table", True, False)
+
+    def testUpperConfigUpperQuery(self):
+        # should NOT match, uppercase config identifier != lowercase SQL identifier (converted)
+        self.runTestCase("UPPERCASE_TABLE", False, False)
+
+    def testUpperConfigUpperQuotedQuery(self):
+        # should match, uppercase config identifier == uppercase SQL identifier
+        self.runTestCase("UPPERCASE_TABLE", True, True)
 
 
 if __name__ == '__main__':

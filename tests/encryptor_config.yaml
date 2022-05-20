@@ -19,10 +19,11 @@ schemas:
   - column: zone_id
     zone_id: DDDDDDDDMatNOMYjqVOuhACC
 
-- table: TestOne
-  columns:
-  - id
-  - data
 
-  encrypted:
-  - column: data
+- table: lowercase_table
+  columns: [ id, data ]
+  encrypted: [ { column: data } ]
+
+- table: UPPERCASE_TABLE
+  columns: [ id, data ]
+  encrypted: [ { column: data } ]
