@@ -9714,6 +9714,42 @@ class TestMySQLBinaryTypeAwareDecryptionWithError(TestMySQLTextTypeAwareDecrypti
         self.assertEqual(ex.exception.errno, MYSQL_ERR_QUERY_INTERRUPTED_CODE)
 
 
+class TestMySQLTextCharsetLiterals(TestMySQLTextTypeAwareDecryptionWithoutDefaults):
+    def testClientIDRead(self):
+        """
+        We don't directly support charset introducers[1], but at least make
+        sure it can handle _binary.
+
+        [1]: https://dev.mysql.com/doc/refman/8.0/en/charset-introducer.html
+        """
+
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        id = get_random_id()
+        # DON'T EVER, EVER DO THIS
+        # Do not use direct string interpolation for sql values
+        # This is just a test example
+        #
+        # Also, insert value_empty_str because it can't be null
+        insert = f"""
+            INSERT INTO {self.test_table.name}(id, value_bytes, value_empty_str)
+            VALUES ({id}, _binary 'binary_string', '')
+        """
+        self.engine1.execute(insert)
+
+        columns = [self.test_table.c.id, self.test_table.c.value_bytes]
+
+        query = sa.select(columns).where(self.test_table.c.id == id)
+        query = str(query.compile(compile_kwargs={"literal_binds": True}))
+
+        row = self.executor1.execute(query)[0]
+        self.assertEqual(row['id'], id)
+        self.assertEqual(row['value_bytes'], b'binary_string')
+
+        # direct connection should receive binary data according to real scheme
+        result = self.engine_raw.execute(query)
+        row = result.fetchone()
+        self.assertNotEqual(row['value_bytes'], b'binary_string')
+
 
 class TestPostgresqlConnectWithTLSPrefer(BaseTestCase):
     def checkSkip(self):
