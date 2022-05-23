@@ -157,6 +157,10 @@ func UpdateExpressionValue(ctx context.Context, expr sqlparser.Expr, coder DBDat
 	switch val := expr.(type) {
 	case *sqlparser.UnaryExpr:
 		return UpdateUnaryExpressionValue(ctx, expr.(*sqlparser.UnaryExpr), coder, updateFunc)
+	// Update Parenthese expression like  `('AAAA')` just by processing inner
+	// expression 'AAAA'.
+	case *sqlparser.ParenExpr:
+		return UpdateExpressionValue(ctx, expr.(*sqlparser.ParenExpr).Expr, coder, updateFunc)
 	case *sqlparser.SQLVal:
 		switch val.Type {
 		case sqlparser.StrVal, sqlparser.HexVal, sqlparser.PgEscapeString, sqlparser.IntVal:
