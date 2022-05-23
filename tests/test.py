@@ -1105,6 +1105,8 @@ class ExecutorMixin:
     to create an engine of desired type.
 
     """
+    RAW_EXECUTOR = True
+    FORMAT = ''
 
     def setUp(self):
         super().setUp()
@@ -1126,7 +1128,7 @@ class ExecutorMixin:
             ssl_key=ssl_key,
             ssl_cert=ssl_cert,
             format=self.FORMAT,
-            raw=True,
+            raw=self.RAW_EXECUTOR,
         )
         return self.executor_cls(args)
 
@@ -1137,6 +1139,10 @@ class Psycopg3ExecutorMixin(ExecutorMixin):
 
 class AsyncpgExecutorMixin(ExecutorMixin):
     executor_cls = AsyncpgExecutor
+
+
+class MysqlExecutorMixin(ExecutorMixin):
+    executor_cls = MysqlExecutor
 
 
 class KeyMakerTest(unittest.TestCase):
@@ -1886,30 +1892,13 @@ class BaseBinaryPostgreSQLTestCase(AsyncpgExecutorMixin, BaseTestCase):
         return query, tuple(values)
 
 
-class BaseBinaryMySQLTestCase(BaseTestCase):
+class BaseBinaryMySQLTestCase(MysqlExecutorMixin, BaseTestCase):
     """Setup test fixture for testing MySQL extended protocol."""
 
     def checkSkip(self):
         super().checkSkip()
         if not TEST_MYSQL:
             self.skipTest("test only MySQL")
-
-    def setUp(self):
-        super().setUp()
-
-        def executor_with_ssl(ssl_key, ssl_cert):
-            args = ConnectionArgs(
-                host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
-                user=DB_USER, password=DB_USER_PASSWORD,
-                ssl_ca=TEST_TLS_CA,
-                ssl_key=ssl_key,
-                ssl_cert=ssl_cert,
-                raw=True,
-            )
-            return MysqlExecutor(args)
-
-        self.executor1 = executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
-        self.executor2 = executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
 
     def compileInsertQuery(self, query, parameters={}, literal_binds=False):
         """
@@ -8680,23 +8669,8 @@ class TestMySQLTextFormatTypeAwareDecryptionWithDefaults(BaseBinaryMySQLTestCase
     )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
-    def setUp(self):
-        super().setUp()
-
-        # switch off raw mode to be able to convert result rows to python types
-        def raw_executor_with_ssl(ssl_key, ssl_cert):
-            args = ConnectionArgs(
-                host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
-                user=DB_USER, password=DB_USER_PASSWORD,
-                ssl_ca=TEST_TLS_CA,
-                ssl_key=ssl_key,
-                ssl_cert=ssl_cert,
-                raw=False,
-            )
-            return MysqlExecutor(args)
-
-        self.executor1 = raw_executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
-        self.executor2 = raw_executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
+    # switch off raw mode to be able to convert result rows to python types
+    RAW_EXECUTOR = False
 
     def checkSkip(self):
         if not (TEST_MYSQL and TEST_WITH_TLS):
@@ -8992,23 +8966,8 @@ class TestMySQLTextTypeAwareDecryptionWithoutDefaults(BaseBinaryMySQLTestCase, B
     )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
-    def setUp(self):
-        super().setUp()
-
-        # switch off raw mode to be able to convert result rows to python types
-        def raw_executor_with_ssl(ssl_key, ssl_cert):
-            args = ConnectionArgs(
-                host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
-                user=DB_USER, password=DB_USER_PASSWORD,
-                ssl_ca=TEST_TLS_CA,
-                ssl_key=ssl_key,
-                ssl_cert=ssl_cert,
-                raw=False,
-            )
-            return MysqlExecutor(args)
-
-        self.executor1 = raw_executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
-        self.executor2 = raw_executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
+    # switch off raw mode to be able to convert result rows to python types
+    RAW_EXECUTOR = False
 
     def checkSkip(self):
         if not (TEST_MYSQL and TEST_WITH_TLS):
@@ -9530,23 +9489,8 @@ class TestMySQLTextTypeAwareDecryptionWithСiphertext(BaseBinaryMySQLTestCase, B
     )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
-    def setUp(self):
-        super().setUp()
-
-        # switch off raw mode to be able to convert result rows to python types
-        def raw_executor_with_ssl(ssl_key, ssl_cert):
-            args = ConnectionArgs(
-                host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
-                user=DB_USER, password=DB_USER_PASSWORD,
-                ssl_ca=TEST_TLS_CA,
-                ssl_key=ssl_key,
-                ssl_cert=ssl_cert,
-                raw=False,
-            )
-            return MysqlExecutor(args)
-
-        self.executor1 = raw_executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
-        self.executor2 = raw_executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
+    # switch off raw mode to be able to convert result rows to python types
+    RAW_EXECUTOR = False
 
     def checkSkip(self):
         if not (TEST_MYSQL and TEST_WITH_TLS):
@@ -9682,23 +9626,8 @@ class TestMySQLTextTypeAwareDecryptionWithError(BaseBinaryMySQLTestCase, BaseTra
     )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
-    def setUp(self):
-        super().setUp()
-
-        # switch off raw mode to be able to convert result rows to python types
-        def raw_executor_with_ssl(ssl_key, ssl_cert):
-            args = ConnectionArgs(
-                host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
-                user=DB_USER, password=DB_USER_PASSWORD,
-                ssl_ca=TEST_TLS_CA,
-                ssl_key=ssl_key,
-                ssl_cert=ssl_cert,
-                raw=False,
-            )
-            return MysqlExecutor(args)
-
-        self.executor1 = raw_executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
-        self.executor2 = raw_executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
+    # switch off raw mode to be able to convert result rows to python types
+    RAW_EXECUTOR = False
 
     def checkSkip(self):
         if not (TEST_MYSQL and TEST_WITH_TLS):
