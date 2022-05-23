@@ -20,15 +20,16 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"reflect"
+	"strconv"
+	"strings"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
-	"reflect"
-	"strconv"
-	"strings"
 )
 
 // QueryDataItem stores information about table column and encryption setting
@@ -154,6 +155,8 @@ var ErrUpdateLeaveDataUnchanged = errors.New("updateFunc didn't change data")
 // UpdateExpressionValue decode value from DB related string to binary format, call updateFunc, encode to DB string format and replace value in expression with new
 func UpdateExpressionValue(ctx context.Context, expr sqlparser.Expr, coder DBDataCoder, updateFunc func(context.Context, []byte) ([]byte, error)) error {
 	switch val := expr.(type) {
+	case *sqlparser.UnaryExpr:
+		return UpdateUnaryExpressionValue(ctx, expr.(*sqlparser.UnaryExpr), coder, updateFunc)
 	case *sqlparser.SQLVal:
 		switch val.Type {
 		case sqlparser.StrVal, sqlparser.HexVal, sqlparser.PgEscapeString, sqlparser.IntVal:
@@ -180,6 +183,19 @@ func UpdateExpressionValue(ctx context.Context, expr sqlparser.Expr, coder DBDat
 				return err
 			}
 			val.Val = coded
+		}
+	}
+	return nil
+}
+
+// UpdateUnaryExpressionValue updates supported unary expression
+// By now, supported are only `_binary` charsets, that are parsed as unary expr.
+func UpdateUnaryExpressionValue(ctx context.Context, expr *sqlparser.UnaryExpr, coder DBDataCoder, updateFunc func(context.Context, []byte) ([]byte, error)) error {
+	switch unaryVal := expr.Expr.(type) {
+	case *sqlparser.SQLVal:
+		switch strings.TrimSpace(expr.Operator) {
+		case "_binary":
+			return UpdateExpressionValue(ctx, unaryVal, coder, updateFunc)
 		}
 	}
 	return nil
