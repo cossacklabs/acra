@@ -59,6 +59,7 @@ from sqlalchemy.dialects import mysql as mysql_dialect
 from sqlalchemy.dialects import postgresql as postgresql_dialect
 from sqlalchemy.dialects.postgresql import BYTEA
 from sqlalchemy.exc import DatabaseError, OperationalError, ProgrammingError
+from sqlalchemy.sql import expression, operators
 
 import api_pb2
 import api_pb2_grpc
@@ -9725,15 +9726,16 @@ class TestMySQLTextCharsetLiterals(TestMySQLTextTypeAwareDecryptionWithoutDefaul
 
         self.schema_table.create(bind=self.engine_raw, checkfirst=True)
         id = get_random_id()
-        # DON'T EVER, EVER DO THIS
-        # Do not use direct string interpolation for sql values
-        # This is just a test example
-        #
-        # Also, insert value_empty_str because it can't be null
-        insert = f"""
-            INSERT INTO {self.test_table.name}(id, value_bytes, value_empty_str)
-            VALUES ({id}, _binary 'binary_string', '')
-        """
+        insert = self.test_table.insert().values(
+            id=id,
+            # Crafts `_binary 'binary_string'`
+            value_bytes=expression.UnaryExpression(
+                expression.literal('binary_string'),
+                operator=operators.custom_op('_binary'),
+                type_=sa.Text,
+            ),
+            value_empty_str='',
+        )
         self.engine1.execute(insert)
 
         columns = [self.test_table.c.id, self.test_table.c.value_bytes]
