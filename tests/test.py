@@ -1135,6 +1135,10 @@ class Psycopg3ExecutorMixin(ExecutorMixin):
     executor_cls = Psycopg3Executor
 
 
+class AsyncpgExecutorMixin(ExecutorMixin):
+    executor_cls = AsyncpgExecutor
+
+
 class KeyMakerTest(unittest.TestCase):
     def test_key_length(self):
         key_size = 32
@@ -1795,7 +1799,7 @@ class HexFormatTest(BaseTestCase):
         self.assertEqual(row['empty'], b'')
 
 
-class BaseBinaryPostgreSQLTestCase(BaseTestCase):
+class BaseBinaryPostgreSQLTestCase(AsyncpgExecutorMixin, BaseTestCase):
     """Setup test fixture for testing PostgreSQL extended protocol."""
 
     def checkSkip(self):
@@ -1804,25 +1808,6 @@ class BaseBinaryPostgreSQLTestCase(BaseTestCase):
             self.skipTest("test only PostgreSQL")
 
     FORMAT = AsyncpgExecutor.BinaryFormat
-
-    def setUp(self):
-        super().setUp()
-
-        def executor_with_ssl(ssl_key, ssl_cert, port=self.ACRASERVER_PORT):
-            args = ConnectionArgs(
-                host=get_db_host(), port=port, dbname=DB_NAME,
-                user=DB_USER, password=DB_USER_PASSWORD,
-                ssl_ca=TEST_TLS_CA,
-                ssl_key=ssl_key,
-                ssl_cert=ssl_cert,
-                format=self.FORMAT,
-                raw=True,
-            )
-            return AsyncpgExecutor(args)
-
-        self.executor1 = executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
-        self.executor2 = executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
-        self.raw_executor = executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT, 5432)
 
     def compileQuery(self, query, parameters={}, literal_binds=False):
         """
