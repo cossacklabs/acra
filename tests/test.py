@@ -1093,6 +1093,48 @@ class Psycopg3Executor(QueryExecutor):
         return self._execute(query, args, prepare=True)
 
 
+class ExecutorMixin:
+    """
+
+    ExecutorMixin setups creates executors during the `setUp`:
+      - self.executor1 - connection to the Acra with the first certificate
+      - self.executor2 - connection to the Acra with the second certificate
+      - self.raw_executor - direct connection to the database 
+
+    It uses `self.executor_with_ssl` to set up args and `self.executor_cls`
+    to create an engine of desired type.
+
+    """
+
+    def setUp(self):
+        super().setUp()
+        acra_port = self.ACRASERVER_PORT
+        self.executor1 = self.executor_with_ssl(
+            TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT, acra_port)
+        self.executor2 = self.executor_with_ssl(
+            TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT, acra_port)
+        self.raw_executor = self.executor_with_ssl(
+            TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT, DB_PORT)
+
+    def executor_with_ssl(self, ssl_key, ssl_cert, port):
+        if port is None:
+            port = self.ACRASERVER_PORT
+        args = ConnectionArgs(
+            host=get_db_host(), port=port, dbname=DB_NAME,
+            user=DB_USER, password=DB_USER_PASSWORD,
+            ssl_ca=TEST_TLS_CA,
+            ssl_key=ssl_key,
+            ssl_cert=ssl_cert,
+            format=self.FORMAT,
+            raw=True,
+        )
+        return self.executor_cls(args)
+
+
+class Psycopg3ExecutorMixin(ExecutorMixin):
+    executor_cls = Psycopg3Executor
+
+
 class KeyMakerTest(unittest.TestCase):
     def test_key_length(self):
         key_size = 32
@@ -10196,43 +10238,6 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
         loop = asyncio.new_event_loop()
         loop.run_until_complete(test())
 
-
-class ExecutorMixin:
-    """
-    ExecutorMixin setups creates executors during the `setUp`:
-      - self.executor1 - connection to the Acra with the first certificate 
-      - self.executor2 - connection to the Acra with the second certificate 
-      - self.raw_executor - direct connection to the database 
-    
-    It uses `self.executor_with_ssl` to set up args and `self.executor_cls`
-    to create an engine of desired type.
-    """
-    def setUp(self):
-        super().setUp()
-        self.executor1 = self.executor_with_ssl(
-            TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT, self.ACRASERVER_PORT)
-        self.executor2 = self.executor_with_ssl(
-            TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT, self.ACRASERVER_PORT)
-        self.raw_executor = self.executor_with_ssl(
-            TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT, DB_PORT)
-
-    def executor_with_ssl(self, ssl_key, ssl_cert, port):
-        if port is None:
-            port = self.ACRASERVER_PORT
-        args = ConnectionArgs(
-            host=get_db_host(), port=port, dbname=DB_NAME,
-            user=DB_USER, password=DB_USER_PASSWORD,
-            ssl_ca=TEST_TLS_CA,
-            ssl_key=ssl_key,
-            ssl_cert=ssl_cert,
-            format=self.FORMAT,
-            raw=True,
-        )
-        return self.executor_cls(args)
-
-
-class Psycopg3ExecutorMixin(ExecutorMixin):
-    executor_cls = Psycopg3Executor
 
 class TestPostgresqlTypeAwareDecryptionWithDefaultsPsycopg3(Psycopg3ExecutorMixin,
                                                             TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults):
