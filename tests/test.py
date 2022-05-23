@@ -5654,13 +5654,8 @@ class TestEmptyValues(BaseTestCase):
         # check null values
         result = self.engine1.execute(sa.select([self.temp_table]).where(self.temp_table.c.id == null_value_id))
         row = result.fetchone()
-        if TEST_MYSQL:
-            # PyMySQL returns empty strings for NULL values
-            self.assertEqual(row['text'], '')
-            self.assertEqual(row['binary'], b'')
-        else:
-            self.assertIsNone(row['text'])
-            self.assertIsNone(row['binary'])
+        self.assertIsNone(row['text'])
+        self.assertIsNone(row['binary'])
 
         # check empty values
         result = self.engine1.execute(sa.select([self.temp_table]).where(self.temp_table.c.id == empty_value_id))
@@ -8667,7 +8662,7 @@ class TestMySQLTextFormatTypeAwareDecryptionWithDefaults(BaseBinaryMySQLTestCase
 
         # mysql.connector represent null value as empty string
         for column in null_columns:
-            self.assertEqual(row[column], '')
+            self.assertIsNone(row[column])
 
         row = self.executor2.execute(query)[0]
         for column in columns:
@@ -8675,7 +8670,7 @@ class TestMySQLTextFormatTypeAwareDecryptionWithDefaults(BaseBinaryMySQLTestCase
             self.assertIsInstance(row[column], type(default_expected_values[column]))
 
         for column in null_columns:
-            self.assertEqual(row[column], '')
+            self.assertIsNone(row[column])
 
         row = self.engine_raw.execute(sa.select([self.test_table])
                 .where(self.test_table.c.id == data['id'])).fetchone()
@@ -8973,7 +8968,7 @@ class TestMySQLTextTypeAwareDecryptionWithoutDefaults(BaseBinaryMySQLTestCase, B
 
         # mysql.connector represent null value as empty string
         for column in null_columns:
-            self.assertEqual(row[column], '')
+            self.assertIsNone(row[column])
 
         # field types should be rollbacked in case of invalid encoding
         row = self.executor2.execute(query)[0]
@@ -9511,7 +9506,7 @@ class TestMySQLTextTypeAwareDecryptionWithСiphertext(BaseBinaryMySQLTestCase, B
 
         # mysql.connector represent null value as empty string
         for column in null_columns:
-            self.assertEqual(row[column], '')
+            self.assertIsNone(row[column])
 
         # field types should be rollbacked in case of invalid encoding
         row = self.executor2.execute(query)[0]
@@ -9663,7 +9658,7 @@ class TestMySQLTextTypeAwareDecryptionWithError(BaseBinaryMySQLTestCase, BaseTra
 
         # mysql.connector represent null value as empty string
         for column in null_columns:
-            self.assertEqual(row[column], '')
+            self.assertIsNone(row[column])
 
         # we expect an exception because of decryption error
         with self.assertRaises(mysql.connector.errors.DatabaseError) as ex:

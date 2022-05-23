@@ -196,6 +196,9 @@ func (wrapper *OldContainerDetectorWrapper) OnCryptoEnvelope(ctx context.Context
 
 // OnColumn callback which finds serializedContainer or AcraStruct/AcraBlock for backward compatibility
 func (wrapper *OldContainerDetectorWrapper) OnColumn(ctx context.Context, inBuffer []byte) (context.Context, []byte, error) {
+	if inBuffer == nil {
+		return ctx, inBuffer, nil
+	}
 	// we should track that if incoming data contains any signs of new container and if it is we return data as is
 	// otherwise try to search for AcraBlock or AcraStruct to save backward compatibility
 	// so before any OnColumn we should reset hasMatchedEnvelope flag to track if its changed during EnvelopeDetector OnColumn via BackWrapper.OnCryptoEnvelope callback
