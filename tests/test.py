@@ -44,6 +44,7 @@ import mysql.connector
 import psycopg2
 import psycopg2.errors
 import psycopg2.extras
+import psycopg as psycopg3
 import pymysql
 import redis
 import requests
@@ -59,6 +60,7 @@ from sqlalchemy.dialects import mysql as mysql_dialect
 from sqlalchemy.dialects import postgresql as postgresql_dialect
 from sqlalchemy.dialects.postgresql import BYTEA
 from sqlalchemy.exc import DatabaseError, OperationalError, ProgrammingError
+from sqlalchemy.sql import expression, operators
 
 import api_pb2
 import api_pb2_grpc
@@ -1045,6 +1047,104 @@ class Psycopg2Executor(QueryExecutor):
                 return data
 
 
+# Place arguments in a linear order
+# For example, if query is "$2 $1 $1 $3" and arguments are [a, b, c]
+# The resulted query would be "%s %s %s %s" and arguments would be [b a a c]
+def replace_pg_placeholders_with_psycopg3(query, args):
+    indexes = re.findall(r'\$([0-9]+)', query)
+    query = re.sub(r'\$[0-9]+', '%s', query)
+    # minus 1 because python uses 0-based array, while postgres 1-based
+    newargs = [args[int(i) - 1] for i in indexes]
+    return query, newargs
+
+
+class Psycopg3Executor(QueryExecutor):
+    def _execute(self, query, args=None, prepare=None):
+        query, args = replace_pg_placeholders_with_psycopg3(query, args)
+
+        connection_args = get_connect_args(self.connection_args.port)
+
+        connection_args['sslrootcert'] = self.connection_args.ssl_ca
+        connection_args['sslkey'] = self.connection_args.ssl_key
+        connection_args['sslcert'] = self.connection_args.ssl_cert
+        connection_args['host'] = self.connection_args.host
+        connection_args['dbname'] = self.connection_args.dbname
+
+        with psycopg3.connect(**connection_args) as conn:
+            with conn.cursor(
+                    row_factory=psycopg3.rows.dict_row) as cursor:
+                cursor.execute(query, args, prepare=prepare)
+                try:
+                    data = cursor.fetchall()
+                except psycopg3.ProgrammingError as ex:
+                    # psycopg3 throws an error if we want to fetch rows on
+                    # responseless query, like insert. So ignore it.
+                    if str(ex) == "the last operation didn't produce a result":
+                        return []
+                    else:
+                        raise
+                utils.memoryview_rows_to_bytes(data)
+                return data
+
+    def execute(self, query, args=None):
+        return self._execute(query, args, prepare=False)
+
+    def execute_prepared_statement(self, query, args=None):
+        return self._execute(query, args, prepare=True)
+
+
+class ExecutorMixin:
+    """
+
+    ExecutorMixin setups creates executors during the `setUp`:
+      - self.executor1 - connection to the Acra with the first certificate
+      - self.executor2 - connection to the Acra with the second certificate
+      - self.raw_executor - direct connection to the database 
+
+    It uses `self.executor_with_ssl` to set up args and `self.executor_cls`
+    to create an engine of desired type.
+
+    """
+    RAW_EXECUTOR = True
+    FORMAT = ''
+
+    def setUp(self):
+        super().setUp()
+        acra_port = self.ACRASERVER_PORT
+        self.executor1 = self.executor_with_ssl(
+            TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT, acra_port)
+        self.executor2 = self.executor_with_ssl(
+            TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT, acra_port)
+        self.raw_executor = self.executor_with_ssl(
+            TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT, DB_PORT)
+
+    def executor_with_ssl(self, ssl_key, ssl_cert, port):
+        if port is None:
+            port = self.ACRASERVER_PORT
+        args = ConnectionArgs(
+            host=get_db_host(), port=port, dbname=DB_NAME,
+            user=DB_USER, password=DB_USER_PASSWORD,
+            ssl_ca=TEST_TLS_CA,
+            ssl_key=ssl_key,
+            ssl_cert=ssl_cert,
+            format=self.FORMAT,
+            raw=self.RAW_EXECUTOR,
+        )
+        return self.executor_cls(args)
+
+
+class Psycopg3ExecutorMixin(ExecutorMixin):
+    executor_cls = Psycopg3Executor
+
+
+class AsyncpgExecutorMixin(ExecutorMixin):
+    executor_cls = AsyncpgExecutor
+
+
+class MysqlExecutorMixin(ExecutorMixin):
+    executor_cls = MysqlExecutor
+
+
 class KeyMakerTest(unittest.TestCase):
     def test_key_length(self):
         key_size = 32
@@ -1705,7 +1805,7 @@ class HexFormatTest(BaseTestCase):
         self.assertEqual(row['empty'], b'')
 
 
-class BaseBinaryPostgreSQLTestCase(BaseTestCase):
+class BaseBinaryPostgreSQLTestCase(AsyncpgExecutorMixin, BaseTestCase):
     """Setup test fixture for testing PostgreSQL extended protocol."""
 
     def checkSkip(self):
@@ -1714,25 +1814,6 @@ class BaseBinaryPostgreSQLTestCase(BaseTestCase):
             self.skipTest("test only PostgreSQL")
 
     FORMAT = AsyncpgExecutor.BinaryFormat
-
-    def setUp(self):
-        super().setUp()
-
-        def executor_with_ssl(ssl_key, ssl_cert, port=self.ACRASERVER_PORT):
-            args = ConnectionArgs(
-                host=get_db_host(), port=port, dbname=DB_NAME,
-                user=DB_USER, password=DB_USER_PASSWORD,
-                ssl_ca=TEST_TLS_CA,
-                ssl_key=ssl_key,
-                ssl_cert=ssl_cert,
-                format=self.FORMAT,
-                raw=True,
-            )
-            return AsyncpgExecutor(args)
-
-        self.executor1 = executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
-        self.executor2 = executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
-        self.raw_executor = executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT, 5432)
 
     def compileQuery(self, query, parameters={}, literal_binds=False):
         """
@@ -1811,30 +1892,13 @@ class BaseBinaryPostgreSQLTestCase(BaseTestCase):
         return query, tuple(values)
 
 
-class BaseBinaryMySQLTestCase(BaseTestCase):
+class BaseBinaryMySQLTestCase(MysqlExecutorMixin, BaseTestCase):
     """Setup test fixture for testing MySQL extended protocol."""
 
     def checkSkip(self):
         super().checkSkip()
         if not TEST_MYSQL:
             self.skipTest("test only MySQL")
-
-    def setUp(self):
-        super().setUp()
-
-        def executor_with_ssl(ssl_key, ssl_cert):
-            args = ConnectionArgs(
-                host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
-                user=DB_USER, password=DB_USER_PASSWORD,
-                ssl_ca=TEST_TLS_CA,
-                ssl_key=ssl_key,
-                ssl_cert=ssl_cert,
-                raw=True,
-            )
-            return MysqlExecutor(args)
-
-        self.executor1 = executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
-        self.executor2 = executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
 
     def compileInsertQuery(self, query, parameters={}, literal_binds=False):
         """
@@ -8600,23 +8664,8 @@ class TestMySQLTextFormatTypeAwareDecryptionWithDefaults(BaseBinaryMySQLTestCase
     )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
-    def setUp(self):
-        super().setUp()
-
-        # switch off raw mode to be able to convert result rows to python types
-        def raw_executor_with_ssl(ssl_key, ssl_cert):
-            args = ConnectionArgs(
-                host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
-                user=DB_USER, password=DB_USER_PASSWORD,
-                ssl_ca=TEST_TLS_CA,
-                ssl_key=ssl_key,
-                ssl_cert=ssl_cert,
-                raw=False,
-            )
-            return MysqlExecutor(args)
-
-        self.executor1 = raw_executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
-        self.executor2 = raw_executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
+    # switch off raw mode to be able to convert result rows to python types
+    RAW_EXECUTOR = False
 
     def checkSkip(self):
         if not (TEST_MYSQL and TEST_WITH_TLS):
@@ -8908,23 +8957,8 @@ class TestMySQLTextTypeAwareDecryptionWithoutDefaults(BaseBinaryMySQLTestCase, B
     )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
-    def setUp(self):
-        super().setUp()
-
-        # switch off raw mode to be able to convert result rows to python types
-        def raw_executor_with_ssl(ssl_key, ssl_cert):
-            args = ConnectionArgs(
-                host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
-                user=DB_USER, password=DB_USER_PASSWORD,
-                ssl_ca=TEST_TLS_CA,
-                ssl_key=ssl_key,
-                ssl_cert=ssl_cert,
-                raw=False,
-            )
-            return MysqlExecutor(args)
-
-        self.executor1 = raw_executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
-        self.executor2 = raw_executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
+    # switch off raw mode to be able to convert result rows to python types
+    RAW_EXECUTOR = False
 
     def checkSkip(self):
         if not (TEST_MYSQL and TEST_WITH_TLS):
@@ -9442,23 +9476,8 @@ class TestMySQLTextTypeAwareDecryptionWithСiphertext(BaseBinaryMySQLTestCase, B
     )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
-    def setUp(self):
-        super().setUp()
-
-        # switch off raw mode to be able to convert result rows to python types
-        def raw_executor_with_ssl(ssl_key, ssl_cert):
-            args = ConnectionArgs(
-                host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
-                user=DB_USER, password=DB_USER_PASSWORD,
-                ssl_ca=TEST_TLS_CA,
-                ssl_key=ssl_key,
-                ssl_cert=ssl_cert,
-                raw=False,
-            )
-            return MysqlExecutor(args)
-
-        self.executor1 = raw_executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
-        self.executor2 = raw_executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
+    # switch off raw mode to be able to convert result rows to python types
+    RAW_EXECUTOR = False
 
     def checkSkip(self):
         if not (TEST_MYSQL and TEST_WITH_TLS):
@@ -9590,23 +9609,8 @@ class TestMySQLTextTypeAwareDecryptionWithError(BaseBinaryMySQLTestCase, BaseTra
     )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
-    def setUp(self):
-        super().setUp()
-
-        # switch off raw mode to be able to convert result rows to python types
-        def raw_executor_with_ssl(ssl_key, ssl_cert):
-            args = ConnectionArgs(
-                host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
-                user=DB_USER, password=DB_USER_PASSWORD,
-                ssl_ca=TEST_TLS_CA,
-                ssl_key=ssl_key,
-                ssl_cert=ssl_cert,
-                raw=False,
-            )
-            return MysqlExecutor(args)
-
-        self.executor1 = raw_executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
-        self.executor2 = raw_executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
+    # switch off raw mode to be able to convert result rows to python types
+    RAW_EXECUTOR = False
 
     def checkSkip(self):
         if not (TEST_MYSQL and TEST_WITH_TLS):
@@ -9692,6 +9696,78 @@ class TestMySQLBinaryTypeAwareDecryptionWithError(TestMySQLTextTypeAwareDecrypti
         self.assertEqual('encoding error in column "value_str"', ex.exception.msg)
         self.assertEqual(ex.exception.errno, MYSQL_ERR_QUERY_INTERRUPTED_CODE)
 
+
+class TestMySQLTextCharsetLiterals(TestMySQLTextTypeAwareDecryptionWithoutDefaults):
+    def testClientIDRead(self):
+        """
+        We don't directly support charset introducers[1], but at least make
+        sure it can handle _binary in paretheses.
+
+        [1]: https://dev.mysql.com/doc/refman/8.0/en/charset-introducer.html
+        """
+
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        id = get_random_id()
+        insert = self.test_table.insert().values(
+            id=id,
+            # Crafts `_binary 'binary_string'`
+            value_bytes=expression.UnaryExpression(
+                expression.literal('binary_string'),
+                operator=operators.custom_op('_binary'),
+                type_=sa.Text,
+            ),
+            value_empty_str='',
+        )
+        self.engine1.execute(insert)
+
+        columns = [self.test_table.c.id, self.test_table.c.value_bytes]
+
+        query = sa.select(columns).where(self.test_table.c.id == id)
+        query = str(query.compile(compile_kwargs={"literal_binds": True}))
+
+        row = self.executor1.execute(query)[0]
+        self.assertEqual(row['id'], id)
+        self.assertEqual(row['value_bytes'], b'binary_string')
+
+        # direct connection should receive binary data according to real scheme
+        result = self.engine_raw.execute(query)
+        row = result.fetchone()
+        self.assertNotEqual(row['value_bytes'], b'binary_string')
+
+    def testClientIDReadRawSql(self):
+        """
+        We don't directly support charset introducers[1], but at least make
+        sure it can handle _binary.
+
+        [1]: https://dev.mysql.com/doc/refman/8.0/en/charset-introducer.html
+        """
+
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        id = get_random_id()
+        # DON'T EVER, EVER DO THIS
+        # Do not use direct string interpolation for sql values
+        # This is just a test example.
+        #
+        # Also, insert value_empty_str because it can't be null
+        insert = f"""
+            INSERT INTO {self.test_table.name}(id, value_bytes, value_empty_str)
+            VALUES ({id}, _binary 'binary_string', '')
+        """
+        self.engine1.execute(insert)
+
+        columns = [self.test_table.c.id, self.test_table.c.value_bytes]
+
+        query = sa.select(columns).where(self.test_table.c.id == id)
+        query = str(query.compile(compile_kwargs={"literal_binds": True}))
+
+        row = self.executor1.execute(query)[0]
+        self.assertEqual(row['id'], id)
+        self.assertEqual(row['value_bytes'], b'binary_string')
+
+        # direct connection should receive encrypted data
+        result = self.engine_raw.execute(query)
+        row = result.fetchone()
+        self.assertNotEqual(row['value_bytes'], b'binary_string')
 
 
 class TestPostgresqlConnectWithTLSPrefer(BaseTestCase):
@@ -10055,6 +10131,12 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
         loop = asyncio.new_event_loop()
         loop.run_until_complete(test())
 
+
+class TestPostgresqlTypeAwareDecryptionWithDefaultsPsycopg3(Psycopg3ExecutorMixin,
+                                                            TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults):
+    # Psycopg3 includes a type of parameters in a parse string, which is optional
+    # and therefore most of the frontends doesn't do that. So, test also with it.
+    pass
 
 if __name__ == '__main__':
     import xmlrunner
