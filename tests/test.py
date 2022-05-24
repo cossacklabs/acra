@@ -5718,13 +5718,8 @@ class TestEmptyValues(BaseTestCase):
         # check null values
         result = self.engine1.execute(sa.select([self.temp_table]).where(self.temp_table.c.id == null_value_id))
         row = result.fetchone()
-        if TEST_MYSQL:
-            # PyMySQL returns empty strings for NULL values
-            self.assertEqual(row['text'], '')
-            self.assertEqual(row['binary'], b'')
-        else:
-            self.assertIsNone(row['text'])
-            self.assertIsNone(row['binary'])
+        self.assertIsNone(row['text'])
+        self.assertIsNone(row['binary'])
 
         # check empty values
         result = self.engine1.execute(sa.select([self.temp_table]).where(self.temp_table.c.id == empty_value_id))
@@ -8696,12 +8691,14 @@ class TestMySQLTextFormatTypeAwareDecryptionWithDefaults(BaseBinaryMySQLTestCase
             'value_int64': 64,
             'value_bytes': b'value_bytes',
             'value_str': 'value_str',
-            'value_empty_str': ''
+            'value_empty_str': '',
+            'value_null_str': None,
+            'value_null_int32': None,
         }
 
         self.schema_table.create(bind=self.engine_raw, checkfirst=True)
-        columns = ('value_bytes', 'value_int32', 'value_int64', 'value_empty_str', 'value_str')
-        null_columns = ('value_null_str', 'value_null_int32')
+        columns = ('value_bytes', 'value_int32', 'value_int64', 'value_empty_str', 'value_str', 'value_null_str',
+                   'value_null_int32')
 
         self.engine1.execute(self.test_table.insert(), data)
 
@@ -8714,17 +8711,11 @@ class TestMySQLTextFormatTypeAwareDecryptionWithDefaults(BaseBinaryMySQLTestCase
             self.assertEqual(data[column], row[column])
             self.assertIsInstance(row[column], type(data[column]))
 
-        # mysql.connector represent null value as empty string
-        for column in null_columns:
-            self.assertEqual(row[column], '')
 
         row = self.executor2.execute(query)[0]
         for column in columns:
             self.assertEqual(row[column], default_expected_values[column])
             self.assertIsInstance(row[column], type(default_expected_values[column]))
-
-        for column in null_columns:
-            self.assertEqual(row[column], '')
 
         row = self.engine_raw.execute(sa.select([self.test_table])
                 .where(self.test_table.c.id == data['id'])).fetchone()
@@ -8993,8 +8984,8 @@ class TestMySQLTextTypeAwareDecryptionWithoutDefaults(BaseBinaryMySQLTestCase, B
         }
         self.schema_table.create(bind=self.engine_raw, checkfirst=True)
         self.engine1.execute(self.test_table.insert(), data)
-        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_empty_str')
-        null_columns = ('value_null_str', 'value_null_int32')
+        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_empty_str', 'value_null_str',
+                   'value_null_int32')
 
         compile_kwargs = {"literal_binds": True}
         query = sa.select([self.test_table]).where(self.test_table.c.id == data['id'])
@@ -9004,10 +8995,6 @@ class TestMySQLTextTypeAwareDecryptionWithoutDefaults(BaseBinaryMySQLTestCase, B
         for column in columns:
             self.assertEqual(data[column], row[column])
             self.assertIsInstance(row[column], type(data[column]))
-
-        # mysql.connector represent null value as empty string
-        for column in null_columns:
-            self.assertEqual(row[column], '')
 
         # field types should be rollbacked in case of invalid encoding
         row = self.executor2.execute(query)[0]
@@ -9516,8 +9503,8 @@ class TestMySQLTextTypeAwareDecryptionWithСiphertext(BaseBinaryMySQLTestCase, B
         }
         self.schema_table.create(bind=self.engine_raw, checkfirst=True)
         self.engine1.execute(self.test_table.insert(), data)
-        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_empty_str')
-        null_columns = ('value_null_str', 'value_null_int32')
+        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_empty_str', 'value_null_str',
+                   'value_null_int32')
 
         compile_kwargs = {"literal_binds": True}
         query = sa.select([self.test_table]).where(self.test_table.c.id == data['id'])
@@ -9527,10 +9514,6 @@ class TestMySQLTextTypeAwareDecryptionWithСiphertext(BaseBinaryMySQLTestCase, B
         for column in columns:
             self.assertEqual(data[column], row[column])
             self.assertIsInstance(row[column], type(data[column]))
-
-        # mysql.connector represent null value as empty string
-        for column in null_columns:
-            self.assertEqual(row[column], '')
 
         # field types should be rollbacked in case of invalid encoding
         row = self.executor2.execute(query)[0]
@@ -9653,8 +9636,8 @@ class TestMySQLTextTypeAwareDecryptionWithError(BaseBinaryMySQLTestCase, BaseTra
         }
         self.schema_table.create(bind=self.engine_raw, checkfirst=True)
         self.engine1.execute(self.test_table.insert(), data)
-        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_empty_str')
-        null_columns = ('value_null_str', 'value_null_int32')
+        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_empty_str', 'value_null_str',
+                   'value_null_int32')
 
         compile_kwargs = {"literal_binds": True}
         query = sa.select([self.test_table]).where(self.test_table.c.id == data['id'])
@@ -9664,10 +9647,6 @@ class TestMySQLTextTypeAwareDecryptionWithError(BaseBinaryMySQLTestCase, BaseTra
         for column in columns:
             self.assertEqual(data[column], row[column])
             self.assertIsInstance(row[column], type(data[column]))
-
-        # mysql.connector represent null value as empty string
-        for column in null_columns:
-            self.assertEqual(row[column], '')
 
         # we expect an exception because of decryption error
         with self.assertRaises(mysql.connector.errors.DatabaseError) as ex:

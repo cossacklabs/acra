@@ -513,8 +513,14 @@ func (handler *Handler) processTextDataRow(ctx context.Context, rowData []byte, 
 		if err != nil {
 			return nil, err
 		}
-
-		decrCtx, value, err := handler.onColumnDecryption(ctx, i, value, false, fields[i])
+		var decrCtx context.Context
+		// skip processing if value is NULL/nil
+		if value == nil {
+			output = append(output, rowData[pos:pos+n]...)
+			pos += n
+			continue
+		}
+		decrCtx, value, err = handler.onColumnDecryption(ctx, i, value, false, fields[i])
 		if err != nil {
 			fieldLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				WithError(err).Errorln("Failed to process column data")
