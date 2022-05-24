@@ -25,6 +25,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/jackc/pgx/pgtype"
+
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
 
@@ -298,15 +300,21 @@ func (proxy *PgProxy) handleClientPacket(ctx context.Context, packet *PacketHand
 	}
 	switch proxy.protocolState.LastPacketType() {
 	case ParseStatementPacket:
+		censored, err := proxy.handleQueryPacket(ctx, packet, logger)
+		if err != nil || censored {
+			return censored, err
+		}
 		// Register prepared statement, though it can produce an error on the db
 		// side. In that case, it should have been removed from the registry,
 		// but for now it is not implemented yet. Therefore, connection with a
 		// large number of prepared statements with errors tend to leak memory,
 		// but on practice it is not that noticeable.
-		if err := proxy.registerPreparedStatement(proxy.protocolState.pendingParse, logger); err != nil {
+		pendingParse := proxy.protocolState.pendingParse
+		if err = proxy.registerPreparedStatement(packet, pendingParse, logger); err != nil {
 			return false, err
 		}
-		fallthrough
+		err = replaceOIDsInParsePackets(proxy.ctx, packet, pendingParse, logger)
+		return false, err
 	case SimpleQueryPacket:
 		// If that's some sort of a packet with a query inside it,
 		// process inline data if necessary and remember the query to handle future response.
@@ -889,7 +897,7 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 	return nil
 }
 
-func (proxy *PgProxy) registerPreparedStatement(preparedStatement *ParsePacket, logger *log.Entry) error {
+func (proxy *PgProxy) registerPreparedStatement(packet *PacketHandler, preparedStatement *ParsePacket, logger *log.Entry) error {
 	name := preparedStatement.Name()
 	queryText := preparedStatement.QueryString()
 	// This should be always successful since the database filters invalid queries.
@@ -908,6 +916,42 @@ func (proxy *PgProxy) registerPreparedStatement(preparedStatement *ParsePacket, 
 		return err
 	}
 	logger.WithField("prepared_name", name).Debug("Registered new prepared statement")
+	return nil
+}
+
+// replaceOIDsInParsePackets replaces OID of parameters that could be specified
+// in a parse packet into BYTEA. That's because all encrypted data is stored
+// as a BYTEA in the postgres. Only during the insertion/selection we do
+// encryption/decryption and substitution of the correct type.
+func replaceOIDsInParsePackets(ctx context.Context, packet *PacketHandler, preparedStatement *ParsePacket, logger *log.Entry) error {
+	if len(preparedStatement.params) == 0 {
+		return nil
+	}
+	clientSession := base.ClientSessionFromContext(ctx)
+	if clientSession == nil {
+		logger.Warningln("ParsePacket packet without ClientSession in context")
+		return nil
+	}
+	items := encryptor.PlaceholderSettingsFromClientSession(clientSession)
+	if items == nil {
+		logger.Debugln("ParsePacket packet without registered recognized encryption settings")
+		return nil
+	}
+	changed := false
+	for i := range preparedStatement.params {
+		setting := items[i]
+		if setting == nil {
+			continue
+		}
+		if config.HasTypeAwareSupport(setting) {
+			logger.WithField("field", setting.ColumnName()).Debugln("Change parameter types for ParsePacket")
+			binary.BigEndian.PutUint32(preparedStatement.params[i], pgtype.ByteaOID)
+			changed = true
+		}
+	}
+	if changed {
+		return packet.SetParsePacket(preparedStatement)
+	}
 	return nil
 }
 

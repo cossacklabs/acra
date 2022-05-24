@@ -322,6 +322,17 @@ func (packet *PacketHandler) GetParseData() (*ParsePacket, error) {
 	return parse, nil
 }
 
+// SetParsePacket replace ParsePacket
+// Use this only if IsParse() is true.
+func (packet *PacketHandler) SetParsePacket(parsePacket *ParsePacket) error {
+	packet.logger.Debugln("SetParseData")
+	newParse := parsePacket.Marshal()
+	packet.descriptionBuf.Reset()
+	packet.descriptionBuf.Write(newParse)
+	packet.updatePacketLength(len(newParse))
+	return nil
+}
+
 // GetBindData returns parsed Bind packet data.
 // Use this only if IsBind() is true.
 func (packet *PacketHandler) GetBindData() (*BindPacket, error) {

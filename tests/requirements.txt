@@ -1,5 +1,6 @@
 pythemis
 psycopg2==2.8.6
+psycopg==3.0.13
 asyncpg==0.23.0
 SQLAlchemy==1.4.15
 PyMySQL==1.0.2
