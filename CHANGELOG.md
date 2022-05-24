@@ -1,6 +1,37 @@
 # Acra ChangeLog
 
-## [0.92.0](https://github.com/cossacklabs/acra/releases/tag/0.92.0), March 01th 2021
+## [0.93.0](https://github.com/cossacklabs/acra/releases/tag/0.93.0), May 27th 2021
+
+_Core_:
+
+- **AcraServer**:
+  - Added masking real binary data type from database for application and mask it with application's types on database protocol layer. Extended encryptor_config which allow configure mapping application data type to proper database's type. [#515](https://github.com/cossacklabs/acra/pull/515), [#517](https://github.com/cossacklabs/acra/pull/517), [#523](https://github.com/cossacklabs/acra/pull/523), [#519](https://github.com/cossacklabs/acra/pull/519), [#520](https://github.com/cossacklabs/acra/pull/520)
+  - Extended `encryptor_config` with new parameters:
+    - `data_type` - specify data type expected by application. Accept `str`, `bytes`, `int64`, `int32` values. [#515](https://github.com/cossacklabs/acra/pull/515), [#517](https://github.com/cossacklabs/acra/pull/517)
+    - `default_data_value` - specify default value to replace not decrypted data. [#515](https://github.com/cossacklabs/acra/pull/515), [#517](https://github.com/cossacklabs/acra/pull/517)
+    - `response_on_fail` - specify action on decryption failure. Accept `ciphertext` (returns encrypted data as is), `default_value` (returns values from `default_data_value` parameter), `error` (returns error as DB error with message like `encoding error in column {column_name}`). [#521](https://github.com/cossacklabs/acra/pull/521), [#533](https://github.com/cossacklabs/acra/pull/533)
+  - Has been deprecated `tokenize` parameter in `encryptor_config` and changed focus on `token_type` parameter. Now is enough to specify `token_type` parameter without `tokenize: true` to turn on tokenization. [Read more](https://docs.cossacklabs.com/acra/configuring-maintaining/general-configuration/acra-server/encryptor-config/#tokenized-deprecated-since-0930) in the documentation. [#527](https://github.com/cossacklabs/acra/pull/527)
+  - Removed auto-generation poison record's keys but leaved for `acra-poisonrecordmaker`. It improves decryption due to omitting extra key generation and poison record recognition. [#516](https://github.com/cossacklabs/acra/pull/516)
+  - Improvements in handling error cases on DB protocol layer. [#511](https://github.com/cossacklabs/acra/pull/511), [#515](https://github.com/cossacklabs/acra/pull/515), [#517](https://github.com/cossacklabs/acra/pull/517), [#520](https://github.com/cossacklabs/acra/pull/520), [#528](https://github.com/cossacklabs/acra/pull/528), [#535](https://github.com/cossacklabs/acra/pull/535), [#537](https://github.com/cossacklabs/acra/pull/537)
+  - Improved sql parser and support of `set` command. [#534](https://github.com/cossacklabs/acra/pull/534)
+  - Ignore legacy keys on startup loading to cache. [#510](https://github.com/cossacklabs/acra/pull/510), [#522](https://github.com/cossacklabs/acra/pull/522)
+  - Improved PostgreSQL/MySQL protocol support. [#525](https://github.com/cossacklabs/acra/pull/525), [#526](https://github.com/cossacklabs/acra/pull/526), [#539](https://github.com/cossacklabs/acra/pull/539), [#540](https://github.com/cossacklabs/acra/pull/540), [#541](https://github.com/cossacklabs/acra/pull/541), [#542](https://github.com/cossacklabs/acra/pull/542), [#543](https://github.com/cossacklabs/acra/pull/543), [#544](https://github.com/cossacklabs/acra/pull/544)
+- **AcraCensor**:
+  - Removed legacy `IsForbidden` field from acra-censor’s logs. [Read more here](https://docs.cossacklabs.com/acra/security-controls/sql-firewall/#logging-unique-queries) in notes. [#508](https://github.com/cossacklabs/acra/pull/508)
+- **AcraKeys**:
+  - Removed duplicate entries in `list` command. [#530](https://github.com/cossacklabs/acra/pull/530)
+- **Other**:
+  - Makefile target `install_dev_deps` install required golang's dependencies for development and code generation. [#531](https://github.com/cossacklabs/acra/pull/531)
+
+_Documentation_:
+- Improved description of AcraServer's [encryptor_config](https://docs.cossacklabs.com/acra/configuring-maintaining/general-configuration/acra-server/encryptor-config/).
+- Updated ["Debugging and troubleshooting"](https://docs.cossacklabs.com/acra/configuring-maintaining/debugging-and-troubleshooting/) section. 
+
+_Example projects and demos_:
+- [Python examples](https://github.com/cossacklabs/acra/tree/0.93.0/examples/python): updated to show type masking feature. [#524](https://github.com/cossacklabs/acra/pull/524), [#529](https://github.com/cossacklabs/acra/pull/529)
+- [acra-engineering-demo](https://github.com/cossacklabs/acra-engineering-demo/tree/0.93.0)s updated to show data type masking support. [#46](https://github.com/cossacklabs/acra-engineering-demo/pull/46), [#47](https://github.com/cossacklabs/acra-engineering-demo/pull/47), [#48](https://github.com/cossacklabs/acra-engineering-demo/pull/48), [#49](https://github.com/cossacklabs/acra-engineering-demo/pull/49), [#50](https://github.com/cossacklabs/acra-engineering-demo/pull/50), [#51](https://github.com/cossacklabs/acra-engineering-demo/pull/51)
+
+## [0.92.0](https://github.com/cossacklabs/acra/releases/tag/0.92.0), March 01th 2022
 
 This release brings stability and performance fixes to AcraServer and AcraTranslator. It officially deprecates usage 
 of AcraConnector in favour of TLS everywhere. Some default configuration params are changed in favour of more secure & 
