@@ -1,3 +1,6 @@
+# 0.93.0 - 2022-05-23
+- Add support for mysql `_binary` charset.
+
 # 0.93.0 - 2022-05-20
 - Fix normalization of integers during an insertion.
 
