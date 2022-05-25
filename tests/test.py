@@ -9451,11 +9451,15 @@ class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.engine_raw.execute(f"CREATE TABLE IF NOT EXISTS \"lowercase_table\" (id SERIAL PRIMARY KEY, data BYTEA);")
+        self.engine_raw.execute(f"CREATE TABLE IF NOT EXISTS \"LOWERCASE_TABLE\" (id SERIAL PRIMARY KEY, data BYTEA);")
+        self.engine_raw.execute(f"CREATE TABLE IF NOT EXISTS \"uppercase_table\" (id SERIAL PRIMARY KEY, data BYTEA);")
         self.engine_raw.execute(f"CREATE TABLE IF NOT EXISTS \"UPPERCASE_TABLE\" (id SERIAL PRIMARY KEY, data BYTEA);")
 
     def tearDown(self):
         super().tearDown()
         self.engine_raw.execute(f"DROP TABLE \"lowercase_table\";")
+        self.engine_raw.execute(f"DROP TABLE \"LOWERCASE_TABLE\";")
+        self.engine_raw.execute(f"DROP TABLE \"uppercase_table\";")
         self.engine_raw.execute(f"DROP TABLE \"UPPERCASE_TABLE\";")
 
     def runTestCase(self, table_name: str, quoted: bool, should_match: bool):
@@ -9476,7 +9480,7 @@ class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTestCase):
         if should_match:
             if row["data"] == "test":
                 self.fail(f"Table identifier {table_name} did not match")
-        if not should_match:
+        else:
             if row["data"] != "test":
                 self.fail(f"Table identifier {table_name} matched")
 
@@ -9518,10 +9522,21 @@ class TestDifferentCaseTableIdentifiersMySQL(BaseTestCase):
         if not TEST_WITH_TLS or not (TEST_MYSQL or TEST_MARIADB):
             self.skipTest("this test is only for MySQL/MariaDB")
 
-    def runTestCase(self, table_name: str, quoted: bool, should_match: bool):
-        # create the table
-        self.engine_raw.execute(f"CREATE TABLE {table_name} (id INT PRIMARY KEY AUTO_INCREMENT, data BYTES);")
+    def setUp(self):
+        super().setUp()
+        self.engine_raw.execute(f"CREATE TABLE IF NOT EXISTS lowercase_table (id INT PRIMARY KEY AUTO_INCREMENT, data BYTES);")
+        self.engine_raw.execute(f"CREATE TABLE IF NOT EXISTS LOWERCASE_TABLE (id INT PRIMARY KEY AUTO_INCREMENT, data BYTES);")
+        self.engine_raw.execute(f"CREATE TABLE IF NOT EXISTS uppercase_table (id INT PRIMARY KEY AUTO_INCREMENT, data BYTES);")
+        self.engine_raw.execute(f"CREATE TABLE IF NOT EXISTS UPPERCASE_TABLE (id INT PRIMARY KEY AUTO_INCREMENT, data BYTES);")
 
+    def tearDown(self):
+        super().tearDown()
+        self.engine_raw.execute(f"DROP TABLE lowercase_table;")
+        self.engine_raw.execute(f"DROP TABLE LOWERCASE_TABLE;")
+        self.engine_raw.execute(f"DROP TABLE uppercase_table;")
+        self.engine_raw.execute(f"DROP TABLE UPPERCASE_TABLE;")
+
+    def runTestCase(self, table_name: str, quoted: bool, should_match: bool):
         # generate random id
         id = get_random_id()
 
@@ -9536,12 +9551,9 @@ class TestDifferentCaseTableIdentifiersMySQL(BaseTestCase):
         if should_match:
             if row["data"] == "test":
                 self.fail(f"Table identifier {table_name} did not match")
-        if not should_match:
+        else:
             if row["data"] != "test":
                 self.fail(f"Table identifier {table_name} matched")
-
-        # drop the table
-        self.engine_raw.execute(f"DROP TABLE {table_name};")
 
     def testLowerConfigLowerQuery(self):
         # should match, lowercase config identifier == lowercase SQL identifier
