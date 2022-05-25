@@ -9473,7 +9473,7 @@ class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTestCase):
         self.engine_raw.execute(f"INSERT INTO {table_name} (id, data) VALUES ({id}, 'test');")
 
         # fetch a record
-        result = self.engine_raw.execute(f"SELECT FROM {table_name} WHERE id={id};")
+        result = self.engine_raw.execute(f"SELECT data FROM {table_name} WHERE id={id};")
         row = result.fetchone()
 
         # ensure it is encrypted (if should_match) or ensure it's not encrypted (if not should_match)
@@ -9524,10 +9524,10 @@ class TestDifferentCaseTableIdentifiersMySQL(BaseTestCase):
 
     def setUp(self):
         super().setUp()
-        self.engine_raw.execute(f"CREATE TABLE IF NOT EXISTS lowercase_table (id INT PRIMARY KEY AUTO_INCREMENT, data BYTES);")
-        self.engine_raw.execute(f"CREATE TABLE IF NOT EXISTS LOWERCASE_TABLE (id INT PRIMARY KEY AUTO_INCREMENT, data BYTES);")
-        self.engine_raw.execute(f"CREATE TABLE IF NOT EXISTS uppercase_table (id INT PRIMARY KEY AUTO_INCREMENT, data BYTES);")
-        self.engine_raw.execute(f"CREATE TABLE IF NOT EXISTS UPPERCASE_TABLE (id INT PRIMARY KEY AUTO_INCREMENT, data BYTES);")
+        self.engine_raw.execute(f"CREATE TABLE IF NOT EXISTS lowercase_table (id INT PRIMARY KEY AUTO_INCREMENT, data BLOB);")
+        self.engine_raw.execute(f"CREATE TABLE IF NOT EXISTS LOWERCASE_TABLE (id INT PRIMARY KEY AUTO_INCREMENT, data BLOB);")
+        self.engine_raw.execute(f"CREATE TABLE IF NOT EXISTS uppercase_table (id INT PRIMARY KEY AUTO_INCREMENT, data BLOB);")
+        self.engine_raw.execute(f"CREATE TABLE IF NOT EXISTS UPPERCASE_TABLE (id INT PRIMARY KEY AUTO_INCREMENT, data BLOB);")
 
     def tearDown(self):
         super().tearDown()
@@ -9544,7 +9544,7 @@ class TestDifferentCaseTableIdentifiersMySQL(BaseTestCase):
         self.engine_raw.execute(f"INSERT INTO {table_name} (id, data) VALUES ({id}, \"test\");")
 
         # fetch a record
-        result = self.engine_raw.execute(f"SELECT FROM {table_name} WHERE id={id};")
+        result = self.engine_raw.execute(f"SELECT data FROM {table_name} WHERE id={id};")
         row = result.fetchone()
 
         # ensure it is encrypted (if should_match) or ensure it's not encrypted (if not should_match)
