@@ -25,7 +25,7 @@ _Core_:
 
 _Documentation_:
 - Improved description of AcraServer's [encryptor_config](https://docs.cossacklabs.com/acra/configuring-maintaining/general-configuration/acra-server/encryptor-config/), adding details and examples about data processing options: encryption, searchable encryption, masking, tokenization, type awareness, etc.
-- Updated ["Debugging and troubleshooting"](https://docs.cossacklabs.com/acra/configuring-maintaining/debugging-and-troubleshooting/) section. 
+- Updated ["Debugging and troubleshooting"](https://docs.cossacklabs.com/acra/configuring-maintaining/debugging-and-troubleshooting/) section with more tips and tricks. 
 
 _Example projects and demos_:
 - [Python examples](https://github.com/cossacklabs/acra/tree/0.93.0/examples/python): updated to show type masking feature. [#524](https://github.com/cossacklabs/acra/pull/524), [#529](https://github.com/cossacklabs/acra/pull/529)
