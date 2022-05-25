@@ -111,6 +111,17 @@ func MapTableSchemaStoreFromConfig(config []byte) (*MapTableSchemaStore, error) 
 
 // GetDatabaseConfig return struct with database-specific configuration
 func (store *MapTableSchemaStore) GetDatabaseConfig() *databaseConfig {
+	// Create default set of values so GetDatabaseConfig() won't fail
+	// if this section is missing in the config file or if the config
+	// file was not specified at all and MapTableSchemaStoreFromConfig()
+	// never executed
+	if store.databaseConfig == nil {
+		defaultMySQLCaseSensitiveTableID := false
+		return &databaseConfig{
+			MySQLCaseSensitiveTableID: &defaultMySQLCaseSensitiveTableID,
+		}
+	}
+
 	return store.databaseConfig
 }
 
