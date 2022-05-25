@@ -575,10 +575,7 @@ func realMain() error {
 			log.WithError(err).Errorln("Can't initialize proxy for connections")
 			return err
 		}
-		caseSensitiveTableName := false
-		if serverConfig.GetTableSchema().GetDatabaseConfig().MySQLCaseSensitiveID != nil {
-			caseSensitiveTableName = *serverConfig.GetTableSchema().GetDatabaseConfig().MySQLCaseSensitiveID
-		}
+		caseSensitiveTableName := serverConfig.GetTableSchema().GetDatabaseConfig().GetMySQLCaseSensitiveTableID()
 		sqlparser.SetDefaultDialect(mysqlDialect.NewMySQLDialect(caseSensitiveTableName))
 	} else {
 		proxyFactory, err = postgresql.NewProxyFactory(base.NewProxySetting(sqlParser, serverConfig.GetTableSchema(), keyStore, proxyTLSWrapper, serverConfig.GetCensor(), poisonCallbacks, *withZone), keyStore, tokenizer)
