@@ -9463,6 +9463,8 @@ class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTestCase):
         self.engine_raw.execute(f"DROP TABLE \"UPPERCASE_TABLE\";")
 
     def runTestCase(self, table_name: str, quoted: bool, should_match: bool):
+        test_string = "test"
+
         if quoted:
             table_name = '"' + table_name + '"'
 
@@ -9470,7 +9472,7 @@ class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTestCase):
         id = get_random_id()
 
         # insert a record
-        self.engine_raw.execute(f"INSERT INTO {table_name} (id, data) VALUES ({id}, 'test');")
+        self.engine_raw.execute(f"INSERT INTO {table_name} (id, data) VALUES ({id}, '{test_string}');")
 
         # fetch a record
         result = self.engine_raw.execute(f"SELECT data FROM {table_name} WHERE id={id};")
@@ -9478,10 +9480,10 @@ class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTestCase):
 
         # ensure it is encrypted (if should_match) or ensure it's not encrypted (if not should_match)
         if should_match:
-            if row["data"] == "test":
+            if row["data"] == test_string:
                 self.fail(f"Table identifier {table_name} did not match")
         else:
-            if row["data"] != "test":
+            if row["data"] != test_string:
                 self.fail(f"Table identifier {table_name} matched")
 
     def testLowerConfigLowerQuery(self):
@@ -9537,11 +9539,13 @@ class TestDifferentCaseTableIdentifiersMySQL(BaseTestCase):
         self.engine_raw.execute(f"DROP TABLE UPPERCASE_TABLE;")
 
     def runTestCase(self, table_name: str, quoted: bool, should_match: bool):
+        test_string = "test"
+
         # generate random id
         id = get_random_id()
 
         # insert a record
-        self.engine_raw.execute(f"INSERT INTO {table_name} (id, data) VALUES ({id}, \"test\");")
+        self.engine_raw.execute(f"INSERT INTO {table_name} (id, data) VALUES ({id}, \"{test_string}\");")
 
         # fetch a record
         result = self.engine_raw.execute(f"SELECT data FROM {table_name} WHERE id={id};")
@@ -9549,10 +9553,10 @@ class TestDifferentCaseTableIdentifiersMySQL(BaseTestCase):
 
         # ensure it is encrypted (if should_match) or ensure it's not encrypted (if not should_match)
         if should_match:
-            if row["data"] == "test":
+            if row["data"] == test_string:
                 self.fail(f"Table identifier {table_name} did not match")
         else:
-            if row["data"] != "test":
+            if row["data"] != test_string:
                 self.fail(f"Table identifier {table_name} matched")
 
     def testLowerConfigLowerQuery(self):
