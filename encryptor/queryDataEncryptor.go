@@ -488,8 +488,7 @@ func (encryptor *QueryDataEncryptor) getInsertPlaceholders(ctx context.Context, 
 	logger := logging.GetLoggerFromContext(ctx)
 	// Look for the schema of the table where the INSERT happens.
 	// If we don't have a schema then we don't know what to encrypt, so do nothing.
-	schema := encryptor.schemaStore.GetTableSchema(tableName.String())
-	//schema := encryptor.schemaStore.GetTableSchema(tableName.ValueForConfig())
+	schema := encryptor.schemaStore.GetTableSchema(tableName.ValueForConfig())
 	if schema == nil {
 		logger.WithField("table", tableName).Debugln("No encryption schema")
 		return nil, nil
@@ -572,8 +571,7 @@ func (encryptor *QueryDataEncryptor) encryptInsertValues(ctx context.Context, in
 	tableName := insert.Table.Name
 	// Look for the schema of the table where the INSERT happens.
 	// If we don't have a schema then we don't know what to encrypt, so do nothing.
-	schema := encryptor.schemaStore.GetTableSchema(tableName.String())
-	//schema := encryptor.schemaStore.GetTableSchema(tableName.ValueForConfig())
+	schema := encryptor.schemaStore.GetTableSchema(tableName.ValueForConfig())
 	if schema == nil {
 		logrus.WithField("table", tableName).Debugln("No encryption schema")
 		return values, false, nil

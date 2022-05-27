@@ -22,15 +22,15 @@ import (
 
 // TableSchemaStore fetches schema for encryptable tables in the database.
 type TableSchemaStore interface {
-	GetDatabaseConfig() *databaseConfig
+	GetDatabaseConfig() *DatabaseConfig
 	// GetTableSchema returns schema for given table if configured, or nil otherwise.
 	GetTableSchema(tableName string) TableSchema
 	GetGlobalSettingsMask() SettingMask
 }
 
-// databaseConfig stores database-specific configuration that can affect connection
+// DatabaseConfig stores database-specific configuration that can affect connection
 // to the database, how SQL queries are processed and so on
-type databaseConfig struct {
+type DatabaseConfig struct {
 	// Should we consider unquoted table identifiers to be case-sensitive?
 	MySQLCaseSensitiveTableID *bool `yaml:"mysql_case_sensitive_table_identifiers"`
 }
@@ -58,14 +58,14 @@ func (d defaultValues) ShouldReEncryptAcraStructToAcraBlock() bool {
 }
 
 type storeConfig struct {
-	databaseConfig *databaseConfig
+	databaseConfig *DatabaseConfig
 	Defaults       *defaultValues
 	Schemas        []*tableSchema
 }
 
 // MapTableSchemaStore store schemas per table name
 type MapTableSchemaStore struct {
-	databaseConfig *databaseConfig
+	databaseConfig *DatabaseConfig
 	schemas        map[string]*tableSchema
 	globalMask     SettingMask
 }
@@ -110,14 +110,14 @@ func MapTableSchemaStoreFromConfig(config []byte) (*MapTableSchemaStore, error) 
 }
 
 // GetDatabaseConfig return struct with database-specific configuration
-func (store *MapTableSchemaStore) GetDatabaseConfig() *databaseConfig {
+func (store *MapTableSchemaStore) GetDatabaseConfig() *DatabaseConfig {
 	// Create default set of values so GetDatabaseConfig() won't fail
 	// if this section is missing in the config file or if the config
 	// file was not specified at all and MapTableSchemaStoreFromConfig()
 	// never executed
 	if store.databaseConfig == nil {
 		defaultMySQLCaseSensitiveTableID := false
-		return &databaseConfig{
+		return &DatabaseConfig{
 			MySQLCaseSensitiveTableID: &defaultMySQLCaseSensitiveTableID,
 		}
 	}
@@ -143,7 +143,7 @@ func (store *MapTableSchemaStore) GetTableSchema(tableName string) TableSchema {
 
 // GetMySQLCaseSensitiveTableID returns true if Acra was configured to preserve
 // case in unquoted table identifiers (names); only for MySQL
-func (config *databaseConfig) GetMySQLCaseSensitiveTableID() bool {
+func (config *DatabaseConfig) GetMySQLCaseSensitiveTableID() bool {
 	if config.MySQLCaseSensitiveTableID == nil {
 		return false
 	}

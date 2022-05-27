@@ -9456,11 +9456,11 @@ class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTestCase):
         self.engine_raw.execute(f"CREATE TABLE IF NOT EXISTS \"UPPERCASE_TABLE\" (id SERIAL PRIMARY KEY, data BYTEA);")
 
     def tearDown(self):
-        super().tearDown()
         self.engine_raw.execute(f"DROP TABLE \"lowercase_table\";")
         self.engine_raw.execute(f"DROP TABLE \"LOWERCASE_TABLE\";")
         self.engine_raw.execute(f"DROP TABLE \"uppercase_table\";")
         self.engine_raw.execute(f"DROP TABLE \"UPPERCASE_TABLE\";")
+        super().tearDown()
 
     def runTestCase(self, table_name: str, quoted: bool, should_match: bool):
         test_string = "test"
@@ -9532,11 +9532,11 @@ class TestDifferentCaseTableIdentifiersMySQL(BaseTestCase):
         self.engine_raw.execute(f"CREATE TABLE IF NOT EXISTS UPPERCASE_TABLE (id INT PRIMARY KEY AUTO_INCREMENT, data BLOB);")
 
     def tearDown(self):
-        super().tearDown()
         self.engine_raw.execute(f"DROP TABLE lowercase_table;")
         self.engine_raw.execute(f"DROP TABLE LOWERCASE_TABLE;")
         self.engine_raw.execute(f"DROP TABLE uppercase_table;")
         self.engine_raw.execute(f"DROP TABLE UPPERCASE_TABLE;")
+        super().tearDown()
 
     def runTestCase(self, table_name: str, quoted: bool, should_match: bool):
         test_string = "test"
