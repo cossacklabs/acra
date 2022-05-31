@@ -147,7 +147,7 @@ func (t testDecryptor) SetDataProcessor(processor base.DataProcessor) {
 
 type tableSchemaStore struct{ empty bool }
 
-func (*tableSchemaStore) GetDatabaseConfig() *config.DatabaseConfig {
+func (*tableSchemaStore) GetDatabaseConfig() config.DatabaseConfig {
 	panic("implement me")
 }
 
