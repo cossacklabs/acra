@@ -17,9 +17,13 @@
 package postgresql
 
 import (
-	"github.com/cossacklabs/acra/decryptor/base"
+	"encoding/binary"
+	"fmt"
 	"reflect"
 	"testing"
+
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/encryptor/config"
 )
 
 func TestStatementInsert(t *testing.T) {
@@ -336,4 +340,89 @@ func TestNewPgBoundValue(t *testing.T) {
 			t.Fatal("BoundValue data should be nil")
 		}
 	})
+}
+
+func i16ToBe(value int) []byte {
+	result := [2]byte{}
+	binary.BigEndian.PutUint16(result[:], uint16(value))
+	return result[:]
+}
+
+func i32ToBe(value int) []byte {
+	result := [4]byte{}
+	binary.BigEndian.PutUint32(result[:], uint32(value))
+	return result[:]
+}
+
+func i64ToBe(value int) []byte {
+	result := [8]byte{}
+	binary.BigEndian.PutUint64(result[:], uint64(value))
+	return result[:]
+}
+
+func TestPgBoundIntBinaryEncoding(t *testing.T) {
+	type testcase struct {
+		data     []byte
+		output   string
+		dataType string
+	}
+
+	testcases := []testcase{
+		{i32ToBe(0), "0", "int32"},
+		{i32ToBe(123), "123", "int32"},
+		{i32ToBe(-123), "-123", "int32"},
+		{i32ToBe(2147483647), "2147483647", "int32"},
+		{i32ToBe(-2147483648), "-2147483648", "int32"},
+		{i32ToBe(32767), "32767", "int32"},
+		{i32ToBe(-32768), "-32768", "int32"},
+
+		{i32ToBe(0), "0", "int64"},
+		{i32ToBe(123), "123", "int64"},
+		{i32ToBe(-123), "-123", "int64"},
+		{i32ToBe(2147483647), "2147483647", "int64"},
+		{i32ToBe(-2147483648), "-2147483648", "int64"},
+		{i32ToBe(32767), "32767", "int64"},
+		{i32ToBe(-32768), "-32768", "int64"},
+
+		{i64ToBe(0), "0", "int64"},
+		{i64ToBe(123), "123", "int64"},
+		{i64ToBe(-123), "-123", "int64"},
+		{i64ToBe(2147483647), "2147483647", "int64"},
+		{i64ToBe(-2147483648), "-2147483648", "int64"},
+		{i64ToBe(32767), "32767", "int64"},
+		{i64ToBe(-32768), "-32768", "int64"},
+		{i64ToBe(22147483647), "22147483647", "int64"},
+		{i64ToBe(-222147483648), "-222147483648", "int64"},
+		{i64ToBe(9223372036854775807), "9223372036854775807", "int64"},
+		{i64ToBe(-9223372036854775808), "-9223372036854775808", "int64"},
+
+		{i16ToBe(0), "0", "int32"},
+		{i16ToBe(53), "53", "int32"},
+		{i16ToBe(-53), "-53", "int32"},
+		{i16ToBe(0), "0", "int32"},
+		{i16ToBe(127), "127", "int32"},
+		{i16ToBe(-128), "-128", "int32"},
+
+		{i16ToBe(0), "0", "int64"},
+		{i16ToBe(53), "53", "int64"},
+		{i16ToBe(-53), "-53", "int64"},
+		{i16ToBe(0), "0", "int64"},
+		{i16ToBe(127), "127", "int64"},
+		{i16ToBe(-128), "-128", "int64"},
+	}
+
+	for i, tcase := range testcases {
+		fmt.Printf("===> [%d] %q [%x] (%s)\n", i, tcase.output, tcase.data, tcase.dataType)
+		value := pgBoundValue{data: tcase.data, format: base.BinaryFormat}
+		settings := config.BasicColumnEncryptionSetting{
+			DataType: tcase.dataType,
+		}
+		serialized, err := value.GetData(&settings)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(serialized) != tcase.output {
+			t.Fatalf("%q != %q (expected)", serialized, tcase.output)
+		}
+	}
 }

@@ -1,3 +1,28 @@
+# 0.93.0 - 2022-05-23
+- Add support for mysql `_binary` charset.
+- Handle properly null values in MySQL
+
+# 0.93.0 - 2022-05-20
+- Fix normalization of integers during an insertion.
+
+# 0.93.0 - 2022-05-19
+- Replace OID in Parse packets, if they are specified.
+
+# 0.93.0 - 2022-05-18
+- Reset placeholders in a connection state after `ReadyForQuery` packet.
+
+# 0.93.0 - 2022-05-17
+- Don't register prepared statements twice.
+
+# 0.93.0 - 2022-05-13
+- Don't abort connection of postgres after encoding error.
+
+# 0.93.0 - 2022-05-10
+- Don't abort connection of mysql after encoding error.
+
+# 0.93.0 - 2022-05-04
+- Add mysql support for `response_on_fail` options.
+
 # 0.93.0 - 2022-04-20
 - Add `make install_dev_deps` for development dependencies installation.
 
