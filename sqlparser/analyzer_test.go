@@ -113,6 +113,46 @@ func TestIsDML(t *testing.T) {
 	}
 }
 
+func TestOrderByDirection(t *testing.T) {
+	testcases := []struct {
+		in, direction string
+	}{
+		{
+			in:        "select data from t order by id desc nulls first",
+			direction: "desc nulls first",
+		},
+		{
+			in:        "select data from t order by id desc nulls last",
+			direction: "desc nulls last",
+		},
+
+		{
+			in:        "select data from t order by id asc nulls first",
+			direction: "asc nulls first",
+		},
+		{
+			in:        "select data from t order by id asc nulls first",
+			direction: "asc nulls first",
+		},
+	}
+
+	for _, tc := range testcases {
+		tree, err := New(ModeStrict).Parse(tc.in)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+
+		if tree.(*Select).OrderBy[0].Direction != tc.direction {
+			t.Fatal("invalid order by direction")
+		}
+
+		if query := String(tree); query != tc.in {
+			t.Fatal("queries should be equals")
+		}
+	}
+}
+
 func TestGetTableName(t *testing.T) {
 	testcases := []struct {
 		in, out string

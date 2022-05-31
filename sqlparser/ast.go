@@ -1668,8 +1668,12 @@ type Order struct {
 
 // Order.Direction
 const (
-	AscScr  = "asc"
-	DescScr = "desc"
+	AscScr            = "asc"
+	DescScr           = "desc"
+	DescNullsFirstScr = "desc nulls first"
+	DescNullsLastScr  = "desc nulls last"
+	AscNullsFirstScr  = "asc nulls first"
+	AscNullsLastScr   = "asc nulls last"
 )
 
 // Limit represents a LIMIT clause.

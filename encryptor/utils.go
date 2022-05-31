@@ -48,19 +48,23 @@ func parseJoinTablesInfo(joinExp *sqlparser.JoinTableExpr, tables *[]string, ali
 	if ok {
 		// here we reach the last leaf in the JoinTableExpr recursive tree, processing SHOULD be stopped in this block.
 		// and we should process remaining RightExpr and LeftExpr leafs more before exit.
-		name, alias, ok := getRightJoinTableInfo(joinExp)
+		ok := getRightJoinTableInfo(joinExp, tables, aliases)
 		if !ok {
 			return false
 		}
-		*tables = append(*tables, name)
-		aliases[alias] = name
+
+		_, ok = aliased.Expr.(*sqlparser.Subquery)
+		if ok {
+			//  add subquery processing if needed
+			return true
+		}
 
 		tableName, ok := aliased.Expr.(sqlparser.TableName)
 		if !ok {
 			return false
 		}
 
-		alias = aliased.As.RawValue()
+		alias := aliased.As.RawValue()
 		if aliased.As.RawValue() == "" {
 			alias = tableName.Name.RawValue()
 		}
@@ -70,12 +74,10 @@ func parseJoinTablesInfo(joinExp *sqlparser.JoinTableExpr, tables *[]string, ali
 		return true
 	}
 
-	name, alias, ok := getRightJoinTableInfo(joinExp)
+	ok = getRightJoinTableInfo(joinExp, tables, aliases)
 	if !ok {
 		return false
 	}
-	*tables = append(*tables, name)
-	aliases[alias] = name
 
 	joinExp, ok = joinExp.LeftExpr.(*sqlparser.JoinTableExpr)
 	if !ok {
@@ -86,23 +88,38 @@ func parseJoinTablesInfo(joinExp *sqlparser.JoinTableExpr, tables *[]string, ali
 }
 
 // getRightJoinTableInfo return tableName and its alias for right join table
-func getRightJoinTableInfo(joinExp *sqlparser.JoinTableExpr) (string, string, bool) {
+func getRightJoinTableInfo(joinExp *sqlparser.JoinTableExpr, tables *[]string, aliases map[string]string) bool {
+	parentExpr, ok := joinExp.RightExpr.(*sqlparser.ParenTableExpr)
+	if ok {
+		for _, expr := range parentExpr.Exprs {
+			innerJoinExpr, ok := expr.(*sqlparser.JoinTableExpr)
+			if !ok {
+				continue
+			}
+			return parseJoinTablesInfo(innerJoinExpr, tables, aliases)
+		}
+	}
+
 	rAliased, ok := joinExp.RightExpr.(*sqlparser.AliasedTableExpr)
 	if !ok {
-		return "", "", false
+		return false
 	}
 
 	tableName, ok := rAliased.Expr.(sqlparser.TableName)
 	if !ok {
-		return "", "", false
+		return false
 	}
 
 	alias := rAliased.As.RawValue()
 	if rAliased.As.RawValue() == "" {
 		alias = tableName.Name.RawValue()
 	}
+	if _, ok := aliases[alias]; !ok {
+		*tables = append(*tables, tableName.Name.RawValue())
+		aliases[alias] = tableName.Name.RawValue()
+	}
 
-	return tableName.Name.RawValue(), alias, true
+	return true
 }
 
 // getJoinFirstTableWithoutAlias recursively process JoinTableExpr tree until it reaches the first table in JOIN declarations
@@ -261,6 +278,14 @@ func findTableName(alias, columnName string, expr sqlparser.SQLNode) (columnInfo
 		return columnInfo{}, errNotSupported
 	case *sqlparser.ParenSelect:
 		return findTableName(alias, columnName, val.Select)
+	case *sqlparser.ParenTableExpr:
+		for _, exr := range val.Exprs {
+			result, err := findTableName(alias, columnName, exr)
+			if err == nil {
+				return result, nil
+			}
+		}
+		return columnInfo{}, errNotFoundtable
 	}
 	return columnInfo{}, errNotFoundtable
 }
@@ -282,6 +307,28 @@ func mapColumnsToAliases(selectQuery *sqlparser.Select) ([]*columnInfo, error) {
 	for _, expr := range selectQuery.SelectExprs {
 		aliased, ok := expr.(*sqlparser.AliasedExpr)
 		if ok {
+			// processing queries like `select (select value from table2) from table1`
+			// subquery should return only one value
+			subQuery, ok := aliased.Expr.(*sqlparser.Subquery)
+			if ok {
+				if subSelect, ok := subQuery.Select.(*sqlparser.Select); ok {
+					if len(subSelect.SelectExprs) != 1 {
+						return nil, errUnsupportedExpression
+					}
+
+					if _, ok := subSelect.SelectExprs[0].(*sqlparser.StarExpr); ok {
+						return nil, errUnsupportedExpression
+					}
+
+					subColumn, err := mapColumnsToAliases(subSelect)
+					if err != nil {
+						return nil, err
+					}
+					out = append(out, subColumn...)
+					continue
+				}
+			}
+
 			colName, ok := aliased.Expr.(*sqlparser.ColName)
 			if ok {
 				if colName.Qualifier.Name.IsEmpty() {
