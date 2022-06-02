@@ -108,15 +108,22 @@ inner join table6 on table6.col1=t1.col1
 			`select table1.number, from_number, to_number, type, amount, created_date
 			from table1 join table2 as t2 on from_number = t2.number or to_number = t2.number join users as u on t2.user_id = u.id`,
 
+			// select with revers order of JOINs declaration
+			`select t3.*, t1.*, t2.*
+			from table1 AS t1 join table2 as t2 on from_number = t2.number or to_number = t2.number join table3 as t3 on t2.user_id = t3.id`,
+
+			// case with multiple table JOIN block ParenTableExpr
 			`select t1.number AS t1_number, t2.number AS t2_number from (select * from tablex) AS t JOIN (table1 AS t1 JOIN table2 AS t2 ON t1.id = t2.exam_type_id) ON t.version_id =
-			               t1.version_id`,
+			              t1.version_id`,
 
+			// example with several multiple table JOIN blocks ParenTableExpr
 			`select t1.number AS t1_number, t2.number, t3.number, t4.number from (select * from tablex) AS t JOIN (table1 AS t1 JOIN table2 AS t2 ON t1.id = t2.exam_type_id)  ON t.version_id =
-			              t1.version_id JOIN (table3 AS t3 JOIN table4 AS t4 ON t3.id = t4.exam_type_id) ON t.version_id =
-			              t3.version_id`,
+			             t1.version_id JOIN (table3 AS t3 JOIN table4 AS t4 ON t3.id = t4.exam_type_id) ON t.version_id =
+			             t3.version_id`,
 
+			// case with multiple table JOIN block with more tables inside
 			`select t1.number AS t1_number, t2.number, t3.number, t4.number from (select * from tablex) AS t JOIN (table1 AS t1 JOIN table2 AS t2 JOIN table3 as t3 JOIN table4 as t4 ON t1.id = t2.exam_type_id)  ON t.version_id =
-			               t1.version_id`,
+			              t1.version_id`,
 		}
 
 		expectedValues := [][]columnInfo{
@@ -127,6 +134,11 @@ inner join table6 on table6.col1=t1.col1
 				{Alias: "table1", Table: "table1", Name: "type"},
 				{Alias: "table1", Table: "table1", Name: "amount"},
 				{Alias: "table1", Table: "table1", Name: "created_date"},
+			},
+			{
+				{Alias: allColumnsName, Table: "table3", Name: allColumnsName},
+				{Alias: allColumnsName, Table: "table1", Name: allColumnsName},
+				{Alias: allColumnsName, Table: "table2", Name: allColumnsName},
 			},
 			{
 				{Alias: "t1", Table: "table1", Name: "number"},

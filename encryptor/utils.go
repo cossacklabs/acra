@@ -88,6 +88,8 @@ func parseJoinTablesInfo(joinExp *sqlparser.JoinTableExpr, tables *[]string, ali
 }
 
 // getRightJoinTableInfo return tableName and its alias for right join table
+// in case of more complex JOINs constructions like `JOIN (table1 AS t1 JOIN table2 AS t2 ON ... JOIN table3 ...) ON ...`
+// represented by sqlparser.ParenTableExpr it runs parseJoinTablesInfo itself recursively to collect tableName and its alias info inside this block
 func getRightJoinTableInfo(joinExp *sqlparser.JoinTableExpr, tables *[]string, aliases map[string]string) bool {
 	parentExpr, ok := joinExp.RightExpr.(*sqlparser.ParenTableExpr)
 	if ok {
