@@ -201,7 +201,7 @@ func TestSplitStatement(t *testing.T) {
 
 func TestSetDefaultDialect(t *testing.T) {
 	tests := []dialect.Dialect{
-		mysql.NewMySQLDialect(false),
+		mysql.NewMySQLDialect(),
 		mysql.NewANSIMySQLDialect(),
 		postgresql.NewPostgreSQLDialect(),
 	}

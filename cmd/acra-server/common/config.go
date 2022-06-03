@@ -19,6 +19,9 @@ package common
 import (
 	"errors"
 	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/sqlparser/dialect"
+	mysqlDialect "github.com/cossacklabs/acra/sqlparser/dialect/mysql"
+	pgDialect "github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
 	"io/ioutil"
 
 	acracensor "github.com/cossacklabs/acra/acra-censor"
@@ -255,4 +258,15 @@ func (config *Config) SetScriptOnPoison(script string) {
 // SetStopOnPoison tells AcraServer to shutdown when poison record is triggered.
 func (config *Config) SetStopOnPoison(stop bool) {
 	config.stopOnPoison = stop
+}
+
+func (config *Config) GetSQLDialect() dialect.Dialect {
+	if config.mysql {
+		//caseSensitiveTableName := config.GetTableSchema().GetDatabaseConfig().GetMySQLCaseSensitiveTableID()
+		//caseSensitiveTableNameOption := mysqlDialect.SetTableNameCaseSensitivity(caseSensitiveTableName)
+		//return mysqlDialect.NewMySQLDialect(caseSensitiveTableNameOption)
+		return mysqlDialect.NewMySQLDialect()
+	} else {
+		return pgDialect.NewPostgreSQLDialect()
+	}
 }

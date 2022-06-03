@@ -25,12 +25,27 @@ func (dialect *MySQLDialect) QuoteHandler() dialect.QuoteHandler {
 	return NewDefaultQuoteHandler()
 }
 
-// NewMySQLDialect return new MySQLDialect
-func NewMySQLDialect(caseSensitiveTableName bool) *MySQLDialect {
-	return &MySQLDialect{caseSensitiveTableName: caseSensitiveTableName}
+// NewMySQLDialect return new MySQLDialect, optionally configured with additional options
+func NewMySQLDialect(options ...DialectOption) *MySQLDialect {
+	mysqlDialect := &MySQLDialect{}
+	for _, option := range options {
+		option(mysqlDialect)
+	}
+	return mysqlDialect
 }
 
 // NewANSIMySQLDialect return new MySQLDialect
+// TODO remove it after replacing with MySQLDialect + SetANSIMode
 func NewANSIMySQLDialect() *MySQLDialect {
 	return &MySQLDialect{ansiMode: true}
+}
+
+type DialectOption func(dialect *MySQLDialect)
+
+func (dialect *MySQLDialect) SetANSIMode(ansiMode bool) {
+	dialect.ansiMode = ansiMode
+}
+
+func (dialect *MySQLDialect) SetTableNameCaseSensitivity(sensitivity bool) {
+	dialect.caseSensitiveTableName = sensitivity
 }

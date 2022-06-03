@@ -13,6 +13,12 @@ func (dialect *PostgreSQLDialect) QuoteHandler() dialect.QuoteHandler {
 }
 
 // NewPostgreSQLDialect dialect for PostgreSQL
-func NewPostgreSQLDialect() *PostgreSQLDialect {
-	return &PostgreSQLDialect{}
+func NewPostgreSQLDialect(options ...DialectOption) *PostgreSQLDialect {
+	pgDialect := &PostgreSQLDialect{}
+	for _, option := range options {
+		option(pgDialect)
+	}
+	return pgDialect
 }
+
+type DialectOption func(dialect *PostgreSQLDialect)

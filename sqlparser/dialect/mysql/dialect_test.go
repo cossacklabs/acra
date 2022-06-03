@@ -13,13 +13,13 @@ func TestMySQLDialect_IsANSIModeOn(t *testing.T) {
 		t.Fatal("Incorrectly set ANSI mode for dialect")
 	}
 
-	if NewMySQLDialect(false).IsModeANSIOn() {
+	if NewMySQLDialect().IsModeANSIOn() {
 		t.Fatal("Incorrectly set ANSI mode for dialect")
 	}
 }
 
 func TestNewMySQLDialect(t *testing.T) {
-	if NewMySQLDialect(false).ansiMode {
+	if NewMySQLDialect().ansiMode {
 		t.Fatal("Incorrectly initialized default dialect with ANSI mode off")
 	}
 }
@@ -34,7 +34,7 @@ func TestMySQLDialect_QuoteHandler(t *testing.T) {
 			true,
 		},
 		{
-			NewMySQLDialect(false),
+			NewMySQLDialect(),
 			false,
 		},
 	}

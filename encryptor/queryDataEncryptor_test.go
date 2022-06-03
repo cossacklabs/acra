@@ -419,7 +419,7 @@ schemas:
 		}
 		dialect = testCase.dialect
 		if dialect == nil {
-			dialect = mysql.NewMySQLDialect(false)
+			dialect = mysql.NewMySQLDialect()
 		}
 		sqlparser.SetDefaultDialect(dialect)
 		query := fmt.Sprintf(testCase.Query, testCase.QueryData...)
@@ -458,7 +458,7 @@ schemas:
 		}
 	}
 	// avoid side effect for other tests with configuring default dialect
-	sqlparser.SetDefaultDialect(mysql.NewMySQLDialect(false))
+	sqlparser.SetDefaultDialect(mysql.NewMySQLDialect())
 }
 
 func TestOnReturning(t *testing.T) {

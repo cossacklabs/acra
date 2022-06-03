@@ -210,12 +210,12 @@ var (
 		input:  "select /* string table alias */ 1 from t as 't1'",
 		output: "select /* string table alias */ 1 from t as 't1'",
 		// mysql allow to use single quote for column/table aliases
-		dialect: mysql.NewMySQLDialect(false),
+		dialect: mysql.NewMySQLDialect(),
 	}, {
 		input:  "select /* string table alias without as */ 1 from t 't1'",
 		output: "select /* string table alias without as */ 1 from t as 't1'",
 		// mysql allow to use single quote for column/table aliases
-		dialect: mysql.NewMySQLDialect(false),
+		dialect: mysql.NewMySQLDialect(),
 	}, {
 		input: "select /* keyword table alias */ 1 from t as `By`",
 	}, {
@@ -1532,7 +1532,7 @@ func TestKeywords(t *testing.T) {
 		}
 		testDialect = tcase.dialect
 		if tcase.dialect == nil {
-			testDialect = mysql.NewMySQLDialect(false)
+			testDialect = mysql.NewMySQLDialect()
 		}
 		tree, err := ParseWithDialect(testDialect, tcase.input)
 		if err != nil {
@@ -1647,7 +1647,7 @@ func TestConvert(t *testing.T) {
 	for _, tcase := range invalidSQL {
 		dialect = tcase.dialect
 		if dialect == nil {
-			dialect = mysql.NewMySQLDialect(false)
+			dialect = mysql.NewMySQLDialect()
 		}
 		_, err := ParseWithDialect(dialect, tcase.input)
 		if err == nil || err.Error() != tcase.output {
@@ -2136,7 +2136,7 @@ var (
 		// postgresql specific interval
 		input:   "select interval '2017:12:12' from dual",
 		output:  "MySQL don't support PostgreSQL syntax of interval expression at position 34 near 'from'",
-		dialect: mysql.NewMySQLDialect(false),
+		dialect: mysql.NewMySQLDialect(),
 	}, {
 		// mysql specific interval
 		input:   "select interval '2017' YEAR from dual",
@@ -2158,7 +2158,7 @@ func TestErrors(t *testing.T) {
 	var dialect dialect.Dialect
 	for i, tcase := range invalidSQL {
 		if tcase.dialect == nil {
-			dialect = mysql.NewMySQLDialect(false)
+			dialect = mysql.NewMySQLDialect()
 		} else {
 			dialect = tcase.dialect
 		}

@@ -39,7 +39,7 @@ func TestParseNextValid(t *testing.T) {
 	for i, tcase := range validSQL {
 		dialect = tcase.dialect
 		if dialect == nil {
-			dialect = mysql.NewMySQLDialect(false)
+			dialect = mysql.NewMySQLDialect()
 		}
 		tokenizer.dialect = dialect
 		input := tcase.input + ";"
@@ -77,7 +77,7 @@ func TestParseNextErrors(t *testing.T) {
 
 		testDialect = tcase.dialect
 		if testDialect == nil {
-			testDialect = mysql.NewMySQLDialect(false)
+			testDialect = mysql.NewMySQLDialect()
 		}
 
 		sql := tcase.input + "; select 1 from t"

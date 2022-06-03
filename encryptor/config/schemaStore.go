@@ -28,17 +28,6 @@ type TableSchemaStore interface {
 	GetGlobalSettingsMask() SettingMask
 }
 
-type DatabaseConfig interface {
-	GetMySQLCaseSensitiveTableID() bool
-}
-
-// databaseConfig stores database-specific configuration that can affect connection
-// to the database, how SQL queries are processed and so on
-type databaseConfig struct {
-	// Should we consider unquoted table identifiers to be case-sensitive?
-	MySQLCaseSensitiveTableID *bool `yaml:"mysql_case_sensitive_table_identifiers"`
-}
-
 // defaultValues store default values for config
 type defaultValues struct {
 	CryptoEnvelope       *CryptoEnvelopeType `yaml:"crypto_envelope"`
@@ -143,14 +132,4 @@ func (store *MapTableSchemaStore) GetTableSchema(tableName string) TableSchema {
 		return schema
 	}
 	return nil
-}
-
-// GetMySQLCaseSensitiveTableID returns true if Acra was configured to preserve
-// case in unquoted table identifiers (names); only for MySQL
-func (config *databaseConfig) GetMySQLCaseSensitiveTableID() bool {
-	if config.MySQLCaseSensitiveTableID == nil {
-		return false
-	}
-
-	return *config.MySQLCaseSensitiveTableID
 }
