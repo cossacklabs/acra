@@ -122,7 +122,7 @@ func forceEOF(yylex interface{}) {
 %token LEX_ERROR
 %left <bytes> UNION
 %token <bytes> SELECT STREAM INSERT UPDATE DELETE FROM WHERE GROUP HAVING ORDER BY LIMIT OFFSET FOR
-%token <bytes> ALL DISTINCT AS EXISTS ASC DESC INTO DUPLICATE KEY DEFAULT SET LOCK KEYS
+%token <bytes> ALL DISTINCT AS EXISTS ASC DESC INTO DUPLICATE KEY DEFAULT SET LOCK KEYS NULLS FIRST LAST
 %token <bytes> VALUES LAST_INSERT_ID
 %token <bytes> NEXT VALUE SHARE MODE
 %token <bytes> SQL_NO_CACHE SQL_CACHE
@@ -2877,6 +2877,22 @@ asc_desc_opt:
 | DESC
   {
     $$ = DescScr
+  }
+| DESC NULLS FIRST
+  {
+    $$ = DescNullsFirstScr
+  }
+| DESC NULLS LAST
+  {
+    $$ = DescNullsLastScr
+  }
+| ASC NULLS FIRST
+  {
+    $$ = AscNullsFirstScr
+  }
+| ASC NULLS LAST
+  {
+    $$ = AscNullsLastScr
   }
 
 limit_opt:
