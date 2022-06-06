@@ -329,7 +329,7 @@ schemas:
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{zoneID, specifiedClientID, defaultClientID},
-			dialect:           mysql.NewANSIMySQLDialect(),
+			dialect:           mysql.NewMySQLDialect(mysql.SetANSIMode(true)),
 		},
 		// 22. with back quoted table and column names
 		{
@@ -348,7 +348,7 @@ schemas:
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
-			dialect:           mysql.NewANSIMySQLDialect(),
+			dialect:           mysql.NewMySQLDialect(mysql.SetANSIMode(true)),
 		},
 		// 24. update with back quoted identifiers
 		{
@@ -367,7 +367,7 @@ schemas:
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{zoneID, specifiedClientID, defaultClientID},
-			dialect:           mysql.NewANSIMySQLDialect(),
+			dialect:           mysql.NewMySQLDialect(mysql.SetANSIMode(true)),
 		},
 		// 26. update with data as simple string
 		{
@@ -377,7 +377,7 @@ schemas:
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
-			dialect:           mysql.NewANSIMySQLDialect(),
+			dialect:           mysql.NewMySQLDialect(mysql.SetANSIMode(true)),
 		},
 
 		// 27. insert with data as simple string for postgresql

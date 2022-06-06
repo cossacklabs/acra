@@ -262,10 +262,9 @@ func (config *Config) SetStopOnPoison(stop bool) {
 
 func (config *Config) GetSQLDialect() dialect.Dialect {
 	if config.mysql {
-		//caseSensitiveTableName := config.GetTableSchema().GetDatabaseConfig().GetMySQLCaseSensitiveTableID()
-		//caseSensitiveTableNameOption := mysqlDialect.SetTableNameCaseSensitivity(caseSensitiveTableName)
-		//return mysqlDialect.NewMySQLDialect(caseSensitiveTableNameOption)
-		return mysqlDialect.NewMySQLDialect()
+		caseSensitiveTableName := config.GetTableSchema().GetDatabaseConfig().GetMySQLCaseSensitiveTableID()
+		caseSensitiveTableNameOption := mysqlDialect.SetTableNameCaseSensitivity(caseSensitiveTableName)
+		return mysqlDialect.NewMySQLDialect(caseSensitiveTableNameOption)
 	} else {
 		return pgDialect.NewPostgreSQLDialect()
 	}

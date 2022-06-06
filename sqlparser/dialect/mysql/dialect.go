@@ -34,18 +34,16 @@ func NewMySQLDialect(options ...DialectOption) *MySQLDialect {
 	return mysqlDialect
 }
 
-// NewANSIMySQLDialect return new MySQLDialect
-// TODO remove it after replacing with MySQLDialect + SetANSIMode
-func NewANSIMySQLDialect() *MySQLDialect {
-	return &MySQLDialect{ansiMode: true}
-}
-
 type DialectOption func(dialect *MySQLDialect)
 
-func (dialect *MySQLDialect) SetANSIMode(ansiMode bool) {
-	dialect.ansiMode = ansiMode
+func SetANSIMode(ansiMode bool) DialectOption {
+	return func(dialect *MySQLDialect) {
+		dialect.ansiMode = ansiMode
+	}
 }
 
-func (dialect *MySQLDialect) SetTableNameCaseSensitivity(sensitivity bool) {
-	dialect.caseSensitiveTableName = sensitivity
+func SetTableNameCaseSensitivity(sensitivity bool) DialectOption {
+	return func(dialect *MySQLDialect) {
+		dialect.caseSensitiveTableName = sensitivity
+	}
 }
