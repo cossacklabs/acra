@@ -1762,7 +1762,7 @@ func (node ColIdent) CompliantName() string {
 // Lowered returns a lower-cased column name.
 // This function should generally be used only for optimizing
 // comparisons.
-func (node ColIdent) Lowered() string {
+func (node *ColIdent) Lowered() string {
 	if node.val == "" {
 		return ""
 	}
@@ -1863,7 +1863,7 @@ func (node TableIdent) CompliantName() string {
 // Lowered returns a lower-cased table name.
 // This function should generally be used only for optimizing
 // comparisons.
-func (node TableIdent) Lowered() string {
+func (node *TableIdent) Lowered() string {
 	if node.v == "" {
 		return ""
 	}

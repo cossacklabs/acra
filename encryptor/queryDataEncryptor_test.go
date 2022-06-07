@@ -469,7 +469,7 @@ func TestOnReturning(t *testing.T) {
 
 	configStr := fmt.Sprintf(`
 schemas:
-  - table: TableWithColumnSchema
+  - table: tablewithcolumnschema
     columns: ["other_column", "default_client_id", "specified_client_id", "zone_id"]
     encrypted: 
       - column: "default_client_id"
