@@ -104,43 +104,87 @@ inner join table6 on table6.col1=t1.col1
 		}
 	})
 	t.Run("Join enumeration fields query", func(t *testing.T) {
-		query := `select table1.number, from_number, to_number, type, amount, created_date 
-from table1 join table2 as t2 on from_number = t2.number or to_number = t2.number join users as u on t2.user_id = u.id`
+		queries := []string{
+			`select table1.number, from_number, to_number, type, amount, created_date
+			from table1 join table2 as t2 on from_number = t2.number or to_number = t2.number join users as u on t2.user_id = u.id`,
 
-		parsed, err := parser.Parse(query)
-		if err != nil {
-			t.Fatal(err)
-		}
-		selectExpr, ok := parsed.(*sqlparser.Select)
-		if !ok {
-			t.Fatal("Test query should be Select expression")
-		}
+			// select with revers order of JOINs declaration
+			`select t3.*, t1.*, t2.*
+			from table1 AS t1 join table2 as t2 on from_number = t2.number or to_number = t2.number join table3 as t3 on t2.user_id = t3.id`,
 
-		expectedValues := []columnInfo{
-			{Alias: "table1", Table: "table1", Name: "number"},
-			{Alias: "table1", Table: "table1", Name: "from_number"},
-			{Alias: "table1", Table: "table1", Name: "to_number"},
-			{Alias: "table1", Table: "table1", Name: "type"},
-			{Alias: "table1", Table: "table1", Name: "amount"},
-			{Alias: "table1", Table: "table1", Name: "created_date"},
-		}
+			// case with multiple table JOIN block ParenTableExpr
+			`select t1.number AS t1_number, t2.number AS t2_number from (select * from tablex) AS t JOIN (table1 AS t1 JOIN table2 AS t2 ON t1.id = t2.exam_type_id) ON t.version_id =
+			              t1.version_id`,
 
-		columns, err := mapColumnsToAliases(selectExpr)
-		if err != nil {
-			t.Fatal(err)
+			// example with several multiple table JOIN blocks ParenTableExpr
+			`select t1.number AS t1_number, t2.number, t3.number, t4.number from (select * from tablex) AS t JOIN (table1 AS t1 JOIN table2 AS t2 ON t1.id = t2.exam_type_id)  ON t.version_id =
+			             t1.version_id JOIN (table3 AS t3 JOIN table4 AS t4 ON t3.id = t4.exam_type_id) ON t.version_id =
+			             t3.version_id`,
+
+			// case with multiple table JOIN block with more tables inside
+			`select t1.number AS t1_number, t2.number, t3.number, t4.number from (select * from tablex) AS t JOIN (table1 AS t1 JOIN table2 AS t2 JOIN table3 as t3 JOIN table4 as t4 ON t1.id = t2.exam_type_id)  ON t.version_id =
+			              t1.version_id`,
 		}
 
-		if len(columns) != len(expectedValues) {
-			t.Fatal("Returned incorrect length of values")
+		expectedValues := [][]columnInfo{
+			{
+				{Alias: "table1", Table: "table1", Name: "number"},
+				{Alias: "table1", Table: "table1", Name: "from_number"},
+				{Alias: "table1", Table: "table1", Name: "to_number"},
+				{Alias: "table1", Table: "table1", Name: "type"},
+				{Alias: "table1", Table: "table1", Name: "amount"},
+				{Alias: "table1", Table: "table1", Name: "created_date"},
+			},
+			{
+				{Alias: allColumnsName, Table: "table3", Name: allColumnsName},
+				{Alias: allColumnsName, Table: "table1", Name: allColumnsName},
+				{Alias: allColumnsName, Table: "table2", Name: allColumnsName},
+			},
+			{
+				{Alias: "t1", Table: "table1", Name: "number"},
+				{Alias: "t2", Table: "table2", Name: "number"},
+			},
+			{
+				{Alias: "t1", Table: "table1", Name: "number"},
+				{Alias: "t2", Table: "table2", Name: "number"},
+				{Alias: "t3", Table: "table3", Name: "number"},
+				{Alias: "t4", Table: "table4", Name: "number"},
+			},
+			{
+				{Alias: "t1", Table: "table1", Name: "number"},
+				{Alias: "t2", Table: "table2", Name: "number"},
+				{Alias: "t3", Table: "table3", Name: "number"},
+				{Alias: "t4", Table: "table4", Name: "number"},
+			},
 		}
 
-		for i, column := range columns {
-			if column == nil {
-				t.Fatalf("[%d] Column info not found", i)
+		for i, query := range queries {
+			parsed, err := parser.Parse(query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			selectExpr, ok := parsed.(*sqlparser.Select)
+			if !ok {
+				t.Fatal("Test query should be Select expression")
 			}
 
-			if *column != expectedValues[i] {
-				t.Fatalf("[%d] Column info is not equal to expected - %+v, actual - %+v", i, expectedValues[i], *column)
+			columns, err := mapColumnsToAliases(selectExpr)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(columns) != len(expectedValues[i]) {
+				t.Fatal("Returned incorrect length of values")
+			}
+
+			for c, column := range columns {
+				if column == nil {
+					t.Fatalf("[%d] Column info not found", i)
+				}
+
+				if *column != expectedValues[i][c] {
+					t.Fatalf("[%d] Column info is not equal to expected - %+v, actual - %+v", i, expectedValues[i][c], *column)
+				}
 			}
 		}
 	})
@@ -236,6 +280,54 @@ from table1 join table2 as t2 on from_number = t2.number or to_number = t2.numbe
 			t.Fatalf("Column info is not equal to expected - %+v, actual - %+v", expectedValue, *column)
 		}
 	})
+
+	t.Run("Asterisk query with subQuery", func(t *testing.T) {
+		queries := []string{
+			`select (select value from table2), (select value from table3), * from table1;`,
+		}
+
+		// TODO: consider tracking queries with asterisk from sub-queries as we need to map it via encryptor config
+		// e.g select anon.value_table1, anon.value_table2 from (select * from table1 as tb1 JOIN table2 AS tb2 ON tb1.id = tb2.id) as anon;
+
+		expectedValues := [][]columnInfo{
+			{
+				{Alias: "table2", Table: "table2", Name: "value"},
+				{Alias: "table3", Table: "table3", Name: "value"},
+				{Alias: allColumnsName, Table: "table1", Name: allColumnsName},
+			},
+		}
+
+		for i, query := range queries {
+			parsed, err := parser.Parse(query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			selectExpr, ok := parsed.(*sqlparser.Select)
+			if !ok {
+				t.Fatal("Test query should be Select expression")
+			}
+
+			columns, err := mapColumnsToAliases(selectExpr)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(columns) != len(expectedValues[i]) {
+				t.Fatal("Returned incorrect length of values")
+			}
+
+			for c, column := range columns {
+				if column == nil {
+					t.Fatalf("[%d] Column info not found", i)
+				}
+
+				if *column != expectedValues[i][c] {
+					t.Fatalf("[%d] Column info is not equal to expected - %+v, actual - %+v", i, expectedValues[i][c], *column)
+				}
+			}
+		}
+	})
+
 	t.Run("With table asterisk query", func(t *testing.T) {
 		query := `select t1.*, t2.* from test_table t1, test_table t2`
 

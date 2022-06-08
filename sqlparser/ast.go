@@ -379,6 +379,7 @@ type Set struct {
 const (
 	SessionStr = "session"
 	GlobalStr  = "global"
+	LocalStr   = "local"
 )
 
 // DBDDL represents a CREATE, DROP database statement.
@@ -1668,8 +1669,12 @@ type Order struct {
 
 // Order.Direction
 const (
-	AscScr  = "asc"
-	DescScr = "desc"
+	AscScr            = "asc"
+	DescScr           = "desc"
+	DescNullsFirstScr = "desc nulls first"
+	DescNullsLastScr  = "desc nulls last"
+	AscNullsFirstScr  = "asc nulls first"
+	AscNullsLastScr   = "asc nulls last"
 )
 
 // Limit represents a LIMIT clause.

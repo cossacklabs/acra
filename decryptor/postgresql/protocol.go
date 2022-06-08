@@ -49,6 +49,7 @@ const (
 	DataPacket
 	RowDescriptionPacket
 	ParameterDescriptionPacket
+	ReadyForQueryPacket
 	OtherPacket
 )
 
@@ -202,7 +203,7 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 		// so here we only set it to `nil`
 		p.pendingBind = nil
 
-		p.lastPacketType = OtherPacket
+		p.lastPacketType = ReadyForQueryPacket
 		return nil
 	}
 

@@ -1,0 +1,909 @@
+time="2022-05-23T21:25:03+03:00" level=info msg="Initializing ACRA_MASTER_KEY loader..."
+time="2022-05-23T21:25:03+03:00" level=info msg="Initialized default env ACRA_MASTER_KEY loader"
+Generated storage encryption keypair
+Generated HMAC key for searchable encryption
+Generated HMAC key for secure logging
+Generated storage symmetric key for clientID
+Generated symmetric key for poison records
+Generated keypair for poison records
+time="2022-05-23T21:25:03+03:00" level=info msg="Initializing ACRA_MASTER_KEY loader..."
+time="2022-05-23T21:25:03+03:00" level=info msg="Initialized default env ACRA_MASTER_KEY loader"
+Generated storage encryption keypair
+Generated HMAC key for searchable encryption
+Generated HMAC key for secure logging
+Generated storage symmetric key for clientID
+Generated symmetric key for poison records
+Generated keypair for poison records
+time="2022-05-23T21:25:03+03:00" level=info msg="Disabling future logs... Set -v to see logs"
+time="2022-05-23T21:25:03+03:00" level=info msg="Initializing ACRA_MASTER_KEY loader..."
+time="2022-05-23T21:25:03+03:00" level=info msg="Initialized default env ACRA_MASTER_KEY loader"
+time="2022-05-23T21:25:03+03:00" level=info msg="Disabling future logs... Set -v to see logs"
+time="2022-05-23T21:25:03+03:00" level=info msg="Initializing ACRA_MASTER_KEY loader..."
+time="2022-05-23T21:25:03+03:00" level=info msg="Initialized default env ACRA_MASTER_KEY loader"
+2022-05-23T21:25:04+0300 - fork OpenSSL OCSP server with port 8888
+2022-05-23T21:25:04+0300 - forked openssl [855071]
+ocsp: waiting for OCSP client connections...
+Response verify OK
+/home/gdobn/code/cossacks/acra/tests/ssl/acra-writer/acra-writer.crt: good
+	This Update: May 23 18:25:04 2022 GMT
+2022-05-23T21:25:04+0300 - fork openssl ocsp finished [pid=855071]
+2022-05-23T21:25:04+0300 - fork HTTP server with port 8889
+2022-05-23T21:25:04+0300 - forked python3 [855073]
+2022-05-23T21:25:04+0300 - fork HTTP server finished [pid=855073]
+2022-05-23T21:25:04+0300 - fork acra
+2022-05-23T21:25:04+0300 - forked /tmp/acra-server [855075]
+CEF:0|cossacklabs|acra-server|0.92.0|100|Starting service acra-server [pid\=855075]|1|unixTime=1653330304.098 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Validating service configuration...|1|unixTime=1653330304.098 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Initializing ACRA_MASTER_KEY loader...|1|unixTime=1653330304.101 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Initialized default env ACRA_MASTER_KEY loader|1|unixTime=1653330304.102 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Initialising keystore...|1|unixTime=1653330304.102 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Keystore init OK|1|path=/tmp/tmpjuyvjxph unixTime=1653330304.102 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Configuring transport...|1|unixTime=1653330304.102 
+ocsp: Invalid request -- bad HTTP verb: <NULL>
+127.0.0.1 - - [23/May/2022 21:25:04] "GET /crl.pem HTTP/1.1" 200 -
+ocsp: Invalid request -- bad HTTP verb: <NULL>
+127.0.0.1 - - [23/May/2022 21:25:04] "GET /crl.pem HTTP/1.1" 200 -
+CEF:0|cossacklabs|acra-server|0.92.0|100|Use sni|1|sni=localhost unixTime=1653330304.138 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Loaded TLS configuration|1|tls_client_id_from_cert=true unixTime=1653330304.139 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Selecting transport: use raw transport wrapper|1|unixTime=1653330304.139 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Initialize in-memory db storage for tokens|1|unixTime=1653330304.139 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Initialized in-memory db storage for tokens|1|unixTime=1653330304.139 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Initialized SQL query parser in default mode|1|unixTime=1653330304.139 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Start listening to connections. Current PID: 855075|1|unixTime=1653330304.139 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Enabling DEBUG log level|1|unixTime=1653330304.139 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Create listener|1|connection_string=tcp://localhost:10003 from_descriptor=false unixTime=1653330304.139 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Start listening connections|1|connection_string=tcp://localhost:10004 from_descriptor=false unixTime=1653330304.140 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Start listening connections|1|connection_string=tcp://localhost:10003 from_descriptor=false unixTime=1653330304.140 
+2022-05-23T21:25:04+0300 - fork acra finished [pid=855075]
+CEF:0|cossacklabs|acra-server|0.92.0|100|Got new connection to AcraServer: 127.0.0.1:49916|1|connection_string=tcp://localhost:10003 from_descriptor=false unixTime=1653330304.141 
+CEF:0|cossacklabs|acra-server|0.92.0|100|ConnectionManager Added new connection|0|unixTime=1653330304.141 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Handle client's connection|1|client_id=  session_id=1 unixTime=1653330304.141 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Connecting to db|0|client_id=  session_id=1 unixTime=1653330304.141 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Start proxy db responses|0|client_id=  proxy=server session_id=1 unixTime=1653330304.141 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Start proxy client's requests|0|client_id=  proxy=client session_id=1 unixTime=1653330304.141 
+CEF:0|cossacklabs|acra-server|0.92.0|571|Can't read packet from client|0|client_id=  error=EOF session_id=1 unixTime=1653330304.142 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Stop to proxy|0|client_id=  interrupt_side=Client-AcraServer session_id=1 unixTime=1653330304.142 
+CEF:0|cossacklabs|acra-server|0.92.0|100|EOF connection closed|0|client_id=  interrupt_side=Client-AcraServer session_id=1 unixTime=1653330304.142 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Closing client's connection|1|client_id=  interrupt_side=Client-AcraServer session_id=1 unixTime=1653330304.142 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Close acra-connector connection|0|client_id=  session_id=1 unixTime=1653330304.142 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Close db connection|0|client_id=  session_id=1 unixTime=1653330304.142 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Can't read packet from server|0|client_id=  session_id=1 unixTime=1653330304.142 
+CEF:0|cossacklabs|acra-server|0.92.0|100|All connections closed|0|client_id=  session_id=1 unixTime=1653330304.142 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Second proxy goroutine stopped|0|client_id=  error=AcraServer-Database:read tcp [::1]:35124->[::1]:3306: use of closed network connection interrupt_side=Client-AcraServer session_id=1 unixTime=1653330304.142 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Finished processing client's connection|1|client_id=  interrupt_side=Client-AcraServer session_id=1 unixTime=1653330304.142 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Got new connection to AcraServer: 127.0.0.1:49918|1|connection_string=tcp://localhost:10003 from_descriptor=false unixTime=1653330304.475 
+CEF:0|cossacklabs|acra-server|0.92.0|100|ConnectionManager Added new connection|0|unixTime=1653330304.475 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Handle client's connection|1|client_id=  session_id=2 unixTime=1653330304.476 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Connecting to db|0|client_id=  session_id=2 unixTime=1653330304.476 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Start proxy db responses|0|client_id=  proxy=server session_id=2 unixTime=1653330304.476 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Start proxy client's requests|0|client_id=  proxy=client session_id=2 unixTime=1653330304.476 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=0 session_id=2 unixTime=1653330304.477 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Set support protocol 41 true|0|client_id=  proxy=server session_id=2 unixTime=1653330304.477 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Verifying 'CN\=Test leaf certificate (acra-writer),OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB'|0|unixTime=1653330304.483 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: certificate contains OCSP URL: http://127.0.0.1:8888|0|unixTime=1653330304.483 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: appending server http://127.0.0.1:8888, from cert|0|unixTime=1653330304.483 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: prepending server http://localhost:8888, from config|0|unixTime=1653330304.483 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Trying server http://localhost:8888|0|unixTime=1653330304.483 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: confirmed by server from config|0|unixTime=1653330304.485 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Trying server http://127.0.0.1:8888|0|unixTime=1653330304.485 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: confirmed by server from certificate|0|unixTime=1653330304.487 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Verifying 'CN\=Test leaf certificate (acra-writer),OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB'|0|unixTime=1653330304.487 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: certificate contains CRL URL: http://127.0.0.1:8889/crl.pem|0|unixTime=1653330304.487 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: appending server http://127.0.0.1:8889/crl.pem, from cert|0|unixTime=1653330304.487 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: prepending server http://localhost:8889/crl.pem, from config|0|unixTime=1653330304.487 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Trying URL http://localhost:8889/crl.pem|0|unixTime=1653330304.487 
+127.0.0.1 - - [23/May/2022 21:25:04] "GET /crl.pem HTTP/1.1" 200 -
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: OK, not found in list of revoked certificates|0|unixTime=1653330304.488 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Trying URL http://127.0.0.1:8889/crl.pem|0|unixTime=1653330304.488 
+127.0.0.1 - - [23/May/2022 21:25:04] "GET /crl.pem HTTP/1.1" 200 -
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: OK, not found in list of revoked certificates|0|unixTime=1653330304.490 
+CEF:0|cossacklabs|acra-server|0.92.0|100|verifyPeerCertificate|0|error=<nil> unixTime=1653330304.490 valid=true 
+CEF:0|cossacklabs|acra-server|0.92.0|100|ID from certificate|0|identifier=CN\=Test leaf certificate (acra-writer),OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB unixTime=1653330304.490 
+CEF:0|cossacklabs|acra-server|0.92.0|100|ClientID from certificate|0|clientID=12824c1c541a615f428a740770291374a8504f84a0682ab4015bc8e792b1bc8240022c5c9faa8c2111e0076b3b929148f4b801414413edaa800cb42492c20cf7 unixTime=1653330304.490 
+CEF:0|cossacklabs|acra-server|0.92.0|100|ClientID from certificate|0|clientID=12824c1c541a615f428a740770291374a8504f84a0682ab4015bc8e792b1bc8240022c5c9faa8c2111e0076b3b929148f4b801414413edaa800cb42492c20cf7 unixTime=1653330304.490 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Set new clientID|0|client_id=[49 50 56 50 52 99 49 99 53 52 49 97 54 49 53 102 52 50 56 97 55 52 48 55 55 48 50 57 49 51 55 52 97 56 53 48 52 102 56 52 97 48 54 56 50 97 98 52 48 49 53 98 99 56 101 55 57 50 98 49 98 99 56 50 52 48 48 50 50 99 53 99 57 102 97 97 56 99 50 49 49 49 101 48 48 55 54 98 51 98 57 50 57 49 52 56 102 52 98 56 48 49 52 49 52 52 49 51 101 100 97 97 56 48 48 99 98 52 50 52 57 50 99 50 48 99 102 55] session_id=2 unixTime=1653330304.490 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Switched to tls with client. wait switching with db|0|client_id=  session_id=2 unixTime=1653330304.490 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Verifying 'CN\=Test leaf certificate,OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB'|0|unixTime=1653330304.492 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: prepending server http://localhost:8888, from config|0|unixTime=1653330304.492 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Trying server http://localhost:8888|0|unixTime=1653330304.492 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: confirmed by server from config|0|unixTime=1653330304.494 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Verifying 'CN\=Test leaf certificate,OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB'|0|unixTime=1653330304.494 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: prepending server http://localhost:8889/crl.pem, from config|0|unixTime=1653330304.494 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Trying URL http://localhost:8889/crl.pem|0|unixTime=1653330304.494 
+127.0.0.1 - - [23/May/2022 21:25:04] "GET /crl.pem HTTP/1.1" 200 -
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: OK, not found in list of revoked certificates|0|unixTime=1653330304.499 
+CEF:0|cossacklabs|acra-server|0.92.0|100|verifyPeerCertificate|0|error=<nil> unixTime=1653330304.499 valid=true 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Switched to tls with db|0|client_id=  session_id=2 unixTime=1653330304.501 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Switch to tls complete on client proxy side|0|client_id=  session_id=2 unixTime=1653330304.501 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=2 session_id=2 unixTime=1653330304.501 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Command 15 not supported now|0|client_id=  deprecate_eof=false proxy=client sequence_number=2 session_id=2 unixTime=1653330304.501 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=3 session_id=2 unixTime=1653330304.502 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=2 unixTime=1653330304.503 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=2 sql=set AUTOCOMMIT \= :replaced1 unixTime=1653330304.503 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'set AUTOCOMMIT \= :replaced1'|1|service=acra-censor unixTime=1653330304.503 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=2 unixTime=1653330304.503 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=2 unixTime=1653330304.503 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=2 unixTime=1653330304.504 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=2 unixTime=1653330304.504 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=2 sql=set names :replaced1 unixTime=1653330304.504 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'set names :replaced1'|1|service=acra-censor unixTime=1653330304.504 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=2 unixTime=1653330304.505 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=2 unixTime=1653330304.505 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=2 unixTime=1653330304.505 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=2 unixTime=1653330304.505 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=2 sql=select VERSION() from dual unixTime=1653330304.506 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'select VERSION() from dual'|1|service=acra-censor unixTime=1653330304.506 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=2 unixTime=1653330304.506 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column descriptions|0|client_id=  session_id=2 unixTime=1653330304.506 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=0 session_id=2 unixTime=1653330304.506 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Parse field|0|client_id=  column_index=0 session_id=2 unixTime=1653330304.506 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Binary field|0|client_id=  column_index=0 session_id=2 unixTime=1653330304.506 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=1 session_id=2 unixTime=1653330304.506 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data rows|0|client_id=  session_id=2 unixTime=1653330304.506 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=0 session_id=2 unixTime=1653330304.506 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data text row|0|client_id=  data_row_index=0 session_id=2 unixTime=1653330304.506 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data rows in text protocol|0|client_id=  session_id=2 unixTime=1653330304.507 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt SerializedContainer|0|unixTime=1653330304.507 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt AcraBlock|0|unixTime=1653330304.507 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Encode text|0|client_id=  column=  decrypted=false session_id=2 unixTime=1653330304.507 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Finish processing text data row|0|client_id=  session_id=2 unixTime=1653330304.507 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Update row data|0|client_id=  data_row_index=0 newLength=42 oldLength=42 session_id=2 unixTime=1653330304.507 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=1 session_id=2 unixTime=1653330304.507 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Empty result set|0|client_id=  data_row_index=1 session_id=2 unixTime=1653330304.507 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=2 unixTime=1653330304.507 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=2 unixTime=1653330304.507 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=2 unixTime=1653330304.508 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=2 sql=select database() from dual unixTime=1653330304.508 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'select database() from dual'|1|service=acra-censor unixTime=1653330304.508 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=2 unixTime=1653330304.508 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column descriptions|0|client_id=  session_id=2 unixTime=1653330304.508 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=0 session_id=2 unixTime=1653330304.508 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Parse field|0|client_id=  column_index=0 session_id=2 unixTime=1653330304.508 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Binary field|0|client_id=  column_index=0 session_id=2 unixTime=1653330304.508 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=1 session_id=2 unixTime=1653330304.508 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data rows|0|client_id=  session_id=2 unixTime=1653330304.508 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=0 session_id=2 unixTime=1653330304.508 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data text row|0|client_id=  data_row_index=0 session_id=2 unixTime=1653330304.508 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data rows in text protocol|0|client_id=  session_id=2 unixTime=1653330304.508 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt SerializedContainer|0|unixTime=1653330304.508 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt AcraBlock|0|unixTime=1653330304.508 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Encode text|0|client_id=  column=  decrypted=false session_id=2 unixTime=1653330304.508 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Finish processing text data row|0|client_id=  session_id=2 unixTime=1653330304.508 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Update row data|0|client_id=  data_row_index=0 newLength=5 oldLength=5 session_id=2 unixTime=1653330304.508 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=1 session_id=2 unixTime=1653330304.508 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Empty result set|0|client_id=  data_row_index=1 session_id=2 unixTime=1653330304.508 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=2 unixTime=1653330304.508 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=2 unixTime=1653330304.509 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=2 unixTime=1653330304.510 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=2 sql=select @@tx_isolation from dual unixTime=1653330304.511 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'select @@tx_isolation from dual'|1|service=acra-censor unixTime=1653330304.511 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=2 unixTime=1653330304.512 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column descriptions|0|client_id=  session_id=2 unixTime=1653330304.512 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=0 session_id=2 unixTime=1653330304.512 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Parse field|0|client_id=  column_index=0 session_id=2 unixTime=1653330304.512 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Binary field|0|client_id=  column_index=0 session_id=2 unixTime=1653330304.512 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=1 session_id=2 unixTime=1653330304.512 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data rows|0|client_id=  session_id=2 unixTime=1653330304.512 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=0 session_id=2 unixTime=1653330304.512 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data text row|0|client_id=  data_row_index=0 session_id=2 unixTime=1653330304.512 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data rows in text protocol|0|client_id=  session_id=2 unixTime=1653330304.512 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt SerializedContainer|0|unixTime=1653330304.512 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt AcraBlock|0|unixTime=1653330304.512 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Encode text|0|client_id=  column=  decrypted=false session_id=2 unixTime=1653330304.512 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Finish processing text data row|0|client_id=  session_id=2 unixTime=1653330304.512 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Update row data|0|client_id=  data_row_index=0 newLength=16 oldLength=16 session_id=2 unixTime=1653330304.512 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=1 session_id=2 unixTime=1653330304.512 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Empty result set|0|client_id=  data_row_index=1 session_id=2 unixTime=1653330304.512 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=2 unixTime=1653330304.512 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=2 unixTime=1653330304.512 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=2 unixTime=1653330304.515 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=2 sql=select @@sql_mode from dual unixTime=1653330304.515 
+CEF:0|cossacklabs|acra-server|0.92.0|560|Query has been denied by Denyall handler|6|handler=denyall unixTime=1653330304.516 
+CEF:0|cossacklabs|acra-server|0.92.0|560|Denied query: 'select @@sql_mode from dual'|6|service=acra-censor unixTime=1653330304.516 
+CEF:0|cossacklabs|acra-server|0.92.0|560|Denied query by *handlers.DenyAllHandler|0|service=acra-censor unixTime=1653330304.516 
+CEF:0|cossacklabs|acra-server|0.92.0|560|Error on AcraCensor check|6|client_id=  deprecate_eof=false error=deny all queries error proxy=client sequence_number=0 session_id=2 unixTime=1653330304.516 
+CEF:0|cossacklabs|acra-server|0.92.0|571|Can't read packet from client|0|client_id=  error=EOF session_id=2 unixTime=1653330304.517 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Stop to proxy|0|client_id=  interrupt_side=Client-AcraServer session_id=2 unixTime=1653330304.517 
+CEF:0|cossacklabs|acra-server|0.92.0|100|EOF connection closed|0|client_id=  interrupt_side=Client-AcraServer session_id=2 unixTime=1653330304.517 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Closing client's connection|1|client_id=  interrupt_side=Client-AcraServer session_id=2 unixTime=1653330304.517 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Close acra-connector connection|0|client_id=  session_id=2 unixTime=1653330304.517 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Close db connection|0|client_id=  session_id=2 unixTime=1653330304.517 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Can't read packet from server|0|client_id=  session_id=2 unixTime=1653330304.518 
+CEF:0|cossacklabs|acra-server|0.92.0|100|All connections closed|0|client_id=  session_id=2 unixTime=1653330304.518 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Second proxy goroutine stopped|0|client_id=  error=AcraServer-Database:read tcp [::1]:35128->[::1]:3306: use of closed network connection interrupt_side=Client-AcraServer session_id=2 unixTime=1653330304.518 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Finished processing client's connection|1|client_id=  interrupt_side=Client-AcraServer session_id=2 unixTime=1653330304.518 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Got new connection to AcraServer: 127.0.0.1:49920|1|connection_string=tcp://localhost:10003 from_descriptor=false unixTime=1653330304.619 
+CEF:0|cossacklabs|acra-server|0.92.0|100|ConnectionManager Added new connection|0|unixTime=1653330304.619 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Handle client's connection|1|client_id=  session_id=3 unixTime=1653330304.619 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Connecting to db|0|client_id=  session_id=3 unixTime=1653330304.619 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Start proxy db responses|0|client_id=  proxy=server session_id=3 unixTime=1653330304.620 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Start proxy client's requests|0|client_id=  proxy=client session_id=3 unixTime=1653330304.620 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=0 session_id=3 unixTime=1653330304.620 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Set support protocol 41 true|0|client_id=  proxy=server session_id=3 unixTime=1653330304.620 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Verifying 'CN\=Test leaf certificate (acra-writer),OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB'|0|unixTime=1653330304.626 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: certificate contains OCSP URL: http://127.0.0.1:8888|0|unixTime=1653330304.626 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: appending server http://127.0.0.1:8888, from cert|0|unixTime=1653330304.626 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: prepending server http://localhost:8888, from config|0|unixTime=1653330304.626 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Trying server http://localhost:8888|0|unixTime=1653330304.626 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: confirmed by server from config|0|unixTime=1653330304.628 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Trying server http://127.0.0.1:8888|0|unixTime=1653330304.628 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: confirmed by server from certificate|0|unixTime=1653330304.630 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Verifying 'CN\=Test leaf certificate (acra-writer),OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB'|0|unixTime=1653330304.630 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: certificate contains CRL URL: http://127.0.0.1:8889/crl.pem|0|unixTime=1653330304.630 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: appending server http://127.0.0.1:8889/crl.pem, from cert|0|unixTime=1653330304.630 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: prepending server http://localhost:8889/crl.pem, from config|0|unixTime=1653330304.630 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Trying URL http://localhost:8889/crl.pem|0|unixTime=1653330304.630 
+127.0.0.1 - - [23/May/2022 21:25:04] "GET /crl.pem HTTP/1.1" 200 -
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: OK, not found in list of revoked certificates|0|unixTime=1653330304.632 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Trying URL http://127.0.0.1:8889/crl.pem|0|unixTime=1653330304.632 
+127.0.0.1 - - [23/May/2022 21:25:04] "GET /crl.pem HTTP/1.1" 200 -
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: OK, not found in list of revoked certificates|0|unixTime=1653330304.634 
+CEF:0|cossacklabs|acra-server|0.92.0|100|verifyPeerCertificate|0|error=<nil> unixTime=1653330304.634 valid=true 
+CEF:0|cossacklabs|acra-server|0.92.0|100|ID from certificate|0|identifier=CN\=Test leaf certificate (acra-writer),OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB unixTime=1653330304.635 
+CEF:0|cossacklabs|acra-server|0.92.0|100|ClientID from certificate|0|clientID=12824c1c541a615f428a740770291374a8504f84a0682ab4015bc8e792b1bc8240022c5c9faa8c2111e0076b3b929148f4b801414413edaa800cb42492c20cf7 unixTime=1653330304.635 
+CEF:0|cossacklabs|acra-server|0.92.0|100|ClientID from certificate|0|clientID=12824c1c541a615f428a740770291374a8504f84a0682ab4015bc8e792b1bc8240022c5c9faa8c2111e0076b3b929148f4b801414413edaa800cb42492c20cf7 unixTime=1653330304.635 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Set new clientID|0|client_id=[49 50 56 50 52 99 49 99 53 52 49 97 54 49 53 102 52 50 56 97 55 52 48 55 55 48 50 57 49 51 55 52 97 56 53 48 52 102 56 52 97 48 54 56 50 97 98 52 48 49 53 98 99 56 101 55 57 50 98 49 98 99 56 50 52 48 48 50 50 99 53 99 57 102 97 97 56 99 50 49 49 49 101 48 48 55 54 98 51 98 57 50 57 49 52 56 102 52 98 56 48 49 52 49 52 52 49 51 101 100 97 97 56 48 48 99 98 52 50 52 57 50 99 50 48 99 102 55] session_id=3 unixTime=1653330304.635 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Switched to tls with client. wait switching with db|0|client_id=  session_id=3 unixTime=1653330304.635 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Verifying 'CN\=Test leaf certificate,OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB'|0|unixTime=1653330304.637 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: prepending server http://localhost:8888, from config|0|unixTime=1653330304.637 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Trying server http://localhost:8888|0|unixTime=1653330304.637 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: confirmed by server from config|0|unixTime=1653330304.639 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Verifying 'CN\=Test leaf certificate,OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB'|0|unixTime=1653330304.639 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: prepending server http://localhost:8889/crl.pem, from config|0|unixTime=1653330304.639 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Trying URL http://localhost:8889/crl.pem|0|unixTime=1653330304.639 
+127.0.0.1 - - [23/May/2022 21:25:04] "GET /crl.pem HTTP/1.1" 200 -
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: OK, not found in list of revoked certificates|0|unixTime=1653330304.641 
+CEF:0|cossacklabs|acra-server|0.92.0|100|verifyPeerCertificate|0|error=<nil> unixTime=1653330304.641 valid=true 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Switched to tls with db|0|client_id=  session_id=3 unixTime=1653330304.644 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Switch to tls complete on client proxy side|0|client_id=  session_id=3 unixTime=1653330304.644 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=2 session_id=3 unixTime=1653330304.645 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Command 15 not supported now|0|client_id=  deprecate_eof=false proxy=client sequence_number=2 session_id=3 unixTime=1653330304.645 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=3 session_id=3 unixTime=1653330304.646 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=3 unixTime=1653330304.647 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=3 sql=set AUTOCOMMIT \= :replaced1 unixTime=1653330304.648 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'set AUTOCOMMIT \= :replaced1'|1|service=acra-censor unixTime=1653330304.648 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=3 unixTime=1653330304.650 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=3 unixTime=1653330304.650 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=3 unixTime=1653330304.650 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=3 unixTime=1653330304.651 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=3 sql=set names :replaced1 unixTime=1653330304.651 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'set names :replaced1'|1|service=acra-censor unixTime=1653330304.651 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=3 unixTime=1653330304.651 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=3 unixTime=1653330304.651 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=3 unixTime=1653330304.651 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=3 unixTime=1653330304.652 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=3 sql=select VERSION() from dual unixTime=1653330304.652 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'select VERSION() from dual'|1|service=acra-censor unixTime=1653330304.652 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=3 unixTime=1653330304.652 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column descriptions|0|client_id=  session_id=3 unixTime=1653330304.652 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=0 session_id=3 unixTime=1653330304.652 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Parse field|0|client_id=  column_index=0 session_id=3 unixTime=1653330304.652 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Binary field|0|client_id=  column_index=0 session_id=3 unixTime=1653330304.652 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=1 session_id=3 unixTime=1653330304.652 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data rows|0|client_id=  session_id=3 unixTime=1653330304.652 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=0 session_id=3 unixTime=1653330304.652 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data text row|0|client_id=  data_row_index=0 session_id=3 unixTime=1653330304.652 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data rows in text protocol|0|client_id=  session_id=3 unixTime=1653330304.652 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt SerializedContainer|0|unixTime=1653330304.652 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt AcraBlock|0|unixTime=1653330304.653 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Encode text|0|client_id=  column=  decrypted=false session_id=3 unixTime=1653330304.653 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Finish processing text data row|0|client_id=  session_id=3 unixTime=1653330304.653 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Update row data|0|client_id=  data_row_index=0 newLength=42 oldLength=42 session_id=3 unixTime=1653330304.653 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=1 session_id=3 unixTime=1653330304.653 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Empty result set|0|client_id=  data_row_index=1 session_id=3 unixTime=1653330304.653 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=3 unixTime=1653330304.653 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=3 unixTime=1653330304.653 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=3 unixTime=1653330304.653 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=3 sql=select database() from dual unixTime=1653330304.653 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'select database() from dual'|1|service=acra-censor unixTime=1653330304.654 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=3 unixTime=1653330304.654 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column descriptions|0|client_id=  session_id=3 unixTime=1653330304.654 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=0 session_id=3 unixTime=1653330304.654 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Parse field|0|client_id=  column_index=0 session_id=3 unixTime=1653330304.654 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Binary field|0|client_id=  column_index=0 session_id=3 unixTime=1653330304.654 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=1 session_id=3 unixTime=1653330304.654 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data rows|0|client_id=  session_id=3 unixTime=1653330304.654 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=0 session_id=3 unixTime=1653330304.654 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data text row|0|client_id=  data_row_index=0 session_id=3 unixTime=1653330304.654 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data rows in text protocol|0|client_id=  session_id=3 unixTime=1653330304.654 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt SerializedContainer|0|unixTime=1653330304.654 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt AcraBlock|0|unixTime=1653330304.654 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Encode text|0|client_id=  column=  decrypted=false session_id=3 unixTime=1653330304.654 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Finish processing text data row|0|client_id=  session_id=3 unixTime=1653330304.654 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Update row data|0|client_id=  data_row_index=0 newLength=5 oldLength=5 session_id=3 unixTime=1653330304.654 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=1 session_id=3 unixTime=1653330304.654 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Empty result set|0|client_id=  data_row_index=1 session_id=3 unixTime=1653330304.654 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=3 unixTime=1653330304.654 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=3 unixTime=1653330304.654 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=3 unixTime=1653330304.655 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=3 sql=select @@tx_isolation from dual unixTime=1653330304.655 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'select @@tx_isolation from dual'|1|service=acra-censor unixTime=1653330304.655 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=3 unixTime=1653330304.657 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column descriptions|0|client_id=  session_id=3 unixTime=1653330304.657 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=0 session_id=3 unixTime=1653330304.657 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Parse field|0|client_id=  column_index=0 session_id=3 unixTime=1653330304.657 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Binary field|0|client_id=  column_index=0 session_id=3 unixTime=1653330304.657 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=1 session_id=3 unixTime=1653330304.657 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data rows|0|client_id=  session_id=3 unixTime=1653330304.657 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=0 session_id=3 unixTime=1653330304.657 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data text row|0|client_id=  data_row_index=0 session_id=3 unixTime=1653330304.657 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data rows in text protocol|0|client_id=  session_id=3 unixTime=1653330304.657 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt SerializedContainer|0|unixTime=1653330304.657 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt AcraBlock|0|unixTime=1653330304.657 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Encode text|0|client_id=  column=  decrypted=false session_id=3 unixTime=1653330304.657 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Finish processing text data row|0|client_id=  session_id=3 unixTime=1653330304.657 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Update row data|0|client_id=  data_row_index=0 newLength=16 oldLength=16 session_id=3 unixTime=1653330304.657 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=1 session_id=3 unixTime=1653330304.657 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Empty result set|0|client_id=  data_row_index=1 session_id=3 unixTime=1653330304.657 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=3 unixTime=1653330304.657 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=3 unixTime=1653330304.657 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=3 unixTime=1653330304.658 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=3 sql=select @@sql_mode from dual unixTime=1653330304.658 
+CEF:0|cossacklabs|acra-server|0.92.0|560|Query has been denied by Denyall handler|6|handler=denyall unixTime=1653330304.658 
+CEF:0|cossacklabs|acra-server|0.92.0|560|Denied query: 'select @@sql_mode from dual'|6|service=acra-censor unixTime=1653330304.658 
+CEF:0|cossacklabs|acra-server|0.92.0|560|Denied query by *handlers.DenyAllHandler|0|service=acra-censor unixTime=1653330304.658 
+CEF:0|cossacklabs|acra-server|0.92.0|560|Error on AcraCensor check|6|client_id=  deprecate_eof=false error=deny all queries error proxy=client sequence_number=0 session_id=3 unixTime=1653330304.658 
+CEF:0|cossacklabs|acra-server|0.92.0|571|Can't read packet from client|0|client_id=  error=EOF session_id=3 unixTime=1653330304.659 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Stop to proxy|0|client_id=  interrupt_side=Client-AcraServer session_id=3 unixTime=1653330304.659 
+CEF:0|cossacklabs|acra-server|0.92.0|100|EOF connection closed|0|client_id=  interrupt_side=Client-AcraServer session_id=3 unixTime=1653330304.659 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Closing client's connection|1|client_id=  interrupt_side=Client-AcraServer session_id=3 unixTime=1653330304.659 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Close acra-connector connection|0|client_id=  session_id=3 unixTime=1653330304.659 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Close db connection|0|client_id=  session_id=3 unixTime=1653330304.659 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Can't read packet from server|0|client_id=  session_id=3 unixTime=1653330304.659 
+CEF:0|cossacklabs|acra-server|0.92.0|100|All connections closed|0|client_id=  session_id=3 unixTime=1653330304.659 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Second proxy goroutine stopped|0|client_id=  error=AcraServer-Database:read tcp [::1]:35130->[::1]:3306: use of closed network connection interrupt_side=Client-AcraServer session_id=3 unixTime=1653330304.659 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Finished processing client's connection|1|client_id=  interrupt_side=Client-AcraServer session_id=3 unixTime=1653330304.659 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Got new connection to AcraServer: 127.0.0.1:49922|1|connection_string=tcp://localhost:10003 from_descriptor=false unixTime=1653330304.760 
+CEF:0|cossacklabs|acra-server|0.92.0|100|ConnectionManager Added new connection|0|unixTime=1653330304.760 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Handle client's connection|1|client_id=  session_id=4 unixTime=1653330304.760 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Connecting to db|0|client_id=  session_id=4 unixTime=1653330304.760 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Start proxy db responses|0|client_id=  proxy=server session_id=4 unixTime=1653330304.761 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Start proxy client's requests|0|client_id=  proxy=client session_id=4 unixTime=1653330304.761 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=0 session_id=4 unixTime=1653330304.761 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Set support protocol 41 true|0|client_id=  proxy=server session_id=4 unixTime=1653330304.761 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Verifying 'CN\=Test leaf certificate (acra-writer),OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB'|0|unixTime=1653330304.767 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: certificate contains OCSP URL: http://127.0.0.1:8888|0|unixTime=1653330304.767 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: appending server http://127.0.0.1:8888, from cert|0|unixTime=1653330304.767 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: prepending server http://localhost:8888, from config|0|unixTime=1653330304.767 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Trying server http://localhost:8888|0|unixTime=1653330304.767 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: confirmed by server from config|0|unixTime=1653330304.769 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Trying server http://127.0.0.1:8888|0|unixTime=1653330304.769 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: confirmed by server from certificate|0|unixTime=1653330304.771 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Verifying 'CN\=Test leaf certificate (acra-writer),OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB'|0|unixTime=1653330304.771 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: certificate contains CRL URL: http://127.0.0.1:8889/crl.pem|0|unixTime=1653330304.771 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: appending server http://127.0.0.1:8889/crl.pem, from cert|0|unixTime=1653330304.771 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: prepending server http://localhost:8889/crl.pem, from config|0|unixTime=1653330304.771 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Trying URL http://localhost:8889/crl.pem|0|unixTime=1653330304.771 
+127.0.0.1 - - [23/May/2022 21:25:04] "GET /crl.pem HTTP/1.1" 200 -
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: OK, not found in list of revoked certificates|0|unixTime=1653330304.772 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Trying URL http://127.0.0.1:8889/crl.pem|0|unixTime=1653330304.772 
+127.0.0.1 - - [23/May/2022 21:25:04] "GET /crl.pem HTTP/1.1" 200 -
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: OK, not found in list of revoked certificates|0|unixTime=1653330304.773 
+CEF:0|cossacklabs|acra-server|0.92.0|100|verifyPeerCertificate|0|error=<nil> unixTime=1653330304.774 valid=true 
+CEF:0|cossacklabs|acra-server|0.92.0|100|ID from certificate|0|identifier=CN\=Test leaf certificate (acra-writer),OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB unixTime=1653330304.774 
+CEF:0|cossacklabs|acra-server|0.92.0|100|ClientID from certificate|0|clientID=12824c1c541a615f428a740770291374a8504f84a0682ab4015bc8e792b1bc8240022c5c9faa8c2111e0076b3b929148f4b801414413edaa800cb42492c20cf7 unixTime=1653330304.774 
+CEF:0|cossacklabs|acra-server|0.92.0|100|ClientID from certificate|0|clientID=12824c1c541a615f428a740770291374a8504f84a0682ab4015bc8e792b1bc8240022c5c9faa8c2111e0076b3b929148f4b801414413edaa800cb42492c20cf7 unixTime=1653330304.774 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Set new clientID|0|client_id=[49 50 56 50 52 99 49 99 53 52 49 97 54 49 53 102 52 50 56 97 55 52 48 55 55 48 50 57 49 51 55 52 97 56 53 48 52 102 56 52 97 48 54 56 50 97 98 52 48 49 53 98 99 56 101 55 57 50 98 49 98 99 56 50 52 48 48 50 50 99 53 99 57 102 97 97 56 99 50 49 49 49 101 48 48 55 54 98 51 98 57 50 57 49 52 56 102 52 98 56 48 49 52 49 52 52 49 51 101 100 97 97 56 48 48 99 98 52 50 52 57 50 99 50 48 99 102 55] session_id=4 unixTime=1653330304.774 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Switched to tls with client. wait switching with db|0|client_id=  session_id=4 unixTime=1653330304.774 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Verifying 'CN\=Test leaf certificate,OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB'|0|unixTime=1653330304.776 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: prepending server http://localhost:8888, from config|0|unixTime=1653330304.776 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Trying server http://localhost:8888|0|unixTime=1653330304.776 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: confirmed by server from config|0|unixTime=1653330304.781 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Verifying 'CN\=Test leaf certificate,OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB'|0|unixTime=1653330304.781 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: prepending server http://localhost:8889/crl.pem, from config|0|unixTime=1653330304.781 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Trying URL http://localhost:8889/crl.pem|0|unixTime=1653330304.781 
+127.0.0.1 - - [23/May/2022 21:25:04] "GET /crl.pem HTTP/1.1" 200 -
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: OK, not found in list of revoked certificates|0|unixTime=1653330304.783 
+CEF:0|cossacklabs|acra-server|0.92.0|100|verifyPeerCertificate|0|error=<nil> unixTime=1653330304.783 valid=true 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Switched to tls with db|0|client_id=  session_id=4 unixTime=1653330304.785 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Switch to tls complete on client proxy side|0|client_id=  session_id=4 unixTime=1653330304.785 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=2 session_id=4 unixTime=1653330304.785 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Command 15 not supported now|0|client_id=  deprecate_eof=false proxy=client sequence_number=2 session_id=4 unixTime=1653330304.785 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=3 session_id=4 unixTime=1653330304.786 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=4 unixTime=1653330304.787 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=4 sql=set AUTOCOMMIT \= :replaced1 unixTime=1653330304.787 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'set AUTOCOMMIT \= :replaced1'|1|service=acra-censor unixTime=1653330304.787 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=4 unixTime=1653330304.787 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=4 unixTime=1653330304.787 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=4 unixTime=1653330304.788 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=4 unixTime=1653330304.788 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=4 sql=set names :replaced1 unixTime=1653330304.788 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'set names :replaced1'|1|service=acra-censor unixTime=1653330304.788 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=4 unixTime=1653330304.788 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=4 unixTime=1653330304.788 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=4 unixTime=1653330304.788 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=4 unixTime=1653330304.789 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=4 sql=select VERSION() from dual unixTime=1653330304.789 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'select VERSION() from dual'|1|service=acra-censor unixTime=1653330304.789 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=4 unixTime=1653330304.790 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column descriptions|0|client_id=  session_id=4 unixTime=1653330304.790 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=0 session_id=4 unixTime=1653330304.790 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Parse field|0|client_id=  column_index=0 session_id=4 unixTime=1653330304.790 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Binary field|0|client_id=  column_index=0 session_id=4 unixTime=1653330304.790 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=1 session_id=4 unixTime=1653330304.790 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data rows|0|client_id=  session_id=4 unixTime=1653330304.790 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=0 session_id=4 unixTime=1653330304.790 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data text row|0|client_id=  data_row_index=0 session_id=4 unixTime=1653330304.790 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data rows in text protocol|0|client_id=  session_id=4 unixTime=1653330304.790 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt SerializedContainer|0|unixTime=1653330304.790 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt AcraBlock|0|unixTime=1653330304.790 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Encode text|0|client_id=  column=  decrypted=false session_id=4 unixTime=1653330304.790 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Finish processing text data row|0|client_id=  session_id=4 unixTime=1653330304.790 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Update row data|0|client_id=  data_row_index=0 newLength=42 oldLength=42 session_id=4 unixTime=1653330304.790 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=1 session_id=4 unixTime=1653330304.790 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Empty result set|0|client_id=  data_row_index=1 session_id=4 unixTime=1653330304.790 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=4 unixTime=1653330304.790 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=4 unixTime=1653330304.790 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=4 unixTime=1653330304.791 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=4 sql=select database() from dual unixTime=1653330304.791 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'select database() from dual'|1|service=acra-censor unixTime=1653330304.791 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=4 unixTime=1653330304.792 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column descriptions|0|client_id=  session_id=4 unixTime=1653330304.792 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=0 session_id=4 unixTime=1653330304.792 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Parse field|0|client_id=  column_index=0 session_id=4 unixTime=1653330304.792 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Binary field|0|client_id=  column_index=0 session_id=4 unixTime=1653330304.792 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=1 session_id=4 unixTime=1653330304.792 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data rows|0|client_id=  session_id=4 unixTime=1653330304.792 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=0 session_id=4 unixTime=1653330304.792 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data text row|0|client_id=  data_row_index=0 session_id=4 unixTime=1653330304.792 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data rows in text protocol|0|client_id=  session_id=4 unixTime=1653330304.792 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt SerializedContainer|0|unixTime=1653330304.792 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt AcraBlock|0|unixTime=1653330304.792 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Encode text|0|client_id=  column=  decrypted=false session_id=4 unixTime=1653330304.792 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Finish processing text data row|0|client_id=  session_id=4 unixTime=1653330304.792 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Update row data|0|client_id=  data_row_index=0 newLength=5 oldLength=5 session_id=4 unixTime=1653330304.792 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=1 session_id=4 unixTime=1653330304.792 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Empty result set|0|client_id=  data_row_index=1 session_id=4 unixTime=1653330304.792 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=4 unixTime=1653330304.792 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=4 unixTime=1653330304.793 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=4 unixTime=1653330304.793 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=4 sql=select @@tx_isolation from dual unixTime=1653330304.794 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'select @@tx_isolation from dual'|1|service=acra-censor unixTime=1653330304.794 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=4 unixTime=1653330304.795 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column descriptions|0|client_id=  session_id=4 unixTime=1653330304.795 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=0 session_id=4 unixTime=1653330304.795 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Parse field|0|client_id=  column_index=0 session_id=4 unixTime=1653330304.795 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Binary field|0|client_id=  column_index=0 session_id=4 unixTime=1653330304.795 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=1 session_id=4 unixTime=1653330304.795 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data rows|0|client_id=  session_id=4 unixTime=1653330304.795 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=0 session_id=4 unixTime=1653330304.795 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data text row|0|client_id=  data_row_index=0 session_id=4 unixTime=1653330304.795 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data rows in text protocol|0|client_id=  session_id=4 unixTime=1653330304.795 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt SerializedContainer|0|unixTime=1653330304.795 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt AcraBlock|0|unixTime=1653330304.795 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Encode text|0|client_id=  column=  decrypted=false session_id=4 unixTime=1653330304.795 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Finish processing text data row|0|client_id=  session_id=4 unixTime=1653330304.795 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Update row data|0|client_id=  data_row_index=0 newLength=16 oldLength=16 session_id=4 unixTime=1653330304.795 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=1 session_id=4 unixTime=1653330304.795 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Empty result set|0|client_id=  data_row_index=1 session_id=4 unixTime=1653330304.796 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=4 unixTime=1653330304.796 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=4 unixTime=1653330304.796 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=4 unixTime=1653330304.798 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=4 sql=select @@sql_mode from dual unixTime=1653330304.799 
+CEF:0|cossacklabs|acra-server|0.92.0|560|Query has been denied by Denyall handler|6|handler=denyall unixTime=1653330304.800 
+CEF:0|cossacklabs|acra-server|0.92.0|560|Denied query: 'select @@sql_mode from dual'|6|service=acra-censor unixTime=1653330304.800 
+CEF:0|cossacklabs|acra-server|0.92.0|560|Denied query by *handlers.DenyAllHandler|0|service=acra-censor unixTime=1653330304.800 
+CEF:0|cossacklabs|acra-server|0.92.0|560|Error on AcraCensor check|6|client_id=  deprecate_eof=false error=deny all queries error proxy=client sequence_number=0 session_id=4 unixTime=1653330304.800 
+CEF:0|cossacklabs|acra-server|0.92.0|571|Can't read packet from client|0|client_id=  error=EOF session_id=4 unixTime=1653330304.801 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Stop to proxy|0|client_id=  interrupt_side=Client-AcraServer session_id=4 unixTime=1653330304.801 
+CEF:0|cossacklabs|acra-server|0.92.0|100|EOF connection closed|0|client_id=  interrupt_side=Client-AcraServer session_id=4 unixTime=1653330304.801 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Closing client's connection|1|client_id=  interrupt_side=Client-AcraServer session_id=4 unixTime=1653330304.801 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Close acra-connector connection|0|client_id=  session_id=4 unixTime=1653330304.801 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Close db connection|0|client_id=  session_id=4 unixTime=1653330304.801 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Can't read packet from server|0|client_id=  session_id=4 unixTime=1653330304.801 
+CEF:0|cossacklabs|acra-server|0.92.0|100|All connections closed|0|client_id=  session_id=4 unixTime=1653330304.801 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Second proxy goroutine stopped|0|client_id=  error=AcraServer-Database:read tcp [::1]:35132->[::1]:3306: use of closed network connection interrupt_side=Client-AcraServer session_id=4 unixTime=1653330304.801 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Finished processing client's connection|1|client_id=  interrupt_side=Client-AcraServer session_id=4 unixTime=1653330304.801 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Got new connection to AcraServer: 127.0.0.1:49924|1|connection_string=tcp://localhost:10003 from_descriptor=false unixTime=1653330304.902 
+CEF:0|cossacklabs|acra-server|0.92.0|100|ConnectionManager Added new connection|0|unixTime=1653330304.903 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Handle client's connection|1|client_id=  session_id=5 unixTime=1653330304.903 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Connecting to db|0|client_id=  session_id=5 unixTime=1653330304.903 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Start proxy db responses|0|client_id=  proxy=server session_id=5 unixTime=1653330304.903 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Start proxy client's requests|0|client_id=  proxy=client session_id=5 unixTime=1653330304.903 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=0 session_id=5 unixTime=1653330304.904 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Set support protocol 41 true|0|client_id=  proxy=server session_id=5 unixTime=1653330304.904 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Verifying 'CN\=Test leaf certificate (acra-writer),OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB'|0|unixTime=1653330304.910 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: certificate contains OCSP URL: http://127.0.0.1:8888|0|unixTime=1653330304.910 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: appending server http://127.0.0.1:8888, from cert|0|unixTime=1653330304.910 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: prepending server http://localhost:8888, from config|0|unixTime=1653330304.910 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Trying server http://localhost:8888|0|unixTime=1653330304.910 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: confirmed by server from config|0|unixTime=1653330304.913 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Trying server http://127.0.0.1:8888|0|unixTime=1653330304.913 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: confirmed by server from certificate|0|unixTime=1653330304.914 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Verifying 'CN\=Test leaf certificate (acra-writer),OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB'|0|unixTime=1653330304.915 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: certificate contains CRL URL: http://127.0.0.1:8889/crl.pem|0|unixTime=1653330304.915 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: appending server http://127.0.0.1:8889/crl.pem, from cert|0|unixTime=1653330304.915 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: prepending server http://localhost:8889/crl.pem, from config|0|unixTime=1653330304.915 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Trying URL http://localhost:8889/crl.pem|0|unixTime=1653330304.915 
+127.0.0.1 - - [23/May/2022 21:25:04] "GET /crl.pem HTTP/1.1" 200 -
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: OK, not found in list of revoked certificates|0|unixTime=1653330304.916 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Trying URL http://127.0.0.1:8889/crl.pem|0|unixTime=1653330304.916 
+127.0.0.1 - - [23/May/2022 21:25:04] "GET /crl.pem HTTP/1.1" 200 -
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: OK, not found in list of revoked certificates|0|unixTime=1653330304.918 
+CEF:0|cossacklabs|acra-server|0.92.0|100|verifyPeerCertificate|0|error=<nil> unixTime=1653330304.918 valid=true 
+CEF:0|cossacklabs|acra-server|0.92.0|100|ID from certificate|0|identifier=CN\=Test leaf certificate (acra-writer),OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB unixTime=1653330304.918 
+CEF:0|cossacklabs|acra-server|0.92.0|100|ClientID from certificate|0|clientID=12824c1c541a615f428a740770291374a8504f84a0682ab4015bc8e792b1bc8240022c5c9faa8c2111e0076b3b929148f4b801414413edaa800cb42492c20cf7 unixTime=1653330304.918 
+CEF:0|cossacklabs|acra-server|0.92.0|100|ClientID from certificate|0|clientID=12824c1c541a615f428a740770291374a8504f84a0682ab4015bc8e792b1bc8240022c5c9faa8c2111e0076b3b929148f4b801414413edaa800cb42492c20cf7 unixTime=1653330304.918 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Set new clientID|0|client_id=[49 50 56 50 52 99 49 99 53 52 49 97 54 49 53 102 52 50 56 97 55 52 48 55 55 48 50 57 49 51 55 52 97 56 53 48 52 102 56 52 97 48 54 56 50 97 98 52 48 49 53 98 99 56 101 55 57 50 98 49 98 99 56 50 52 48 48 50 50 99 53 99 57 102 97 97 56 99 50 49 49 49 101 48 48 55 54 98 51 98 57 50 57 49 52 56 102 52 98 56 48 49 52 49 52 52 49 51 101 100 97 97 56 48 48 99 98 52 50 52 57 50 99 50 48 99 102 55] session_id=5 unixTime=1653330304.918 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Switched to tls with client. wait switching with db|0|client_id=  session_id=5 unixTime=1653330304.918 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Verifying 'CN\=Test leaf certificate,OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB'|0|unixTime=1653330304.920 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: prepending server http://localhost:8888, from config|0|unixTime=1653330304.920 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Trying server http://localhost:8888|0|unixTime=1653330304.920 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: confirmed by server from config|0|unixTime=1653330304.922 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Verifying 'CN\=Test leaf certificate,OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB'|0|unixTime=1653330304.922 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: prepending server http://localhost:8889/crl.pem, from config|0|unixTime=1653330304.922 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Trying URL http://localhost:8889/crl.pem|0|unixTime=1653330304.922 
+127.0.0.1 - - [23/May/2022 21:25:04] "GET /crl.pem HTTP/1.1" 200 -
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: OK, not found in list of revoked certificates|0|unixTime=1653330304.924 
+CEF:0|cossacklabs|acra-server|0.92.0|100|verifyPeerCertificate|0|error=<nil> unixTime=1653330304.924 valid=true 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Switched to tls with db|0|client_id=  session_id=5 unixTime=1653330304.926 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Switch to tls complete on client proxy side|0|client_id=  session_id=5 unixTime=1653330304.926 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=2 session_id=5 unixTime=1653330304.927 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Command 15 not supported now|0|client_id=  deprecate_eof=false proxy=client sequence_number=2 session_id=5 unixTime=1653330304.927 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=3 session_id=5 unixTime=1653330304.930 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=5 unixTime=1653330304.931 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=5 sql=set AUTOCOMMIT \= :replaced1 unixTime=1653330304.931 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'set AUTOCOMMIT \= :replaced1'|1|service=acra-censor unixTime=1653330304.931 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=5 unixTime=1653330304.932 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=5 unixTime=1653330304.932 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=5 unixTime=1653330304.932 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=5 unixTime=1653330304.932 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=5 sql=set names :replaced1 unixTime=1653330304.932 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'set names :replaced1'|1|service=acra-censor unixTime=1653330304.932 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=5 unixTime=1653330304.933 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=5 unixTime=1653330304.933 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=5 unixTime=1653330304.933 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=5 unixTime=1653330304.933 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=5 sql=select VERSION() from dual unixTime=1653330304.933 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'select VERSION() from dual'|1|service=acra-censor unixTime=1653330304.933 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=5 unixTime=1653330304.933 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column descriptions|0|client_id=  session_id=5 unixTime=1653330304.933 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=0 session_id=5 unixTime=1653330304.934 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Parse field|0|client_id=  column_index=0 session_id=5 unixTime=1653330304.934 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Binary field|0|client_id=  column_index=0 session_id=5 unixTime=1653330304.934 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=1 session_id=5 unixTime=1653330304.934 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data rows|0|client_id=  session_id=5 unixTime=1653330304.934 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=0 session_id=5 unixTime=1653330304.934 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data text row|0|client_id=  data_row_index=0 session_id=5 unixTime=1653330304.934 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data rows in text protocol|0|client_id=  session_id=5 unixTime=1653330304.934 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt SerializedContainer|0|unixTime=1653330304.934 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt AcraBlock|0|unixTime=1653330304.934 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Encode text|0|client_id=  column=  decrypted=false session_id=5 unixTime=1653330304.934 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Finish processing text data row|0|client_id=  session_id=5 unixTime=1653330304.934 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Update row data|0|client_id=  data_row_index=0 newLength=42 oldLength=42 session_id=5 unixTime=1653330304.934 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=1 session_id=5 unixTime=1653330304.934 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Empty result set|0|client_id=  data_row_index=1 session_id=5 unixTime=1653330304.934 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=5 unixTime=1653330304.934 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=5 unixTime=1653330304.934 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=5 unixTime=1653330304.934 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=5 sql=select database() from dual unixTime=1653330304.935 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'select database() from dual'|1|service=acra-censor unixTime=1653330304.935 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=5 unixTime=1653330304.935 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column descriptions|0|client_id=  session_id=5 unixTime=1653330304.935 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=0 session_id=5 unixTime=1653330304.935 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Parse field|0|client_id=  column_index=0 session_id=5 unixTime=1653330304.935 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Binary field|0|client_id=  column_index=0 session_id=5 unixTime=1653330304.935 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=1 session_id=5 unixTime=1653330304.935 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data rows|0|client_id=  session_id=5 unixTime=1653330304.935 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=0 session_id=5 unixTime=1653330304.935 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data text row|0|client_id=  data_row_index=0 session_id=5 unixTime=1653330304.935 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data rows in text protocol|0|client_id=  session_id=5 unixTime=1653330304.935 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt SerializedContainer|0|unixTime=1653330304.935 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt AcraBlock|0|unixTime=1653330304.935 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Encode text|0|client_id=  column=  decrypted=false session_id=5 unixTime=1653330304.935 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Finish processing text data row|0|client_id=  session_id=5 unixTime=1653330304.935 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Update row data|0|client_id=  data_row_index=0 newLength=5 oldLength=5 session_id=5 unixTime=1653330304.935 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=1 session_id=5 unixTime=1653330304.935 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Empty result set|0|client_id=  data_row_index=1 session_id=5 unixTime=1653330304.935 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=5 unixTime=1653330304.935 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=5 unixTime=1653330304.935 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=5 unixTime=1653330304.936 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=5 sql=select @@tx_isolation from dual unixTime=1653330304.937 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'select @@tx_isolation from dual'|1|service=acra-censor unixTime=1653330304.937 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=5 unixTime=1653330304.938 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column descriptions|0|client_id=  session_id=5 unixTime=1653330304.938 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=0 session_id=5 unixTime=1653330304.938 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Parse field|0|client_id=  column_index=0 session_id=5 unixTime=1653330304.938 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Binary field|0|client_id=  column_index=0 session_id=5 unixTime=1653330304.938 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=1 session_id=5 unixTime=1653330304.938 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data rows|0|client_id=  session_id=5 unixTime=1653330304.938 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=0 session_id=5 unixTime=1653330304.938 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data text row|0|client_id=  data_row_index=0 session_id=5 unixTime=1653330304.938 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data rows in text protocol|0|client_id=  session_id=5 unixTime=1653330304.938 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt SerializedContainer|0|unixTime=1653330304.938 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt AcraBlock|0|unixTime=1653330304.938 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Encode text|0|client_id=  column=  decrypted=false session_id=5 unixTime=1653330304.938 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Finish processing text data row|0|client_id=  session_id=5 unixTime=1653330304.938 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Update row data|0|client_id=  data_row_index=0 newLength=16 oldLength=16 session_id=5 unixTime=1653330304.938 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=1 session_id=5 unixTime=1653330304.938 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Empty result set|0|client_id=  data_row_index=1 session_id=5 unixTime=1653330304.938 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=5 unixTime=1653330304.938 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=5 unixTime=1653330304.938 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=5 unixTime=1653330304.939 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=5 sql=select @@sql_mode from dual unixTime=1653330304.939 
+CEF:0|cossacklabs|acra-server|0.92.0|560|Query has been denied by Denyall handler|6|handler=denyall unixTime=1653330304.939 
+CEF:0|cossacklabs|acra-server|0.92.0|560|Denied query: 'select @@sql_mode from dual'|6|service=acra-censor unixTime=1653330304.939 
+CEF:0|cossacklabs|acra-server|0.92.0|560|Denied query by *handlers.DenyAllHandler|0|service=acra-censor unixTime=1653330304.939 
+CEF:0|cossacklabs|acra-server|0.92.0|560|Error on AcraCensor check|6|client_id=  deprecate_eof=false error=deny all queries error proxy=client sequence_number=0 session_id=5 unixTime=1653330304.939 
+CEF:0|cossacklabs|acra-server|0.92.0|571|Can't read packet from client|0|client_id=  error=EOF session_id=5 unixTime=1653330304.940 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Stop to proxy|0|client_id=  interrupt_side=Client-AcraServer session_id=5 unixTime=1653330304.940 
+CEF:0|cossacklabs|acra-server|0.92.0|100|EOF connection closed|0|client_id=  interrupt_side=Client-AcraServer session_id=5 unixTime=1653330304.940 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Closing client's connection|1|client_id=  interrupt_side=Client-AcraServer session_id=5 unixTime=1653330304.940 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Close acra-connector connection|0|client_id=  session_id=5 unixTime=1653330304.940 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Close db connection|0|client_id=  session_id=5 unixTime=1653330304.940 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Can't read packet from server|0|client_id=  session_id=5 unixTime=1653330304.940 
+CEF:0|cossacklabs|acra-server|0.92.0|100|All connections closed|0|client_id=  session_id=5 unixTime=1653330304.940 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Second proxy goroutine stopped|0|client_id=  error=AcraServer-Database:read tcp [::1]:35134->[::1]:3306: use of closed network connection interrupt_side=Client-AcraServer session_id=5 unixTime=1653330304.940 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Finished processing client's connection|1|client_id=  interrupt_side=Client-AcraServer session_id=5 unixTime=1653330304.940 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Got new connection to AcraServer: 127.0.0.1:49926|1|connection_string=tcp://localhost:10003 from_descriptor=false unixTime=1653330305.041 
+CEF:0|cossacklabs|acra-server|0.92.0|100|ConnectionManager Added new connection|0|unixTime=1653330305.041 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Handle client's connection|1|client_id=  session_id=6 unixTime=1653330305.041 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Connecting to db|0|client_id=  session_id=6 unixTime=1653330305.041 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Start proxy db responses|0|client_id=  proxy=server session_id=6 unixTime=1653330305.042 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Start proxy client's requests|0|client_id=  proxy=client session_id=6 unixTime=1653330305.042 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=0 session_id=6 unixTime=1653330305.042 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Set support protocol 41 true|0|client_id=  proxy=server session_id=6 unixTime=1653330305.042 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Verifying 'CN\=Test leaf certificate (acra-writer),OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB'|0|unixTime=1653330305.049 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: certificate contains OCSP URL: http://127.0.0.1:8888|0|unixTime=1653330305.049 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: appending server http://127.0.0.1:8888, from cert|0|unixTime=1653330305.049 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: prepending server http://localhost:8888, from config|0|unixTime=1653330305.049 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Trying server http://localhost:8888|0|unixTime=1653330305.049 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: confirmed by server from config|0|unixTime=1653330305.051 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Trying server http://127.0.0.1:8888|0|unixTime=1653330305.051 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: confirmed by server from certificate|0|unixTime=1653330305.053 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Verifying 'CN\=Test leaf certificate (acra-writer),OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB'|0|unixTime=1653330305.053 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: certificate contains CRL URL: http://127.0.0.1:8889/crl.pem|0|unixTime=1653330305.053 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: appending server http://127.0.0.1:8889/crl.pem, from cert|0|unixTime=1653330305.053 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: prepending server http://localhost:8889/crl.pem, from config|0|unixTime=1653330305.053 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Trying URL http://localhost:8889/crl.pem|0|unixTime=1653330305.053 
+127.0.0.1 - - [23/May/2022 21:25:05] "GET /crl.pem HTTP/1.1" 200 -
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: OK, not found in list of revoked certificates|0|unixTime=1653330305.054 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Trying URL http://127.0.0.1:8889/crl.pem|0|unixTime=1653330305.054 
+127.0.0.1 - - [23/May/2022 21:25:05] "GET /crl.pem HTTP/1.1" 200 -
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: OK, not found in list of revoked certificates|0|unixTime=1653330305.056 
+CEF:0|cossacklabs|acra-server|0.92.0|100|verifyPeerCertificate|0|error=<nil> unixTime=1653330305.056 valid=true 
+CEF:0|cossacklabs|acra-server|0.92.0|100|ID from certificate|0|identifier=CN\=Test leaf certificate (acra-writer),OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB unixTime=1653330305.056 
+CEF:0|cossacklabs|acra-server|0.92.0|100|ClientID from certificate|0|clientID=12824c1c541a615f428a740770291374a8504f84a0682ab4015bc8e792b1bc8240022c5c9faa8c2111e0076b3b929148f4b801414413edaa800cb42492c20cf7 unixTime=1653330305.056 
+CEF:0|cossacklabs|acra-server|0.92.0|100|ClientID from certificate|0|clientID=12824c1c541a615f428a740770291374a8504f84a0682ab4015bc8e792b1bc8240022c5c9faa8c2111e0076b3b929148f4b801414413edaa800cb42492c20cf7 unixTime=1653330305.056 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Set new clientID|0|client_id=[49 50 56 50 52 99 49 99 53 52 49 97 54 49 53 102 52 50 56 97 55 52 48 55 55 48 50 57 49 51 55 52 97 56 53 48 52 102 56 52 97 48 54 56 50 97 98 52 48 49 53 98 99 56 101 55 57 50 98 49 98 99 56 50 52 48 48 50 50 99 53 99 57 102 97 97 56 99 50 49 49 49 101 48 48 55 54 98 51 98 57 50 57 49 52 56 102 52 98 56 48 49 52 49 52 52 49 51 101 100 97 97 56 48 48 99 98 52 50 52 57 50 99 50 48 99 102 55] session_id=6 unixTime=1653330305.056 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Switched to tls with client. wait switching with db|0|client_id=  session_id=6 unixTime=1653330305.056 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Verifying 'CN\=Test leaf certificate,OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB'|0|unixTime=1653330305.058 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: prepending server http://localhost:8888, from config|0|unixTime=1653330305.058 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: Trying server http://localhost:8888|0|unixTime=1653330305.058 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OCSP: confirmed by server from config|0|unixTime=1653330305.061 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Verifying 'CN\=Test leaf certificate,OU\=IT,O\=Global Security,L\=London,ST\=London,C\=GB'|0|unixTime=1653330305.061 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: prepending server http://localhost:8889/crl.pem, from config|0|unixTime=1653330305.061 
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: Trying URL http://localhost:8889/crl.pem|0|unixTime=1653330305.061 
+127.0.0.1 - - [23/May/2022 21:25:05] "GET /crl.pem HTTP/1.1" 200 -
+CEF:0|cossacklabs|acra-server|0.92.0|100|CRL: OK, not found in list of revoked certificates|0|unixTime=1653330305.064 
+CEF:0|cossacklabs|acra-server|0.92.0|100|verifyPeerCertificate|0|error=<nil> unixTime=1653330305.064 valid=true 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Switched to tls with db|0|client_id=  session_id=6 unixTime=1653330305.067 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Switch to tls complete on client proxy side|0|client_id=  session_id=6 unixTime=1653330305.067 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=2 session_id=6 unixTime=1653330305.067 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Command 15 not supported now|0|client_id=  deprecate_eof=false proxy=client sequence_number=2 session_id=6 unixTime=1653330305.067 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=3 session_id=6 unixTime=1653330305.068 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=6 unixTime=1653330305.068 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=6 sql=set AUTOCOMMIT \= :replaced1 unixTime=1653330305.068 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'set AUTOCOMMIT \= :replaced1'|1|service=acra-censor unixTime=1653330305.068 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=6 unixTime=1653330305.069 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=6 unixTime=1653330305.069 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=6 unixTime=1653330305.069 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=6 unixTime=1653330305.069 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=6 sql=set names :replaced1 unixTime=1653330305.070 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'set names :replaced1'|1|service=acra-censor unixTime=1653330305.070 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=6 unixTime=1653330305.070 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=6 unixTime=1653330305.070 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=6 unixTime=1653330305.070 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=6 unixTime=1653330305.071 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=6 sql=select VERSION() from dual unixTime=1653330305.071 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'select VERSION() from dual'|1|service=acra-censor unixTime=1653330305.071 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=6 unixTime=1653330305.071 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column descriptions|0|client_id=  session_id=6 unixTime=1653330305.071 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=0 session_id=6 unixTime=1653330305.071 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Parse field|0|client_id=  column_index=0 session_id=6 unixTime=1653330305.071 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Binary field|0|client_id=  column_index=0 session_id=6 unixTime=1653330305.071 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=1 session_id=6 unixTime=1653330305.071 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data rows|0|client_id=  session_id=6 unixTime=1653330305.071 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=0 session_id=6 unixTime=1653330305.071 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data text row|0|client_id=  data_row_index=0 session_id=6 unixTime=1653330305.071 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data rows in text protocol|0|client_id=  session_id=6 unixTime=1653330305.072 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt SerializedContainer|0|unixTime=1653330305.072 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt AcraBlock|0|unixTime=1653330305.072 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Encode text|0|client_id=  column=  decrypted=false session_id=6 unixTime=1653330305.072 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Finish processing text data row|0|client_id=  session_id=6 unixTime=1653330305.072 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Update row data|0|client_id=  data_row_index=0 newLength=42 oldLength=42 session_id=6 unixTime=1653330305.072 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=1 session_id=6 unixTime=1653330305.072 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Empty result set|0|client_id=  data_row_index=1 session_id=6 unixTime=1653330305.072 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=6 unixTime=1653330305.072 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=6 unixTime=1653330305.072 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=6 unixTime=1653330305.072 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=6 sql=select database() from dual unixTime=1653330305.073 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'select database() from dual'|1|service=acra-censor unixTime=1653330305.073 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=6 unixTime=1653330305.073 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column descriptions|0|client_id=  session_id=6 unixTime=1653330305.073 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=0 session_id=6 unixTime=1653330305.073 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Parse field|0|client_id=  column_index=0 session_id=6 unixTime=1653330305.073 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Binary field|0|client_id=  column_index=0 session_id=6 unixTime=1653330305.073 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=1 session_id=6 unixTime=1653330305.073 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data rows|0|client_id=  session_id=6 unixTime=1653330305.073 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=0 session_id=6 unixTime=1653330305.073 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data text row|0|client_id=  data_row_index=0 session_id=6 unixTime=1653330305.073 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data rows in text protocol|0|client_id=  session_id=6 unixTime=1653330305.073 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt SerializedContainer|0|unixTime=1653330305.073 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt AcraBlock|0|unixTime=1653330305.073 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Encode text|0|client_id=  column=  decrypted=false session_id=6 unixTime=1653330305.073 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Finish processing text data row|0|client_id=  session_id=6 unixTime=1653330305.073 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Update row data|0|client_id=  data_row_index=0 newLength=5 oldLength=5 session_id=6 unixTime=1653330305.073 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=1 session_id=6 unixTime=1653330305.073 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Empty result set|0|client_id=  data_row_index=1 session_id=6 unixTime=1653330305.073 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=6 unixTime=1653330305.073 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=6 unixTime=1653330305.074 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=6 unixTime=1653330305.074 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=6 sql=select @@tx_isolation from dual unixTime=1653330305.074 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Allowed query: 'select @@tx_isolation from dual'|1|service=acra-censor unixTime=1653330305.074 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet from db to client|0|client_id=  sequence_number=1 session_id=6 unixTime=1653330305.075 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column descriptions|0|client_id=  session_id=6 unixTime=1653330305.075 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=0 session_id=6 unixTime=1653330305.075 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Parse field|0|client_id=  column_index=0 session_id=6 unixTime=1653330305.075 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Binary field|0|client_id=  column_index=0 session_id=6 unixTime=1653330305.075 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read column description|0|client_id=  column_index=1 session_id=6 unixTime=1653330305.075 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data rows|0|client_id=  session_id=6 unixTime=1653330305.075 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=0 session_id=6 unixTime=1653330305.075 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data text row|0|client_id=  data_row_index=0 session_id=6 unixTime=1653330305.075 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Process data rows in text protocol|0|client_id=  session_id=6 unixTime=1653330305.075 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt SerializedContainer|0|unixTime=1653330305.075 
+CEF:0|cossacklabs|acra-server|0.92.0|100|OnColumn: Try to decrypt AcraBlock|0|unixTime=1653330305.075 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Encode text|0|client_id=  column=  decrypted=false session_id=6 unixTime=1653330305.075 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Finish processing text data row|0|client_id=  session_id=6 unixTime=1653330305.075 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Update row data|0|client_id=  data_row_index=0 newLength=16 oldLength=16 session_id=6 unixTime=1653330305.075 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Read data row|0|client_id=  data_row_index=1 session_id=6 unixTime=1653330305.075 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Empty result set|0|client_id=  data_row_index=1 session_id=6 unixTime=1653330305.075 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Proxy output|0|client_id=  session_id=6 unixTime=1653330305.075 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query handler finish|0|client_id=  session_id=6 unixTime=1653330305.075 
+CEF:0|cossacklabs|acra-server|0.92.0|100|New packet|0|client_id=  deprecate_eof=false proxy=client sequence_number=0 session_id=6 unixTime=1653330305.076 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Query command|0|client_id=  command=3 deprecate_eof=false proxy=client sequence_number=0 session_id=6 sql=select @@sql_mode from dual unixTime=1653330305.076 
+CEF:0|cossacklabs|acra-server|0.92.0|560|Query has been denied by Denyall handler|6|handler=denyall unixTime=1653330305.076 
+CEF:0|cossacklabs|acra-server|0.92.0|560|Denied query: 'select @@sql_mode from dual'|6|service=acra-censor unixTime=1653330305.076 
+CEF:0|cossacklabs|acra-server|0.92.0|560|Denied query by *handlers.DenyAllHandler|0|service=acra-censor unixTime=1653330305.076 
+CEF:0|cossacklabs|acra-server|0.92.0|560|Error on AcraCensor check|6|client_id=  deprecate_eof=false error=deny all queries error proxy=client sequence_number=0 session_id=6 unixTime=1653330305.076 
+CEF:0|cossacklabs|acra-server|0.92.0|571|Can't read packet from client|0|client_id=  error=EOF session_id=6 unixTime=1653330305.077 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Stop to proxy|0|client_id=  interrupt_side=Client-AcraServer session_id=6 unixTime=1653330305.077 
+CEF:0|cossacklabs|acra-server|0.92.0|100|EOF connection closed|0|client_id=  interrupt_side=Client-AcraServer session_id=6 unixTime=1653330305.077 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Closing client's connection|1|client_id=  interrupt_side=Client-AcraServer session_id=6 unixTime=1653330305.077 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Close acra-connector connection|0|client_id=  session_id=6 unixTime=1653330305.077 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Close db connection|0|client_id=  session_id=6 unixTime=1653330305.078 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Can't read packet from server|0|client_id=  session_id=6 unixTime=1653330305.078 
+CEF:0|cossacklabs|acra-server|0.92.0|100|All connections closed|0|client_id=  session_id=6 unixTime=1653330305.078 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Second proxy goroutine stopped|0|client_id=  error=AcraServer-Database:read tcp [::1]:35136->[::1]:3306: use of closed network connection interrupt_side=Client-AcraServer session_id=6 unixTime=1653330305.078 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Finished processing client's connection|1|client_id=  interrupt_side=Client-AcraServer session_id=6 unixTime=1653330305.078 
+2022-05-23T21:25:05+0300 - terminate pid 855075
+CEF:0|cossacklabs|acra-server|0.92.0|100|Received incoming SIGTERM or SIGINT signal|1|unixTime=1653330305.180 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Stopping listeners|0|unixTime=1653330305.180 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Closing server listeners..|0|unixTime=1653330305.180 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Closed server listeners|0|unixTime=1653330305.180 
+CEF:0|cossacklabs|acra-server|0.92.0|100|Server graceful shutdown completed, bye PID: 855075|1|unixTime=1653330305.180 
+2022-05-23T21:25:05+0300 - kill pid 855075
+2022-05-23T21:25:05+0300 - killed pid 855075
+E2022-05-23T21:25:05+0300 - terminate pid 855071
+2022-05-23T21:25:05+0300 - terminate pid 855073
+2022-05-23T21:25:05+0300 - kill pid 855071
+2022-05-23T21:25:05+0300 - killed pid 855071
+2022-05-23T21:25:05+0300 - kill pid 855073
+2022-05-23T21:25:05+0300 - killed pid 855073
+
+======================================================================
+ERROR: testWhitelist (__main__.CensorWhitelistTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1819, in _execute_context
+    self.dialect.do_execute(
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/engine/default.py", line 732, in do_execute
+    cursor.execute(statement, parameters)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/pymysql/cursors.py", line 148, in execute
+    result = self._query(query)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/pymysql/cursors.py", line 310, in _query
+    conn.query(q)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/pymysql/connections.py", line 548, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/pymysql/connections.py", line 775, in _read_query_result
+    result.read()
+  File "/home/gdobn/.local/lib/python3.10/site-packages/pymysql/connections.py", line 1156, in read
+    first_packet = self.connection._read_packet()
+  File "/home/gdobn/.local/lib/python3.10/site-packages/pymysql/connections.py", line 701, in _read_packet
+    raise err.OperationalError(
+pymysql.err.OperationalError: (2013, 'Lost connection to MySQL server during query')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/gdobn/code/cossacks/acra/tests/test.py", line 1513, in setUp
+    engine.execute("select 1;")
+  File "<string>", line 2, in execute
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/util/deprecations.py", line 401, in warned
+    return fn(*args, **kwargs)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 3175, in execute
+    connection = self.connect(close_with_result=True)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 3234, in connect
+    return self._connection_cls(self, close_with_result=close_with_result)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 96, in __init__
+    else engine.raw_connection()
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 3313, in raw_connection
+    return self._wrap_pool_connect(self.pool.connect, _connection)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 3280, in _wrap_pool_connect
+    return fn()
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/pool/base.py", line 310, in connect
+    return _ConnectionFairy._checkout(self)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/pool/base.py", line 868, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/pool/base.py", line 476, in checkout
+    rec = pool._do_get()
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/pool/impl.py", line 145, in _do_get
+    with util.safe_reraise():
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/util/langhelpers.py", line 70, in __exit__
+    compat.raise_(
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/util/compat.py", line 207, in raise_
+    raise exception
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/pool/impl.py", line 143, in _do_get
+    return self._create_connection()
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/pool/base.py", line 256, in _create_connection
+    return _ConnectionRecord(self)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/pool/base.py", line 371, in __init__
+    self.__connect()
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/pool/base.py", line 679, in __connect
+    )._exec_w_sync_on_first_run(self.dbapi_connection, self)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/event/attr.py", line 329, in _exec_w_sync_on_first_run
+    self(*args, **kw)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/event/attr.py", line 343, in __call__
+    fn(*args, **kw)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/util/langhelpers.py", line 1691, in go
+    return once_fn(*arg, **kw)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/engine/create.py", line 686, in first_connect
+    dialect.initialize(c)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/dialects/mysql/base.py", line 2717, in initialize
+    self._detect_sql_mode(connection)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/dialects/mysql/base.py", line 3170, in _detect_sql_mode
+    setting = self._fetch_setting(connection, "sql_mode")
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/dialects/mysql/base.py", line 3122, in _fetch_setting
+    show_var = connection.exec_driver_sql(sql)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1686, in exec_driver_sql
+    return self._exec_driver_sql(
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1595, in _exec_driver_sql
+    ret = self._execute_context(
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1862, in _execute_context
+    self._handle_dbapi_exception(
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 2043, in _handle_dbapi_exception
+    util.raise_(
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/util/compat.py", line 207, in raise_
+    raise exception
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1819, in _execute_context
+    self.dialect.do_execute(
+  File "/home/gdobn/.local/lib/python3.10/site-packages/sqlalchemy/engine/default.py", line 732, in do_execute
+    cursor.execute(statement, parameters)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/pymysql/cursors.py", line 148, in execute
+    result = self._query(query)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/pymysql/cursors.py", line 310, in _query
+    conn.query(q)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/pymysql/connections.py", line 548, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "/home/gdobn/.local/lib/python3.10/site-packages/pymysql/connections.py", line 775, in _read_query_result
+    result.read()
+  File "/home/gdobn/.local/lib/python3.10/site-packages/pymysql/connections.py", line 1156, in read
+    first_packet = self.connection._read_packet()
+  File "/home/gdobn/.local/lib/python3.10/site-packages/pymysql/connections.py", line 701, in _read_packet
+    raise err.OperationalError(
+sqlalchemy.exc.OperationalError: (pymysql.err.OperationalError) (2013, 'Lost connection to MySQL server during query')
+[SQL: SELECT @@sql_mode]
+(Background on this error at: https://sqlalche.me/e/14/e3q8)
+
+----------------------------------------------------------------------
+Ran 1 test in 20.941s
+
+FAILED (errors=1)
+You didn't set TEST_RANDOM_DATA_FOLDER env var. Test data will be generated to </tmp/test_data2sy8rfqs> folder and removed at end
+call /usr/bin/python3 /home/gdobn/code/cossacks/acra/tests/generate_random_data.py
+openssl ocsp args: -CA=/home/gdobn/code/cossacks/acra/tests/ssl/ca/ca.crt -ignore_err -index=/home/gdobn/code/cossacks/acra/tests/ssl/ca/index.txt -port=8888 -rkey=/home/gdobn/code/cossacks/acra/tests/ssl/ocsp-responder/ocsp-responder.key -rsigner=/home/gdobn/code/cossacks/acra/tests/ssl/ocsp-responder/ocsp-responder.crt
+check OCSP server connection http://127.0.0.1:8888
+python HTTP server args: --bind 127.0.0.1 8889
+check HTTP server connection http://127.0.0.1:8889
+acra-server args: --acracensor_config_file=/home/gdobn/code/cossacks/acra/tests/acra-censor_configs/acra-censor_whitelist.yaml --acrastruct_injectedcell_enable=true --acrastruct_wholecell_enable=false --d=true --db_host=localhost --db_port=3306 --http_api_enable=true --incoming_connection_api_string=tcp://localhost:10004 --incoming_connection_close_timeout=0 --incoming_connection_string=tcp://localhost:10003 --keys_dir=/tmp/tmpjuyvjxph --keystore_cache_on_start_enable=false --logging_format=cef --mysql_enable=true --pgsql_hex_bytea=true --postgresql_enable=false --tls_auth=4 --tls_ca=/home/gdobn/code/cossacks/acra/tests/ssl/ca/ca.crt --tls_cert=/home/gdobn/code/cossacks/acra/tests/ssl/acra-server/acra-server.crt --tls_crl_from_cert=use --tls_crl_url=http://localhost:8889/crl.pem --tls_key=/home/gdobn/code/cossacks/acra/tests/ssl/acra-server/acra-server.key --tls_ocsp_from_cert=use --tls_ocsp_url=http://localhost:8888 --zonemode_enable=false
+clean temporary folder </tmp/test_data2sy8rfqs>

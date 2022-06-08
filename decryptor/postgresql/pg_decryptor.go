@@ -25,6 +25,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/jackc/pgx/pgtype"
+
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
 
@@ -39,9 +41,9 @@ import (
 	"go.opencensus.io/trace"
 )
 
-// ReadyForQueryPacket - 'Z' ReadyForQuery, 0 0 0 5 length, 'I' idle status
+// ReadyForQuery - 'Z' ReadyForQuery, 0 0 0 5 length, 'I' idle status
 // https://www.postgresql.org/docs/9.3/static/protocol-message-formats.html
-var ReadyForQueryPacket = []byte{'Z', 0, 0, 0, 5, 'I'}
+var ReadyForQuery = []byte{'Z', 0, 0, 0, 5, 'I'}
 
 // TerminatePacket sent by client to close connection with db
 // https://www.postgresql.org/docs/9.4/static/protocol-message-formats.html
@@ -105,6 +107,21 @@ const (
 const (
 	dataFormatText   = 0
 	dataFormatBinary = 1
+)
+
+type databaseHandlerState int
+
+const (
+	// stateFirstPacket is the starting state of the handler. The handler
+	// first byte of the response can indicate switching to tls. So, we should
+	// not read more than that. This state exists to indicate such special case.
+	stateFirstPacket databaseHandlerState = iota
+	// stateServe is the most common state of the handler. It means normal
+	// processing of packets
+	stateServe
+	// stateSkipResponse is a state of a handler when it skips a response
+	// from database until `ReadyForQuery` is arrived.
+	stateSkipResponse
 )
 
 // PgProxy represents PgSQL database connection between client and database with TLS support
@@ -283,10 +300,21 @@ func (proxy *PgProxy) handleClientPacket(ctx context.Context, packet *PacketHand
 	}
 	switch proxy.protocolState.LastPacketType() {
 	case ParseStatementPacket:
-		if err := proxy.registerPreparedStatement(proxy.protocolState.pendingParse, logger); err != nil {
+		censored, err := proxy.handleQueryPacket(ctx, packet, logger)
+		if err != nil || censored {
+			return censored, err
+		}
+		// Register prepared statement, though it can produce an error on the db
+		// side. In that case, it should have been removed from the registry,
+		// but for now it is not implemented yet. Therefore, connection with a
+		// large number of prepared statements with errors tend to leak memory,
+		// but on practice it is not that noticeable.
+		pendingParse := proxy.protocolState.pendingParse
+		if err = proxy.registerPreparedStatement(packet, pendingParse, logger); err != nil {
 			return false, err
 		}
-		fallthrough
+		err = replaceOIDsInParsePackets(proxy.ctx, packet, pendingParse, logger)
+		return false, err
 	case SimpleQueryPacket:
 		// If that's some sort of a packet with a query inside it,
 		// process inline data if necessary and remember the query to handle future response.
@@ -401,8 +429,8 @@ func (proxy *PgProxy) sendClientError(msg string, logger *log.Entry) error {
 	if err := base.CheckReadWrite(n, len(errorMessage), err); err != nil {
 		return err
 	}
-	n, err = proxy.clientConnection.Write(ReadyForQueryPacket)
-	if err := base.CheckReadWrite(n, len(ReadyForQueryPacket), err); err != nil {
+	n, err = proxy.clientConnection.Write(ReadyForQuery)
+	if err := base.CheckReadWrite(n, len(ReadyForQuery), err); err != nil {
 		return err
 	}
 	return nil
@@ -531,6 +559,8 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 		return
 	}
 
+	var state databaseHandlerState = stateFirstPacket
+
 	// use pointer to function where should be stored some function that should be called if code return error and interrupt loop
 	// default value empty func to avoid != nil check
 	var endLoopSpanFunc = func() {}
@@ -541,9 +571,9 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 		endLoopSpanFunc()
 
 		packetHandler.Reset()
-		if packetHandler.IsAlreadyStarted() {
+		switch state {
+		case stateServe:
 			// General response, which we handle and forward to the client
-
 			if err = packetHandler.ReadPacket(); err != nil {
 				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).WithError(err).Debugln("Can't read packet")
 				errCh <- base.NewDBProxyError(err)
@@ -564,8 +594,11 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 					errCh <- base.NewDBProxyError(err)
 					return
 				}
+				// We need to flush out the rest of the response
+				state = stateSkipResponse
 				continue
 			}
+
 			if err != nil {
 				errCh <- base.NewDBProxyError(err)
 				return
@@ -579,7 +612,8 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 				return
 			}
 			timer.ObserveDuration()
-		} else {
+
+		case stateFirstPacket:
 			// Startup response, which contains only one byte. It's special,
 			// because it can request switching to TLS.
 
@@ -590,7 +624,7 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 			// https://www.postgresql.org/docs/9.1/static/protocol-flow.html#AEN92112
 			// we should know that we shouldn't read anymore bytes
 			// first response from server may contain only one byte of response on SSLRequest
-			packetHandler.SetStarted()
+			state = stateServe
 			logger.Debugln("Read startup message")
 			if err = packetHandler.readMessageType(); err != nil {
 				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).WithError(err).Debugln("Can't read first message type")
@@ -652,6 +686,26 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 				}
 				timer.ObserveDuration()
 			}
+		case stateSkipResponse:
+			endLoopSpanFunc = func() {}
+			if err = packetHandler.ReadPacket(); err != nil {
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).
+					WithError(err).
+					Debugln("Can't read packet")
+				errCh <- base.NewDBProxyError(err)
+				return
+			}
+			last := packetHandler.IsReadyForQuery()
+			if last {
+				state = stateServe
+				// Process the ReadyForQuery packet to reset the state of the
+				// protocol and do necessary cleanup
+				if err := proxy.handleDatabasePacket(packetCtx, packetHandler, logger); err != nil {
+					errCh <- base.NewDBProxyError(err)
+					return
+				}
+			}
+			logger.WithField("last", last).Debugln("Skipping the packet")
 		}
 	}
 }
@@ -671,10 +725,9 @@ func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHa
 		return proxy.handleQueryDataPacket(ctx, packet, logger)
 
 	case ParseCompletePacket:
-		// Previously requested prepared statement has been confirmed by the database, register it.
-		preparedStatement := proxy.protocolState.PendingParse()
-		defer proxy.protocolState.forgetPendingParse()
-		return proxy.registerPreparedStatement(preparedStatement, logger)
+		log.WithField("parse", proxy.protocolState.pendingParse).Debugln("ParseComplete")
+		proxy.protocolState.forgetPendingParse()
+		return nil
 
 	case BindCompletePacket:
 		// Previously requested cursor has been confirmed by the database, register it.
@@ -686,6 +739,11 @@ func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHa
 
 	case ParameterDescriptionPacket:
 		return proxy.handleParameterDescription(ctx, packet, logger)
+
+	case ReadyForQueryPacket:
+		logger.Debugln("ReadyForQueryPacket")
+		encryptor.DeletePlaceholderSettingsFromClientSession(proxy.session)
+		return nil
 
 	default:
 		// Forward all other uninteresting packets to the client without processing.
@@ -839,7 +897,7 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 	return nil
 }
 
-func (proxy *PgProxy) registerPreparedStatement(preparedStatement *ParsePacket, logger *log.Entry) error {
+func (proxy *PgProxy) registerPreparedStatement(packet *PacketHandler, preparedStatement *ParsePacket, logger *log.Entry) error {
 	name := preparedStatement.Name()
 	queryText := preparedStatement.QueryString()
 	// This should be always successful since the database filters invalid queries.
@@ -858,6 +916,42 @@ func (proxy *PgProxy) registerPreparedStatement(preparedStatement *ParsePacket, 
 		return err
 	}
 	logger.WithField("prepared_name", name).Debug("Registered new prepared statement")
+	return nil
+}
+
+// replaceOIDsInParsePackets replaces OID of parameters that could be specified
+// in a parse packet into BYTEA. That's because all encrypted data is stored
+// as a BYTEA in the postgres. Only during the insertion/selection we do
+// encryption/decryption and substitution of the correct type.
+func replaceOIDsInParsePackets(ctx context.Context, packet *PacketHandler, preparedStatement *ParsePacket, logger *log.Entry) error {
+	if len(preparedStatement.params) == 0 {
+		return nil
+	}
+	clientSession := base.ClientSessionFromContext(ctx)
+	if clientSession == nil {
+		logger.Warningln("ParsePacket packet without ClientSession in context")
+		return nil
+	}
+	items := encryptor.PlaceholderSettingsFromClientSession(clientSession)
+	if items == nil {
+		logger.Debugln("ParsePacket packet without registered recognized encryption settings")
+		return nil
+	}
+	changed := false
+	for i := range preparedStatement.params {
+		setting := items[i]
+		if setting == nil {
+			continue
+		}
+		if config.HasTypeAwareSupport(setting) {
+			logger.WithField("field", setting.ColumnName()).Debugln("Change parameter types for ParsePacket")
+			binary.BigEndian.PutUint32(preparedStatement.params[i], pgtype.ByteaOID)
+			changed = true
+		}
+	}
+	if changed {
+		return packet.SetParsePacket(preparedStatement)
+	}
 	return nil
 }
 

@@ -44,6 +44,7 @@ import mysql.connector
 import psycopg2
 import psycopg2.errors
 import psycopg2.extras
+import psycopg as psycopg3
 import pymysql
 import redis
 import requests
@@ -58,7 +59,8 @@ from prometheus_client.parser import text_string_to_metric_families
 from sqlalchemy.dialects import mysql as mysql_dialect
 from sqlalchemy.dialects import postgresql as postgresql_dialect
 from sqlalchemy.dialects.postgresql import BYTEA
-from sqlalchemy.exc import DatabaseError, ProgrammingError
+from sqlalchemy.exc import DatabaseError, OperationalError, ProgrammingError
+from sqlalchemy.sql import expression, operators
 
 import api_pb2
 import api_pb2_grpc
@@ -235,6 +237,8 @@ else:
             'sslmode': 'require',
         })
 
+# THe code for mysql "Query execution was interrupted" error 
+MYSQL_ERR_QUERY_INTERRUPTED_CODE = 1317
 
 def get_tls_connection_args(client_key, client_cert, for_mysql=TEST_MYSQL):
     if for_mysql:
@@ -948,16 +952,18 @@ class AsyncpgExecutor(QueryExecutor):
     BinaryFormat = 'binary'
 
     def _connect(self, loop):
+        return loop.run_until_complete(self.connect())
+
+    async def connect(self):
         ssl_context = ssl.create_default_context(cafile=self.connection_args.ssl_ca)
         ssl_context.load_cert_chain(self.connection_args.ssl_cert, self.connection_args.ssl_key)
         ssl_context.check_hostname = True
-        return loop.run_until_complete(
-            asyncpg.connect(
+        return await asyncpg.connect(
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user, password=self.connection_args.password,
                 database=self.connection_args.dbname,
                 ssl=ssl_context,
-                **asyncpg_connect_args))
+            **asyncpg_connect_args)
 
     def _set_text_format(self, conn):
         """Force text format to numeric types."""
@@ -1039,6 +1045,104 @@ class Psycopg2Executor(QueryExecutor):
                 data = cursor.fetchall()
                 utils.memoryview_rows_to_bytes(data)
                 return data
+
+
+# Place arguments in a linear order
+# For example, if query is "$2 $1 $1 $3" and arguments are [a, b, c]
+# The resulted query would be "%s %s %s %s" and arguments would be [b a a c]
+def replace_pg_placeholders_with_psycopg3(query, args):
+    indexes = re.findall(r'\$([0-9]+)', query)
+    query = re.sub(r'\$[0-9]+', '%s', query)
+    # minus 1 because python uses 0-based array, while postgres 1-based
+    newargs = [args[int(i) - 1] for i in indexes]
+    return query, newargs
+
+
+class Psycopg3Executor(QueryExecutor):
+    def _execute(self, query, args=None, prepare=None):
+        query, args = replace_pg_placeholders_with_psycopg3(query, args)
+
+        connection_args = get_connect_args(self.connection_args.port)
+
+        connection_args['sslrootcert'] = self.connection_args.ssl_ca
+        connection_args['sslkey'] = self.connection_args.ssl_key
+        connection_args['sslcert'] = self.connection_args.ssl_cert
+        connection_args['host'] = self.connection_args.host
+        connection_args['dbname'] = self.connection_args.dbname
+
+        with psycopg3.connect(**connection_args) as conn:
+            with conn.cursor(
+                    row_factory=psycopg3.rows.dict_row) as cursor:
+                cursor.execute(query, args, prepare=prepare)
+                try:
+                    data = cursor.fetchall()
+                except psycopg3.ProgrammingError as ex:
+                    # psycopg3 throws an error if we want to fetch rows on
+                    # responseless query, like insert. So ignore it.
+                    if str(ex) == "the last operation didn't produce a result":
+                        return []
+                    else:
+                        raise
+                utils.memoryview_rows_to_bytes(data)
+                return data
+
+    def execute(self, query, args=None):
+        return self._execute(query, args, prepare=False)
+
+    def execute_prepared_statement(self, query, args=None):
+        return self._execute(query, args, prepare=True)
+
+
+class ExecutorMixin:
+    """
+
+    ExecutorMixin setups creates executors during the `setUp`:
+      - self.executor1 - connection to the Acra with the first certificate
+      - self.executor2 - connection to the Acra with the second certificate
+      - self.raw_executor - direct connection to the database 
+
+    It uses `self.executor_with_ssl` to set up args and `self.executor_cls`
+    to create an engine of desired type.
+
+    """
+    RAW_EXECUTOR = True
+    FORMAT = ''
+
+    def setUp(self):
+        super().setUp()
+        acra_port = self.ACRASERVER_PORT
+        self.executor1 = self.executor_with_ssl(
+            TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT, acra_port)
+        self.executor2 = self.executor_with_ssl(
+            TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT, acra_port)
+        self.raw_executor = self.executor_with_ssl(
+            TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT, DB_PORT)
+
+    def executor_with_ssl(self, ssl_key, ssl_cert, port):
+        if port is None:
+            port = self.ACRASERVER_PORT
+        args = ConnectionArgs(
+            host=get_db_host(), port=port, dbname=DB_NAME,
+            user=DB_USER, password=DB_USER_PASSWORD,
+            ssl_ca=TEST_TLS_CA,
+            ssl_key=ssl_key,
+            ssl_cert=ssl_cert,
+            format=self.FORMAT,
+            raw=self.RAW_EXECUTOR,
+        )
+        return self.executor_cls(args)
+
+
+class Psycopg3ExecutorMixin(ExecutorMixin):
+    executor_cls = Psycopg3Executor
+
+
+class AsyncpgExecutorMixin(ExecutorMixin):
+    executor_cls = AsyncpgExecutor
+
+
+class MysqlExecutorMixin(ExecutorMixin):
+    executor_cls = MysqlExecutor
 
 
 class KeyMakerTest(unittest.TestCase):
@@ -1701,7 +1805,7 @@ class HexFormatTest(BaseTestCase):
         self.assertEqual(row['empty'], b'')
 
 
-class BaseBinaryPostgreSQLTestCase(BaseTestCase):
+class BaseBinaryPostgreSQLTestCase(AsyncpgExecutorMixin, BaseTestCase):
     """Setup test fixture for testing PostgreSQL extended protocol."""
 
     def checkSkip(self):
@@ -1710,25 +1814,6 @@ class BaseBinaryPostgreSQLTestCase(BaseTestCase):
             self.skipTest("test only PostgreSQL")
 
     FORMAT = AsyncpgExecutor.BinaryFormat
-
-    def setUp(self):
-        super().setUp()
-
-        def executor_with_ssl(ssl_key, ssl_cert, port=self.ACRASERVER_PORT):
-            args = ConnectionArgs(
-                host=get_db_host(), port=port, dbname=DB_NAME,
-                user=DB_USER, password=DB_USER_PASSWORD,
-                ssl_ca=TEST_TLS_CA,
-                ssl_key=ssl_key,
-                ssl_cert=ssl_cert,
-                format=self.FORMAT,
-                raw=True,
-            )
-            return AsyncpgExecutor(args)
-
-        self.executor1 = executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
-        self.executor2 = executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
-        self.raw_executor = executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT, 5432)
 
     def compileQuery(self, query, parameters={}, literal_binds=False):
         """
@@ -1807,30 +1892,13 @@ class BaseBinaryPostgreSQLTestCase(BaseTestCase):
         return query, tuple(values)
 
 
-class BaseBinaryMySQLTestCase(BaseTestCase):
+class BaseBinaryMySQLTestCase(MysqlExecutorMixin, BaseTestCase):
     """Setup test fixture for testing MySQL extended protocol."""
 
     def checkSkip(self):
         super().checkSkip()
         if not TEST_MYSQL:
             self.skipTest("test only MySQL")
-
-    def setUp(self):
-        super().setUp()
-
-        def executor_with_ssl(ssl_key, ssl_cert):
-            args = ConnectionArgs(
-                host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
-                user=DB_USER, password=DB_USER_PASSWORD,
-                ssl_ca=TEST_TLS_CA,
-                ssl_key=ssl_key,
-                ssl_cert=ssl_cert,
-                raw=True,
-            )
-            return MysqlExecutor(args)
-
-        self.executor1 = executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
-        self.executor2 = executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
 
     def compileInsertQuery(self, query, parameters={}, literal_binds=False):
         """
@@ -5650,13 +5718,8 @@ class TestEmptyValues(BaseTestCase):
         # check null values
         result = self.engine1.execute(sa.select([self.temp_table]).where(self.temp_table.c.id == null_value_id))
         row = result.fetchone()
-        if TEST_MYSQL:
-            # PyMySQL returns empty strings for NULL values
-            self.assertEqual(row['text'], '')
-            self.assertEqual(row['binary'], b'')
-        else:
-            self.assertIsNone(row['text'])
-            self.assertIsNone(row['binary'])
+        self.assertIsNone(row['text'])
+        self.assertIsNone(row['binary'])
 
         # check empty values
         result = self.engine1.execute(sa.select([self.temp_table]).where(self.temp_table.c.id == empty_value_id))
@@ -6471,6 +6534,26 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
 
         self.checkDefaultIdEncryption(**context)
         self.assertEqual(rows[0]['searchable_acrablock'], search_term)
+
+    def testDeserializeOldContainerOnDecryptionFail(self):
+        acrastruct = create_acrastruct_with_client_id(b'somedata', TLS_CERT_CLIENT_ID_1)
+
+        context = self.get_context_data()
+        context['raw_data'] = acrastruct
+        search_term = context['searchable_acrablock']
+
+        # Insert searchable data and raw AcraStruct
+        self.insertRow(context)
+
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+                .where(self.encryptor_table.c.searchable_acrablock == sa.bindparam('searchable_acrablock')),
+            {'searchable_acrablock': search_term})
+        self.assertEqual(len(rows), 1)
+        self.checkDefaultIdEncryption(**context)
+
+        # AcraStruct should be as is - not serialized inside general container
+        self.assertEqual(rows[0]['raw_data'], acrastruct)
 
     def testSearchWithEncryptedData(self):
         context = self.get_context_data()
@@ -8581,23 +8664,8 @@ class TestMySQLTextFormatTypeAwareDecryptionWithDefaults(BaseBinaryMySQLTestCase
     )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
-    def setUp(self):
-        super().setUp()
-
-        # switch off raw mode to be able to convert result rows to python types
-        def raw_executor_with_ssl(ssl_key, ssl_cert):
-            args = ConnectionArgs(
-                host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
-                user=DB_USER, password=DB_USER_PASSWORD,
-                ssl_ca=TEST_TLS_CA,
-                ssl_key=ssl_key,
-                ssl_cert=ssl_cert,
-                raw=False,
-            )
-            return MysqlExecutor(args)
-
-        self.executor1 = raw_executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
-        self.executor2 = raw_executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
+    # switch off raw mode to be able to convert result rows to python types
+    RAW_EXECUTOR = False
 
     def checkSkip(self):
         if not (TEST_MYSQL and TEST_WITH_TLS):
@@ -8623,12 +8691,14 @@ class TestMySQLTextFormatTypeAwareDecryptionWithDefaults(BaseBinaryMySQLTestCase
             'value_int64': 64,
             'value_bytes': b'value_bytes',
             'value_str': 'value_str',
-            'value_empty_str': ''
+            'value_empty_str': '',
+            'value_null_str': None,
+            'value_null_int32': None,
         }
 
         self.schema_table.create(bind=self.engine_raw, checkfirst=True)
-        columns = ('value_bytes', 'value_int32', 'value_int64', 'value_empty_str', 'value_str')
-        null_columns = ('value_null_str', 'value_null_int32')
+        columns = ('value_bytes', 'value_int32', 'value_int64', 'value_empty_str', 'value_str', 'value_null_str',
+                   'value_null_int32')
 
         self.engine1.execute(self.test_table.insert(), data)
 
@@ -8641,17 +8711,11 @@ class TestMySQLTextFormatTypeAwareDecryptionWithDefaults(BaseBinaryMySQLTestCase
             self.assertEqual(data[column], row[column])
             self.assertIsInstance(row[column], type(data[column]))
 
-        # mysql.connector represent null value as empty string
-        for column in null_columns:
-            self.assertEqual(row[column], '')
 
         row = self.executor2.execute(query)[0]
         for column in columns:
             self.assertEqual(row[column], default_expected_values[column])
             self.assertIsInstance(row[column], type(default_expected_values[column]))
-
-        for column in null_columns:
-            self.assertEqual(row[column], '')
 
         row = self.engine_raw.execute(sa.select([self.test_table])
                 .where(self.test_table.c.id == data['id'])).fetchone()
@@ -8893,23 +8957,8 @@ class TestMySQLTextTypeAwareDecryptionWithoutDefaults(BaseBinaryMySQLTestCase, B
     )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
-    def setUp(self):
-        super().setUp()
-
-        # switch off raw mode to be able to convert result rows to python types
-        def raw_executor_with_ssl(ssl_key, ssl_cert):
-            args = ConnectionArgs(
-                host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
-                user=DB_USER, password=DB_USER_PASSWORD,
-                ssl_ca=TEST_TLS_CA,
-                ssl_key=ssl_key,
-                ssl_cert=ssl_cert,
-                raw=False,
-            )
-            return MysqlExecutor(args)
-
-        self.executor1 = raw_executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
-        self.executor2 = raw_executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
+    # switch off raw mode to be able to convert result rows to python types
+    RAW_EXECUTOR = False
 
     def checkSkip(self):
         if not (TEST_MYSQL and TEST_WITH_TLS):
@@ -8935,8 +8984,8 @@ class TestMySQLTextTypeAwareDecryptionWithoutDefaults(BaseBinaryMySQLTestCase, B
         }
         self.schema_table.create(bind=self.engine_raw, checkfirst=True)
         self.engine1.execute(self.test_table.insert(), data)
-        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_empty_str')
-        null_columns = ('value_null_str', 'value_null_int32')
+        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_empty_str', 'value_null_str',
+                   'value_null_int32')
 
         compile_kwargs = {"literal_binds": True}
         query = sa.select([self.test_table]).where(self.test_table.c.id == data['id'])
@@ -8946,10 +8995,6 @@ class TestMySQLTextTypeAwareDecryptionWithoutDefaults(BaseBinaryMySQLTestCase, B
         for column in columns:
             self.assertEqual(data[column], row[column])
             self.assertIsInstance(row[column], type(data[column]))
-
-        # mysql.connector represent null value as empty string
-        for column in null_columns:
-            self.assertEqual(row[column], '')
 
         # field types should be rollbacked in case of invalid encoding
         row = self.executor2.execute(query)[0]
@@ -9400,6 +9445,331 @@ class TestMySQLBinaryTypeAwareDecryptionWithoutDefaults(TestMySQLTextTypeAwareDe
             self.assertIsInstance(value, bytearray, column)
             self.assertNotEqual(data[column], value, column)
 
+class TestMySQLTextTypeAwareDecryptionWithСiphertext(BaseBinaryMySQLTestCase, BaseTransparentEncryption):
+    # test table used for queries and data mapping into python types
+    test_table = sa.Table(
+        # use new object of metadata to avoid name conflict
+        'test_type_aware_decryption_with_ciphertext', sa.MetaData(),
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.Text),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.Integer),
+        sa.Column('value_int64', sa.BigInteger),
+        sa.Column('value_null_str', sa.Text, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.Integer, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.Text, nullable=False, default=''),
+        extend_existing=True
+    )
+    # schema table used to generate table in the database with binary column types
+    schema_table = sa.Table(
+
+        'test_type_aware_decryption_with_ciphertext', metadata,
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.LargeBinary),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.LargeBinary),
+        sa.Column('value_int64', sa.LargeBinary),
+        sa.Column('value_null_str', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
+        extend_existing=True
+    )
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+
+    # switch off raw mode to be able to convert result rows to python types
+    RAW_EXECUTOR = False
+
+    def checkSkip(self):
+        if not (TEST_MYSQL and TEST_WITH_TLS):
+            self.skipTest("Test only for MySQL with TLS")
+
+    def testClientIDRead(self):
+        """test decrypting with correct clientID and not decrypting with
+        incorrect clientID or using direct connection to db
+        All result data should be valid for application. Not decrypted data should be returned as is and DB driver
+        should cause error
+
+        MySQL decoder should roll back FieldType as well.
+        """
+        data = {
+            'id': get_random_id(),
+            'value_str': random_str(),
+            'value_bytes': random_bytes(),
+            'value_int32': random_int32(),
+            'value_int64': random_int64(),
+            'value_null_str': None,
+            'value_null_int32': None,
+            'value_empty_str': ''
+        }
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        self.engine1.execute(self.test_table.insert(), data)
+        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_empty_str', 'value_null_str',
+                   'value_null_int32')
+
+        compile_kwargs = {"literal_binds": True}
+        query = sa.select([self.test_table]).where(self.test_table.c.id == data['id'])
+        query = str(query.compile(compile_kwargs=compile_kwargs))
+
+        row = self.executor1.execute(query)[0]
+        for column in columns:
+            self.assertEqual(data[column], row[column])
+            self.assertIsInstance(row[column], type(data[column]))
+
+        # field types should be rollbacked in case of invalid encoding
+        row = self.executor2.execute(query)[0]
+
+        # direct connection should receive binary data according to real scheme
+        result = self.engine_raw.execute(
+            sa.select([self.test_table])
+                .where(self.test_table.c.id == data['id']))
+        row = result.fetchone()
+        for column in columns:
+            if 'null' in column or 'empty' in column:
+                # asyncpg decodes None values as empty str/bytes value
+                self.assertFalse(row[column])
+                continue
+            value = utils.memoryview_to_bytes(row[column])
+            self.assertIsInstance(value, bytes, column)
+            self.assertNotEqual(data[column], value, column)
+
+class TestMySQLBinaryTypeAwareDecryptionWithСiphertext(TestMySQLTextTypeAwareDecryptionWithСiphertext):
+    def checkSkip(self):
+        if not (TEST_MYSQL and TEST_WITH_TLS):
+            self.skipTest("Test only for MySQL with TLS")
+
+    def testClientIDRead(self):
+        """test decrypting with correct clientID and not decrypting with
+        incorrect clientID or using direct connection to db
+        All result data should be valid for application. Not decrypted data should be returned as is and DB driver
+        should cause error
+
+        MySQL decoder should roll back FieldType as well.
+        """
+        data = {
+            'id': get_random_id(),
+            'value_str': random_str(),
+            'value_bytes': random_bytes(),
+            'value_int32': random_int32(),
+            'value_int64': random_int64(),
+            'value_null_str': None,
+            'value_null_int32': None,
+            'value_empty_str': ''
+        }
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        ######
+        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
+                   'value_empty_str')
+        query, args = self.compileQuery(self.test_table.insert(), data)
+        self.executor1.execute_prepared_statement_no_result(query, args)
+
+        query, args = self.compileQuery(
+            sa.select([self.test_table])
+                .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
+
+        # just make sure that it is not failing meant that decoder rollback field types
+        row = self.executor2.execute_prepared_statement(query, args)[0]
+
+        for column in columns:
+            if 'null' in column or 'empty' in column:
+                # asyncpg decodes None values as empty str/bytes value
+                self.assertFalse(row[column])
+                continue
+            value = utils.memoryview_to_bytes(row[column])
+            self.assertIsInstance(value, bytearray, column)
+            self.assertNotEqual(data[column], value, column)
+
+
+class TestMySQLTextTypeAwareDecryptionWithError(BaseBinaryMySQLTestCase, BaseTransparentEncryption):
+    # test table used for queries and data mapping into python types
+    test_table = sa.Table(
+        # use new object of metadata to avoid name conflict
+        'test_type_aware_decryption_with_error', sa.MetaData(),
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.Text),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.Integer),
+        sa.Column('value_int64', sa.BigInteger),
+        sa.Column('value_null_str', sa.Text, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.Integer, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.Text, nullable=False, default=''),
+        extend_existing=True
+    )
+    # schema table used to generate table in the database with binary column types
+    schema_table = sa.Table(
+        'test_type_aware_decryption_with_error', metadata,
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.LargeBinary),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.LargeBinary),
+        sa.Column('value_int64', sa.LargeBinary),
+        sa.Column('value_null_str', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
+        extend_existing=True
+    )
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+
+    # switch off raw mode to be able to convert result rows to python types
+    RAW_EXECUTOR = False
+
+    def checkSkip(self):
+        if not (TEST_MYSQL and TEST_WITH_TLS):
+            self.skipTest("Test only for MySQL with TLS")
+
+    def testClientIDRead(self):
+        """test decrypting with correct clientID and not decrypting with
+        incorrect clientID or using direct connection to db
+        All result data should be valid for application. Not decrypted data should be returned as is and DB driver
+        should cause error
+
+        MySQL decoder should roll back FieldType as well.
+        """
+        data = {
+            'id': get_random_id(),
+            'value_str': random_str(),
+            'value_bytes': random_bytes(),
+            'value_int32': random_int32(),
+            'value_int64': random_int64(),
+            'value_null_str': None,
+            'value_null_int32': None,
+            'value_empty_str': ''
+        }
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        self.engine1.execute(self.test_table.insert(), data)
+        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_empty_str', 'value_null_str',
+                   'value_null_int32')
+
+        compile_kwargs = {"literal_binds": True}
+        query = sa.select([self.test_table]).where(self.test_table.c.id == data['id'])
+        query = str(query.compile(compile_kwargs=compile_kwargs))
+
+        row = self.executor1.execute(query)[0]
+        for column in columns:
+            self.assertEqual(data[column], row[column])
+            self.assertIsInstance(row[column], type(data[column]))
+
+        # we expect an exception because of decryption error
+        with self.assertRaises(mysql.connector.errors.DatabaseError) as ex:
+            self.executor2.execute(query)[0]
+
+        self.assertEqual('encoding error in column "value_str"', ex.exception.msg)
+        self.assertEqual(ex.exception.errno, MYSQL_ERR_QUERY_INTERRUPTED_CODE)
+
+class TestMySQLBinaryTypeAwareDecryptionWithError(TestMySQLTextTypeAwareDecryptionWithError):
+    def checkSkip(self):
+        if not (TEST_MYSQL and TEST_WITH_TLS):
+            self.skipTest("Test only for MySQL with TLS")
+
+    def testClientIDRead(self):
+        """test decrypting with correct clientID and not decrypting with
+        incorrect clientID or using direct connection to db
+        All result data should be valid for application. Not decrypted data should be returned as is and DB driver
+        should cause error
+
+        MySQL decoder should roll back FieldType as well.
+        """
+        data = {
+            'id': get_random_id(),
+            'value_str': random_str(),
+            'value_bytes': random_bytes(),
+            'value_int32': random_int32(),
+            'value_int64': random_int64(),
+            'value_null_str': None,
+            'value_null_int32': None,
+            'value_empty_str': ''
+        }
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        ######
+        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
+                   'value_empty_str')
+        query, args = self.compileQuery(self.test_table.insert(), data)
+        self.executor1.execute_prepared_statement_no_result(query, args)
+
+        query, args = self.compileQuery(
+            sa.select([self.test_table])
+                .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
+
+        # we expect an exception because of decryption error
+        with self.assertRaises(mysql.connector.errors.DatabaseError) as ex:
+            self.executor2.execute_prepared_statement(query, args)[0]
+
+        self.assertEqual('encoding error in column "value_str"', ex.exception.msg)
+        self.assertEqual(ex.exception.errno, MYSQL_ERR_QUERY_INTERRUPTED_CODE)
+
+
+class TestMySQLTextCharsetLiterals(TestMySQLTextTypeAwareDecryptionWithoutDefaults):
+    def testClientIDRead(self):
+        """
+        We don't directly support charset introducers[1], but at least make
+        sure it can handle _binary in paretheses.
+
+        [1]: https://dev.mysql.com/doc/refman/8.0/en/charset-introducer.html
+        """
+
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        id = get_random_id()
+        insert = self.test_table.insert().values(
+            id=id,
+            # Crafts `_binary 'binary_string'`
+            value_bytes=expression.UnaryExpression(
+                expression.literal('binary_string'),
+                operator=operators.custom_op('_binary'),
+                type_=sa.Text,
+            ),
+            value_empty_str='',
+        )
+        self.engine1.execute(insert)
+
+        columns = [self.test_table.c.id, self.test_table.c.value_bytes]
+
+        query = sa.select(columns).where(self.test_table.c.id == id)
+        query = str(query.compile(compile_kwargs={"literal_binds": True}))
+
+        row = self.executor1.execute(query)[0]
+        self.assertEqual(row['id'], id)
+        self.assertEqual(row['value_bytes'], b'binary_string')
+
+        # direct connection should receive binary data according to real scheme
+        result = self.engine_raw.execute(query)
+        row = result.fetchone()
+        self.assertNotEqual(row['value_bytes'], b'binary_string')
+
+    def testClientIDReadRawSql(self):
+        """
+        We don't directly support charset introducers[1], but at least make
+        sure it can handle _binary.
+
+        [1]: https://dev.mysql.com/doc/refman/8.0/en/charset-introducer.html
+        """
+
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        id = get_random_id()
+        # DON'T EVER, EVER DO THIS
+        # Do not use direct string interpolation for sql values
+        # This is just a test example.
+        #
+        # Also, insert value_empty_str because it can't be null
+        insert = f"""
+            INSERT INTO {self.test_table.name}(id, value_bytes, value_empty_str)
+            VALUES ({id}, _binary 'binary_string', '')
+        """
+        self.engine1.execute(insert)
+
+        columns = [self.test_table.c.id, self.test_table.c.value_bytes]
+
+        query = sa.select(columns).where(self.test_table.c.id == id)
+        query = str(query.compile(compile_kwargs={"literal_binds": True}))
+
+        row = self.executor1.execute(query)[0]
+        self.assertEqual(row['id'], id)
+        self.assertEqual(row['value_bytes'], b'binary_string')
+
+        # direct connection should receive encrypted data
+        result = self.engine_raw.execute(query)
+        row = result.fetchone()
+        self.assertNotEqual(row['value_bytes'], b'binary_string')
+
+
 class TestPostgresqlConnectWithTLSPrefer(BaseTestCase):
     def checkSkip(self):
         if TEST_WITH_TLS or not TEST_POSTGRESQL:
@@ -9441,6 +9811,332 @@ class TestPostgresqlConnectWithTLSPrefer(BaseTestCase):
 
         loop = asyncio.new_event_loop()  # create new to avoid concurrent usage of the loop in the current thread and allow parallel execution in the future
         loop.run_until_complete(_testPlainConnectionAfterDeny())
+
+
+class TestDbFlushingOnError(BaseTransparentEncryption):
+    encryptor_table = sa.Table(
+        'test_proper_db_flushing_on_error', sa.MetaData(),
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_bytes', sa.LargeBinary),
+    )
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+
+    def checkSkip(self):
+        if not TEST_WITH_TLS:
+            self.skipTest("Test only with TLS")
+
+    def testConnectionIsNotAborted(self):
+        """
+        Test that connection is not closed in case of "encoding error". Test
+        that we can reuse connection for queries after.
+        """
+
+        self.encryptor_table.create(bind=self.engine_raw, checkfirst=True)
+        # Insert data that will trigger decryption error
+        corrupted_data = {
+            'id': get_random_id(),
+            'value_bytes': random_bytes(),
+        }
+        self.engine_raw.execute(self.encryptor_table.insert(), corrupted_data)
+
+        with self.engine1.connect() as conn:
+            # Insert some data
+            data = {
+                'id': get_random_id(),
+                'value_bytes': random_bytes(),
+            }
+            conn.execute(self.encryptor_table.insert(), data)
+
+            query = sa \
+                .select([self.encryptor_table]) \
+                .where(self.encryptor_table.c.id == data['id'])
+            row = conn.execute(query).fetchone()
+            self.assertEqual(data['value_bytes'], row['value_bytes'])
+
+            # Expect "encoding error"
+            ids = (data['id'], corrupted_data['id'])
+            query = sa \
+                .select([self.encryptor_table]) \
+                .where(self.encryptor_table.c.id.in_(ids))
+
+            with self.assertRaisesRegex((OperationalError, DatabaseError),
+                                        'encoding error in column "value_bytes"'):
+                conn.execute(query).fetchall()
+
+            # Insert and select new data using the same connection to be sure
+            # it doesn't close or get out of sync
+            data = {
+                'id': get_random_id(),
+                'value_bytes': random_bytes(),
+            }
+            conn.execute(self.encryptor_table.insert(), data)
+
+            query = sa \
+                .select([self.encryptor_table]) \
+                .where(self.encryptor_table.c.id == data['id'])
+            row = conn.execute(query).fetchone()
+            self.assertEqual(data['value_bytes'], row['value_bytes'])
+
+    def testTransactionRollback(self):
+        """
+        Test that connection is not closed in case of "encoding error" and
+        sqlaclchemy can do rollback in transaction after that.
+        """
+
+        self.encryptor_table.create(bind=self.engine_raw, checkfirst=True)
+        # Insert data that will trigger decryption error
+        corrupted_data = {
+            'id': get_random_id(),
+            'value_bytes': random_bytes(),
+        }
+        self.engine_raw.execute(self.encryptor_table.insert(), corrupted_data)
+        data = {
+            'id': get_random_id(),
+            'value_bytes': random_bytes(),
+        }
+        select_data = sa \
+            .select([self.encryptor_table]) \
+            .where(self.encryptor_table.c.id == data['id'])
+
+        with self.assertRaisesRegex((OperationalError, DatabaseError),
+                                    'encoding error in column "value_bytes"'):
+            with self.engine1.begin() as conn:
+                conn.execute(self.encryptor_table.insert(), data)
+
+                row = conn.execute(select_data).fetchone()
+                self.assertEqual(data['value_bytes'], row['value_bytes'])
+
+                # Expect "encoding error"
+                ids = (data['id'], corrupted_data['id'])
+                query = sa \
+                    .select([self.encryptor_table]) \
+                    .where(self.encryptor_table.c.id.in_(ids))
+
+                conn.execute(query).fetchall()
+
+        # Most db-drivers do a rollback after an exception, so check
+        # that our data is not saved due to the rollback.
+        row = self.engine1.execute(select_data).fetchone()
+        self.assertEqual(row, None)
+
+
+class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
+    encryptor_table = sa.Table(
+        'test_proper_db_flushing_on_error', sa.MetaData(),
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_bytes', sa.LargeBinary),
+    )
+    ENCRYPTOR_CONFIG = get_encryptor_config(
+        'tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+
+    def checkSkip(self):
+        if not (TEST_POSTGRESQL and TEST_WITH_TLS):
+            self.skipTest("Test only for Postgres with TLS")
+
+    def setUp(self):
+        super().setUp()
+
+        def executor_with_ssl(ssl_key, ssl_cert, port=self.ACRASERVER_PORT):
+            args = ConnectionArgs(
+                host=get_db_host(), port=port, dbname=DB_NAME,
+                user=DB_USER, password=DB_USER_PASSWORD,
+                ssl_ca=TEST_TLS_CA,
+                ssl_key=ssl_key,
+                ssl_cert=ssl_cert,
+                format=AsyncpgExecutor.BinaryFormat,
+                raw=True,
+            )
+            return AsyncpgExecutor(args)
+
+        self.executor = executor_with_ssl(
+            TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
+
+
+    def testPreparedStatementIsNotAborted(self):
+        """
+        Test that connection is not closed in case of "encoding error" when we 
+        use prepared statements.
+        """
+        async def test():
+            self.encryptor_table.create(bind=self.engine_raw, checkfirst=True)
+            # Insert data that will trigger decryption error
+            corrupted_data = {
+                'id': get_random_id(),
+                'value_bytes': random_bytes(),
+            }
+            self.engine_raw.execute(
+                self.encryptor_table.insert(), corrupted_data)
+
+            conn = await self.executor.connect()
+            data = {
+                'id': get_random_id(),
+                'value_bytes': random_bytes(),
+            }
+            insert_query = """
+                INSERT INTO test_proper_db_flushing_on_error(id, value_bytes)
+                VALUES ($1, $2)
+            """
+            select_query = """
+                SELECT value_bytes
+                FROM test_proper_db_flushing_on_error
+                WHERE id = $1
+            """
+
+            await conn.execute(insert_query, data['id'], data['value_bytes'])
+            
+            row = await conn.fetchrow(select_query, data['id'])
+            self.assertEqual(data['value_bytes'], row['value_bytes'])
+
+            # Expect "encoding error"
+            select_two_query = """
+                SELECT value_bytes
+                FROM test_proper_db_flushing_on_error
+                WHERE id = $1 OR id = $2
+            """
+
+            stmt = await conn.prepare(select_two_query)
+
+            with self.assertRaisesRegex(asyncpg.exceptions.SyntaxOrAccessError,
+                                        'encoding error in column "value_bytes"'):
+                await stmt.fetch(corrupted_data['id'], data['id'])
+
+            # Insert and select new data using the same connection to be sure
+            # it doesn't close or get out of sync
+            data = {
+                'id': get_random_id(),
+                'value_bytes': random_bytes(),
+            }
+            await conn.execute(insert_query, data['id'], data['value_bytes'])
+            row = await conn.fetchrow(select_query, data['id'])
+            self.assertEqual(data['value_bytes'], row['value_bytes'])
+
+        loop = asyncio.new_event_loop()
+        loop.run_until_complete(test())
+
+    def testTransactionPreparedRollback(self):
+        """
+        Test that connection is not closed in case of "encoding error" with
+        prepared statement and a driver can do rollback in transaction after
+        that.
+        """
+        async def test():
+            self.encryptor_table.create(bind=self.engine_raw, checkfirst=True)
+            # Insert data that will trigger decryption error
+            corrupted_data = {
+                'id': get_random_id(),
+                'value_bytes': random_bytes(),
+            }
+            self.engine_raw.execute(
+                self.encryptor_table.insert(), corrupted_data)
+            data = {
+                'id': get_random_id(),
+                'value_bytes': random_bytes(),
+            }
+
+            conn = await self.executor.connect()
+
+            insert_query = """
+                INSERT INTO test_proper_db_flushing_on_error(id, value_bytes)
+                VALUES ($1, $2)
+            """
+            select_query = """
+                SELECT value_bytes
+                FROM test_proper_db_flushing_on_error
+                WHERE id = $1
+            """
+
+            with self.assertRaisesRegex(asyncpg.exceptions.SyntaxOrAccessError,
+                                        'encoding error in column "value_bytes"'):
+                async with conn.transaction():
+                    await conn.execute(insert_query, data['id'], data['value_bytes'])
+
+                    row = await conn.fetchrow(select_query, data['id'])
+                    self.assertEqual(data['value_bytes'], row['value_bytes'])
+
+                    stmt = await conn.prepare(select_query)
+                    # Expect encoding error
+                    await stmt.fetch(corrupted_data['id'])
+
+            # Most db-drivers do a rollback after an exception, so check
+            # that our data is not saved due to the rollback.
+            row = await conn.fetchrow(select_query, data['id'])
+            self.assertEqual(row, None)
+
+        loop = asyncio.new_event_loop()
+        loop.run_until_complete(test())
+
+    def testPreparedCursor(self):
+        """
+        Test that connection is not closed in case of "encoding error" with
+        cursor that fetches `n` rows at a time and then flushes the
+        `PortalSuspended` awaiting the client response.
+        """
+        async def test():
+            self.encryptor_table.create(bind=self.engine_raw, checkfirst=True)
+            # Insert data that will trigger decryption error
+            corrupted_data = {
+                'id': get_random_id(),
+                'value_bytes': random_bytes(),
+            }
+            self.engine_raw.execute(
+                self.encryptor_table.insert(), corrupted_data)
+            data = {
+                'id': get_random_id(),
+                'value_bytes': random_bytes(),
+            }
+
+            conn = await self.executor.connect()
+
+            insert_query = """
+                INSERT INTO test_proper_db_flushing_on_error(id, value_bytes)
+                VALUES ($1, $2)
+            """
+            select_query = """
+                SELECT value_bytes
+                FROM test_proper_db_flushing_on_error
+                WHERE id = $1
+            """
+
+            with self.assertRaisesRegex(asyncpg.exceptions.SyntaxOrAccessError,
+                                        'encoding error in column "value_bytes"'):
+                async with conn.transaction():
+                    await conn.execute(insert_query, data['id'], data['value_bytes'])
+                    row = await conn.fetchrow(select_query, data['id'])
+                    self.assertEqual(data['value_bytes'], row['value_bytes'])
+
+                    # Also insert a bunch of random values
+                    for _ in range(10):
+                        tmp_data = {
+                            'id': get_random_id(),
+                            'value_bytes': random_bytes(),
+                        }
+                        await conn.execute(insert_query, tmp_data['id'], tmp_data['value_bytes'])
+
+                    stmt = await conn.prepare("""
+                        SELECT id, value_bytes
+                        FROM test_proper_db_flushing_on_error
+                        ORDER BY random()
+                    """)
+
+                    # Expect encoding error
+                    cursor = await stmt.cursor()
+                    while True:
+                        rows = await cursor.fetch(2)
+                        if len(rows) == 0:
+                            break
+
+            row = await conn.fetchrow(select_query, data['id'])
+            self.assertEqual(row, None)
+
+        loop = asyncio.new_event_loop()
+        loop.run_until_complete(test())
+
+
+class TestPostgresqlTypeAwareDecryptionWithDefaultsPsycopg3(Psycopg3ExecutorMixin,
+                                                            TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults):
+    # Psycopg3 includes a type of parameters in a parse string, which is optional
+    # and therefore most of the frontends doesn't do that. So, test also with it.
+    pass
 
 
 class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTestCase):

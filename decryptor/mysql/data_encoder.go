@@ -3,11 +3,11 @@ package mysql
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/binary"
 	"errors"
-	"github.com/cossacklabs/acra/utils"
 	"strconv"
+
+	"github.com/cossacklabs/acra/utils"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
@@ -19,6 +19,8 @@ import (
 
 // ErrConvertToDataType error that indicates if data type conversion was failed
 var ErrConvertToDataType = errors.New("error on converting to data type")
+
+var valueFactory base.EncodingValueFactory = &mysqlValueFactory{}
 
 // BaseMySQLDataProcessor implements processor and encode/decode binary intX values to text format which acceptable by Tokenizer
 type BaseMySQLDataProcessor struct{}
@@ -72,14 +74,14 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 		return ctx, PutLengthEncodedString(data), nil
 	}
 
-	dataTypeEncoded, isEncoded, err := p.encodeBinaryWithDataType(ctx, data, setting)
+	encodingValue, err := p.encodeValueWithDataType(ctx, data, setting, logger)
 	if err != nil && err != ErrConvertToDataType {
 		return nil, nil, err
 	}
 
 	// in case of successful encoding with defined data type return encoded data
-	if isEncoded {
-		return ctx, dataTypeEncoded, nil
+	if encodingValue != nil {
+		return ctx, encodingValue.AsBinary(), nil
 	}
 
 	var columnType = columnInfo.DataBinaryType()
@@ -156,102 +158,43 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 	return ctx, PutLengthEncodedString(data), nil
 }
 
-func (p *BaseMySQLDataProcessor) encodeBinaryWithDataType(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting) ([]byte, bool, error) {
-	switch setting.GetEncryptedDataType() {
-	case common.EncryptedType_Bytes:
+func (p *BaseMySQLDataProcessor) encodeValueWithDataType(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, logger *logrus.Entry) (base.EncodingValue, error) {
+	dataType := setting.GetEncryptedDataType()
+	switch dataType {
+	case common.EncryptedType_String, common.EncryptedType_Bytes:
 		if !base.IsDecryptedFromContext(ctx) {
-			if newValue := setting.GetDefaultDataValue(); newValue != nil {
-				binValue, err := base64.StdEncoding.DecodeString(*newValue)
-				if err != nil {
-					return data, false, err
-				}
-				return PutLengthEncodedString(binValue), true, nil
+			value, err := base.EncodeOnFail(setting, &mysqlValueFactory{}, logger)
+			if err != nil {
+				return nil, err
+			} else if value != nil {
+				return value, nil
 			}
-			return data, false, ErrConvertToDataType
+			return nil, ErrConvertToDataType
 		}
-		return data, false, nil
-	case common.EncryptedType_String:
-		if !base.IsDecryptedFromContext(ctx) {
-			if value := setting.GetDefaultDataValue(); value != nil {
-				return PutLengthEncodedString([]byte(*value)), true, nil
-			}
-			return data, false, ErrConvertToDataType
-		}
-		return data, false, nil
-	case common.EncryptedType_Int32:
-		encoded := make([]byte, 4)
-		intValue, err := strconv.ParseInt(utils.BytesToString(data), 10, 32)
-		if err != nil {
-			if newVal := setting.GetDefaultDataValue(); newVal != nil {
-				intValue, err = strconv.ParseInt(*newVal, 10, 32)
-				if err != nil {
-					return data, false, ErrConvertToDataType
-				}
-			} else {
-				return data, false, ErrConvertToDataType
-			}
-		}
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int32(intValue))
-		return encoded, true, err
-
-	case common.EncryptedType_Int64:
-		encoded := make([]byte, 8)
-		intValue, err := strconv.ParseInt(utils.BytesToString(data), 10, 64)
-		if err != nil {
-			if newVal := setting.GetDefaultDataValue(); newVal != nil {
-				intValue, err = strconv.ParseInt(*newVal, 10, 64)
-				if err != nil {
-					return data, false, ErrConvertToDataType
-				}
-			} else {
-				return data, false, ErrConvertToDataType
-			}
-		}
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, intValue)
-		return encoded, true, err
-	}
-
-	return data, false, nil
-}
-
-func (p *BaseMySQLDataProcessor) encodeTextWithDataType(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting) ([]byte, bool, error) {
-	switch setting.GetEncryptedDataType() {
-	case common.EncryptedType_String:
-		if !base.IsDecryptedFromContext(ctx) {
-			if value := setting.GetDefaultDataValue(); value != nil {
-				return PutLengthEncodedString([]byte(*value)), true, nil
-			}
-			return data, false, ErrConvertToDataType
-		}
-		return data, false, nil
-	case common.EncryptedType_Bytes:
-		if !base.IsDecryptedFromContext(ctx) {
-			if newValue := setting.GetDefaultDataValue(); newValue != nil {
-				binValue, err := base64.StdEncoding.DecodeString(*newValue)
-				if err != nil {
-					return nil, false, err
-				}
-				return PutLengthEncodedString(binValue), true, nil
-			}
-			return data, false, ErrConvertToDataType
-		}
-		return data, false, nil
+		return nil, nil
 	case common.EncryptedType_Int32, common.EncryptedType_Int64:
-		_, err := strconv.ParseInt(utils.BytesToString(data), 10, 64)
+		strValue := utils.BytesToString(data)
+		intValue, err := strconv.ParseInt(strValue, 10, 64)
 		// if it's valid string literal and decrypted, return as is
 		if err == nil {
-			return PutLengthEncodedString(data), true, nil
+			if dataType == common.EncryptedType_Int32 {
+				return valueFactory.NewInt32Value(int32(intValue), data), nil
+			}
+			return valueFactory.NewInt64Value(intValue, data), nil
 		}
 		// if it's encrypted binary, then it is binary array that is invalid int literal
 		if !base.IsDecryptedFromContext(ctx) {
-			if newVal := setting.GetDefaultDataValue(); newVal != nil {
-				return PutLengthEncodedString([]byte(*newVal)), true, nil
+			value, err := base.EncodeOnFail(setting, valueFactory, logger)
+			if err != nil {
+				return nil, err
+			} else if value != nil {
+				return value, nil
 			}
-			return data, false, ErrConvertToDataType
+			return nil, ErrConvertToDataType
 		}
 	}
 
-	return data, false, nil
+	return nil, nil
 }
 
 func (p *BaseMySQLDataProcessor) encodeText(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
@@ -262,14 +205,14 @@ func (p *BaseMySQLDataProcessor) encodeText(ctx context.Context, data []byte, se
 		return ctx, PutLengthEncodedString(data), nil
 	}
 
-	dataTypeEncoded, isEncoded, err := p.encodeTextWithDataType(ctx, data, setting)
+	encodingValue, err := p.encodeValueWithDataType(ctx, data, setting, logger)
 	if err != nil && err != ErrConvertToDataType {
 		return nil, nil, err
 	}
 
 	// in case of successful encoding with defined data type return encoded data
-	if isEncoded {
-		return ctx, dataTypeEncoded, nil
+	if encodingValue != nil {
+		return ctx, encodingValue.AsText(), nil
 	}
 
 	// in case of error on converting to defined type we should roll back field type and encode it as it was originally
@@ -382,4 +325,88 @@ func (p *DataDecoderProcessor) OnColumn(ctx context.Context, data []byte) (conte
 		return p.decodeBinary(ctx, data, columnSetting, columnInfo, logger)
 	}
 	return ctx, data, nil
+}
+
+// bytesValue is an EncodingValue that represents byte array
+type bytesValue struct {
+	bytes []byte
+}
+
+// AsBinary returns value encoded in mysql binary format
+// For a byte sequence value this is the same as text encoding
+func (v *bytesValue) AsBinary() []byte {
+	return v.AsText()
+}
+
+// AsText returns value encoded in mysql text format
+// For a byte sequence value this is a length encoded string
+func (v *bytesValue) AsText() []byte {
+	return PutLengthEncodedString(v.bytes)
+}
+
+// intValue represents a {size*8}-bit integer ready for encoding
+type intValue struct {
+	size     int
+	intValue int64
+	strValue []byte
+}
+
+// AsBinary returns value encoded in mysql binary format
+// For an int value it is a little endian encoded integer
+func (v *intValue) AsBinary() []byte {
+	newData := make([]byte, v.size)
+	switch v.size {
+	case 4:
+		binary.LittleEndian.PutUint32(newData, uint32(v.intValue))
+	case 8:
+		binary.LittleEndian.PutUint64(newData, uint64(v.intValue))
+	}
+	return newData
+}
+
+// AsText returns value encoded in mysql text format
+// For an int this is a length encoded string of that integer
+func (v *intValue) AsText() []byte {
+	return PutLengthEncodedString(v.strValue)
+}
+
+// stringValue is an EncodingValue that encodes data into string format
+type stringValue struct {
+	data []byte
+}
+
+// AsBinary returns value encoded in mysql binary format
+// In other words, it encodes data into length encoded string
+func (v *stringValue) AsBinary() []byte {
+	return PutLengthEncodedString(v.data)
+}
+
+// AsText returns value encoded in mysql text format
+// In other words, it encodes data into length encoded string
+func (v *stringValue) AsText() []byte {
+	return PutLengthEncodedString(v.data)
+}
+
+// mysqlValueFactory is a factory that produces values that can encode into
+// mysql format
+type mysqlValueFactory struct{}
+
+// NewStringValue creates a value that encodes as a str
+func (*mysqlValueFactory) NewStringValue(str []byte) base.EncodingValue {
+	return &stringValue{data: str}
+}
+
+// NewBytesValue creates a value that encodes as bytes
+func (*mysqlValueFactory) NewBytesValue(bytes []byte) base.EncodingValue {
+	return &bytesValue{bytes}
+}
+
+// NewInt32Value creates a value that encodes as int32
+func (*mysqlValueFactory) NewInt32Value(intVal int32, strVal []byte) base.EncodingValue {
+	return &intValue{size: 4, intValue: int64(intVal), strValue: strVal}
+}
+
+// NewInt64Value creates a value that encodes as int64
+func (*mysqlValueFactory) NewInt64Value(intVal int64, strVal []byte) base.EncodingValue {
+	return &intValue{size: 8, intValue: intVal, strValue: strVal}
 }
