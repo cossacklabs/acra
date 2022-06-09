@@ -92,7 +92,7 @@ func TestGeneralQueryParser_Parse(t *testing.T) {
 
 	configStr := fmt.Sprintf(`
 schemas:
-  - table: TableWithColumnSchema
+  - table: tablewithcolumnschema
     columns: ["other_column", "default_client_id", "specified_client_id", "zone_id"]
     encrypted: 
       - column: "default_client_id"
@@ -101,7 +101,7 @@ schemas:
       - column: zone_id
         zone_id: %s
 
-  - table: TableWithoutColumnSchema
+  - table: tablewithoutcolumnschema
     encrypted: 
       - column: "default_client_id"
       - column: specified_client_id
@@ -382,7 +382,7 @@ schemas:
 
 		// 27. insert with data as simple string for postgresql
 		{
-			Query:             `INSERT INTO "TableWithoutColumnSchema" ("zone_id", "specified_client_id", "other_column", "default_client_id") VALUES ('%s', '%s', 1, '%s')`,
+			Query:             `INSERT INTO "tablewithoutcolumnschema" ("zone_id", "specified_client_id", "other_column", "default_client_id") VALUES ('%s', '%s', 1, '%s')`,
 			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData},
 			ExpectedQueryData: []interface{}{encryptedValue, encryptedValue, encryptedValue},
 			Normalized:        true,
@@ -393,7 +393,7 @@ schemas:
 		},
 		// 28. update with data as simple string for postgresql
 		{
-			Query:             `UPDATE "TableWithoutColumnSchema" as "t" set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
+			Query:             `UPDATE "tablewithoutcolumnschema" as "t" set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
 			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
 			ExpectedQueryData: []interface{}{simpleStringData, encryptedValue, encryptedValue, encryptedValue},
 			Normalized:        true,
