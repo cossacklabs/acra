@@ -16,6 +16,7 @@
 
 package config
 
+// DatabaseConfig stores different database-specific configuration options
 type DatabaseConfig interface {
 	GetMySQLCaseSensitiveTableID() bool
 }

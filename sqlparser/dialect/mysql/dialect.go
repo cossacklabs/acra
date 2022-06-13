@@ -13,6 +13,7 @@ func (dialect *MySQLDialect) IsModeANSIOn() bool {
 	return dialect.ansiMode
 }
 
+// IsCaseSensitiveTableName return true if case sensitivity is enabled for table identifiers
 func (dialect *MySQLDialect) IsCaseSensitiveTableName() bool {
 	return dialect.caseSensitiveTableName
 }
@@ -34,14 +35,17 @@ func NewMySQLDialect(options ...DialectOption) *MySQLDialect {
 	return mysqlDialect
 }
 
+// DialectOption is used to enable different options in dialect and thus tune SQL parser behavior
 type DialectOption func(dialect *MySQLDialect)
 
+// SetANSIMode allows to enable ANSI mode
 func SetANSIMode(ansiMode bool) DialectOption {
 	return func(dialect *MySQLDialect) {
 		dialect.ansiMode = ansiMode
 	}
 }
 
+// SetTableNameCaseSensitivity allows to enable case sensitivity for table identifiers
 func SetTableNameCaseSensitivity(sensitivity bool) DialectOption {
 	return func(dialect *MySQLDialect) {
 		dialect.caseSensitiveTableName = sensitivity

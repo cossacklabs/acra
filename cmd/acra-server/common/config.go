@@ -260,12 +260,13 @@ func (config *Config) SetStopOnPoison(stop bool) {
 	config.stopOnPoison = stop
 }
 
+// GetSQLDialect returns MySQL or PostgreSQL dialect depending on the configuration.
 func (config *Config) GetSQLDialect() dialect.Dialect {
 	if config.mysql {
 		caseSensitiveTableName := config.GetTableSchema().GetDatabaseConfig().GetMySQLCaseSensitiveTableID()
 		caseSensitiveTableNameOption := mysqlDialect.SetTableNameCaseSensitivity(caseSensitiveTableName)
 		return mysqlDialect.NewMySQLDialect(caseSensitiveTableNameOption)
-	} else {
-		return pgDialect.NewPostgreSQLDialect()
 	}
+
+	return pgDialect.NewPostgreSQLDialect()
 }

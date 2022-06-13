@@ -21,4 +21,5 @@ func NewPostgreSQLDialect(options ...DialectOption) *PostgreSQLDialect {
 	return pgDialect
 }
 
+// DialectOption is used to enable different options in dialect and thus tune SQL parser behavior
 type DialectOption func(dialect *PostgreSQLDialect)
