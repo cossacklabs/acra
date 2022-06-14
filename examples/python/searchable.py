@@ -59,7 +59,7 @@ def fetch_data(connection, columns, search_name, search_email,
         query = query.where(table.c.searchable_name == search_name)
 
     compiled = query.compile(dialect=postgresql.dialect(),
-                             compile_kwargs={'literal_bind': True})
+                             compile_kwargs={'literal_binds': True})
     print(f'Fetch data by query {compiled}')
     rows = connection.execute(query).fetchall()
     column_names = [str(column.name) for column in table_columns]
