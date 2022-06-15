@@ -517,6 +517,51 @@ schemas:
 			DataCoder:         &PostgresqlDBDataCoder{},
 			dialect:           postgresql.NewPostgreSQLDialect(),
 		},
+
+		// 37. different case table identifiers, postgresql
+		// should match, lowercase config identifier == lowercase SQL identifier
+		{
+			Query:             `UPDATE lowercasetable set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
+			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
+			ExpectedQueryData: []interface{}{simpleStringData, encryptedValue, encryptedValue, encryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
+			dialect:           mysql.NewMySQLDialect(mysql.SetTableNameCaseSensitivity(true)),
+		},
+		// 38. different case table identifiers, postgresql
+		// should NOT match, lowercase config identifier == uppercase SQL identifier
+		{
+			Query:             `UPDATE LOWERCASETABLE set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
+			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
+			ExpectedQueryData: []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
+			Normalized:        false,
+			Changed:           false,
+			ExpectedIDS:       [][]byte{},
+			dialect:           mysql.NewMySQLDialect(mysql.SetTableNameCaseSensitivity(true)),
+		},
+		// 39. different case table identifiers, postgresql
+		// should NOT match, uppercase config identifier != lowercase SQL identifier
+		{
+			Query:             `UPDATE uppercasetable set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
+			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
+			ExpectedQueryData: []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
+			Normalized:        false,
+			Changed:           false,
+			ExpectedIDS:       [][]byte{},
+			dialect:           mysql.NewMySQLDialect(mysql.SetTableNameCaseSensitivity(true)),
+		},
+		// 40. different case table identifiers, postgresql
+		// should match, uppercase config identifier == uppercase SQL identifier
+		{
+			Query:             `UPDATE UPPERCASETABLE set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
+			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
+			ExpectedQueryData: []interface{}{simpleStringData, encryptedValue, encryptedValue, encryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
+			dialect:           mysql.NewMySQLDialect(mysql.SetTableNameCaseSensitivity(true)),
+		},
 	}
 	encryptor := &testEncryptor{value: encryptedValue}
 	parser := sqlparser.New(sqlparser.ModeStrict)
