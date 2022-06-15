@@ -1,3 +1,6 @@
+# 0.93.0 - 2022-06-15
+- Add searchable encryption demo
+
 # 0.93.0 - 2022-05-23
 - Add support for mysql `_binary` charset.
 - Handle properly null values in MySQL
