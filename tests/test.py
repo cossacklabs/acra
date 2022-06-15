@@ -10139,7 +10139,9 @@ class TestPostgresqlTypeAwareDecryptionWithDefaultsPsycopg3(Psycopg3ExecutorMixi
     pass
 
 
-class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTestCase):
+class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTransparentEncryption):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_config.yaml')
+
     def checkSkip(self):
         if not TEST_WITH_TLS or not TEST_POSTGRESQL:
             self.skipTest("this test is only for PostgreSQL")
@@ -10215,7 +10217,9 @@ class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTestCase):
         self.runTestCase("UPPERCASE_TABLE", True, True)
 
 
-class TestDifferentCaseTableIdentifiersMySQL(BaseTestCase):
+class TestDifferentCaseTableIdentifiersMySQL(BaseTransparentEncryption):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_config.yaml')
+
     def checkSkip(self):
         if not TEST_WITH_TLS or not (TEST_MYSQL or TEST_MARIADB):
             self.skipTest("this test is only for MySQL/MariaDB")
