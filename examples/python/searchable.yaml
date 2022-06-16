@@ -1,0 +1,15 @@
+defaults:
+  crypto_envelope: acrablock
+
+schemas:
+  - table: test
+    columns:
+      - id
+      - searchable_name
+      - searchable_email
+    encrypted:
+      - column: searchable_name
+        searchable: true
+
+      - column: searchable_email
+        searchable: true
