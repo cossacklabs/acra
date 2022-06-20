@@ -166,8 +166,11 @@ type APICore struct {
 func NewAcraAPIServer(ctx context.Context, server *SServer) AcraAPIServer {
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
-	// TODO(G1gg1L3s): use custom recovery to display custom messages
-	engine.Use(loggerMiddleware(apiConnectionType), gin.Recovery())
+	engine.
+		Use(loggerMiddleware(apiConnectionType)).
+		// explicitly set writer to nil, so the stack frame is not printed
+		Use(gin.CustomRecoveryWithWriter(nil, recoveryHandler()))
+
 	engine.HandleMethodNotAllowed = true
 
 	api := NewAPICore(ctx, server)
@@ -312,4 +315,18 @@ func ginGetLogger(ctx *gin.Context) *log.Entry {
 		return logger.(*log.Entry)
 	}
 	panic("logger must be configured")
+}
+
+// recoveryHandler returns RecoveryFunc that logs the panic error and aborts
+// the connection with 500 Internval Server Error
+func recoveryHandler() gin.RecoveryFunc {
+	return func(ctx *gin.Context, err interface{}) {
+		logger := ginGetLogger(ctx)
+		logger.
+			WithField("error", err).
+			WithField("connection_type", "http_api").
+			Errorln("Panic in connection processing, close connection")
+
+		ctx.AbortWithStatus(http.StatusInternalServerError)
+	}
 }
