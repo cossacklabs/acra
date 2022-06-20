@@ -10160,20 +10160,28 @@ class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTransparentEncryption):
         self.engine1.execute(f"DROP TABLE \"UPPERCASE_TABLE\";")
         super().tearDown()
 
-    def runTestCase(self, table_name: str, quoted: bool, should_match: bool):
+    def runTestCase(self,
+                    table_name: str,
+                    quoted_table_name: bool,
+                    column_name: str,
+                    quoted_column_name: bool,
+                    should_match: bool):
         test_string = "test"
 
-        if quoted:
+        if quoted_table_name:
             table_name = '"' + table_name + '"'
+
+        if quoted_column_name:
+            column_name = '"' + column_name + '"'
 
         # generate random id
         id = get_random_id()
 
         # insert a record
-        self.engine1.execute(f"INSERT INTO {table_name} (id, data) VALUES ({id}, '{test_string}');")
+        self.engine1.execute(f"INSERT INTO {table_name} (id, {column_name}) VALUES ({id}, '{test_string}');")
 
         # fetch a record
-        result = self.engine2.execute(f"SELECT data FROM {table_name} WHERE id={id};")
+        result = self.engine2.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
         row = result.fetchone()
 
         # ensure it is encrypted (if should_match) or ensure it's not encrypted (if not should_match)
@@ -10186,35 +10194,35 @@ class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTransparentEncryption):
 
     def testLowerConfigLowerQuery(self):
         # should match, lowercase config identifier == lowercase SQL identifier
-        self.runTestCase("lowercase_table", False, True)
+        self.runTestCase("lowercase_table", False, "data", False, True)
 
     def testLowerConfigLowerQuotedQuery(self):
         # should match, lowercase config identifier == lowercase SQL identifier
-        self.runTestCase("lowercase_table", True, True)
+        self.runTestCase("lowercase_table", True, "data", False, True)
 
     def testLowerConfigUpperQuery(self):
         # should match, lowercase config identifier == lowercase SQL identifier (converted)
-        self.runTestCase("LOWERCASE_TABLE", False, True)
+        self.runTestCase("LOWERCASE_TABLE", False, "data", False, True)
 
     def testLowerConfigUpperQuotedQuery(self):
         # should NOT match, lowercase config identifier != uppercase SQL identifier
-        self.runTestCase("LOWERCASE_TABLE", True, False)
+        self.runTestCase("LOWERCASE_TABLE", True, "data", False, False)
 
     def testUpperConfigLowerQuery(self):
         # should NOT match, uppercase config identifier != lowercase SQL identifier
-        self.runTestCase("uppercase_table", False, False)
+        self.runTestCase("uppercase_table", False, "data", False, False)
 
     def testUpperConfigLowerQuotedQuery(self):
         # should NOT match, uppercase config identifier != lowercase SQL identifier
-        self.runTestCase("uppercase_table", True, False)
+        self.runTestCase("uppercase_table", True, "data", False, False)
 
     def testUpperConfigUpperQuery(self):
         # should NOT match, uppercase config identifier != lowercase SQL identifier (converted)
-        self.runTestCase("UPPERCASE_TABLE", False, False)
+        self.runTestCase("UPPERCASE_TABLE", False, "data", False, False)
 
     def testUpperConfigUpperQuotedQuery(self):
         # should match, uppercase config identifier == uppercase SQL identifier
-        self.runTestCase("UPPERCASE_TABLE", True, True)
+        self.runTestCase("UPPERCASE_TABLE", True, "data", False, True)
 
 
 class TestDifferentCaseTableIdentifiersMySQL(BaseTransparentEncryption):
