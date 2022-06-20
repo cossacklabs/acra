@@ -253,8 +253,16 @@ func (api *APICore) getNewZoneGin(ctx *gin.Context) {
 	})
 }
 
+func (api *APICore) resetKeyStorage() {
+	keystore := api.server.config.GetKeyStore()
+	keystore.Reset()
+}
+
 func (api *APICore) resetKeyStorageGin(ctx *gin.Context) {
-	ctx.String(200, "TODO")
+	logger := logging.NewLoggerWithTrace(api.ctx)
+	api.resetKeyStorage()
+	logger.Debugln("Cleared key storage cache")
+	ctx.String(http.StatusOK, "")
 }
 
 func respondeWithError(ctx *gin.Context) {
