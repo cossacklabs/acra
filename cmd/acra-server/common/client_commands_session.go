@@ -38,7 +38,8 @@ import (
 
 // HTTP 500 response
 const (
-	Response500Error = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+	Response500Error    = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+	errorRequestMessage = "incorrect request"
 )
 
 // ClientCommandsSession handles Secure Session for client commands API
@@ -211,6 +212,7 @@ func NewAPICore(ctx context.Context, server *SServer) APICore {
 func (api *APICore) InitEngine(engine *gin.Engine) {
 	engine.GET("/getNewZone", api.getNewZoneGin)
 	engine.GET("/resetKeyStorage", api.resetKeyStorageGin)
+	engine.NoRoute(respondWithError)
 }
 
 func (api *APICore) getNewZone() (id []byte, publicKey []byte, err error) {
@@ -235,7 +237,7 @@ func (api *APICore) getNewZoneGin(ctx *gin.Context) {
 			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantGenerateZone).
 			Errorln("Can't generate zone key")
 
-		respondeWithError(ctx)
+		respondWithError(ctx)
 		return
 	}
 	zoneData, err := zone.DataToJSON(id, &keys.PublicKey{Value: pub})
@@ -243,7 +245,7 @@ func (api *APICore) getNewZoneGin(ctx *gin.Context) {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantGenerateZone).
 			WithError(err).
 			Errorln("Can't create json with zone key")
-		respondeWithError(ctx)
+		respondWithError(ctx)
 		return
 	}
 	logger.Debugln("Handled request correctly")
@@ -265,6 +267,6 @@ func (api *APICore) resetKeyStorageGin(ctx *gin.Context) {
 	ctx.String(http.StatusOK, "")
 }
 
-func respondeWithError(ctx *gin.Context) {
-	ctx.String(http.StatusNotFound, "incorrect request")
+func respondWithError(ctx *gin.Context) {
+	ctx.String(http.StatusNotFound, errorRequestMessage)
 }
