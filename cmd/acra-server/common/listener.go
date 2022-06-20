@@ -480,7 +480,7 @@ func (server *SServer) StartCommandsGin(ctx context.Context, listener net.Listen
 	go func() {
 		defer server.backgroundWorkersSync.Done()
 		server.addListener(listener)
-		apiServer := NewAcraAPIServer(server)
+		apiServer := NewAcraAPIServer(ctx, server)
 		if err := apiServer.Start(listener); err != nil {
 			// TODO: what status code to use?
 			log.WithError(err).Errorln("Handling HTTP API requests")

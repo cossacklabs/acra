@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/cossacklabs/acra/keystore"
@@ -40,6 +41,8 @@ import (
 const (
 	Response500Error    = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
 	errorRequestMessage = "incorrect request"
+	// Key name for the logger in the gin.Context
+	loggerKey = "logger"
 )
 
 // ClientCommandsSession handles Secure Session for client commands API
@@ -160,17 +163,18 @@ type APICore struct {
 }
 
 // NewAcraAPIServer creates new AcraAPIServer
-func NewAcraAPIServer(server *SServer) AcraAPIServer {
+func NewAcraAPIServer(ctx context.Context, server *SServer) AcraAPIServer {
 	gin.SetMode(gin.ReleaseMode)
-	// TODO: change to gin.New and configure logger
-	engine := gin.Default()
+	engine := gin.New()
+	// TODO(G1gg1L3s): use custom recovery to display custom messages
+	engine.Use(loggerMiddleware(apiConnectionType), gin.Recovery())
 	engine.HandleMethodNotAllowed = true
 
-	api := NewAPICore(context.Background(), server)
+	api := NewAPICore(ctx, server)
 	api.InitEngine(engine)
 
 	apiServer := AcraAPIServer{
-		ctx:        context.Background(),
+		ctx:        ctx,
 		api:        api,
 		engine:     engine,
 		httpServer: nil,
@@ -228,8 +232,7 @@ func (api *APICore) getNewZone() (id []byte, publicKey []byte, err error) {
 }
 
 func (api *APICore) getNewZoneGin(ctx *gin.Context) {
-	// TODO(G1gg1L3s): initialize logger in the context
-	logger := logging.NewLoggerWithTrace(api.ctx)
+	logger := ginGetLogger(ctx)
 
 	id, pub, err := api.getNewZone()
 	if err != nil {
@@ -248,7 +251,6 @@ func (api *APICore) getNewZoneGin(ctx *gin.Context) {
 		respondWithError(ctx)
 		return
 	}
-	logger.Debugln("Handled request correctly")
 	ctx.Render(http.StatusOK, render.Data{
 		ContentType: gin.MIMEJSON,
 		Data:        zoneData,
@@ -261,7 +263,8 @@ func (api *APICore) resetKeyStorage() {
 }
 
 func (api *APICore) resetKeyStorageGin(ctx *gin.Context) {
-	logger := logging.NewLoggerWithTrace(api.ctx)
+	logger := ginGetLogger(ctx)
+
 	api.resetKeyStorage()
 	logger.Debugln("Cleared key storage cache")
 	ctx.String(http.StatusOK, "")
@@ -269,4 +272,44 @@ func (api *APICore) resetKeyStorageGin(ctx *gin.Context) {
 
 func respondWithError(ctx *gin.Context) {
 	ctx.String(http.StatusNotFound, errorRequestMessage)
+}
+
+// loggerMiddleware returns the middleware that logs the request for debug purposes
+func loggerMiddleware(connType string) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		// Give each client session a unique ID (within an AcraServer instance).
+		// This greatly simplifies tracking session activity across the logs.
+		sessionID := atomic.AddUint32(&sessionCounter, 1)
+
+		logger := logging.
+			NewLoggerWithTrace(ctx.Request.Context()).
+			WithFields(log.Fields{
+				"session_id":        sessionID,
+				connectionTypeLabel: connType,
+			})
+
+		ctx.Set(loggerKey, logger)
+
+		logger.
+			WithFields(log.Fields{
+				"method": ctx.Request.Method,
+				"path":   ctx.Request.URL.Path,
+			}).
+			Debugln("Incoming API request")
+		// it will run all other middlewares and handlers
+		// blocking until the request is done
+		ctx.Next()
+
+		logger.
+			WithField("status_code", ctx.Writer.Status()).
+			Debugln("Request is handled")
+	}
+}
+
+func ginGetLogger(ctx *gin.Context) *log.Entry {
+	logger, ok := ctx.Get(loggerKey)
+	if ok {
+		return logger.(*log.Entry)
+	}
+	panic("logger must be configured")
 }
