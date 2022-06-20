@@ -21,14 +21,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/zone"
-	"github.com/cossacklabs/themis/gothemis/keys"
-	log "github.com/sirupsen/logrus"
-	"go.opencensus.io/trace"
 	"net"
 	"net/http"
+	"time"
+
+	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/zone"
+	"github.com/cossacklabs/themis/gothemis/keys"
+	"github.com/gin-gonic/gin"
+	log "github.com/sirupsen/logrus"
+	"go.opencensus.io/trace"
 )
 
 // HTTP 500 response
@@ -136,4 +140,64 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		return
 	}
 	clientSession.close()
+}
+
+// AcraAPIServer handles all HTTP api logic
+type AcraAPIServer struct {
+	ctx        context.Context
+	server     *SServer
+	engine     *gin.Engine
+	httpServer *http.Server
+}
+
+// NewAcraAPIServer creates new AcraAPIServer
+func NewAcraAPIServer(server *SServer) AcraAPIServer {
+	gin.SetMode(gin.ReleaseMode)
+	// TODO: change to gin.New and configure logger
+	engine := gin.Default()
+	engine.HandleMethodNotAllowed = true
+
+	apiServer := AcraAPIServer{
+		ctx:        context.Background(),
+		server:     server,
+		engine:     engine,
+		httpServer: nil,
+	}
+
+	apiServer.engine.GET("/getNewZone", apiServer.getNewZone)
+	apiServer.engine.GET("/resetKeyStorage", apiServer.resetKeyStorage)
+
+	httpServer := &http.Server{
+		Handler:      engine,
+		ReadTimeout:  network.DefaultNetworkTimeout,
+		WriteTimeout: network.DefaultNetworkTimeout,
+	}
+
+	apiServer.httpServer = httpServer
+
+	return apiServer
+}
+
+// Start the server. Blocking operation
+func (apiServer *AcraAPIServer) Start(listener net.Listener) error {
+	go func() {
+		<-apiServer.ctx.Done()
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(network.DefaultNetworkTimeout))
+		defer cancel()
+		if err := apiServer.httpServer.Shutdown(ctx); err != nil {
+			log.WithError(err).Errorln("Can't shutdown API server")
+			if err := apiServer.httpServer.Close(); err != nil {
+				log.WithError(err).Errorln("Can't close API server")
+			}
+		}
+	}()
+	return apiServer.httpServer.Serve(listener)
+}
+
+func (apiServer *AcraAPIServer) getNewZone(ctx *gin.Context) {
+	ctx.String(200, "TODO")
+}
+
+func (apiServer *AcraAPIServer) resetKeyStorage(ctx *gin.Context) {
+	ctx.String(200, "TODO")
 }

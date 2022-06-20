@@ -470,7 +470,24 @@ func (server *SServer) StartCommands(parentContext context.Context) {
 	}
 	server.listenerAPI = listener
 	server.addListener(listener)
-	server.run(parentContext, listener, &callbackData{funcName: "handleCommandsConnection", connectionType: apiConnectionType, callbackFunc: server.handleCommandsConnection}, logger)
+	server.StartCommandsGin(parentContext, listener)
+}
+
+// StartCommandsGin is a temporary starter until full refactoring is done
+// TODO(G1gg1L3s)
+func (server *SServer) StartCommandsGin(ctx context.Context, listener net.Listener) {
+	server.backgroundWorkersSync.Add(1)
+	go func() {
+		defer server.backgroundWorkersSync.Done()
+		server.addListener(listener)
+		apiServer := NewAcraAPIServer(server)
+		if err := apiServer.Start(listener); err != nil {
+			// TODO: what status code to use?
+			log.WithError(err).Errorln("Handling HTTP API requests")
+			server.errCh <- err
+			return
+		}
+	}()
 }
 
 // StartCommandsFromFileDescriptor starts listening commands connections from file descriptor.
