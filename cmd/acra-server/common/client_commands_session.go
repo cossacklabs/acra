@@ -31,6 +31,7 @@ import (
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/render"
 	log "github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
 )
@@ -164,7 +165,7 @@ func NewAcraAPIServer(server *SServer) AcraAPIServer {
 	engine := gin.Default()
 	engine.HandleMethodNotAllowed = true
 
-	api := NewAPICore(server)
+	api := NewAPICore(context.Background(), server)
 	api.InitEngine(engine)
 
 	apiServer := AcraAPIServer{
@@ -202,20 +203,60 @@ func (apiServer *AcraAPIServer) Start(listener net.Listener) error {
 }
 
 // NewAPICore creates new APICore
-func NewAPICore(server *SServer) APICore {
-	return APICore{server: server}
+func NewAPICore(ctx context.Context, server *SServer) APICore {
+	return APICore{server}
 }
 
 // InitEngine configures all path handlers for the API
 func (api *APICore) InitEngine(engine *gin.Engine) {
-	engine.GET("/getNewZone", api.getNewZone)
-	engine.GET("/resetKeyStorage", api.resetKeyStorage)
+	engine.GET("/getNewZone", api.getNewZoneGin)
+	engine.GET("/resetKeyStorage", api.resetKeyStorageGin)
 }
 
-func (api *APICore) getNewZone(ctx *gin.Context) {
+func (api *APICore) getNewZone() (id []byte, publicKey []byte, err error) {
+	keystore := api.server.config.GetKeyStore()
+	id, publicKey, err = keystore.GenerateZoneKey()
+	if err != nil {
+		return nil, nil, err
+	}
+	if err = keystore.GenerateZoneIDSymmetricKey(id); err != nil {
+		return nil, nil, err
+	}
+	return id, publicKey, nil
+}
+
+func (api *APICore) getNewZoneGin(ctx *gin.Context) {
+	// TODO(G1gg1L3s): initialize logger in the context
+	logger := logging.NewLoggerWithTrace(api.ctx)
+
+	id, pub, err := api.getNewZone()
+	if err != nil {
+		logger.WithError(err).
+			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantGenerateZone).
+			Errorln("Can't generate zone key")
+
+		respondeWithError(ctx)
+		return
+	}
+	zoneData, err := zone.DataToJSON(id, &keys.PublicKey{Value: pub})
+	if err != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantGenerateZone).
+			WithError(err).
+			Errorln("Can't create json with zone key")
+		respondeWithError(ctx)
+		return
+	}
+	logger.Debugln("Handled request correctly")
+	ctx.Render(http.StatusOK, render.Data{
+		ContentType: gin.MIMEJSON,
+		Data:        zoneData,
+	})
+}
+
+func (api *APICore) resetKeyStorageGin(ctx *gin.Context) {
 	ctx.String(200, "TODO")
 }
 
-func (api *APICore) resetKeyStorage(ctx *gin.Context) {
-	ctx.String(200, "TODO")
+func respondeWithError(ctx *gin.Context) {
+	ctx.String(http.StatusNotFound, "incorrect request")
 }
