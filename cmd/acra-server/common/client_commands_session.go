@@ -145,9 +145,16 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 // AcraAPIServer handles all HTTP api logic
 type AcraAPIServer struct {
 	ctx        context.Context
-	server     *SServer
+	api        APICore
 	engine     *gin.Engine
 	httpServer *http.Server
+}
+
+// APICore contains the API logic of the HTTP API server
+// Is used to decouple the API logic from actual HTTP setting routine
+// In the future could be used to abstract HTTP setting up from API configuring
+type APICore struct {
+	server *SServer
 }
 
 // NewAcraAPIServer creates new AcraAPIServer
@@ -157,15 +164,15 @@ func NewAcraAPIServer(server *SServer) AcraAPIServer {
 	engine := gin.Default()
 	engine.HandleMethodNotAllowed = true
 
+	api := NewAPICore(server)
+	api.InitEngine(engine)
+
 	apiServer := AcraAPIServer{
 		ctx:        context.Background(),
-		server:     server,
+		api:        api,
 		engine:     engine,
 		httpServer: nil,
 	}
-
-	apiServer.engine.GET("/getNewZone", apiServer.getNewZone)
-	apiServer.engine.GET("/resetKeyStorage", apiServer.resetKeyStorage)
 
 	httpServer := &http.Server{
 		Handler:      engine,
@@ -194,10 +201,21 @@ func (apiServer *AcraAPIServer) Start(listener net.Listener) error {
 	return apiServer.httpServer.Serve(listener)
 }
 
-func (apiServer *AcraAPIServer) getNewZone(ctx *gin.Context) {
+// NewAPICore creates new APICore
+func NewAPICore(server *SServer) APICore {
+	return APICore{server: server}
+}
+
+// InitEngine configures all path handlers for the API
+func (api *APICore) InitEngine(engine *gin.Engine) {
+	engine.GET("/getNewZone", api.getNewZone)
+	engine.GET("/resetKeyStorage", api.resetKeyStorage)
+}
+
+func (api *APICore) getNewZone(ctx *gin.Context) {
 	ctx.String(200, "TODO")
 }
 
-func (apiServer *AcraAPIServer) resetKeyStorage(ctx *gin.Context) {
+func (api *APICore) resetKeyStorage(ctx *gin.Context) {
 	ctx.String(200, "TODO")
 }
