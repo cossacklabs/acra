@@ -24,8 +24,8 @@ schemas:
 
 
 - table: lowercase_table
-  columns: [ id, data ]
-  encrypted: [ { column: data } ]
+  columns: [ id, DATA ]
+  encrypted: [ { column: DATA } ]
 
 - table: UPPERCASE_TABLE
   columns: [ id, data ]
