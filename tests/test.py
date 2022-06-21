@@ -10256,7 +10256,11 @@ class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTransparentEncryption):
 
     def testUpperConfigUpperQuotedQuery(self):
         # should match, uppercase config identifier == uppercase SQL identifier
+        # column should match in all cases except quoted "DATA"
         self.runTestCase("UPPERCASE_TABLE", True, "data", False, True)
+        self.runTestCase("UPPERCASE_TABLE", True, "data", True, True)
+        self.runTestCase("UPPERCASE_TABLE", True, "DATA", False, True)
+        self.runTestCase("UPPERCASE_TABLE", True, "DATA", True, False)
 
 
 class TestDifferentCaseTableIdentifiersMySQL(BaseTransparentEncryption):

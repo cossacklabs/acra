@@ -102,7 +102,7 @@ func (encryptor *QueryDataEncryptor) encryptInsertQuery(ctx context.Context, ins
 	if len(insert.Columns) > 0 {
 		columnsName = make([]string, 0, len(insert.Columns))
 		for _, col := range insert.Columns {
-			columnsName = append(columnsName, col.String())
+			columnsName = append(columnsName, col.ValueForConfig())
 		}
 	} else if cols := schema.Columns(); len(cols) > 0 {
 		columnsName = cols
@@ -290,7 +290,7 @@ func (encryptor *QueryDataEncryptor) encryptUpdateExpressions(ctx context.Contex
 		if schema == nil {
 			continue
 		}
-		columnName := expr.Name.Name.String()
+		columnName := expr.Name.Name.ValueForConfig()
 		if changedExpr, err := encryptor.encryptExpression(ctx, expr.Expr, schema, columnName, bindPlaceholders); err != nil {
 			logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptorCantEncryptExpression).WithError(err).Errorln("Can't update expression with encrypted sql value")
 			return changed, err
