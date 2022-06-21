@@ -165,15 +165,17 @@ type APICore struct {
 // NewAcraAPIServer creates new AcraAPIServer
 func NewAcraAPIServer(ctx context.Context, server *SServer) AcraAPIServer {
 	gin.SetMode(gin.ReleaseMode)
+	api := NewAPICore(ctx, server)
+
 	engine := gin.New()
 	engine.
+		Use(spanningMiddleware("HandleSession", server.config.TraceToLog, server.config.GetTraceOptions())).
 		Use(loggerMiddleware(apiConnectionType)).
 		// explicitly set writer to nil, so the stack frame is not printed
 		Use(gin.CustomRecoveryWithWriter(nil, recoveryHandler()))
 
 	engine.HandleMethodNotAllowed = true
 
-	api := NewAPICore(ctx, server)
 	api.InitEngine(engine)
 
 	apiServer := AcraAPIServer{
@@ -328,5 +330,22 @@ func recoveryHandler() gin.RecoveryFunc {
 			Errorln("Panic in connection processing, close connection")
 
 		ctx.AbortWithStatus(http.StatusInternalServerError)
+	}
+}
+
+// spanningMiddleware returns new middleware that starts a span around the request
+// processing
+func spanningMiddleware(name string, traceToLog bool, options []trace.StartOption) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		newRequestCtx := logging.SetTraceStatus(ctx.Request.Context(), traceToLog)
+		newRequestCtx, span := trace.StartSpan(newRequestCtx, name, options...)
+		defer span.End()
+		span.AddAttributes(trace.StringAttribute("method", ctx.Request.Method))
+		span.AddAttributes(trace.StringAttribute("path", ctx.Request.URL.Path))
+		ctx.Request = ctx.Request.WithContext(newRequestCtx)
+
+		ctx.Next()
+		statusCode := int64(ctx.Writer.Status())
+		span.AddAttributes(trace.Int64Attribute("status_code", statusCode))
 	}
 }
