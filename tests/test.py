@@ -10168,7 +10168,6 @@ class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTransparentEncryption):
                     should_match: bool):
         test_string = "test"
 
-
         if quoted_table_name:
             table_name = '"' + table_name + '"'
 
@@ -10181,46 +10180,52 @@ class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTransparentEncryption):
         # generate random id
         id = get_random_id()
 
+        def check():
+            # ensure it is encrypted (if should_match) or ensure it's not encrypted (if not should_match)
+            if should_match:
+                # ensure decrypted data matches what was inserted
+
+                result = self.engine1.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
+                row = result.fetchone()
+
+                if bytes(row[row_name]) != bytes(test_string, "UTF-8"):
+                    self.fail(f"Table identifier {table_name}, column identifier {column_name}, did not match, {bytes(row['data'])} != {test_string}")
+
+                # ensure database does not contain plaintext
+
+                result = self.engine2.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
+                row = result.fetchone()
+
+                if bytes(row[row_name]) == bytes(test_string, "UTF-8"):
+                    self.fail(f"Table identifier {table_name}, column identifier {column_name}, did not match, {bytes(row['data'])} == {test_string}")
+
+                result = self.engine_raw.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
+                row = result.fetchone()
+
+                if bytes(row[row_name]) == bytes(test_string, "UTF-8"):
+                    self.fail(f"Table identifier {table_name}, column identifier {column_name}, did not match, {bytes(row['data'])} == {test_string}")
+            else:
+                # ensure database contains plaintext
+
+                result = self.engine2.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
+                row = result.fetchone()
+
+                if bytes(row[row_name]) != bytes(test_string, "UTF-8"):
+                    self.fail(f"Table identifier {table_name}, column identifier {column_name}, matched, {bytes(row['data'])} != {test_string}")
+
+                result = self.engine_raw.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
+                row = result.fetchone()
+
+                if bytes(row[row_name]) != bytes(test_string, "UTF-8"):
+                    self.fail(f"Table identifier {table_name}, column identifier {column_name}, matched, {bytes(row['data'])} != {test_string}")
+
         # insert a record
         self.engine1.execute(f"INSERT INTO {table_name} (id, {column_name}) VALUES ({id}, '{test_string}');")
+        check()
 
-        # ensure it is encrypted (if should_match) or ensure it's not encrypted (if not should_match)
-        if should_match:
-            # ensure decrypted data matches what was inserted
-
-            result = self.engine1.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
-            row = result.fetchone()
-
-            if bytes(row[row_name]) != bytes(test_string, "UTF-8"):
-                self.fail(f"Table identifier {table_name}, column identifier {column_name}, did not match, {bytes(row['data'])} != {test_string}")
-
-            # ensure database does not contain plaintext
-
-            result = self.engine2.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
-            row = result.fetchone()
-
-            if bytes(row[row_name]) == bytes(test_string, "UTF-8"):
-                self.fail(f"Table identifier {table_name}, column identifier {column_name}, did not match, {bytes(row['data'])} == {test_string}")
-
-            result = self.engine_raw.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
-            row = result.fetchone()
-
-            if bytes(row[row_name]) == bytes(test_string, "UTF-8"):
-                self.fail(f"Table identifier {table_name}, column identifier {column_name}, did not match, {bytes(row['data'])} == {test_string}")
-        else:
-            # ensure database contains plaintext
-
-            result = self.engine2.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
-            row = result.fetchone()
-
-            if bytes(row[row_name]) != bytes(test_string, "UTF-8"):
-                self.fail(f"Table identifier {table_name}, column identifier {column_name}, matched, {bytes(row['data'])} != {test_string}")
-
-            result = self.engine_raw.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
-            row = result.fetchone()
-
-            if bytes(row[row_name]) != bytes(test_string, "UTF-8"):
-                self.fail(f"Table identifier {table_name}, column identifier {column_name}, matched, {bytes(row['data'])} != {test_string}")
+        # update a record
+        self.engine1.execute(f"UPDATE {table_name} SET {column_name}='{test_string}' WHERE id={id};")
+        check()
 
     def testLowerConfigLowerQuery(self):
         # table should match, lowercase config identifier == lowercase SQL identifier
