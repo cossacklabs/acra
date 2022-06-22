@@ -1,0 +1,17 @@
+database_config:
+  mysql_case_sensitive_table_identifiers: true
+
+schemas:
+- table: lowercase_table
+  columns:
+    - id
+    - data
+  encrypted:
+    - column: data
+
+- table: UPPERCASE_TABLE
+  columns:
+    - id
+    - data
+  encrypted:
+    - column: data

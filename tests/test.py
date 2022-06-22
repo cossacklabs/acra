@@ -10140,7 +10140,7 @@ class TestPostgresqlTypeAwareDecryptionWithDefaultsPsycopg3(Psycopg3ExecutorMixi
 
 
 class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTransparentEncryption):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/postgresql_identifiers.yaml')
 
     def checkSkip(self):
         if not TEST_WITH_TLS or not TEST_POSTGRESQL:
@@ -10189,7 +10189,7 @@ class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTransparentEncryption):
                 row = result.fetchone()
 
                 if bytes(row[row_name]) != bytes(test_string, "UTF-8"):
-                    self.fail(f"Table identifier {table_name}, column identifier {column_name}, did not match, {bytes(row['data'])} != {test_string}")
+                    self.fail(f"Table identifier {table_name}, column identifier {column_name}, did not match (decryption failed?), {bytes(row['data'])} != {test_string}")
 
                 # ensure database does not contain plaintext
 
@@ -10197,13 +10197,13 @@ class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTransparentEncryption):
                 row = result.fetchone()
 
                 if bytes(row[row_name]) == bytes(test_string, "UTF-8"):
-                    self.fail(f"Table identifier {table_name}, column identifier {column_name}, did not match, {bytes(row['data'])} == {test_string}")
+                    self.fail(f"Table identifier {table_name}, column identifier {column_name}, did not match (DB contains plaintext), {bytes(row['data'])} == {test_string}")
 
                 result = self.engine_raw.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
                 row = result.fetchone()
 
                 if bytes(row[row_name]) == bytes(test_string, "UTF-8"):
-                    self.fail(f"Table identifier {table_name}, column identifier {column_name}, did not match, {bytes(row['data'])} == {test_string}")
+                    self.fail(f"Table identifier {table_name}, column identifier {column_name}, did not match (DB contains plaintext), {bytes(row['data'])} == {test_string}")
             else:
                 # ensure database contains plaintext
 
@@ -10211,13 +10211,13 @@ class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTransparentEncryption):
                 row = result.fetchone()
 
                 if bytes(row[row_name]) != bytes(test_string, "UTF-8"):
-                    self.fail(f"Table identifier {table_name}, column identifier {column_name}, matched, {bytes(row['data'])} != {test_string}")
+                    self.fail(f"Table identifier {table_name}, column identifier {column_name}, matched (no plaintext in DB), {bytes(row['data'])} != {test_string}")
 
                 result = self.engine_raw.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
                 row = result.fetchone()
 
                 if bytes(row[row_name]) != bytes(test_string, "UTF-8"):
-                    self.fail(f"Table identifier {table_name}, column identifier {column_name}, matched, {bytes(row['data'])} != {test_string}")
+                    self.fail(f"Table identifier {table_name}, column identifier {column_name}, matched (no plaintext in DB), {bytes(row['data'])} != {test_string}")
 
         # insert a record
         self.engine1.execute(f"INSERT INTO {table_name} (id, {column_name}) VALUES ({id}, '{test_string}');")
@@ -10269,7 +10269,7 @@ class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTransparentEncryption):
 
 
 class TestDifferentCaseTableIdentifiersMySQL(BaseTransparentEncryption):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/mysql_identifiers.yaml')
 
     def checkSkip(self):
         if not TEST_WITH_TLS or not (TEST_MYSQL or TEST_MARIADB):

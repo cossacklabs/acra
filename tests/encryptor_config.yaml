@@ -21,12 +21,3 @@ schemas:
 
   - column: zone_id
     zone_id: DDDDDDDDMatNOMYjqVOuhACC
-
-
-- table: lowercase_table
-  columns: [ id, DATA ]
-  encrypted: [ { column: DATA } ]
-
-- table: UPPERCASE_TABLE
-  columns: [ id, data ]
-  encrypted: [ { column: data } ]
