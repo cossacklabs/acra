@@ -8,6 +8,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net"
+	"net/http"
+	"strings"
+	"testing"
+	"text/template"
+	"time"
+
 	translatorCommon "github.com/cossacklabs/acra/cmd/acra-translator/common"
 	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/keystore"
@@ -22,13 +30,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"io/ioutil"
-	"net"
-	"net/http"
-	"strings"
-	"testing"
-	"text/template"
-	"time"
 )
 
 type dialer func(ctx context.Context, network, addr string) (net.Conn, error)
@@ -181,7 +182,7 @@ func TestHTTPAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	listenerWrapper.AddConnectionContextCallback(translatorCommon.ConnectionToContextCallback{})
+	listenerWrapper.AddConnectionContextCallback(network.ConnectionToContextCallback{})
 	storage, err := tokenStorage.NewMemoryTokenStorage()
 	if err != nil {
 		t.Fatal(err)
