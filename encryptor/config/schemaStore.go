@@ -51,7 +51,7 @@ func (d defaultValues) ShouldReEncryptAcraStructToAcraBlock() bool {
 }
 
 type storeConfig struct {
-	databaseConfig *databaseConfig
+	DatabaseConfig *databaseConfig `yaml:"database_config"`
 	Defaults       *defaultValues
 	Schemas        []*tableSchema
 }
@@ -96,7 +96,7 @@ func MapTableSchemaStoreFromConfig(config []byte) (*MapTableSchemaStore, error) 
 		mapSchemas[schema.TableName] = schema
 	}
 	return &MapTableSchemaStore{
-		databaseConfig: storeConfig.databaseConfig,
+		databaseConfig: storeConfig.DatabaseConfig,
 		schemas:        mapSchemas,
 		globalMask:     mask,
 	}, nil
