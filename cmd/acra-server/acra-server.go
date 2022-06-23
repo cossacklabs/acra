@@ -939,8 +939,7 @@ func buildHTTPAPIConnectionWrapper(tlsWrapper *network.TLSConnectionWrapper) net
 			Errorln("Can't initialize HTTPAPIConnectionWrapper")
 		os.Exit(1)
 	}
-	// TODO(G1gg1L3a): move from translator
-	// httpWrapper.AddConnectionContextCallback(common.ConnectionToContextCallback{})
+	httpWrapper.AddConnectionContextCallback(network.ConnectionToContextCallback{})
 	httpWrapper.AddCallback(network.SafeCloseConnectionCallback{})
 	if tlsWrapper != nil {
 		// we should register transport callback last because http2 server
