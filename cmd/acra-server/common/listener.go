@@ -468,6 +468,8 @@ func (server *SServer) StartCommands(parentContext context.Context) {
 		server.errorSignalChannel <- syscall.SIGTERM
 		return
 	}
+	server.config.HTTPAPIConnectionWrapper.SetListener(listener)
+	listener = server.config.HTTPAPIConnectionWrapper
 	server.listenerAPI = listener
 	server.addListener(listener)
 	server.runCommands(parentContext, listener, logger)

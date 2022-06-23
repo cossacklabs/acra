@@ -18,8 +18,9 @@ package common
 
 import (
 	"errors"
-	"github.com/cossacklabs/acra/network"
 	"io/ioutil"
+
+	"github.com/cossacklabs/acra/network"
 
 	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/encryptor"
@@ -32,27 +33,28 @@ import (
 
 // Config describes AcraServer configuration
 type Config struct {
-	dbPort                  int
-	dbHost                  string
-	detectPoisonRecords     bool
-	stopOnPoison            bool
-	scriptOnPoison          string
-	withZone                bool
-	withAPI                 bool
-	acraConnectionString    string
-	acraAPIConnectionString string
-	ConnectionWrapper       network.ConnectionWrapper
-	mysql                   bool
-	postgresql              bool
-	debug                   bool
-	censor                  acracensor.AcraCensorInterface
-	TraceToLog              bool
-	tableSchema             encryptorConfig.TableSchemaStore
-	dataEncryptor           encryptor.DataEncryptor
-	keystore                keystore.ServerKeyStore
-	traceOptions            []trace.StartOption
-	serviceName             string
-	configPath              string
+	dbPort                   int
+	dbHost                   string
+	detectPoisonRecords      bool
+	stopOnPoison             bool
+	scriptOnPoison           string
+	withZone                 bool
+	withAPI                  bool
+	acraConnectionString     string
+	acraAPIConnectionString  string
+	ConnectionWrapper        network.ConnectionWrapper
+	HTTPAPIConnectionWrapper network.HTTPServerConnectionWrapper
+	mysql                    bool
+	postgresql               bool
+	debug                    bool
+	censor                   acracensor.AcraCensorInterface
+	TraceToLog               bool
+	tableSchema              encryptorConfig.TableSchemaStore
+	dataEncryptor            encryptor.DataEncryptor
+	keystore                 keystore.ServerKeyStore
+	traceOptions             []trace.StartOption
+	serviceName              string
+	configPath               string
 }
 
 // NewConfig returns new Config object

@@ -147,7 +147,8 @@ func realMain() error {
 	scriptOnPoison := flag.String("poison_run_script_file", "", "On detecting poison record: log about poison record detection, execute script, return decrypted data")
 
 	withZone := flag.Bool("zonemode_enable", false, "Turn on zone mode")
-	enableHTTPAPI := flag.Bool("http_api_enable", false, "Enable HTTP API")
+	enableHTTPAPI := flag.Bool("http_api_enable", false, "Enable HTTP API. Use together with --http_api_use_tls whenever possible.")
+	httpAPIUseTLS := flag.Bool("http_api_use_tls", false, "Enable HTTPS support for the API. Use together with the --http_api_enable. TLS configuration is the same as in the Acra Proxy.")
 
 	tlsKey := flag.String("tls_key", "", "Path to tls private key")
 	tlsCert := flag.String("tls_cert", "", "Path to tls certificate")
@@ -438,6 +439,12 @@ func realMain() error {
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize TLS connection wrapper")
 		os.Exit(1)
+	}
+
+	if *httpAPIUseTLS {
+		serverConfig.HTTPAPIConnectionWrapper = buildHTTPAPIConnectionWrapper(tlsWrapper)
+	} else {
+		serverConfig.HTTPAPIConnectionWrapper = buildHTTPAPIConnectionWrapper(nil)
 	}
 
 	proxyTLSWrapper := base.NewTLSConnectionWrapper(*tlsUseClientIDFromCertificate, tlsWrapper)
@@ -912,4 +919,27 @@ func openKeyStoreV2(keyDirPath string, cacheSize int, loader keyloader.MasterKey
 		return nil, err
 	}
 	return keystoreV2.NewServerKeyStore(keyDirectory), nil
+}
+
+// buildHTTPAPIConnectionWrapper builds the connection wrapper that will be used
+// by the HTTP API server.
+// if `tlsWrapper` is nil, no TLS protection is used.
+func buildHTTPAPIConnectionWrapper(tlsWrapper *network.TLSConnectionWrapper) network.HTTPServerConnectionWrapper {
+	httpWrapper, err := network.NewHTTPServerConnectionWrapper()
+	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+			Errorln("Can't initialize HTTPAPIConnectionWrapper")
+		os.Exit(1)
+	}
+	// TODO(G1gg1L3a): move from translator
+	// httpWrapper.AddConnectionContextCallback(common.ConnectionToContextCallback{})
+	httpWrapper.AddCallback(network.SafeCloseConnectionCallback{})
+	if tlsWrapper != nil {
+		// we should register transport callback last because http2 server
+		// require that it should receive *tls.Conn object and we need to wrap
+		// source connection with our wrappers before switching to TLS
+		httpWrapper.AddCallback(tlsWrapper)
+	}
+
+	return httpWrapper
 }
