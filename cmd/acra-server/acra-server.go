@@ -442,8 +442,16 @@ func realMain() error {
 	}
 
 	if *httpAPIUseTLS {
+		if !*enableHTTPAPI {
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).
+				Warningln("--http_api_use_tls is provided, but the HTTP API server is not configured. Use --http_api_enable to enable it.")
+		}
 		serverConfig.HTTPAPIConnectionWrapper = buildHTTPAPIConnectionWrapper(tlsWrapper)
 	} else {
+		if *enableHTTPAPI {
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).
+				Warningln("HTTP API server is used without TLS. Consider using TLS whenever possible.")
+		}
 		serverConfig.HTTPAPIConnectionWrapper = buildHTTPAPIConnectionWrapper(nil)
 	}
 
