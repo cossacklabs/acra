@@ -444,20 +444,6 @@ func (server *SServer) ConnectionsCounter() int {
 	return server.connectionManager.Counter
 }
 
-// handleCommandsConnection handles requests to HTTP API
-func (server *SServer) handleCommandsConnection(ctx context.Context, clientID []byte, connection net.Conn) {
-	logger := logging.NewLoggerWithTrace(ctx)
-	clientSession, err := NewClientCommandsSession(ctx, server, server.config, connection)
-	if err != nil {
-		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
-			Errorln("Can't init API session")
-		return
-	}
-	connection.SetDeadline(time.Now().Add(network.DefaultNetworkTimeout))
-	clientSession.HandleSession()
-	connection.SetDeadline(time.Time{})
-}
-
 // StartCommands starts listening commands connections from proxy.
 func (server *SServer) StartCommands(parentContext context.Context) {
 	logger := log.WithFields(log.Fields{"connection_string": server.config.GetAcraAPIConnectionString(), "from_descriptor": false})
