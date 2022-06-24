@@ -35,6 +35,8 @@ const (
 	errorRequestMessage = "incorrect request"
 	// Key name for the logger in the gin.Context
 	loggerKey = "logger"
+	// Key name for the clientID saved in the gin.Context
+	clientIDKey = "clientID"
 )
 
 // AcraAPIServer handles all HTTP api logic
@@ -52,14 +54,21 @@ type APICore struct {
 	server *SServer
 }
 
+// ConnectionContextCallback is callback that is called to map context for
+// each connection
+// We use it to set the connection to the context, so it can be use latter (for
+// extracting the clientID for example)
+type ConnectionContextCallback func(ctx context.Context, c net.Conn) context.Context
+
 // NewAcraAPIServer creates new AcraAPIServer
-func NewAcraAPIServer(ctx context.Context, server *SServer) AcraAPIServer {
+func NewAcraAPIServer(ctx context.Context, server *SServer, connCtxCallback ConnectionContextCallback) AcraAPIServer {
 	gin.SetMode(gin.ReleaseMode)
 	api := NewAPICore(ctx, server)
 
 	engine := gin.New()
 	engine.
 		Use(spanningMiddleware("HandleSession", server.config.TraceToLog, server.config.GetTraceOptions())).
+		Use(clientIDMiddleware(server.config.GetTLSClientIDExtractor())).
 		Use(loggerMiddleware(apiConnectionType)).
 		// explicitly set writer to nil, so the stack frame is not printed
 		Use(gin.CustomRecoveryWithWriter(nil, recoveryHandler()))
@@ -79,6 +88,7 @@ func NewAcraAPIServer(ctx context.Context, server *SServer) AcraAPIServer {
 		Handler:      engine,
 		ReadTimeout:  network.DefaultNetworkTimeout,
 		WriteTimeout: network.DefaultNetworkTimeout,
+		ConnContext:  connCtxCallback,
 	}
 
 	apiServer.httpServer = httpServer
@@ -183,6 +193,11 @@ func loggerMiddleware(connType string) gin.HandlerFunc {
 				connectionTypeLabel: connType,
 			})
 
+		clientID := ginGetClientID(ctx)
+
+		if clientID != nil {
+			logger = logger.WithField("client_id", string(clientID))
+		}
 		ctx.Set(loggerKey, logger)
 
 		logger.
@@ -238,4 +253,26 @@ func spanningMiddleware(name string, traceToLog bool, options []trace.StartOptio
 		statusCode := int64(ctx.Writer.Status())
 		span.AddAttributes(trace.Int64Attribute("status_code", statusCode))
 	}
+}
+
+// clientIDMiddleware extracts the clientID from the connection and saves it into
+// the gin's context.
+func clientIDMiddleware(tlsExtractor network.TLSClientIDExtractor) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		connection := network.GetConnectionFromHTTPContext(ctx.Request.Context())
+		clientID, ok := network.GetClientIDFromConnection(connection, tlsExtractor)
+		if ok {
+			ctx.Set(clientIDKey, clientID)
+		}
+	}
+}
+
+// ginGetClientID extracts the clientID from the gin's context. Returns nil if
+// it's not setup.
+func ginGetClientID(ctx *gin.Context) []byte {
+	clientID, ok := ctx.Get(clientIDKey)
+	if ok {
+		return clientID.([]byte)
+	}
+	return nil
 }

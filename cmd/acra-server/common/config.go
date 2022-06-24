@@ -44,6 +44,7 @@ type Config struct {
 	acraAPIConnectionString  string
 	ConnectionWrapper        network.ConnectionWrapper
 	HTTPAPIConnectionWrapper network.HTTPServerConnectionWrapper
+	tlsClientIDExtractor     network.TLSClientIDExtractor
 	mysql                    bool
 	postgresql               bool
 	debug                    bool
@@ -257,4 +258,14 @@ func (config *Config) SetScriptOnPoison(script string) {
 // SetStopOnPoison tells AcraServer to shutdown when poison record is triggered.
 func (config *Config) SetStopOnPoison(stop bool) {
 	config.stopOnPoison = stop
+}
+
+// SetTLSClientIDExtractor set clientID extractor from TLS metadata
+func (config *Config) SetTLSClientIDExtractor(tlsClientIDExtractor network.TLSClientIDExtractor) {
+	config.tlsClientIDExtractor = tlsClientIDExtractor
+}
+
+// GetTLSClientIDExtractor return configured TLSClietIDExtractor
+func (config *Config) GetTLSClientIDExtractor() network.TLSClientIDExtractor {
+	return config.tlsClientIDExtractor
 }

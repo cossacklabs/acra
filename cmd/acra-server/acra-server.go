@@ -433,6 +433,7 @@ func realMain() error {
 		log.WithError(err).Errorln("Can't initialize clientID extractor")
 		os.Exit(1)
 	}
+	serverConfig.SetTLSClientIDExtractor(clientIDExtractor)
 	// configured TLS wrapper which may be used for communication with app or database
 	tlsWrapper, err := network.NewTLSAuthenticationConnectionWrapper(
 		*tlsUseClientIDFromCertificate, dbTLSConfig, appSideTLSConfig, clientIDExtractor)

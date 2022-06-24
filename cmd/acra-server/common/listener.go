@@ -468,7 +468,8 @@ func (server *SServer) runCommands(ctx context.Context, listener net.Listener, l
 	server.backgroundWorkersSync.Add(1)
 	go func() {
 		defer server.backgroundWorkersSync.Done()
-		apiServer := NewAcraAPIServer(ctx, server)
+		connContextCallback := server.config.HTTPAPIConnectionWrapper.OnConnectionContext
+		apiServer := NewAcraAPIServer(ctx, server, connContextCallback)
 		err := apiServer.Start(listener)
 		errCh <- err
 	}()
