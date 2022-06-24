@@ -22,7 +22,7 @@ import (
 
 // TableSchemaStore fetches schema for encryptable tables in the database.
 type TableSchemaStore interface {
-	GetDatabaseConfig() DatabaseConfig
+	GetDatabaseConfig() DatabaseSettings
 	// GetTableSchema returns schema for given table if configured, or nil otherwise.
 	GetTableSchema(tableName string) TableSchema
 	GetGlobalSettingsMask() SettingMask
@@ -51,14 +51,14 @@ func (d defaultValues) ShouldReEncryptAcraStructToAcraBlock() bool {
 }
 
 type storeConfig struct {
-	DatabaseConfig *databaseConfig `yaml:"database_config"`
+	DatabaseConfig *databaseSettings `yaml:"database_config"`
 	Defaults       *defaultValues
 	Schemas        []*tableSchema
 }
 
 // MapTableSchemaStore store schemas per table name
 type MapTableSchemaStore struct {
-	databaseConfig *databaseConfig
+	databaseConfig *databaseSettings
 	schemas        map[string]*tableSchema
 	globalMask     SettingMask
 }
@@ -103,14 +103,14 @@ func MapTableSchemaStoreFromConfig(config []byte) (*MapTableSchemaStore, error) 
 }
 
 // GetDatabaseConfig return struct with database-specific configuration
-func (store *MapTableSchemaStore) GetDatabaseConfig() DatabaseConfig {
+func (store *MapTableSchemaStore) GetDatabaseConfig() DatabaseSettings {
 	// Create default set of values so GetDatabaseConfig() won't fail
 	// if this section is missing in the config file or if the config
 	// file was not specified at all and MapTableSchemaStoreFromConfig()
 	// never executed
 	if store.databaseConfig == nil {
 		defaultMySQLCaseSensitiveTableID := false
-		return &databaseConfig{
+		return &databaseSettings{
 			MySQLCaseSensitiveTableID: &defaultMySQLCaseSensitiveTableID,
 		}
 	}

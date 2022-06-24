@@ -16,21 +16,21 @@
 
 package config
 
-// DatabaseConfig stores different database-specific configuration options
-type DatabaseConfig interface {
+// DatabaseSettings stores different database-specific configuration options
+type DatabaseSettings interface {
 	GetMySQLCaseSensitiveTableID() bool
 }
 
-// databaseConfig stores database-specific configuration that can affect connection
+// databaseSettings stores database-specific configuration that can affect connection
 // to the database, how SQL queries are processed and so on
-type databaseConfig struct {
+type databaseSettings struct {
 	// Should we consider unquoted table identifiers to be case-sensitive?
 	MySQLCaseSensitiveTableID *bool `yaml:"mysql_case_sensitive_table_identifiers"`
 }
 
 // GetMySQLCaseSensitiveTableID returns true if Acra was configured to preserve
 // case in unquoted table identifiers (names); only for MySQL
-func (config *databaseConfig) GetMySQLCaseSensitiveTableID() bool {
+func (config *databaseSettings) GetMySQLCaseSensitiveTableID() bool {
 	if config.MySQLCaseSensitiveTableID == nil {
 		return false
 	}
