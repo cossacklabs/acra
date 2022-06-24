@@ -523,7 +523,7 @@ func (server *SServer) StartCommandsFromFileDescriptor(parentContext context.Con
 	}
 	server.listenerAPI = listenerWithFileDescriptor
 	server.addListener(listenerWithFileDescriptor)
-	server.run(parentContext, listenerWithFileDescriptor, &callbackData{funcName: "handleCommandsConnection", connectionType: apiConnectionType, callbackFunc: server.handleCommandsConnection}, logger)
+	server.runCommands(parentContext, listenerWithFileDescriptor, logger)
 }
 
 func (server *SServer) run(parentContext context.Context, listener net.Listener, data *callbackData, logger *log.Entry) {
