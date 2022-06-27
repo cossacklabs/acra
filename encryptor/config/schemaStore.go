@@ -51,7 +51,7 @@ func (d defaultValues) ShouldReEncryptAcraStructToAcraBlock() bool {
 }
 
 type storeConfig struct {
-	DatabaseConfig *databaseSettings `yaml:"database_config"`
+	DatabaseConfig *databaseSettings `yaml:"database_settings"`
 	Defaults       *defaultValues
 	Schemas        []*tableSchema
 }
