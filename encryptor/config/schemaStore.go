@@ -22,7 +22,7 @@ import (
 
 // TableSchemaStore fetches schema for encryptable tables in the database.
 type TableSchemaStore interface {
-	GetDatabaseConfig() DatabaseSettings
+	GetDatabaseSettings() DatabaseSettings
 	// GetTableSchema returns schema for given table if configured, or nil otherwise.
 	GetTableSchema(tableName string) TableSchema
 	GetGlobalSettingsMask() SettingMask
@@ -51,16 +51,16 @@ func (d defaultValues) ShouldReEncryptAcraStructToAcraBlock() bool {
 }
 
 type storeConfig struct {
-	DatabaseConfig *databaseSettings `yaml:"database_settings"`
-	Defaults       *defaultValues
-	Schemas        []*tableSchema
+	DatabaseSettings *databaseSettings `yaml:"database_settings"`
+	Defaults         *defaultValues
+	Schemas          []*tableSchema
 }
 
 // MapTableSchemaStore store schemas per table name
 type MapTableSchemaStore struct {
-	databaseConfig *databaseSettings
-	schemas        map[string]*tableSchema
-	globalMask     SettingMask
+	databaseSettings *databaseSettings
+	schemas          map[string]*tableSchema
+	globalMask       SettingMask
 }
 
 // NewMapTableSchemaStore return new MapTableSchemaStore
@@ -96,26 +96,29 @@ func MapTableSchemaStoreFromConfig(config []byte) (*MapTableSchemaStore, error) 
 		mapSchemas[schema.TableName] = schema
 	}
 	return &MapTableSchemaStore{
-		databaseConfig: storeConfig.DatabaseConfig,
-		schemas:        mapSchemas,
-		globalMask:     mask,
+		databaseSettings: storeConfig.DatabaseSettings,
+		schemas:          mapSchemas,
+		globalMask:       mask,
 	}, nil
 }
 
-// GetDatabaseConfig return struct with database-specific configuration
-func (store *MapTableSchemaStore) GetDatabaseConfig() DatabaseSettings {
-	// Create default set of values so GetDatabaseConfig() won't fail
+// GetDatabaseSettings return struct with database-specific configuration
+func (store *MapTableSchemaStore) GetDatabaseSettings() DatabaseSettings {
+	// Create default set of values so GetDatabaseSettings() won't fail
 	// if this section is missing in the config file or if the config
 	// file was not specified at all and MapTableSchemaStoreFromConfig()
 	// never executed
-	if store.databaseConfig == nil {
+	if store.databaseSettings == nil {
 		defaultMySQLCaseSensitiveTableID := false
 		return &databaseSettings{
-			MySQLCaseSensitiveTableID: &defaultMySQLCaseSensitiveTableID,
+			mysqlSetting: mysqlSetting{
+				CaseSensitiveTableIdentifiers: &defaultMySQLCaseSensitiveTableID,
+			},
+			postgresqlSetting: postgresqlSetting{},
 		}
 	}
 
-	return store.databaseConfig
+	return store.databaseSettings
 }
 
 // GetGlobalSettingsMask return OR of all masks of column settings

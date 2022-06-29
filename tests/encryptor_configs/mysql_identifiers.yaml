@@ -1,5 +1,6 @@
 database_settings:
-  mysql_case_sensitive_table_identifiers: true
+  mysql:
+    case_sensitive_table_identifiers: true
 
 schemas:
 - table: lowercase_table

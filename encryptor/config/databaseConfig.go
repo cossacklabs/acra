@@ -18,22 +18,46 @@ package config
 
 // DatabaseSettings stores different database-specific configuration options
 type DatabaseSettings interface {
-	GetMySQLCaseSensitiveTableID() bool
+	GetMySQLDatabaseSettings() MySQLDatabaseSettings
+	GetPostgreSQLDatabaseSettings() PostgreSQLDatabaseSettings
 }
+
+// MySQLDatabaseSettings stores MySQL-specific configuration
+type MySQLDatabaseSettings interface {
+	GetCaseSensitiveTableIdentifiers() bool
+}
+
+// PostgreSQLDatabaseSettings stores PostgreSQL-specific configuration
+type PostgreSQLDatabaseSettings interface{}
+
+type mysqlSetting struct {
+	// Should we consider table identifiers to be case-sensitive?
+	CaseSensitiveTableIdentifiers *bool `yaml:"case_sensitive_table_identifiers"`
+}
+
+// GetCaseSensitiveTableIdentifiers returns true if Acra was configured to preserve
+// case in table identifiers (names)
+func (settings *mysqlSetting) GetCaseSensitiveTableIdentifiers() bool {
+	if settings.CaseSensitiveTableIdentifiers == nil {
+		return false
+	}
+
+	return *settings.CaseSensitiveTableIdentifiers
+}
+
+type postgresqlSetting struct{}
 
 // databaseSettings stores database-specific configuration that can affect connection
 // to the database, how SQL queries are processed and so on
 type databaseSettings struct {
-	// Should we consider unquoted table identifiers to be case-sensitive?
-	MySQLCaseSensitiveTableID *bool `yaml:"mysql_case_sensitive_table_identifiers"`
+	mysqlSetting      mysqlSetting      `yaml:"mysql"`
+	postgresqlSetting postgresqlSetting `yaml:"postgresql"`
 }
 
-// GetMySQLCaseSensitiveTableID returns true if Acra was configured to preserve
-// case in unquoted table identifiers (names); only for MySQL
-func (config *databaseSettings) GetMySQLCaseSensitiveTableID() bool {
-	if config.MySQLCaseSensitiveTableID == nil {
-		return false
-	}
+func (settings *databaseSettings) GetMySQLDatabaseSettings() MySQLDatabaseSettings {
+	return &settings.mysqlSetting
+}
 
-	return *config.MySQLCaseSensitiveTableID
+func (settings *databaseSettings) GetPostgreSQLDatabaseSettings() PostgreSQLDatabaseSettings {
+	return &settings.postgresqlSetting
 }
