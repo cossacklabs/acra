@@ -1,3 +1,9 @@
+# 0.94.0 - 2022-07-04
+- Extend encryptor config struct with database settings section
+  - Has subsections for mysql-specific settings as well as for postgres-specific ones
+- Change in parser to properly extract quoted identifiers in PostgreSQL queries
+- Table/column matching logic is slightly changed to better match what DMBS does
+
 # 0.93.0 - 2022-05-23
 - Add support for mysql `_binary` charset.
 - Handle properly null values in MySQL
