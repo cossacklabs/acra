@@ -276,3 +276,27 @@ func ginGetClientID(ctx *gin.Context) []byte {
 	}
 	return nil
 }
+
+// BuildHTTPAPIConnectionWrapper builds the connection wrapper that will be used
+// by the HTTP API server.
+// If `tlsWrapper` is nil, no TLS protection is used and connections will use
+// the specified clientID.
+func BuildHTTPAPIConnectionWrapper(tlsWrapper *network.TLSConnectionWrapper, clientID []byte) (network.HTTPServerConnectionWrapper, error) {
+	httpWrapper, err := network.NewHTTPServerConnectionWrapper()
+	if err != nil {
+		return nil, err
+	}
+	httpWrapper.AddCallback(NewMetricConnectionCallback(apiConnectionType))
+	httpWrapper.AddConnectionContextCallback(network.ConnectionToContextCallback{})
+	httpWrapper.AddCallback(network.SafeCloseConnectionCallback{})
+	if tlsWrapper == nil {
+		httpWrapper.AddCallback(network.ClientIDConnectionWrapper{ClientID: clientID})
+	} else {
+		// we should register transport callback last because http2 server
+		// require that it should receive *tls.Conn object and we need to wrap
+		// source connection with our wrappers before switching to TLS
+		httpWrapper.AddCallback(tlsWrapper)
+	}
+
+	return httpWrapper, nil
+}

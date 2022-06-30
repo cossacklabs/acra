@@ -442,18 +442,28 @@ func realMain() error {
 		os.Exit(1)
 	}
 
-	if *httpAPIUseTLS {
-		if !*enableHTTPAPI {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).
-				Warningln("--http_api_use_tls is provided, but the HTTP API server is not configured. Use --http_api_enable to enable it.")
+	{
+		var httpAPIConnWrapper network.HTTPServerConnectionWrapper
+		var err error
+		if *httpAPIUseTLS {
+			if !*enableHTTPAPI {
+				log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).
+					Warningln("--http_api_use_tls is provided, but the HTTP API server is not configured. Use --http_api_enable to enable it.")
+			}
+			httpAPIConnWrapper, err = common.BuildHTTPAPIConnectionWrapper(tlsWrapper, []byte(*clientID))
+		} else {
+			if *enableHTTPAPI {
+				log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).
+					Warningln("HTTP API server is used without TLS. Consider using TLS whenever possible.")
+			}
+			httpAPIConnWrapper, err = common.BuildHTTPAPIConnectionWrapper(nil, []byte(*clientID))
 		}
-		serverConfig.HTTPAPIConnectionWrapper = buildHTTPAPIConnectionWrapper(tlsWrapper, []byte(*clientID))
-	} else {
-		if *enableHTTPAPI {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).
-				Warningln("HTTP API server is used without TLS. Consider using TLS whenever possible.")
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+				Errorln("Can't initialize HTTPAPIConnectionWrapper")
+			os.Exit(1)
 		}
-		serverConfig.HTTPAPIConnectionWrapper = buildHTTPAPIConnectionWrapper(nil, []byte(*clientID))
+		serverConfig.HTTPAPIConnectionWrapper = httpAPIConnWrapper
 	}
 
 	proxyTLSWrapper := base.NewTLSConnectionWrapper(*tlsUseClientIDFromCertificate, tlsWrapper)
@@ -928,29 +938,4 @@ func openKeyStoreV2(keyDirPath string, cacheSize int, loader keyloader.MasterKey
 		return nil, err
 	}
 	return keystoreV2.NewServerKeyStore(keyDirectory), nil
-}
-
-// buildHTTPAPIConnectionWrapper builds the connection wrapper that will be used
-// by the HTTP API server.
-// If `tlsWrapper` is nil, no TLS protection is used and connections will use
-// the specified clientID.
-func buildHTTPAPIConnectionWrapper(tlsWrapper *network.TLSConnectionWrapper, clientID []byte) network.HTTPServerConnectionWrapper {
-	httpWrapper, err := network.NewHTTPServerConnectionWrapper()
-	if err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
-			Errorln("Can't initialize HTTPAPIConnectionWrapper")
-		os.Exit(1)
-	}
-	httpWrapper.AddConnectionContextCallback(network.ConnectionToContextCallback{})
-	httpWrapper.AddCallback(network.SafeCloseConnectionCallback{})
-	if tlsWrapper == nil {
-		httpWrapper.AddCallback(network.ClientIDConnectionWrapper{ClientID: clientID})
-	} else {
-		// we should register transport callback last because http2 server
-		// require that it should receive *tls.Conn object and we need to wrap
-		// source connection with our wrappers before switching to TLS
-		httpWrapper.AddCallback(tlsWrapper)
-	}
-
-	return httpWrapper
 }
