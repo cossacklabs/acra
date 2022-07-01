@@ -109,7 +109,11 @@ func (apiServer *AcraAPIServer) Start(listener net.Listener) error {
 			}
 		}
 	}()
-	return apiServer.httpServer.Serve(listener)
+	err := apiServer.httpServer.Serve(listener)
+	if err == http.ErrServerClosed {
+		return nil
+	}
+	return err
 }
 
 // NewAPICore creates new APICore
