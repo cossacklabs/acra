@@ -50,14 +50,14 @@ type postgresqlSetting struct{}
 // databaseSettings stores database-specific configuration that can affect connection
 // to the database, how SQL queries are processed and so on
 type databaseSettings struct {
-	mysqlSetting      mysqlSetting      `yaml:"mysql"`
-	postgresqlSetting postgresqlSetting `yaml:"postgresql"`
+	MysqlSetting      mysqlSetting      `yaml:"mysql"`
+	PostgresqlSetting postgresqlSetting `yaml:"postgresql"`
 }
 
 func (settings *databaseSettings) GetMySQLDatabaseSettings() MySQLDatabaseSettings {
-	return &settings.mysqlSetting
+	return &settings.MysqlSetting
 }
 
 func (settings *databaseSettings) GetPostgreSQLDatabaseSettings() PostgreSQLDatabaseSettings {
-	return &settings.postgresqlSetting
+	return &settings.PostgresqlSetting
 }

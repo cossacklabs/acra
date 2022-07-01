@@ -111,10 +111,10 @@ func (store *MapTableSchemaStore) GetDatabaseSettings() DatabaseSettings {
 	if store.databaseSettings == nil {
 		defaultMySQLCaseSensitiveTableID := false
 		return &databaseSettings{
-			mysqlSetting: mysqlSetting{
+			MysqlSetting: mysqlSetting{
 				CaseSensitiveTableIdentifiers: &defaultMySQLCaseSensitiveTableID,
 			},
-			postgresqlSetting: postgresqlSetting{},
+			PostgresqlSetting: postgresqlSetting{},
 		}
 	}
 
