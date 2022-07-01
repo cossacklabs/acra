@@ -449,6 +449,7 @@ func realMain() error {
 			if !*enableHTTPAPI {
 				log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).
 					Warningln("--http_api_use_tls is provided, but the HTTP API server is not configured. Use --http_api_enable to enable it.")
+				os.Exit(1)
 			}
 			httpAPIConnWrapper, err = common.BuildHTTPAPIConnectionWrapper(tlsWrapper, []byte(*clientID))
 		} else {
