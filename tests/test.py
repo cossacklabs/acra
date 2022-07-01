@@ -10245,42 +10245,58 @@ class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTransparentEncryption):
     def testLowerConfigLowerQuery(self):
         # table should match, lowercase config identifier == lowercase SQL identifier
         # column should only match in quoted "DATA" case
-        self.runTestCase("lowercase_table", False, "data", False, False)
-        self.runTestCase("lowercase_table", False, "data", True, False)
-        self.runTestCase("lowercase_table", False, "DATA", False, False)
-        self.runTestCase("lowercase_table", False, "DATA", True, True)
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("lowercase_table", NOT_QUOTED, "data", NOT_QUOTED, SHOULD_NOT_MATCH)
+        self.runTestCase("lowercase_table", NOT_QUOTED, "data", QUOTED, SHOULD_NOT_MATCH)
+        self.runTestCase("lowercase_table", NOT_QUOTED, "DATA", NOT_QUOTED, SHOULD_NOT_MATCH)
+        self.runTestCase("lowercase_table", NOT_QUOTED, "DATA", QUOTED, SHOULD_MATCH)
 
     def testLowerConfigLowerQuotedQuery(self):
         # should match, lowercase config identifier == lowercase SQL identifier
-        self.runTestCase("lowercase_table", True, "DATA", True, True)
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("lowercase_table", QUOTED, "DATA", QUOTED, SHOULD_MATCH)
 
     def testLowerConfigUpperQuery(self):
         # should match, lowercase config identifier == lowercase SQL identifier (converted)
-        self.runTestCase("LOWERCASE_TABLE", False, "DATA", True, True)
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("LOWERCASE_TABLE", NOT_QUOTED, "DATA", QUOTED, SHOULD_MATCH)
 
     def testLowerConfigUpperQuotedQuery(self):
         # should NOT match, lowercase config identifier != uppercase SQL identifier
-        self.runTestCase("LOWERCASE_TABLE", True, "DATA", True, False)
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("LOWERCASE_TABLE", QUOTED, "DATA", QUOTED, SHOULD_NOT_MATCH)
 
     def testUpperConfigLowerQuery(self):
         # should NOT match, uppercase config identifier != lowercase SQL identifier
-        self.runTestCase("uppercase_table", False, "data", False, False)
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("uppercase_table", NOT_QUOTED, "data", NOT_QUOTED, SHOULD_NOT_MATCH)
 
     def testUpperConfigLowerQuotedQuery(self):
         # should NOT match, uppercase config identifier != lowercase SQL identifier
-        self.runTestCase("uppercase_table", True, "data", False, False)
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("uppercase_table", QUOTED, "data", NOT_QUOTED, SHOULD_NOT_MATCH)
 
     def testUpperConfigUpperQuery(self):
         # should NOT match, uppercase config identifier != lowercase SQL identifier (converted)
-        self.runTestCase("UPPERCASE_TABLE", False, "data", False, False)
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("UPPERCASE_TABLE", NOT_QUOTED, "data", NOT_QUOTED, SHOULD_NOT_MATCH)
 
     def testUpperConfigUpperQuotedQuery(self):
         # should match, uppercase config identifier == uppercase SQL identifier
         # column should match in all cases except quoted "DATA"
-        self.runTestCase("UPPERCASE_TABLE", True, "data", False, True)
-        self.runTestCase("UPPERCASE_TABLE", True, "data", True, True)
-        self.runTestCase("UPPERCASE_TABLE", True, "DATA", False, True)
-        self.runTestCase("UPPERCASE_TABLE", True, "DATA", True, False)
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("UPPERCASE_TABLE", QUOTED, "data", NOT_QUOTED, SHOULD_MATCH)
+        self.runTestCase("UPPERCASE_TABLE", QUOTED, "data", QUOTED, SHOULD_MATCH)
+        self.runTestCase("UPPERCASE_TABLE", QUOTED, "DATA", NOT_QUOTED, SHOULD_MATCH)
+        self.runTestCase("UPPERCASE_TABLE", QUOTED, "DATA", QUOTED, SHOULD_NOT_MATCH)
 
 
 class TestDifferentCaseTableIdentifiersMySQL(BaseTransparentEncryption):
@@ -10387,25 +10403,34 @@ class TestDifferentCaseTableIdentifiersMySQL(BaseTransparentEncryption):
 
     def testLowerConfigLowerQuery(self):
         # should match, lowercase config identifier == lowercase SQL identifier
-        # column identifiers are always case-insensitive and backquotes do not affect this
-        self.runTestCase("lowercase_table", False, "data", False, True)
-        self.runTestCase("lowercase_table", False, "Data", False, True)
-        self.runTestCase("lowercase_table", False, "DATA", False, True)
+        # column identifiers are always case-insensitive in MySQL and backquotes do not affect this,
+        # see <link>
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("lowercase_table", NOT_QUOTED, "data", NOT_QUOTED, SHOULD_MATCH)
+        self.runTestCase("lowercase_table", NOT_QUOTED, "Data", NOT_QUOTED, SHOULD_MATCH)
+        self.runTestCase("lowercase_table", NOT_QUOTED, "DATA", NOT_QUOTED, SHOULD_MATCH)
         # self.runTestCase("lowercase_table", False, "data", True, True)
         # self.runTestCase("lowercase_table", False, "Data", True, True)
         # self.runTestCase("lowercase_table", False, "DATA", True, True)
 
     def testLowerConfigUpperQuery(self):
         # should NOT match, lowercase config identifier == lowercase SQL identifier
-        self.runTestCase("LOWERCASE_TABLE", False, "data", False, False)
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("LOWERCASE_TABLE", NOT_QUOTED, "data", NOT_QUOTED, SHOULD_NOT_MATCH)
 
     def testUpperConfigLowerQuery(self):
         # should NOT match, uppercase config identifier != lowercase SQL identifier
-        self.runTestCase("uppercase_table", False, "data", False, False)
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("uppercase_table", NOT_QUOTED, "data", NOT_QUOTED, SHOULD_NOT_MATCH)
 
     def testUpperConfigUpperQuery(self):
         # should match, uppercase config identifier == uppercase SQL identifier
-        self.runTestCase("UPPERCASE_TABLE", False, "data", False, True)
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("UPPERCASE_TABLE", NOT_QUOTED, "data", NOT_QUOTED, SHOULD_MATCH)
 
 
 if __name__ == '__main__':
