@@ -164,6 +164,8 @@ func (api *APICore) getNewZoneGin(ctx *gin.Context) {
 		respondWithError(ctx)
 		return
 	}
+	logger.Infoln("Created new zone")
+
 	ctx.Render(http.StatusOK, render.Data{
 		ContentType: gin.MIMEJSON,
 		Data:        zoneData,
@@ -179,7 +181,7 @@ func (api *APICore) resetKeyStorageGin(ctx *gin.Context) {
 	logger := ginGetLogger(ctx)
 
 	api.resetKeyStorage()
-	logger.Debugln("Cleared key storage cache")
+	logger.Infoln("Cleared key storage cache")
 	ctx.String(http.StatusOK, "")
 }
 
