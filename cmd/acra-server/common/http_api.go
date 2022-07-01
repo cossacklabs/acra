@@ -41,8 +41,8 @@ const (
 	clientIDKey = "clientID"
 )
 
-// AcraAPIServer handles all HTTP api logic
-type AcraAPIServer struct {
+// HTTPAPIServer handles all HTTP api logic
+type HTTPAPIServer struct {
 	ctx        context.Context
 	api        APICore
 	engine     *gin.Engine
@@ -62,8 +62,8 @@ type APICore struct {
 // extracting the clientID for example)
 type ConnectionContextCallback func(ctx context.Context, c net.Conn) context.Context
 
-// NewAcraAPIServer creates new AcraAPIServer
-func NewAcraAPIServer(ctx context.Context, server *SServer, connCtxCallback ConnectionContextCallback) AcraAPIServer {
+// NewHTTPAPIServer creates new AcraAPIServer
+func NewHTTPAPIServer(ctx context.Context, server *SServer, connCtxCallback ConnectionContextCallback) HTTPAPIServer {
 	gin.SetMode(gin.ReleaseMode)
 	api := NewAPICore(ctx, server)
 
@@ -79,7 +79,7 @@ func NewAcraAPIServer(ctx context.Context, server *SServer, connCtxCallback Conn
 
 	api.InitEngine(engine)
 
-	apiServer := AcraAPIServer{
+	apiServer := HTTPAPIServer{
 		ctx:        ctx,
 		api:        api,
 		engine:     engine,
@@ -101,7 +101,7 @@ func NewAcraAPIServer(ctx context.Context, server *SServer, connCtxCallback Conn
 }
 
 // Start the server. Blocking operation
-func (apiServer *AcraAPIServer) Start(listener net.Listener) error {
+func (apiServer *HTTPAPIServer) Start(listener net.Listener) error {
 	go func() {
 		<-apiServer.ctx.Done()
 		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(network.DefaultNetworkTimeout))

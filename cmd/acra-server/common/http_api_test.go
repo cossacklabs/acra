@@ -54,7 +54,7 @@ func runWithServer(t *testing.T, keyStorage keystore.ServerKeyStore, tlsWrapper 
 	defer cancel()
 	errors := make(chan error)
 
-	apiServer := NewAcraAPIServer(ctx, sserver, config.HTTPAPIConnectionWrapper.OnConnectionContext)
+	apiServer := NewHTTPAPIServer(ctx, sserver, config.HTTPAPIConnectionWrapper.OnConnectionContext)
 	listener := getListener(config.HTTPAPIConnectionWrapper, t)
 	defer listener.Close()
 	go func() {
