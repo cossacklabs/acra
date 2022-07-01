@@ -82,6 +82,7 @@ func TestPlainHTTPAPI(t *testing.T) {
 
 	keyStorage.On("GenerateZoneKey").Return([]byte("id"), []byte("publicKey"), error(nil))
 	keyStorage.On("GenerateZoneIDSymmetricKey", []byte("id")).Return(error(nil))
+	keyStorage.On("Reset").Return()
 
 	runWithServer(t, keyStorage, nil, func(url string) {
 		t.Run("Test /getNewZone", func(t *testing.T) {
@@ -108,6 +109,34 @@ func TestPlainHTTPAPI(t *testing.T) {
 			if !bytes.Equal(body, []byte(expectedBody)) {
 				t.Fatalf("expected body %q, but found %q", expectedBody, body)
 			}
+		})
+
+		t.Run("Test /resetKeyStorage", func(t *testing.T) {
+			response, err := http.Get(fmt.Sprintf("http://%s/resetKeyStorage", url))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if sc := response.StatusCode; sc != http.StatusOK {
+				t.Fatalf("status code (%d) != %d", sc, http.StatusOK)
+			}
+
+			// Use `Contains` instead of `==` because Mime type can be
+			// `text/plain; charset=utf-8`
+			if ct := response.Header.Get("content-type"); !strings.Contains(ct, gin.MIMEPlain) {
+				t.Fatalf("content-type (%s) != %s", ct, gin.MIMEPlain)
+			}
+
+			body, err := ioutil.ReadAll(response.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(body) != 0 {
+				t.Fatalf("expected empty body, but found %q", body)
+			}
+
+			keyStorage.AssertCalled(t, "Reset")
 		})
 
 		t.Run("Test non-existed", func(t *testing.T) {
@@ -192,6 +221,7 @@ func TestTLSHTTPAPI(t *testing.T) {
 
 	keyStorage.On("GenerateZoneKey").Return([]byte("id"), []byte("publicKey"), error(nil))
 	keyStorage.On("GenerateZoneIDSymmetricKey", []byte("id")).Return(error(nil))
+	keyStorage.On("Reset").Return()
 
 	runWithServer(t, keyStorage, serverWrapper, func(url string) {
 		t.Run("Test /getNewZone", func(t *testing.T) {
@@ -218,6 +248,34 @@ func TestTLSHTTPAPI(t *testing.T) {
 			if !bytes.Equal(body, []byte(expectedBody)) {
 				t.Fatalf("expected body %q, but found %q", expectedBody, body)
 			}
+		})
+
+		t.Run("Test /resetKeyStorage", func(t *testing.T) {
+			response, err := client.Get(fmt.Sprintf("https://%s/resetKeyStorage", url))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if sc := response.StatusCode; sc != http.StatusOK {
+				t.Fatalf("status code (%d) != %d", sc, http.StatusOK)
+			}
+
+			// Use `Contains` instead of `==` because Mime type can be
+			// `text/plain; charset=utf-8`
+			if ct := response.Header.Get("content-type"); !strings.Contains(ct, gin.MIMEPlain) {
+				t.Fatalf("content-type (%s) != %s", ct, gin.MIMEPlain)
+			}
+
+			body, err := ioutil.ReadAll(response.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(body) != 0 {
+				t.Fatalf("expected empty body, but found %q", body)
+			}
+
+			keyStorage.AssertCalled(t, "Reset")
 		})
 
 		t.Run("Test non-existed", func(t *testing.T) {
