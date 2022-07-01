@@ -1,3 +1,6 @@
+# 0.93.0 - 2022-07-01
+- Refactor HTTP API and bring TLS to it
+
 # 0.93.0 - 2022-06-15
 - Add searchable encryption demo
 
