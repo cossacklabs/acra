@@ -1,0 +1,14 @@
+[
+    {
+        "searchable_name": "John",
+        "searchable_email": "john_wed@cl.com"
+    },
+    {
+        "searchable_email": "april_cassini@cl.com",
+        "searchable_name": "April"
+    },
+    {
+        "searchable_email": "george_clooney@cl.com",
+        "searchable_name": "George"
+    }
+]
