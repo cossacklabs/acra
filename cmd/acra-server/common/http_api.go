@@ -16,6 +16,8 @@ package common
 
 import (
 	"context"
+	"io"
+	stdlog "log"
 	"net"
 	"net/http"
 	"sync/atomic"
@@ -89,6 +91,8 @@ func NewAcraAPIServer(ctx context.Context, server *SServer, connCtxCallback Conn
 		ReadTimeout:  network.DefaultNetworkTimeout,
 		WriteTimeout: network.DefaultNetworkTimeout,
 		ConnContext:  connCtxCallback,
+		// Discard logs because there is no clear way of using logrus here
+		ErrorLog: stdlog.New(io.Discard, "", 0),
 	}
 
 	apiServer.httpServer = httpServer
