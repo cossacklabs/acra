@@ -23,6 +23,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/zone"
@@ -53,7 +54,7 @@ type HTTPAPIServer struct {
 // Is used to decouple the API logic from actual HTTP setting routine
 // In the future could be used to abstract HTTP setting up from API configuring
 type APICore struct {
-	server *SServer
+	keystore keystore.ServerKeyStore
 }
 
 // ConnectionContextCallback is callback that is called to map context for
@@ -63,14 +64,28 @@ type APICore struct {
 type ConnectionContextCallback func(ctx context.Context, c net.Conn) context.Context
 
 // NewHTTPAPIServer creates new AcraAPIServer
-func NewHTTPAPIServer(ctx context.Context, server *SServer, connCtxCallback ConnectionContextCallback) HTTPAPIServer {
+// The arguments:
+// - keystore is a keystore operated by the Acra
+// - traceToLog configures whether trace and span ids are printed into the
+//   logger. Often provided from the config
+// - traceOptions - options for the tracer. Often provided from the config.
+// - tlsIDExtractor is used to extract IDs from the TLS connection
+// - connCtxCallback is a callback for setting context for each connection
+func NewHTTPAPIServer(
+	ctx context.Context,
+	keystore keystore.ServerKeyStore,
+	traceToLog bool,
+	traceOptions []trace.StartOption,
+	tlsIDExtractor network.TLSClientIDExtractor,
+	connCtxCallback ConnectionContextCallback,
+) HTTPAPIServer {
 	gin.SetMode(gin.ReleaseMode)
-	api := NewAPICore(ctx, server)
+	api := NewAPICore(ctx, keystore)
 
 	engine := gin.New()
 	engine.
-		Use(spanningMiddleware("HandleSession", server.config.TraceToLog, server.config.GetTraceOptions())).
-		Use(clientIDMiddleware(server.config.GetTLSClientIDExtractor())).
+		Use(spanningMiddleware("HandleSession", traceToLog, traceOptions)).
+		Use(clientIDMiddleware(tlsIDExtractor)).
 		Use(loggerMiddleware(apiConnectionType)).
 		// explicitly set writer to nil, so the stack frame is not printed
 		Use(gin.CustomRecoveryWithWriter(nil, recoveryHandler()))
@@ -121,8 +136,8 @@ func (apiServer *HTTPAPIServer) Start(listener net.Listener) error {
 }
 
 // NewAPICore creates new APICore
-func NewAPICore(ctx context.Context, server *SServer) APICore {
-	return APICore{server}
+func NewAPICore(ctx context.Context, keystore keystore.ServerKeyStore) APICore {
+	return APICore{keystore}
 }
 
 // InitEngine configures all path handlers for the API
@@ -133,12 +148,11 @@ func (api *APICore) InitEngine(engine *gin.Engine) {
 }
 
 func (api *APICore) getNewZone() (id []byte, publicKey []byte, err error) {
-	keystore := api.server.config.GetKeyStore()
-	id, publicKey, err = keystore.GenerateZoneKey()
+	id, publicKey, err = api.keystore.GenerateZoneKey()
 	if err != nil {
 		return nil, nil, err
 	}
-	if err = keystore.GenerateZoneIDSymmetricKey(id); err != nil {
+	if err = api.keystore.GenerateZoneIDSymmetricKey(id); err != nil {
 		return nil, nil, err
 	}
 	return id, publicKey, nil
@@ -173,8 +187,7 @@ func (api *APICore) getNewZoneGin(ctx *gin.Context) {
 }
 
 func (api *APICore) resetKeyStorage() {
-	keystore := api.server.config.GetKeyStore()
-	keystore.Reset()
+	api.keystore.Reset()
 }
 
 func (api *APICore) resetKeyStorageGin(ctx *gin.Context) {

@@ -469,7 +469,14 @@ func (server *SServer) runCommands(ctx context.Context, listener net.Listener, l
 	go func() {
 		defer server.backgroundWorkersSync.Done()
 		connContextCallback := server.config.HTTPAPIConnectionWrapper.OnConnectionContext
-		apiServer := NewHTTPAPIServer(ctx, server, connContextCallback)
+		apiServer := NewHTTPAPIServer(
+			ctx,
+			server.config.GetKeyStore(),
+			server.config.TraceToLog,
+			server.config.GetTraceOptions(),
+			server.config.GetTLSClientIDExtractor(),
+			connContextCallback,
+		)
 		err := apiServer.Start(listener)
 		errCh <- err
 	}()
