@@ -10348,7 +10348,7 @@ class TestDifferentCaseTableIdentifiersMySQL(BaseTransparentEncryption):
                 row = result.fetchone()
 
                 self.assertEqual(
-                    bytes(row[column_name]),
+                    bytes(row[row_name]),
                     bytes(test_string, "UTF-8"),
                     f"Table identifier {table_name}, column identifier {column_name}, did not match (decryption failed?)"
                 )
@@ -10404,15 +10404,15 @@ class TestDifferentCaseTableIdentifiersMySQL(BaseTransparentEncryption):
     def testLowerConfigLowerQuery(self):
         # should match, lowercase config identifier == lowercase SQL identifier
         # column identifiers are always case-insensitive in MySQL and backquotes do not affect this,
-        # see <link>
+        # see https://dev.mysql.com/doc/refman/8.0/en/identifier-case-sensitivity.html
         QUOTED, NOT_QUOTED = (True, False)
         SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
         self.runTestCase("lowercase_table", NOT_QUOTED, "data", NOT_QUOTED, SHOULD_MATCH)
         self.runTestCase("lowercase_table", NOT_QUOTED, "Data", NOT_QUOTED, SHOULD_MATCH)
-        self.runTestCase("lowercase_table", NOT_QUOTED, "DATA", NOT_QUOTED, SHOULD_MATCH)
-        # self.runTestCase("lowercase_table", False, "data", True, True)
-        # self.runTestCase("lowercase_table", False, "Data", True, True)
-        # self.runTestCase("lowercase_table", False, "DATA", True, True)
+        self.runTestCase("lowercase_table", QUOTED,     "DATA", NOT_QUOTED, SHOULD_MATCH)
+        self.runTestCase("lowercase_table", NOT_QUOTED, "data", QUOTED,     SHOULD_MATCH)
+        self.runTestCase("lowercase_table", QUOTED,     "Data", QUOTED,     SHOULD_MATCH)
+        self.runTestCase("lowercase_table", NOT_QUOTED, "DATA", QUOTED,     SHOULD_MATCH)
 
     def testLowerConfigUpperQuery(self):
         # should NOT match, lowercase config identifier == lowercase SQL identifier
