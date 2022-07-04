@@ -66,15 +66,14 @@ type ConnectionContextCallback func(ctx context.Context, c net.Conn) context.Con
 // NewHTTPAPIServer creates new AcraAPIServer
 // The arguments:
 // - keystore is a keystore operated by the Acra
-// - traceToLog configures whether trace and span ids are printed into the
-//   logger. Often provided from the config
+// - traceOn controls the tracing. Often provided from the config.
 // - traceOptions - options for the tracer. Often provided from the config.
 // - tlsIDExtractor is used to extract IDs from the TLS connection
 // - connCtxCallback is a callback for setting context for each connection
 func NewHTTPAPIServer(
 	ctx context.Context,
 	keystore keystore.ServerKeyStore,
-	traceToLog bool,
+	traceOn bool,
 	traceOptions []trace.StartOption,
 	tlsIDExtractor network.TLSClientIDExtractor,
 	connCtxCallback ConnectionContextCallback,
@@ -84,7 +83,7 @@ func NewHTTPAPIServer(
 
 	engine := gin.New()
 	engine.
-		Use(spanningMiddleware("HandleSession", traceToLog, traceOptions)).
+		Use(spanningMiddleware("HandleSession", traceOn, traceOptions)).
 		Use(clientIDMiddleware(tlsIDExtractor)).
 		Use(loggerMiddleware(apiConnectionType)).
 		// explicitly set writer to nil, so the stack frame is not printed
@@ -263,9 +262,9 @@ func recoveryHandler() gin.RecoveryFunc {
 
 // spanningMiddleware returns new middleware that starts a span around the request
 // processing
-func spanningMiddleware(name string, traceToLog bool, options []trace.StartOption) gin.HandlerFunc {
+func spanningMiddleware(name string, traceOn bool, options []trace.StartOption) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		newRequestCtx := logging.SetTraceStatus(ctx.Request.Context(), traceToLog)
+		newRequestCtx := logging.SetTraceStatus(ctx.Request.Context(), traceOn)
 		newRequestCtx, span := trace.StartSpan(newRequestCtx, name, options...)
 		defer span.End()
 		span.AddAttributes(trace.StringAttribute("method", ctx.Request.Method))
