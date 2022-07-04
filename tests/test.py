@@ -10140,6 +10140,11 @@ class TestPostgresqlTypeAwareDecryptionWithDefaultsPsycopg3(Psycopg3ExecutorMixi
 
 
 class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTransparentEncryption):
+    # Testing behavior of PostgreSQL parser: before comparing with things in encryptor config
+    # - raw identifiers (table, column names) should be converted to lowercase
+    # - if wrapped with double quotes, should be taken as is
+    # see https://www.postgresql.org/docs/current/sql-syntax-lexical.html
+
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/postgresql_identifiers.yaml')
 
     def checkSkip(self):
@@ -10300,6 +10305,12 @@ class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTransparentEncryption):
 
 
 class TestDifferentCaseTableIdentifiersMySQL(BaseTransparentEncryption):
+    # Testing behavior of MySQL parser: before comparing with things in encryptor config
+    # - column identifiers should be converted to lowercase
+    # - table identifiers should be used as is (in this test, as config enables case sensitivity)
+    # - backquotes should have no effect on case sensitivity
+    # see https://dev.mysql.com/doc/refman/8.0/en/identifier-case-sensitivity.html
+
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/mysql_identifiers.yaml')
 
     def checkSkip(self):
