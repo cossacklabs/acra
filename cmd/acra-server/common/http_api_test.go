@@ -65,7 +65,7 @@ func runWithServer(t *testing.T, keyStorage keystore.ServerKeyStore, tlsWrapper 
 	listener := getListener(config.HTTPAPIConnectionWrapper, t)
 	defer listener.Close()
 	go func() {
-		errors <- apiServer.Start(listener)
+		errors <- apiServer.Start(listener, &sserver.backgroundWorkersSync)
 	}()
 
 	url := listener.Addr().String()

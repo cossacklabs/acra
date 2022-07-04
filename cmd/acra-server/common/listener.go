@@ -464,31 +464,19 @@ func (server *SServer) StartCommands(parentContext context.Context) {
 func (server *SServer) runCommands(ctx context.Context, listener net.Listener, logger *log.Entry) {
 	defer server.waitForExitTimeout()
 
-	var errCh = make(chan error)
-	server.backgroundWorkersSync.Add(1)
-	go func() {
-		defer server.backgroundWorkersSync.Done()
-		connContextCallback := server.config.HTTPAPIConnectionWrapper.OnConnectionContext
-		apiServer := NewHTTPAPIServer(
-			ctx,
-			server.config.GetKeyStore(),
-			server.config.TraceToLog,
-			server.config.GetTraceOptions(),
-			server.config.GetTLSClientIDExtractor(),
-			connContextCallback,
-		)
-		err := apiServer.Start(listener)
-		errCh <- err
-	}()
-
-	select {
-	case <-ctx.Done():
-		break
-	case outErr := <-errCh:
-		if outErr != nil {
-			// TODO: what status code to use?
-			logger.WithError(outErr).Errorln("Handling HTTP API requests")
-		}
+	connContextCallback := server.config.HTTPAPIConnectionWrapper.OnConnectionContext
+	apiServer := NewHTTPAPIServer(
+		ctx,
+		server.config.GetKeyStore(),
+		server.config.TraceToLog,
+		server.config.GetTraceOptions(),
+		server.config.GetTLSClientIDExtractor(),
+		connContextCallback,
+	)
+	err := apiServer.Start(listener, &server.backgroundWorkersSync)
+	if err != nil {
+		// TODO: what status code to use?
+		logger.WithError(err).Errorln("Handling HTTP API requests")
 	}
 }
 
