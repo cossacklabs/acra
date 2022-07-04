@@ -118,7 +118,7 @@ func NewHTTPAPIServer(
 // Start the server. Blocking operation
 func (apiServer *HTTPAPIServer) Start(listener net.Listener, group *sync.WaitGroup) error {
 	group.Add(1)
-	defer func() {
+	go func() {
 		defer group.Done()
 		<-apiServer.ctx.Done()
 		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(network.DefaultNetworkTimeout))
