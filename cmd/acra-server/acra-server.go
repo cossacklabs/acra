@@ -37,6 +37,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/cossacklabs/acra/keystore/keyloader/kms"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -181,6 +182,7 @@ func realMain() error {
 	enableAuditLog := flag.Bool("audit_log_enable", false, "Enable audit log functionality")
 
 	hashicorp.RegisterVaultCLIParameters()
+	kms.RegisterCLIParameters()
 	cmd.RegisterTracingCmdParameters()
 	cmd.RegisterJaegerCmdParameters()
 	logging.RegisterCLIArgs()
@@ -287,7 +289,7 @@ func realMain() error {
 	serverConfig.SetServiceName(ServiceName)
 	serverConfig.SetConfigPath(cmd.ConfigPath(DefaultConfigPath))
 
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(hashicorp.GetVaultCLIParameters())
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(hashicorp.GetVaultCLIParameters(), kms.GetCLIParameters())
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
 		return err

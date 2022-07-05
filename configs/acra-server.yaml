@@ -83,6 +83,9 @@ keystore_cache_on_start_enable: true
 # Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache. Default is 1000
 keystore_cache_size: 1000
 
+# KMS credentials file path
+kms_credentials_path: 
+
 # Log to stderr if true
 log_to_console: true
 
@@ -91,6 +94,9 @@ log_to_file:
 
 # Logging format: plaintext, json or CEF
 logging_format: plaintext
+
+# KMS identifier in Tink's formats
+master_key_encryption_key_uri: 
 
 # Handle MySQL connections
 mysql_enable: false
