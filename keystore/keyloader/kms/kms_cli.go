@@ -31,8 +31,9 @@ func (options *CLIOptions) RegisterCLIParameters(flags *flag.FlagSet, prefix str
 		description = " (" + description + ")"
 	}
 	if flags.Lookup(prefix+kmsKeyURIFlag) == nil {
-		flags.StringVar(&options.KeyIdentifierURI, prefix+kmsKeyURIFlag, "", "KMS identifier in Tink's formats"+description)
-		flags.StringVar(&options.CredentialsPath, prefix+"kms_credentials_path", "", "KMS credentials file path"+description)
+		flags.StringVar(&options.KeyIdentifierURI, prefix+kmsKeyURIFlag, "", "KMS Key identifier in Tink's format"+description)
+		// TODO: how to better provide an example of configuration files for different providers
+		flags.StringVar(&options.CredentialsPath, prefix+"kms_credentials_path", "", "KMS credentials JSON file path"+description)
 	}
 }
 
