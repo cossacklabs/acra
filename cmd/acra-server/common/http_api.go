@@ -47,7 +47,6 @@ const (
 type HTTPAPIServer struct {
 	ctx        context.Context
 	api        APICore
-	engine     *gin.Engine
 	httpServer *http.Server
 }
 
@@ -95,7 +94,6 @@ func NewHTTPAPIServer(
 	apiServer := HTTPAPIServer{
 		ctx:        ctx,
 		api:        api,
-		engine:     engine,
 		httpServer: nil,
 	}
 
