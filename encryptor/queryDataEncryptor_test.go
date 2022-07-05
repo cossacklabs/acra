@@ -613,7 +613,7 @@ schemas:
 	testParsing(t, testData, encryptedValue, defaultClientID, schemaStore)
 }
 
-func TestGeneralQueryParser_MySQLDialectAndQuotes(t *testing.T) {
+func TestGeneralQueryParser_MySQLCaseInsensitiveDialectAndQuotes(t *testing.T) {
 	zoneID := zone.GenerateZoneID()
 	zoneIDStr := string(zoneID)
 	clientIDStr := "specified_client_id"
@@ -622,6 +622,126 @@ func TestGeneralQueryParser_MySQLDialectAndQuotes(t *testing.T) {
 	defaultClientID := []byte(defaultClientIDStr)
 
 	configStr := fmt.Sprintf(`
+schemas:
+  - table: lowercasetable
+    columns: ["other_column", "default_client_id", "specified_client_id", "zone_id"]
+    encrypted:
+      - column: "default_client_id"
+      - column: specified_client_id
+        client_id: %s
+      - column: zone_id
+        zone_id: %s
+
+  - table: UPPERCASETABLE
+    columns: ["other_column", "default_client_id", "specified_client_id", "zone_id"]
+    encrypted:
+      - column: "default_client_id"
+      - column: specified_client_id
+        client_id: %s
+      - column: zone_id
+        zone_id: %s
+`, clientIDStr, zoneIDStr, clientIDStr, zoneIDStr)
+	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr))
+	if err != nil {
+		t.Fatalf("Can't parse config: %s", err.Error())
+	}
+	simpleStringData := []byte("string data")
+	encryptedValue := []byte("encrypted")
+	dataValue := make([]byte, 256)
+	for i := 0; i < 256; i++ {
+		dataValue[i] = byte(i)
+	}
+	testData := []parserTestData{
+		// Testing behavior of MySQL parser: before comparing with things in encryptor config
+		// - column identifiers should be converted to lowercase
+		// - table identifiers should be converted to lowercase (in this test, as config does not enable case sensitivity)
+		// - backquotes should have no effect on case sensitivity
+		// see https://dev.mysql.com/doc/refman/8.0/en/identifier-case-sensitivity.html
+
+		// 0. different case table identifiers, mysql
+		// should match, lowercase config identifier == lowercase SQL identifier
+		{
+			Query:             `UPDATE lowercasetable set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
+			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
+			ExpectedQueryData: []interface{}{simpleStringData, encryptedValue, encryptedValue, encryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
+			dialect:           mysql.NewMySQLDialect(),
+		},
+		// 1. different case table identifiers, mysql
+		// should NOT match, lowercase config identifier == uppercase SQL identifier
+		{
+			Query:             `UPDATE LOWERCASETABLE set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
+			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
+			ExpectedQueryData: []interface{}{simpleStringData, encryptedValue, encryptedValue, encryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
+			dialect:           mysql.NewMySQLDialect(),
+		},
+		// 2. different case table identifiers, mysql
+		// should NOT match, uppercase config identifier != lowercase SQL identifier
+		{
+			Query:             `UPDATE uppercasetable set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
+			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
+			ExpectedQueryData: []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
+			Normalized:        false,
+			Changed:           false,
+			ExpectedIDS:       [][]byte{},
+			dialect:           mysql.NewMySQLDialect(),
+		},
+		// 3. different case table identifiers, mysql
+		// should match, uppercase config identifier == uppercase SQL identifier
+		{
+			Query:             `UPDATE UPPERCASETABLE set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
+			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
+			ExpectedQueryData: []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
+			Normalized:        false,
+			Changed:           false,
+			ExpectedIDS:       [][]byte{},
+			dialect:           mysql.NewMySQLDialect(),
+		},
+		// 4. different case table identifiers, mysql
+		// should match, lowercase config identifier == lowercase SQL identifier, like #0 but with backquotes
+		{
+			Query:             "UPDATE `lowercasetable` set `other_column`='%s', `specified_client_id`='%s', `zone_id`='%s', `default_client_id`='%s'",
+			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
+			ExpectedQueryData: []interface{}{simpleStringData, encryptedValue, encryptedValue, encryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
+			dialect:           mysql.NewMySQLDialect(),
+		},
+		// 5. different case table identifiers, mysql
+		// should match, uppercase config identifier == uppercase SQL identifier, like #3 but with backquotes
+		{
+			Query:             "UPDATE `UPPERCASETABLE` set `other_column`='%s', `specified_client_id`='%s', `zone_id`='%s', `default_client_id`='%s'",
+			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
+			ExpectedQueryData: []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
+			Normalized:        false,
+			Changed:           false,
+			ExpectedIDS:       [][]byte{},
+			dialect:           mysql.NewMySQLDialect(),
+		},
+	}
+
+	testParsing(t, testData, encryptedValue, defaultClientID, schemaStore)
+}
+
+func TestGeneralQueryParser_MySQLCaseSensitiveDialectAndQuotes(t *testing.T) {
+	zoneID := zone.GenerateZoneID()
+	zoneIDStr := string(zoneID)
+	clientIDStr := "specified_client_id"
+	specifiedClientID := []byte(clientIDStr)
+	defaultClientIDStr := "default_client_id"
+	defaultClientID := []byte(defaultClientIDStr)
+
+	configStr := fmt.Sprintf(`
+database_settings:
+  mysql:
+    case_sensitive_table_identifiers: true
+
 schemas:
   - table: lowercasetable
     columns: ["other_column", "default_client_id", "specified_client_id", "zone_id"]
@@ -714,9 +834,9 @@ schemas:
 			dialect:           mysql.NewMySQLDialect(mysql.SetTableNameCaseSensitivity(true)),
 		},
 		// 5. different case table identifiers, mysql
-		// should match, uppercase config identifier == uppercase SQL identifier, like #3 but with backquotes
+		// should match, uppercase config identifier == uppercase SQL identifier, like #3 but with backquotes and mixed case column names
 		{
-			Query:             "UPDATE `UPPERCASETABLE` set `other_column`='%s', `specified_client_id`='%s', `zone_id`='%s', `default_client_id`='%s'",
+			Query:             "UPDATE `UPPERCASETABLE` set `other_column`='%s', `SPECIfiED_cliENT_ID`='%s', ZOnE_id='%s', `default_client_id`='%s'",
 			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
 			ExpectedQueryData: []interface{}{simpleStringData, encryptedValue, encryptedValue, encryptedValue},
 			Normalized:        true,
