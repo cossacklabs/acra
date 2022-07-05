@@ -457,6 +457,11 @@ func realMain() error {
 				log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).
 					Warningln("HTTP API server is used without TLS. Consider using TLS whenever possible.")
 			}
+			if *clientID == "" && !*withZone {
+				log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
+					Errorln("HTTP API server is configured without TLS, which requires non-empty clientID or zone mode. Either configure TLS for the HTTP API server, use --client_id option or enable zones.")
+				os.Exit(1)
+			}
 			httpAPIConnWrapper, err = common.BuildHTTPAPIConnectionWrapper(nil, []byte(*clientID))
 		}
 		if err != nil {
