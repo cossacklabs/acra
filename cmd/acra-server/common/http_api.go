@@ -92,14 +92,14 @@ func NewHTTPAPIServer(
 
 	engine.HandleMethodNotAllowed = true
 
-	api.InitEngine(engine)
-
 	apiServer := HTTPAPIServer{
 		ctx:        ctx,
 		api:        api,
 		engine:     engine,
 		httpServer: nil,
 	}
+
+	apiServer.InitEngine(engine)
 
 	httpServer := &http.Server{
 		Handler:      engine,
@@ -143,9 +143,9 @@ func NewAPICore(ctx context.Context, keystore keystore.ServerKeyStore) APICore {
 }
 
 // InitEngine configures all path handlers for the API
-func (api *APICore) InitEngine(engine *gin.Engine) {
-	engine.GET("/getNewZone", api.getNewZoneGin)
-	engine.GET("/resetKeyStorage", api.resetKeyStorageGin)
+func (apiServer *HTTPAPIServer) InitEngine(engine *gin.Engine) {
+	engine.GET("/getNewZone", apiServer.getNewZoneGin)
+	engine.GET("/resetKeyStorage", apiServer.resetKeyStorageGin)
 	engine.NoRoute(respondWithError)
 }
 
@@ -160,10 +160,10 @@ func (api *APICore) getNewZone() (id []byte, publicKey []byte, err error) {
 	return id, publicKey, nil
 }
 
-func (api *APICore) getNewZoneGin(ctx *gin.Context) {
+func (apiServer *HTTPAPIServer) getNewZoneGin(ctx *gin.Context) {
 	logger := ginGetLogger(ctx)
 
-	id, pub, err := api.getNewZone()
+	id, pub, err := apiServer.api.getNewZone()
 	if err != nil {
 		logger.WithError(err).
 			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantGenerateZone).
@@ -192,10 +192,10 @@ func (api *APICore) resetKeyStorage() {
 	api.keystore.Reset()
 }
 
-func (api *APICore) resetKeyStorageGin(ctx *gin.Context) {
+func (apiServer *HTTPAPIServer) resetKeyStorageGin(ctx *gin.Context) {
 	logger := ginGetLogger(ctx)
 
-	api.resetKeyStorage()
+	apiServer.api.resetKeyStorage()
 	logger.Infoln("Cleared key storage cache")
 	ctx.String(http.StatusOK, "")
 }
