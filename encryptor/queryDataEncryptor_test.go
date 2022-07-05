@@ -178,25 +178,7 @@ schemas:
         client_id: %s
       - column: zone_id
         zone_id: %s
-
-  - table: lowercasetable
-    columns: ["other_column", "default_client_id", "specified_client_id", "zone_id"]
-    encrypted:
-      - column: "default_client_id"
-      - column: specified_client_id
-        client_id: %s
-      - column: zone_id
-        zone_id: %s
-
-  - table: UPPERCASETABLE
-    columns: ["other_column", "default_client_id", "specified_client_id", "zone_id"]
-    encrypted:
-      - column: "default_client_id"
-      - column: specified_client_id
-        client_id: %s
-      - column: zone_id
-        zone_id: %s
-`, clientIDStr, zoneIDStr, clientIDStr, zoneIDStr, clientIDStr, zoneIDStr, clientIDStr, zoneIDStr)
+`, clientIDStr, zoneIDStr, clientIDStr, zoneIDStr)
 	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr))
 	if err != nil {
 		t.Fatalf("Can't parse config: %s", err.Error())
@@ -481,13 +463,56 @@ schemas:
 			DataCoder:         &PostgresqlDBDataCoder{},
 			dialect:           postgresql.NewPostgreSQLDialect(),
 		},
+	}
 
+	testParsing(t, testData, encryptedValue, defaultClientID, schemaStore)
+}
+
+func TestGeneralQueryParser_PostgreSQLDialectAndQuotes(t *testing.T) {
+	zoneID := zone.GenerateZoneID()
+	zoneIDStr := string(zoneID)
+	clientIDStr := "specified_client_id"
+	specifiedClientID := []byte(clientIDStr)
+	defaultClientIDStr := "default_client_id"
+	defaultClientID := []byte(defaultClientIDStr)
+
+	configStr := fmt.Sprintf(`
+schemas:
+  - table: lowercasetable
+    columns: ["other_column", "default_client_id", "specified_client_id", "zone_id"]
+    encrypted:
+      - column: "default_client_id"
+      - column: specified_client_id
+        client_id: %s
+      - column: zone_id
+        zone_id: %s
+
+  - table: UPPERCASETABLE
+    columns: ["other_column", "default_client_id", "specified_client_id", "zone_id"]
+    encrypted:
+      - column: "default_client_id"
+      - column: specified_client_id
+        client_id: %s
+      - column: zone_id
+        zone_id: %s
+`, clientIDStr, zoneIDStr, clientIDStr, zoneIDStr)
+	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr))
+	if err != nil {
+		t.Fatalf("Can't parse config: %s", err.Error())
+	}
+	simpleStringData := []byte("string data")
+	encryptedValue := []byte("encrypted")
+	dataValue := make([]byte, 256)
+	for i := 0; i < 256; i++ {
+		dataValue[i] = byte(i)
+	}
+	testData := []parserTestData{
 		// Testing behavior of PostgreSQL parser: before comparing with things in encryptor config
 		// - raw identifiers (table, column names) should be converted to lowercase
 		// - if wrapped with double quotes, should be taken as is
 		// see https://www.postgresql.org/docs/current/sql-syntax-lexical.html
 
-		// 29. different case table identifiers, postgresql
+		// 0. different case table identifiers, postgresql
 		// should match, lowercase config identifier == lowercase SQL identifier
 		{
 			Query:             `UPDATE lowercasetable set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
@@ -499,7 +524,7 @@ schemas:
 			DataCoder:         &PostgresqlDBDataCoder{},
 			dialect:           postgresql.NewPostgreSQLDialect(),
 		},
-		// 30. different case table identifiers, postgresql
+		// 1. different case table identifiers, postgresql
 		// should match, lowercase config identifier == lowercase SQL identifier
 		{
 			Query:             `UPDATE "lowercasetable" set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
@@ -511,7 +536,7 @@ schemas:
 			DataCoder:         &PostgresqlDBDataCoder{},
 			dialect:           postgresql.NewPostgreSQLDialect(),
 		},
-		// 31. different case table identifiers, postgresql
+		// 2. different case table identifiers, postgresql
 		// should match, lowercase config identifier == lowercase SQL identifier (converted)
 		{
 			Query:             `UPDATE LOWERCASETABLE set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
@@ -523,7 +548,7 @@ schemas:
 			DataCoder:         &PostgresqlDBDataCoder{},
 			dialect:           postgresql.NewPostgreSQLDialect(),
 		},
-		// 32. different case table identifiers, postgresql
+		// 3. different case table identifiers, postgresql
 		// should NOT match, lowercase config identifier != uppercase SQL identifier
 		{
 			Query:             `UPDATE "LOWERCASETABLE" set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
@@ -535,7 +560,7 @@ schemas:
 			DataCoder:         &PostgresqlDBDataCoder{},
 			dialect:           postgresql.NewPostgreSQLDialect(),
 		},
-		// 33. different case table identifiers, postgresql
+		// 4. different case table identifiers, postgresql
 		// should NOT match, uppercase config identifier != lowercase SQL identifier
 		{
 			Query:             `UPDATE uppercasetable set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
@@ -547,7 +572,7 @@ schemas:
 			DataCoder:         &PostgresqlDBDataCoder{},
 			dialect:           postgresql.NewPostgreSQLDialect(),
 		},
-		// 34. different case table identifiers, postgresql
+		// 5. different case table identifiers, postgresql
 		// should NOT match, uppercase config identifier != lowercase SQL identifier
 		{
 			Query:             `UPDATE "uppercasetable" set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
@@ -559,7 +584,7 @@ schemas:
 			DataCoder:         &PostgresqlDBDataCoder{},
 			dialect:           postgresql.NewPostgreSQLDialect(),
 		},
-		// 35. different case table identifiers, postgresql
+		// 6. different case table identifiers, postgresql
 		// should NOT match, uppercase config identifier != lowercase SQL identifier (converted)
 		{
 			Query:             `UPDATE UPPERCASETABLE set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
@@ -571,7 +596,7 @@ schemas:
 			DataCoder:         &PostgresqlDBDataCoder{},
 			dialect:           postgresql.NewPostgreSQLDialect(),
 		},
-		// 36. different case table identifiers, postgresql
+		// 7. different case table identifiers, postgresql
 		// should match, uppercase config identifier == uppercase SQL identifier
 		{
 			Query:             `UPDATE "UPPERCASETABLE" set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
@@ -583,14 +608,57 @@ schemas:
 			DataCoder:         &PostgresqlDBDataCoder{},
 			dialect:           postgresql.NewPostgreSQLDialect(),
 		},
+	}
 
+	testParsing(t, testData, encryptedValue, defaultClientID, schemaStore)
+}
+
+func TestGeneralQueryParser_MySQLDialectAndQuotes(t *testing.T) {
+	zoneID := zone.GenerateZoneID()
+	zoneIDStr := string(zoneID)
+	clientIDStr := "specified_client_id"
+	specifiedClientID := []byte(clientIDStr)
+	defaultClientIDStr := "default_client_id"
+	defaultClientID := []byte(defaultClientIDStr)
+
+	configStr := fmt.Sprintf(`
+schemas:
+  - table: lowercasetable
+    columns: ["other_column", "default_client_id", "specified_client_id", "zone_id"]
+    encrypted:
+      - column: "default_client_id"
+      - column: specified_client_id
+        client_id: %s
+      - column: zone_id
+        zone_id: %s
+
+  - table: UPPERCASETABLE
+    columns: ["other_column", "default_client_id", "specified_client_id", "zone_id"]
+    encrypted:
+      - column: "default_client_id"
+      - column: specified_client_id
+        client_id: %s
+      - column: zone_id
+        zone_id: %s
+`, clientIDStr, zoneIDStr, clientIDStr, zoneIDStr)
+	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr))
+	if err != nil {
+		t.Fatalf("Can't parse config: %s", err.Error())
+	}
+	simpleStringData := []byte("string data")
+	encryptedValue := []byte("encrypted")
+	dataValue := make([]byte, 256)
+	for i := 0; i < 256; i++ {
+		dataValue[i] = byte(i)
+	}
+	testData := []parserTestData{
 		// Testing behavior of MySQL parser: before comparing with things in encryptor config
 		// - column identifiers should be converted to lowercase
 		// - table identifiers should be converted to lowercase (in this test, as config does not enable case sensitivity)
 		// - backquotes should have no effect on case sensitivity
 		// see https://dev.mysql.com/doc/refman/8.0/en/identifier-case-sensitivity.html
 
-		// 37. different case table identifiers, mysql
+		// 0. different case table identifiers, mysql
 		// should match, lowercase config identifier == lowercase SQL identifier
 		{
 			Query:             `UPDATE lowercasetable set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
@@ -601,7 +669,7 @@ schemas:
 			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
 			dialect:           mysql.NewMySQLDialect(mysql.SetTableNameCaseSensitivity(true)),
 		},
-		// 38. different case table identifiers, mysql
+		// 1. different case table identifiers, mysql
 		// should NOT match, lowercase config identifier == uppercase SQL identifier
 		{
 			Query:             `UPDATE LOWERCASETABLE set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
@@ -612,7 +680,7 @@ schemas:
 			ExpectedIDS:       [][]byte{},
 			dialect:           mysql.NewMySQLDialect(mysql.SetTableNameCaseSensitivity(true)),
 		},
-		// 39. different case table identifiers, mysql
+		// 2. different case table identifiers, mysql
 		// should NOT match, uppercase config identifier != lowercase SQL identifier
 		{
 			Query:             `UPDATE uppercasetable set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
@@ -623,7 +691,7 @@ schemas:
 			ExpectedIDS:       [][]byte{},
 			dialect:           mysql.NewMySQLDialect(mysql.SetTableNameCaseSensitivity(true)),
 		},
-		// 40. different case table identifiers, mysql
+		// 3. different case table identifiers, mysql
 		// should match, uppercase config identifier == uppercase SQL identifier
 		{
 			Query:             `UPDATE UPPERCASETABLE set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
@@ -634,8 +702,8 @@ schemas:
 			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
 			dialect:           mysql.NewMySQLDialect(mysql.SetTableNameCaseSensitivity(true)),
 		},
-		// 41. different case table identifiers, mysql
-		// should match, lowercase config identifier == lowercase SQL identifier, like #37 but with backquotes
+		// 4. different case table identifiers, mysql
+		// should match, lowercase config identifier == lowercase SQL identifier, like #0 but with backquotes
 		{
 			Query:             "UPDATE `lowercasetable` set `other_column`='%s', `specified_client_id`='%s', `zone_id`='%s', `default_client_id`='%s'",
 			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
@@ -645,8 +713,8 @@ schemas:
 			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
 			dialect:           mysql.NewMySQLDialect(mysql.SetTableNameCaseSensitivity(true)),
 		},
-		// 42. different case table identifiers, mysql
-		// should match, uppercase config identifier == uppercase SQL identifier, like #40 but with backquotes
+		// 5. different case table identifiers, mysql
+		// should match, uppercase config identifier == uppercase SQL identifier, like #3 but with backquotes
 		{
 			Query:             "UPDATE `UPPERCASETABLE` set `other_column`='%s', `specified_client_id`='%s', `zone_id`='%s', `default_client_id`='%s'",
 			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
