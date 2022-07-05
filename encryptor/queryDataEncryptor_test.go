@@ -631,16 +631,7 @@ schemas:
         client_id: %s
       - column: zone_id
         zone_id: %s
-
-  - table: UPPERCASETABLE
-    columns: ["other_column", "default_client_id", "specified_client_id", "zone_id"]
-    encrypted:
-      - column: "default_client_id"
-      - column: specified_client_id
-        client_id: %s
-      - column: zone_id
-        zone_id: %s
-`, clientIDStr, zoneIDStr, clientIDStr, zoneIDStr)
+`, clientIDStr, zoneIDStr)
 	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr))
 	if err != nil {
 		t.Fatalf("Can't parse config: %s", err.Error())
@@ -681,28 +672,6 @@ schemas:
 			dialect:           mysql.NewMySQLDialect(),
 		},
 		// 2. different case table identifiers, mysql
-		// should NOT match, uppercase config identifier != lowercase SQL identifier
-		{
-			Query:             `UPDATE uppercasetable set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
-			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
-			ExpectedQueryData: []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
-			Normalized:        false,
-			Changed:           false,
-			ExpectedIDS:       [][]byte{},
-			dialect:           mysql.NewMySQLDialect(),
-		},
-		// 3. different case table identifiers, mysql
-		// should match, uppercase config identifier == uppercase SQL identifier
-		{
-			Query:             `UPDATE UPPERCASETABLE set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
-			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
-			ExpectedQueryData: []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
-			Normalized:        false,
-			Changed:           false,
-			ExpectedIDS:       [][]byte{},
-			dialect:           mysql.NewMySQLDialect(),
-		},
-		// 4. different case table identifiers, mysql
 		// should match, lowercase config identifier == lowercase SQL identifier, like #0 but with backquotes
 		{
 			Query:             "UPDATE `lowercasetable` set `other_column`='%s', `specified_client_id`='%s', `zone_id`='%s', `default_client_id`='%s'",
@@ -711,17 +680,6 @@ schemas:
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
-			dialect:           mysql.NewMySQLDialect(),
-		},
-		// 5. different case table identifiers, mysql
-		// should match, uppercase config identifier == uppercase SQL identifier, like #3 but with backquotes
-		{
-			Query:             "UPDATE `UPPERCASETABLE` set `other_column`='%s', `specified_client_id`='%s', `zone_id`='%s', `default_client_id`='%s'",
-			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
-			ExpectedQueryData: []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
-			Normalized:        false,
-			Changed:           false,
-			ExpectedIDS:       [][]byte{},
 			dialect:           mysql.NewMySQLDialect(),
 		},
 	}
