@@ -9445,7 +9445,8 @@ class TestMySQLBinaryTypeAwareDecryptionWithoutDefaults(TestMySQLTextTypeAwareDe
             self.assertIsInstance(value, bytearray, column)
             self.assertNotEqual(data[column], value, column)
 
-class TestMySQLTextTypeAwareDecryptionWithСiphertext(BaseBinaryMySQLTestCase, BaseTransparentEncryption):
+
+class TestMySQLTextTypeAwareDecryptionWithCiphertext(BaseBinaryMySQLTestCase, BaseTransparentEncryption):
     # test table used for queries and data mapping into python types
     test_table = sa.Table(
         # use new object of metadata to avoid name conflict
@@ -9532,7 +9533,8 @@ class TestMySQLTextTypeAwareDecryptionWithСiphertext(BaseBinaryMySQLTestCase, B
             self.assertIsInstance(value, bytes, column)
             self.assertNotEqual(data[column], value, column)
 
-class TestMySQLBinaryTypeAwareDecryptionWithСiphertext(TestMySQLTextTypeAwareDecryptionWithСiphertext):
+
+class TestMySQLBinaryTypeAwareDecryptionWithCiphertext(TestMySQLTextTypeAwareDecryptionWithCiphertext):
     def checkSkip(self):
         if not (TEST_MYSQL and TEST_WITH_TLS):
             self.skipTest("Test only for MySQL with TLS")
