@@ -72,6 +72,76 @@ func normalizeQueryWithDialect(dialect dialect.Dialect, query string) (string, e
 	return sqlparser.StringWithDialect(dialect, parsed), nil
 }
 
+type parserTestData struct {
+	Query             string
+	QueryData         []interface{}
+	Normalized        bool
+	ExpectedQueryData []interface{}
+	Changed           bool
+	ExpectedIDS       [][]byte
+	DataCoder         DBDataCoder
+	dialect           dialect.Dialect
+}
+
+func testParsing(t *testing.T, testData []parserTestData, encryptedValue, defaultClientID []byte, schemaStore *config.MapTableSchemaStore) {
+	encryptor := &testEncryptor{value: encryptedValue}
+	parser := sqlparser.New(sqlparser.ModeStrict)
+	mysqlParser, err := NewMysqlQueryEncryptor(schemaStore, parser, encryptor)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var dialect dialect.Dialect
+
+	for i, testCase := range testData {
+		encryptor.reset()
+		if testCase.DataCoder != nil {
+			mysqlParser.dataCoder = testCase.DataCoder
+		}
+		dialect = testCase.dialect
+		if dialect == nil {
+			dialect = mysql.NewMySQLDialect()
+		}
+		sqlparser.SetDefaultDialect(dialect)
+		query := fmt.Sprintf(testCase.Query, testCase.QueryData...)
+		expectedQuery := fmt.Sprintf(testCase.Query, testCase.ExpectedQueryData...)
+		if testCase.Normalized {
+			expectedQuery, err = normalizeQueryWithDialect(dialect, expectedQuery)
+			if err != nil {
+				t.Fatalf("%v. Can't normalize query: %s - %s", i, err.Error(), query)
+			}
+		}
+		ctx := base.SetAccessContextToContext(context.Background(), base.NewAccessContext(base.WithClientID(defaultClientID)))
+		clientSession := &mocks.ClientSession{}
+		sessionData := make(map[string]interface{}, 2)
+		clientSession.On("GetData", mock.Anything).Return(sessionData, true)
+		clientSession.On("SetData", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+			sessionData[args[0].(string)] = args[1]
+		})
+		ctx = base.SetClientSessionToContext(ctx, clientSession)
+		data, changed, err := mysqlParser.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
+		if err != nil {
+			t.Fatalf("%v. %s", i, err.Error())
+		}
+		if data.Query() != expectedQuery {
+			t.Fatalf("%v. Incorrect value\nTook:\n%s\nExpected:\n%s;", i, data.Query(), expectedQuery)
+		}
+		if testCase.Changed != changed {
+			t.Fatalf("%v. Incorrect <changed> value. Took - %t; Expected - %t", i, changed, testCase.Changed)
+		}
+		if len(encryptor.fetchedIDs) != len(testCase.ExpectedIDS) {
+			t.Fatalf("%v. Incorrect length of fetched keys id. Took: %v; Expected: %v", i, len(encryptor.fetchedIDs), len(testCase.ExpectedIDS))
+		}
+		for i := 0; i < len(encryptor.fetchedIDs); i++ {
+			if !bytes.Equal(encryptor.fetchedIDs[i], testCase.ExpectedIDS[i]) {
+				t.Fatalf("%v. Incorrect fetched id\nTook: %v\nExpected: %v", i, encryptor.fetchedIDs, testCase.ExpectedIDS)
+			}
+		}
+	}
+	// avoid side effect for other tests with configuring default dialect
+	sqlparser.SetDefaultDialect(mysql.NewMySQLDialect())
+}
+
 func TestGeneralQueryParser_Parse(t *testing.T) {
 	zoneID := zone.GenerateZoneID()
 	zoneIDStr := string(zoneID)
@@ -140,16 +210,7 @@ schemas:
 	}
 	dataHexValue := hex.EncodeToString([]byte(dataValue))
 	// TODO add test cases with string, binary, int values. First should be decrypted as is, second as hex, third as is
-	testData := []struct {
-		Query             string
-		QueryData         []interface{}
-		Normalized        bool
-		ExpectedQueryData []interface{}
-		Changed           bool
-		ExpectedIDS       [][]byte
-		DataCoder         DBDataCoder
-		dialect           dialect.Dialect
-	}{
+	testData := []parserTestData{
 		// 0. without list of columns and with schema, one value
 		{
 			Query:             `INSERT INTO TableWithColumnSchema VALUES (1, X'%s', X'%s', X'%s')`,
@@ -596,62 +657,8 @@ schemas:
 			dialect:           mysql.NewMySQLDialect(mysql.SetTableNameCaseSensitivity(true)),
 		},
 	}
-	encryptor := &testEncryptor{value: encryptedValue}
-	parser := sqlparser.New(sqlparser.ModeStrict)
-	mysqlParser, err := NewMysqlQueryEncryptor(schemaStore, parser, encryptor)
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	var dialect dialect.Dialect
-
-	for i, testCase := range testData {
-		encryptor.reset()
-		if testCase.DataCoder != nil {
-			mysqlParser.dataCoder = testCase.DataCoder
-		}
-		dialect = testCase.dialect
-		if dialect == nil {
-			dialect = mysql.NewMySQLDialect()
-		}
-		sqlparser.SetDefaultDialect(dialect)
-		query := fmt.Sprintf(testCase.Query, testCase.QueryData...)
-		expectedQuery := fmt.Sprintf(testCase.Query, testCase.ExpectedQueryData...)
-		if testCase.Normalized {
-			expectedQuery, err = normalizeQueryWithDialect(dialect, expectedQuery)
-			if err != nil {
-				t.Fatalf("%v. Can't normalize query: %s - %s", i, err.Error(), query)
-			}
-		}
-		ctx := base.SetAccessContextToContext(context.Background(), base.NewAccessContext(base.WithClientID(defaultClientID)))
-		clientSession := &mocks.ClientSession{}
-		sessionData := make(map[string]interface{}, 2)
-		clientSession.On("GetData", mock.Anything).Return(sessionData, true)
-		clientSession.On("SetData", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-			sessionData[args[0].(string)] = args[1]
-		})
-		ctx = base.SetClientSessionToContext(ctx, clientSession)
-		data, changed, err := mysqlParser.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
-		if err != nil {
-			t.Fatalf("%v. %s", i, err.Error())
-		}
-		if data.Query() != expectedQuery {
-			t.Fatalf("%v. Incorrect value\nTook:\n%s\nExpected:\n%s;", i, data.Query(), expectedQuery)
-		}
-		if testCase.Changed != changed {
-			t.Fatalf("%v. Incorrect <changed> value. Took - %t; Expected - %t", i, changed, testCase.Changed)
-		}
-		if len(encryptor.fetchedIDs) != len(testCase.ExpectedIDS) {
-			t.Fatalf("%v. Incorrect length of fetched keys id. Took: %v; Expected: %v", i, len(encryptor.fetchedIDs), len(testCase.ExpectedIDS))
-		}
-		for i := 0; i < len(encryptor.fetchedIDs); i++ {
-			if !bytes.Equal(encryptor.fetchedIDs[i], testCase.ExpectedIDS[i]) {
-				t.Fatalf("%v. Incorrect fetched id\nTook: %v\nExpected: %v", i, encryptor.fetchedIDs, testCase.ExpectedIDS)
-			}
-		}
-	}
-	// avoid side effect for other tests with configuring default dialect
-	sqlparser.SetDefaultDialect(mysql.NewMySQLDialect())
+	testParsing(t, testData, encryptedValue, defaultClientID, schemaStore)
 }
 
 func TestOnReturning(t *testing.T) {
