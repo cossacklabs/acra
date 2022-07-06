@@ -86,7 +86,7 @@ type parserTestData struct {
 func testParsing(t *testing.T, testData []parserTestData, encryptedValue, defaultClientID []byte, schemaStore *config.MapTableSchemaStore) {
 	encryptor := &testEncryptor{value: encryptedValue}
 	parser := sqlparser.New(sqlparser.ModeStrict)
-	mysqlParser, err := NewMysqlQueryEncryptor(schemaStore, parser, encryptor)
+	queryEncryptor, err := NewMysqlQueryEncryptor(schemaStore, parser, encryptor)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func testParsing(t *testing.T, testData []parserTestData, encryptedValue, defaul
 	for i, testCase := range testData {
 		encryptor.reset()
 		if testCase.DataCoder != nil {
-			mysqlParser.dataCoder = testCase.DataCoder
+			queryEncryptor.dataCoder = testCase.DataCoder
 		}
 		dialect = testCase.dialect
 		if dialect == nil {
@@ -119,7 +119,7 @@ func testParsing(t *testing.T, testData []parserTestData, encryptedValue, defaul
 			sessionData[args[0].(string)] = args[1]
 		})
 		ctx = base.SetClientSessionToContext(ctx, clientSession)
-		data, changed, err := mysqlParser.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
+		data, changed, err := queryEncryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
 		if err != nil {
 			t.Fatalf("%v. %s", i, err.Error())
 		}
