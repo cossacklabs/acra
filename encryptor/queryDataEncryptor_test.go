@@ -468,7 +468,7 @@ schemas:
 	testParsing(t, testData, encryptedValue, defaultClientID, schemaStore)
 }
 
-func TestGeneralQueryParser_PostgreSQLDialectAndQuotes(t *testing.T) {
+func TestCaseSensitivity_PostgreSQLWithQuotes(t *testing.T) {
 	zoneID := zone.GenerateZoneID()
 	zoneIDStr := string(zoneID)
 	clientIDStr := "specified_client_id"
@@ -616,7 +616,7 @@ schemas:
 	testParsing(t, testData, encryptedValue, defaultClientID, schemaStore)
 }
 
-func TestGeneralQueryParser_MySQLCaseInsensitiveDialectAndQuotes(t *testing.T) {
+func TestCaseSensitivity_MySQLCaseInsensitiveWithQuotes(t *testing.T) {
 	zoneID := zone.GenerateZoneID()
 	zoneIDStr := string(zoneID)
 	clientIDStr := "specified_client_id"
@@ -687,7 +687,7 @@ schemas:
 	testParsing(t, testData, encryptedValue, defaultClientID, schemaStore)
 }
 
-func TestGeneralQueryParser_MySQLCaseSensitiveDialectAndQuotes(t *testing.T) {
+func TestCaseSensitivity_MySQLCaseSensitiveWithQuotes(t *testing.T) {
 	zoneID := zone.GenerateZoneID()
 	zoneIDStr := string(zoneID)
 	clientIDStr := "specified_client_id"
