@@ -320,7 +320,11 @@ func BuildHTTPAPIConnectionWrapper(tlsWrapper *network.TLSConnectionWrapper, cli
 	httpWrapper.AddConnectionContextCallback(network.ConnectionToContextCallback{})
 	httpWrapper.AddCallback(network.SafeCloseConnectionCallback{})
 	if tlsWrapper == nil {
-		httpWrapper.AddCallback(network.ClientIDConnectionWrapper{ClientID: clientID})
+		// Save static clientID into the context. Otherwise, it will be derived
+		// from the TLS connection.
+		httpWrapper.AddConnectionContextCallback(network.ClientIDToContextCallback{
+			ClientID: clientID,
+		})
 	} else {
 		// we should register transport callback last because http2 server
 		// require that it should receive *tls.Conn object and we need to wrap

@@ -56,18 +56,6 @@ func customSchemeToBaseGolangScheme(scheme string) string {
 	return scheme
 }
 
-// ClientIDConnectionWrapper callback that wraps connections with clientID, to
-// allow extracting it later. Is used in the contexts without TLS, because the
-// latter has its own mechanism of extracting the clientID.
-type ClientIDConnectionWrapper struct {
-	ClientID []byte
-}
-
-// OnConnection wraps connection with clientID
-func (w ClientIDConnectionWrapper) OnConnection(conn net.Conn) (net.Conn, error) {
-	return newClientIDConnection(conn, w.ClientID), nil
-}
-
 // safeCloseConnection wrap connection and ensure that net.Conn.Close will be called only once, allow to store clientID
 // and transferred SpanContext
 type safeCloseConnection struct {
