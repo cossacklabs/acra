@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -173,7 +176,7 @@ func TestPlainHTTPAPI(t *testing.T) {
 		})
 
 		t.Run("TLS connection", func(t *testing.T) {
-			_, client := createTLSWrapper(t)
+			_, client, _ := createTLSWrapper(t)
 			_, err := client.Get(fmt.Sprintf("https://%s/getNewZone", url))
 			expectedError := "http: server gave HTTP response to HTTPS client"
 			if !strings.Contains(err.Error(), expectedError) {
@@ -183,20 +186,8 @@ func TestPlainHTTPAPI(t *testing.T) {
 	})
 }
 
-func createTLSWrapper(t *testing.T) (*network.TLSConnectionWrapper, *http.Client) {
-	hexConverter, err := network.NewDefaultHexIdentifierConverter()
-	if err != nil {
-		t.Fatal(err)
-	}
-	dnExtractor, err := network.NewIdentifierExtractorByType(network.IdentifierExtractorTypeDistinguishedName)
-	if err != nil {
-		t.Fatal(err)
-	}
-	tlsExtractor, err := network.NewTLSClientIDExtractor(dnExtractor, hexConverter)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+func createTLSWrapper(t *testing.T) (*network.TLSConnectionWrapper, *http.Client, []byte) {
+	tlsExtractor := newClientIDExtractor(t)
 	serverTLSConfig, err := network.NewTLSConfig("127.0.0.1", "", "", "", tls.RequireAndVerifyClientCert, network.NewCertVerifierAll())
 	if err != nil {
 		t.Fatal(err)
@@ -217,12 +208,36 @@ func createTLSWrapper(t *testing.T) (*network.TLSConnectionWrapper, *http.Client
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.TLSClientConfig = clientConfig
 	client := &http.Client{Transport: transport}
+	x509Cert, err := x509.ParseCertificate(clientConfig.Certificates[0].Certificate[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	clientID, err := tlsExtractor.ExtractClientID(x509Cert)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	return serverWrapper, client
+	return serverWrapper, client, clientID
+}
+
+func newClientIDExtractor(t *testing.T) network.TLSClientIDExtractor {
+	hexConverter, err := network.NewDefaultHexIdentifierConverter()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dnExtractor, err := network.NewIdentifierExtractorByType(network.IdentifierExtractorTypeDistinguishedName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tlsExtractor, err := network.NewTLSClientIDExtractor(dnExtractor, hexConverter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tlsExtractor
 }
 
 func TestTLSHTTPAPI(t *testing.T) {
-	serverWrapper, client := createTLSWrapper(t)
+	serverWrapper, client, _ := createTLSWrapper(t)
 
 	keyStorage := &mocks.ServerKeyStore{}
 
@@ -320,4 +335,109 @@ func TestTLSHTTPAPI(t *testing.T) {
 		})
 	})
 
+}
+
+// Test that the client ID is successfully extracted from the certificate
+func TestClientIDExtractedFromTLS(t *testing.T) {
+	statiClientID := []byte("IvanSirko")
+	tlsWrapper, client, expectedClientID := createTLSWrapper(t)
+
+	testClientID(t, tlsWrapper, client, "https", statiClientID, expectedClientID)
+}
+
+// Test that the TLS is used but the client ID is defined by the user
+// (with the --client_id flag) for example.
+func TestStaticClientIDTLS(t *testing.T) {
+	tlsWrapper, client, _ := createTLSWrapper(t)
+	clientID := []byte("some client id")
+
+	testClientID(t, tlsWrapper, client, "https", clientID, clientID)
+}
+
+// Test that the client id is defined by the user and no tls is used
+func TestStaticClientIDPlain(t *testing.T) {
+	clientID := []byte("some client id")
+	testClientID(t, nil, http.DefaultClient, "http", clientID, clientID)
+}
+
+func testClientID(
+	t *testing.T,
+	tlsWrapper *network.TLSConnectionWrapper,
+	client *http.Client,
+	protocol string,
+	staticClientID []byte,
+	expectedClientID []byte,
+) {
+	tlsExtractor := newClientIDExtractor(t)
+
+	config, err := NewConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.SetTLSClientIDExtractor(tlsExtractor)
+
+	config.HTTPAPIConnectionWrapper, err = BuildHTTPAPIConnectionWrapper(tlsWrapper, staticClientID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	apiServer := NewHTTPAPIServer(
+		ctx,
+		config.GetKeyStore(),
+		config.TraceToLog,
+		config.GetTraceOptions(),
+		config.GetTLSClientIDExtractor(),
+		config.HTTPAPIConnectionWrapper.OnConnectionContext,
+	)
+
+	// inject endpoint for retrieving the client id
+	apiServer.httpServer.Handler.(*gin.Engine).GET("/client_id", func(ctx *gin.Context) {
+		clientID := ginGetClientID(ctx)
+		ctx.JSON(http.StatusOK, clientID)
+	})
+
+	listener := getListener(config.HTTPAPIConnectionWrapper, t)
+	defer listener.Close()
+
+	errors := make(chan error)
+	wait := sync.WaitGroup{}
+	go func() {
+		errors <- apiServer.Start(listener, &wait)
+	}()
+
+	url := listener.Addr().String()
+
+	response, err := client.Get(fmt.Sprintf("%s://%s/client_id", protocol, url))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Logf("Body: %q\n", body)
+
+	var clientID []byte
+	if err := json.Unmarshal(body, &clientID); err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(clientID, expectedClientID) {
+		t.Fatalf("Expected %q, but found %q", expectedClientID, clientID)
+	}
+
+	cancel()
+	select {
+	case err := <-errors:
+		if err != nil {
+			t.Fatal("server error", err)
+		}
+	case <-time.After(time.Millisecond * 10):
+		t.Fatal("Timeout fired")
+	}
 }
