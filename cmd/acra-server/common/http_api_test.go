@@ -34,6 +34,7 @@ func getListener(connWrapper network.HTTPServerConnectionWrapper, t *testing.T) 
 
 func runWithServer(t *testing.T, keyStorage keystore.ServerKeyStore, tlsWrapper *network.TLSConnectionWrapper, callback func(url string)) {
 	clientID := []byte("client")
+	useClientIDFromCert := true
 
 	config, err := NewConfig()
 	if err != nil {
@@ -48,7 +49,7 @@ func runWithServer(t *testing.T, keyStorage keystore.ServerKeyStore, tlsWrapper 
 		t.Fatal(err)
 	}
 
-	config.HTTPAPIConnectionWrapper, err = BuildHTTPAPIConnectionWrapper(tlsWrapper, clientID)
+	config.HTTPAPIConnectionWrapper, err = BuildHTTPAPIConnectionWrapper(tlsWrapper, useClientIDFromCert, clientID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,8 +342,9 @@ func TestTLSHTTPAPI(t *testing.T) {
 func TestClientIDExtractedFromTLS(t *testing.T) {
 	statiClientID := []byte("IvanSirko")
 	tlsWrapper, client, expectedClientID := createTLSWrapper(t)
+	useClientIDFromCert := true
 
-	testClientID(t, tlsWrapper, client, "https", statiClientID, expectedClientID)
+	testClientID(t, tlsWrapper, useClientIDFromCert, client, "https", statiClientID, expectedClientID)
 }
 
 // Test that the TLS is used but the client ID is defined by the user
@@ -350,19 +352,22 @@ func TestClientIDExtractedFromTLS(t *testing.T) {
 func TestStaticClientIDTLS(t *testing.T) {
 	tlsWrapper, client, _ := createTLSWrapper(t)
 	clientID := []byte("some client id")
+	useClientIDFromCert := false
 
-	testClientID(t, tlsWrapper, client, "https", clientID, clientID)
+	testClientID(t, tlsWrapper, useClientIDFromCert, client, "https", clientID, clientID)
 }
 
 // Test that the client id is defined by the user and no tls is used
 func TestStaticClientIDPlain(t *testing.T) {
 	clientID := []byte("some client id")
-	testClientID(t, nil, http.DefaultClient, "http", clientID, clientID)
+	useClientIDFromCert := false
+	testClientID(t, nil, useClientIDFromCert, http.DefaultClient, "http", clientID, clientID)
 }
 
 func testClientID(
 	t *testing.T,
 	tlsWrapper *network.TLSConnectionWrapper,
+	useClientIDFromCert bool,
 	client *http.Client,
 	protocol string,
 	staticClientID []byte,
@@ -376,7 +381,7 @@ func testClientID(
 	}
 	config.SetTLSClientIDExtractor(tlsExtractor)
 
-	config.HTTPAPIConnectionWrapper, err = BuildHTTPAPIConnectionWrapper(tlsWrapper, staticClientID)
+	config.HTTPAPIConnectionWrapper, err = BuildHTTPAPIConnectionWrapper(tlsWrapper, useClientIDFromCert, staticClientID)
 	if err != nil {
 		t.Fatal(err)
 	}

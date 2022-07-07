@@ -282,8 +282,13 @@ func spanningMiddleware(name string, traceOn bool, options []trace.StartOption) 
 // the gin's context.
 func clientIDMiddleware(tlsExtractor network.TLSClientIDExtractor) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		connection := network.GetConnectionFromHTTPContext(ctx.Request.Context())
-		clientID, ok := network.GetClientIDFromConnection(connection, tlsExtractor)
+		// First check the context, as it has the highest priority, because it
+		// can contain the static client ID even if TLS is used.
+		clientID, ok := network.GetClientIDFromHTTPContext(ctx.Request.Context())
+		if !ok {
+			connection := network.GetConnectionFromHTTPContext(ctx.Request.Context())
+			clientID, ok = network.GetClientIDFromConnection(connection, tlsExtractor)
+		}
 		if ok {
 			ctx.Set(clientIDKey, clientID)
 		}
@@ -304,7 +309,9 @@ func ginGetClientID(ctx *gin.Context) []byte {
 // by the HTTP API server.
 // If `tlsWrapper` is nil, no TLS protection is used and connections will use
 // the specified clientID.
-func BuildHTTPAPIConnectionWrapper(tlsWrapper *network.TLSConnectionWrapper, clientID []byte) (network.HTTPServerConnectionWrapper, error) {
+// If clientIDFromCert is true, the clientID will be derived from the TLS user
+// certificate. If false, the static clientID will be used.
+func BuildHTTPAPIConnectionWrapper(tlsWrapper *network.TLSConnectionWrapper, clientIDFromCert bool, clientID []byte) (network.HTTPServerConnectionWrapper, error) {
 	httpWrapper, err := network.NewHTTPServerConnectionWrapper()
 	if err != nil {
 		return nil, err
@@ -319,6 +326,11 @@ func BuildHTTPAPIConnectionWrapper(tlsWrapper *network.TLSConnectionWrapper, cli
 		// require that it should receive *tls.Conn object and we need to wrap
 		// source connection with our wrappers before switching to TLS
 		httpWrapper.AddCallback(tlsWrapper)
+		if !clientIDFromCert {
+			httpWrapper.AddConnectionContextCallback(network.ClientIDToContextCallback{
+				ClientID: clientID,
+			})
+		}
 	}
 
 	return httpWrapper, nil

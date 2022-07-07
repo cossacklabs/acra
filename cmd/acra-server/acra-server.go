@@ -451,7 +451,7 @@ func realMain() error {
 					Warningln("--http_api_tls_transport_enable is provided, but the HTTP API server is not configured. Use --http_api_enable to enable it.")
 				os.Exit(1)
 			}
-			httpAPIConnWrapper, err = common.BuildHTTPAPIConnectionWrapper(tlsWrapper, []byte(*clientID))
+			httpAPIConnWrapper, err = common.BuildHTTPAPIConnectionWrapper(tlsWrapper, *tlsUseClientIDFromCertificate, []byte(*clientID))
 		} else {
 			if *enableHTTPAPI {
 				log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).
@@ -461,7 +461,7 @@ func realMain() error {
 						Warning("HTTP API server is configured without TLS, which requires non-empty clientID or zone mode. Either configure TLS for the HTTP API server, use --client_id option or enable zones.")
 				}
 			}
-			httpAPIConnWrapper, err = common.BuildHTTPAPIConnectionWrapper(nil, []byte(*clientID))
+			httpAPIConnWrapper, err = common.BuildHTTPAPIConnectionWrapper(nil, *tlsUseClientIDFromCertificate, []byte(*clientID))
 		}
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).

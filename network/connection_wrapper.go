@@ -86,3 +86,28 @@ func GetConnectionFromHTTPContext(ctx context.Context) net.Conn {
 	}
 	return nil
 }
+
+type connClientIDKey struct{}
+
+// ClientIDToContextCallback is a callback that sets the ClientID into the connection
+// context. Is used in the TLS connections to specify static clientID, instead of
+// extracting it from the certificate.
+type ClientIDToContextCallback struct {
+	ClientID []byte
+}
+
+// OnConnectionContext returns connection context with the clientID saved.
+func (c ClientIDToContextCallback) OnConnectionContext(ctx context.Context, _ net.Conn) (context.Context, error) {
+	return SetClientIDToHTTPContext(ctx, c.ClientID), nil
+}
+
+// SetClientIDToHTTPContext returns new context with the clientID.
+func SetClientIDToHTTPContext(ctx context.Context, clientID []byte) context.Context {
+	return context.WithValue(ctx, connClientIDKey{}, clientID)
+}
+
+// GetClientIDFromHTTPContext returns clientID if it was set into the context.
+func GetClientIDFromHTTPContext(ctx context.Context) ([]byte, bool) {
+	clientID, ok := ctx.Value(connClientIDKey{}).([]byte)
+	return clientID, ok
+}
