@@ -29,7 +29,9 @@ import socket
 import ssl
 import stat
 import subprocess
+import sys
 import tempfile
+import time
 import traceback
 import unittest
 from base64 import b64decode, b64encode
@@ -39,19 +41,18 @@ from urllib.parse import urlparse
 from urllib.request import urlopen
 
 import asyncpg
+import boto3
 import grpc
 import mysql.connector
+import psycopg as psycopg3
 import psycopg2
 import psycopg2.errors
 import psycopg2.extras
-import psycopg as psycopg3
 import pymysql
 import redis
 import requests
 import semver
 import sqlalchemy as sa
-import sys
-import time
 import yaml
 from ddt import ddt, data
 from hvac import Client
@@ -153,6 +154,7 @@ KEYS_FOLDER = None
 ACRA_MASTER_KEY_VAR_NAME = 'ACRA_MASTER_KEY'
 MASTER_KEY_PATH = '/tmp/acra-test-master.key'
 TEST_WITH_VAULT = os.environ.get('TEST_WITH_VAULT', 'off').lower() == 'on'
+TEST_WITH_AWS_KMS = os.environ.get('TEST_WITH_AWS_KMS', 'off').lower() == 'on'
 TEST_SSL_VAULT = os.environ.get('TEST_SSL_VAULT', 'off').lower() == 'on'
 TEST_VAULT_TLS_CA = abs_path(os.environ.get('TEST_VAULT_TLS_CA', 'tests/ssl/ca/ca.crt'))
 VAULT_KV_ENGINE_VERSION=os.environ.get('VAULT_KV_ENGINE_VERSION', 'v1')
@@ -1315,6 +1317,31 @@ class VaultClient:
             args['vault_tls_transport_enable'] = True
             args['vault_tls_ca_path'] = TEST_VAULT_TLS_CA
         return args
+
+
+class AWSKMSClient:
+    def __init__(self):
+        self.url = os.environ.get('AWS_KMS_ADDRESS', 'http://localhost:8080')
+        self.kms_client = boto3.client('kms', aws_access_key_id='', aws_secret_access_key='', region_name='eu-west-1', endpoint_url=self.url)
+        # override request signer to skip boto3 looking for credentials in ~/.aws_credentials
+        self.kms_client._request_signer.sign = (lambda *args, **kwargs: None)
+
+    def get_kms_url(self):
+        return self.url
+
+    def create_key(self):
+        response = self.kms_client.create_key(Description='AcraMasterKey KEK')
+        return response['KeyMetadata']['Arn']
+
+    def disable_key(self, keyId):
+        self.kms_client.disable_key(KeyId=keyId)
+
+    def generate_master_key(self, keyId):
+        response = self.kms_client.generate_data_key(
+            KeyId=keyId,
+            NumberOfBytes=32,
+        )
+        return response
 
 
 class BaseTestCase(PrometheusMixin, unittest.TestCase):
@@ -3051,6 +3078,66 @@ class HashiCorpVaultMasterKeyLoaderMixin:
         self.vault_client.disable_kv_secret_engine(mount_path=self.DEFAULT_MOUNT_PATH)
 
 
+class AWSKMSMasterKeyLoaderMixin:
+    def setUp(self):
+        if not TEST_WITH_AWS_KMS:
+            self.skipTest("test with AWS KMS ACRA_MASTER_KEY loader")
+
+        self.kms_client = AWSKMSClient()
+        self.master_key_kek_uri = self.kms_client.create_key()
+        response = self.kms_client.generate_master_key(keyId=self.master_key_kek_uri)
+
+        self.master_key_ciphertext = b64encode(response['CiphertextBlob']).decode("utf-8")
+        self.master_key_plaintext = b64encode(response['Plaintext']).decode("utf-8")
+        self.create_configuration_file()
+
+        self.keys_dir = tempfile.TemporaryDirectory().name
+
+        os.environ[ACRA_MASTER_KEY_VAR_NAME] = self.master_key_plaintext
+
+        create_client_keypair_from_certificate(TEST_TLS_CLIENT_CERT, keys_dir=self.keys_dir)
+        create_client_keypair_from_certificate(TEST_TLS_CLIENT_2_CERT,  keys_dir=self.keys_dir)
+
+        zones.clear()
+        zones.append(json.loads(subprocess.check_output(
+            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.keys_dir)],
+            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
+        zones.append(json.loads(subprocess.check_output(
+            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.keys_dir)],
+            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
+
+        super().setUp()
+
+    def create_configuration_file(self):
+        configuration = {
+            'access_key_id': 'access_key_id',
+            'secret_access_key': 'secret_key_id',
+            'region': 'eu-west-1',
+            'endpoint':  self.kms_client.get_kms_url()
+        }
+        cfg_json_string = json.dumps(configuration)
+        self.config_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8').name
+
+        # Open the file for writing.
+        with open(self.config_file, 'w') as f:
+            f.write(cfg_json_string)
+
+    def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
+        args = {
+            'keys_dir': self.keys_dir,
+            'kms_credentials_path': self.config_file,
+            'master_key_encryption_key_uri': '{0}//{1}'.format('aws-kms:', self.master_key_kek_uri)
+        }
+        os.environ[ACRA_MASTER_KEY_VAR_NAME] = self.master_key_ciphertext
+        acra_kwargs.update(args)
+        return super(AWSKMSMasterKeyLoaderMixin, self).fork_acra(popen_kwargs, **acra_kwargs)
+
+    def tearDown(self):
+        super().tearDown()
+        self.kms_client.disable_key(keyId=self.master_key_kek_uri)
+        os.environ[ACRA_MASTER_KEY_VAR_NAME] = get_master_key()
+
+
 class TestKeyStoreMigration(BaseTestCase):
     """Test "acra-keys migrate" utility."""
 
@@ -4391,7 +4478,7 @@ class TestClientIDDecryptionWithVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoad
     pass
 
 
-class TestZoneIDDecryptionWithVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoaderMixin, ZoneHexFormatTest):
+class TestZoneIDDecryptionWithAWSKMSMasterKeyLoader(AWSKMSMasterKeyLoaderMixin, ZoneHexFormatTest):
     pass
 
 
@@ -5665,9 +5752,17 @@ class TestPostgresqlBinaryPreparedTransparentEncryption(BaseBinaryPostgreSQLTest
         self.executor2.execute_prepared_statement(query, parameters)
 
 
+class TestPostgresqlBinaryPreparedTransparentEncryptionWithAWSKMSMasterKeyLoader(AWSKMSMasterKeyLoaderMixin, TestPostgresqlBinaryPreparedTransparentEncryption):
+    pass
+
+
 class TestPostgresqlTextPreparedTransparentEncryption(TestPostgresqlBinaryPreparedTransparentEncryption):
     """Testing transparent encryption of prepared statements in PostgreSQL (text format)."""
     FORMAT = AsyncpgExecutor.TextFormat
+
+
+class TestPostgresqlTextPreparedTransparentEncryptionWithAWSKMSMasterKeyLoader(AWSKMSMasterKeyLoaderMixin, TestPostgresqlTextPreparedTransparentEncryption):
+    pass
 
 
 class TestSetupCustomApiPort(BaseTestCase):
@@ -6805,6 +6900,10 @@ class TestTransparentSearchableEncryptionWithZone(BaseSearchableTransparentEncry
         self.skipTest("searching with encryption with zones not supported yet")
 
 
+class TestTransparentSearchableEncryptionWithZoneWithAWSKMSMasterKeyLoader(AWSKMSMasterKeyLoaderMixin, TestTransparentSearchableEncryptionWithZone):
+    pass
+
+
 class BaseTokenization(BaseTestCase):
     WHOLECELL_MODE = True
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_tokenization_config.yaml')
@@ -7488,6 +7587,9 @@ class TestTokenizationWithZoneTextPostgreSQL(BaseTokenizationWithTextPostgreSQL,
 class TestTokenizationWithoutZoneBinaryPostgreSQL(BaseTokenizationWithBinaryPostgreSQL, TestTokenizationWithoutZone):
     pass
 
+
+class TestTokenizationWithoutZoneBinaryPostgreSQLWithAWSKMSMaterKeyLoading(AWSKMSMasterKeyLoaderMixin, BaseTokenizationWithBinaryPostgreSQL, TestTokenizationWithoutZone):
+    pass
 
 class TestTokenizationWithZoneBinaryPostgreSQL(BaseTokenizationWithBinaryPostgreSQL, TestTokenizationWithZone):
     pass
@@ -9983,7 +10085,7 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
             """
 
             await conn.execute(insert_query, data['id'], data['value_bytes'])
-            
+
             row = await conn.fetchrow(select_query, data['id'])
             self.assertEqual(data['value_bytes'], row['value_bytes'])
 

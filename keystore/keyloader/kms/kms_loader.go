@@ -1,13 +1,13 @@
 package kms
 
 import (
+	"context"
 	"crypto/subtle"
-
 	"github.com/cossacklabs/acra/keystore"
 	keystoreCE "github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/kms"
-	"github.com/cossacklabs/acra/keystore/kms/aws"
 	keystoreV2CE "github.com/cossacklabs/acra/keystore/v2/keystore"
+	"github.com/cossacklabs/acra/network"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -24,17 +24,19 @@ func NewLoader(credentialPath, keyIdentifierURI string) (*Loader, error) {
 		return nil, err
 	}
 
-	var encryptor kms.Encryptor
-	switch keyID.Prefix() {
-	case aws.KeyIdentifierPrefix:
-		encryptor, err = aws.NewEncryptor(credentialPath)
+	createEncryptor, ok := kms.GetEncryptorCreator(keyID.Prefix())
+	if !ok {
+		log.Errorln("Unknown key ID provided")
+		return nil, nil
 	}
+
+	encryptor, err := createEncryptor(credentialPath)
 	if err != nil {
-		log.WithError(err).Errorf("Failed to initialize %s MasterKeyLoader", encryptor.Source())
+		log.WithError(err).Errorf("Failed to initialize %s MasterKeyLoader", encryptor.ID())
 		return nil, err
 	}
 
-	log.Infof("Initialized %s MasterKeyLoader", encryptor.Source())
+	log.Infof("Initialized %s MasterKeyLoader", encryptor.ID())
 	return &Loader{
 		keyID:     keyID,
 		encryptor: encryptor,
@@ -97,7 +99,8 @@ func (loader *Loader) decryptWithKMSKey(keyID kms.KeyIdentifier) ([]byte, error)
 		return nil, err
 	}
 
-	masterKey, err := loader.encryptor.Decrypt(keyID.ID(), cipherMasterKey)
+	ctx, _ := context.WithTimeout(context.Background(), network.DefaultNetworkTimeout)
+	masterKey, err := loader.encryptor.Decrypt(ctx, keyID.ID(), cipherMasterKey)
 	if err != nil {
 		return nil, err
 	}

@@ -1,11 +1,30 @@
 package kms
 
 import (
+	"context"
 	"errors"
 	"strings"
-
-	"github.com/cossacklabs/acra/keystore/kms/aws"
+	"sync"
 )
+
+var lock = sync.Mutex{}
+var encryptorCreators = map[string]EncryptorCreateFunc{}
+
+// EncryptorCreateFunc generic function for creating Encryptor
+type EncryptorCreateFunc func(credentialPath string) (Encryptor, error)
+
+// RegisterEncryptorCreator add new EncryptorCreator to registry
+func RegisterEncryptorCreator(encryptorID string, encryptorCreateFunc EncryptorCreateFunc) {
+	lock.Lock()
+	encryptorCreators[encryptorID] = encryptorCreateFunc
+	lock.Unlock()
+}
+
+// GetEncryptorCreator return EncryptorCreator by its ID from registry
+func GetEncryptorCreator(encryptorID string) (EncryptorCreateFunc, bool) {
+	creator, ok := encryptorCreators[encryptorID]
+	return creator, ok
+}
 
 // KeyID validation related errors
 var (
@@ -13,15 +32,13 @@ var (
 	ErrUnsupportedKeyIDFormat = errors.New("unsupported keyID URI format")
 )
 
-var supportedKeyURIs = map[string]struct{}{
-	aws.KeyIdentifierPrefix: {},
-}
+//go:generate mockery --name Encryptor --output ../mocks --filename KmsEncryptor.go
 
 // Encryptor is main kms encryptor interface
 type Encryptor interface {
-	Source() string
-	Encrypt(keyID string, data []byte) ([]byte, error)
-	Decrypt(keyID string, data []byte) ([]byte, error)
+	ID() string
+	Encrypt(ctx context.Context, keyID string, data []byte) ([]byte, error)
+	Decrypt(ctx context.Context, keyID string, data []byte) ([]byte, error)
 }
 
 // KeyIdentifier represent KMS KeyID in Tink format
@@ -38,7 +55,7 @@ func NewKeyIdentifierFromURI(value string) (KeyIdentifier, error) {
 		return KeyIdentifier{}, ErrInvalidKeyIDFormat
 	}
 	prefix := splits[0]
-	_, ok := supportedKeyURIs[splits[0]]
+	_, ok := GetEncryptorCreator(splits[0])
 	if !ok {
 		return KeyIdentifier{}, ErrUnsupportedKeyIDFormat
 	}
