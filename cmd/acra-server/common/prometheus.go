@@ -21,6 +21,7 @@ import (
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -57,4 +58,9 @@ func RegisterMetrics(serviceName string, version *utils.Version, edition utils.P
 		cmd.RegisterVersionMetrics(serviceName, version)
 		cmd.RegisterBuildInfoMetrics(serviceName, edition)
 	})
+}
+
+// NewMetricConnectionCallback return initialized MetricConnectionCallback with proper connectionType
+func NewMetricConnectionCallback(connectionType string) *network.MetricConnectionCallback {
+	return network.NewMetricConnectionCallback(connectionType, connectionCounter, connectionProcessingTimeHistogram)
 }

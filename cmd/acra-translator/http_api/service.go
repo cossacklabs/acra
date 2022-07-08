@@ -6,6 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
+	"os"
+	"reflect"
+	"time"
+
 	"github.com/cossacklabs/acra/cmd/acra-translator/common"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/hmac"
@@ -18,11 +24,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	"net"
-	"net/http"
-	"os"
-	"reflect"
-	"time"
 )
 
 // HTTPError store HTTP response status and message
@@ -312,7 +313,7 @@ func (service *HTTPService) Start(listener net.Listener) error {
 
 func (service *HTTPService) decryptOld(ctx *gin.Context) {
 	logger := logging.GetLoggerFromContext(ctx.Request.Context())
-	connection := common.GetConnectionFromHTTPContext(ctx.Request.Context())
+	connection := network.GetConnectionFromHTTPContext(ctx.Request.Context())
 	connectionClientID, ok := network.GetClientIDFromConnection(connection, service.translatorData.TLSClientIDExtractor)
 	if !ok {
 		connectionClientID = nil
@@ -348,7 +349,7 @@ func (service *HTTPService) decryptOld(ctx *gin.Context) {
 func (service *HTTPService) encryptOld(ctx *gin.Context) {
 	log.Debugln("Process HTTP request to encrypt data")
 	logger := logging.GetLoggerFromContext(ctx.Request.Context())
-	connection := common.GetConnectionFromHTTPContext(ctx.Request.Context())
+	connection := network.GetConnectionFromHTTPContext(ctx.Request.Context())
 	connectionClientID, ok := network.GetClientIDFromConnection(connection, service.translatorData.TLSClientIDExtractor)
 	if !ok {
 		connectionClientID = nil
@@ -420,7 +421,7 @@ func (service *HTTPService) encrypt(ctx *gin.Context) {
 func (service *HTTPService) _encrypt(ctx *gin.Context, data []byte) (response encryptionHTTPResponse, httpErr HTTPError) {
 	logger := logging.GetLoggerFromContext(ctx.Request.Context()).WithField("operation", "encrypt")
 	logger.Debugln("Process HTTP request to encrypt data")
-	connection := common.GetConnectionFromHTTPContext(ctx.Request.Context())
+	connection := network.GetConnectionFromHTTPContext(ctx.Request.Context())
 	connectionClientID, ok := network.GetClientIDFromConnection(connection, service.translatorData.TLSClientIDExtractor)
 	if !ok {
 		connectionClientID = nil
@@ -463,7 +464,7 @@ func (service *HTTPService) decrypt(ctx *gin.Context) {
 
 func (service *HTTPService) _decrypt(ctx *gin.Context, data []byte) (response encryptionHTTPResponse, httpErr HTTPError) {
 	logger := logging.GetLoggerFromContext(ctx.Request.Context()).WithField("operation", "decrypt")
-	connection := common.GetConnectionFromHTTPContext(ctx.Request.Context())
+	connection := network.GetConnectionFromHTTPContext(ctx.Request.Context())
 	connectionClientID, ok := network.GetClientIDFromConnection(connection, service.translatorData.TLSClientIDExtractor)
 	if !ok {
 		connectionClientID = nil
@@ -506,7 +507,7 @@ func (service *HTTPService) encryptSearchable(ctx *gin.Context) {
 func (service *HTTPService) _encryptSearchable(ctx *gin.Context, data []byte) (response encryptionHTTPResponse, httpErr HTTPError) {
 	logger := logging.GetLoggerFromContext(ctx.Request.Context()).WithField("operation", "encryptSearchable")
 	logger.Debugln("Process HTTP request to encrypt searchable data")
-	connection := common.GetConnectionFromHTTPContext(ctx.Request.Context())
+	connection := network.GetConnectionFromHTTPContext(ctx.Request.Context())
 	connectionClientID, ok := network.GetClientIDFromConnection(connection, service.translatorData.TLSClientIDExtractor)
 	if !ok {
 		connectionClientID = nil
@@ -554,7 +555,7 @@ func (service *HTTPService) decryptSearchable(ctx *gin.Context) {
 func (service *HTTPService) _decryptSearchable(ctx *gin.Context, data []byte) (response encryptionHTTPResponse, httpErr HTTPError) {
 	logger := logging.GetLoggerFromContext(ctx.Request.Context()).WithField("operation", "decryptSearchable")
 	logger.Debugln("Process HTTP request to decrypt searchable AcraStruct")
-	connection := common.GetConnectionFromHTTPContext(ctx.Request.Context())
+	connection := network.GetConnectionFromHTTPContext(ctx.Request.Context())
 	connectionClientID, ok := network.GetClientIDFromConnection(connection, service.translatorData.TLSClientIDExtractor)
 	if !ok {
 		connectionClientID = nil
@@ -600,7 +601,7 @@ func (service *HTTPService) generateQueryHash(ctx *gin.Context) {
 func (service *HTTPService) _generateQueryHash(ctx *gin.Context, data []byte) (response encryptionHTTPResponse, httpErr HTTPError) {
 	logger := logging.GetLoggerFromContext(ctx.Request.Context()).WithField("operation", "generateQueryHash")
 	logger.Debugln("Process HTTP request to encrypt searchable data")
-	connection := common.GetConnectionFromHTTPContext(ctx.Request.Context())
+	connection := network.GetConnectionFromHTTPContext(ctx.Request.Context())
 	connectionClientID, ok := network.GetClientIDFromConnection(connection, service.translatorData.TLSClientIDExtractor)
 	if !ok {
 		connectionClientID = nil
@@ -650,7 +651,7 @@ func (service *HTTPService) encryptSymSearchable(ctx *gin.Context) {
 func (service *HTTPService) _encryptSymSearchable(ctx *gin.Context, data []byte) (response encryptionHTTPResponse, httpErr HTTPError) {
 	logger := logging.GetLoggerFromContext(ctx.Request.Context()).WithField("operation", "encryptSymSearchable")
 	logger.Debugln("Process HTTP request to encrypt searchable data with AcraBlock")
-	connection := common.GetConnectionFromHTTPContext(ctx.Request.Context())
+	connection := network.GetConnectionFromHTTPContext(ctx.Request.Context())
 	connectionClientID, ok := network.GetClientIDFromConnection(connection, service.translatorData.TLSClientIDExtractor)
 	if !ok {
 		connectionClientID = nil
@@ -698,7 +699,7 @@ func (service *HTTPService) decryptSymSearchable(ctx *gin.Context) {
 func (service *HTTPService) _decryptSymSearchable(ctx *gin.Context, data []byte) (response encryptionHTTPResponse, httpErr HTTPError) {
 	logger := logging.GetLoggerFromContext(ctx.Request.Context()).WithField("operation", "decryptSymSearchable")
 	logger.Debugln("Process HTTP request to decrypt searchable AcraBlock")
-	connection := common.GetConnectionFromHTTPContext(ctx.Request.Context())
+	connection := network.GetConnectionFromHTTPContext(ctx.Request.Context())
 	connectionClientID, ok := network.GetClientIDFromConnection(connection, service.translatorData.TLSClientIDExtractor)
 	if !ok {
 		connectionClientID = nil
@@ -749,7 +750,7 @@ func (service *HTTPService) encryptSym(ctx *gin.Context) {
 func (service *HTTPService) _encryptSym(ctx *gin.Context, data []byte) (response encryptionHTTPResponse, httpErr HTTPError) {
 	logger := logging.GetLoggerFromContext(ctx.Request.Context()).WithField("operation", "encryptSym")
 	logger.Debugln("Process HTTP request to encrypt with AcraBlock")
-	connection := common.GetConnectionFromHTTPContext(ctx.Request.Context())
+	connection := network.GetConnectionFromHTTPContext(ctx.Request.Context())
 	connectionClientID, ok := network.GetClientIDFromConnection(connection, service.translatorData.TLSClientIDExtractor)
 	if !ok {
 		connectionClientID = nil
@@ -797,7 +798,7 @@ func (service *HTTPService) decryptSym(ctx *gin.Context) {
 func (service *HTTPService) _decryptSym(ctx *gin.Context, data []byte) (response encryptionHTTPResponse, httpErr HTTPError) {
 	logger := logging.GetLoggerFromContext(ctx.Request.Context()).WithField("operation", "decryptSym")
 	logger.Debugln("Process HTTP request to decrypt searchable AcraBlock")
-	connection := common.GetConnectionFromHTTPContext(ctx.Request.Context())
+	connection := network.GetConnectionFromHTTPContext(ctx.Request.Context())
 	connectionClientID, ok := network.GetClientIDFromConnection(connection, service.translatorData.TLSClientIDExtractor)
 	if !ok {
 		connectionClientID = nil
@@ -900,7 +901,7 @@ func (service *HTTPService) tokenize(ctx *gin.Context) {
 func (service *HTTPService) _tokenize(ctx *gin.Context, data []byte) (response tokenizationHTTPResponse, httpErr HTTPError) {
 	logger := logging.GetLoggerFromContext(ctx.Request.Context()).WithField("operation", "tokenize")
 	logger.Debugln("Process HTTP request to tokenize data")
-	connection := common.GetConnectionFromHTTPContext(ctx.Request.Context())
+	connection := network.GetConnectionFromHTTPContext(ctx.Request.Context())
 	connectionClientID, ok := network.GetClientIDFromConnection(connection, service.translatorData.TLSClientIDExtractor)
 	if !ok {
 		connectionClientID = nil
@@ -961,7 +962,7 @@ func (service *HTTPService) detokenize(ctx *gin.Context) {
 func (service *HTTPService) _detokenize(ctx *gin.Context, data []byte) (response tokenizationHTTPResponse, httpErr HTTPError) {
 	logger := logging.GetLoggerFromContext(ctx.Request.Context()).WithField("operation", "detokenize")
 	logger.Debugln("Process HTTP request to detokenize data")
-	connection := common.GetConnectionFromHTTPContext(ctx.Request.Context())
+	connection := network.GetConnectionFromHTTPContext(ctx.Request.Context())
 	connectionClientID, ok := network.GetClientIDFromConnection(connection, service.translatorData.TLSClientIDExtractor)
 	if !ok {
 		connectionClientID = nil

@@ -444,20 +444,6 @@ func (server *SServer) ConnectionsCounter() int {
 	return server.connectionManager.Counter
 }
 
-// handleCommandsConnection handles requests to HTTP API
-func (server *SServer) handleCommandsConnection(ctx context.Context, clientID []byte, connection net.Conn) {
-	logger := logging.NewLoggerWithTrace(ctx)
-	clientSession, err := NewClientCommandsSession(ctx, server, server.config, connection)
-	if err != nil {
-		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
-			Errorln("Can't init API session")
-		return
-	}
-	connection.SetDeadline(time.Now().Add(network.DefaultNetworkTimeout))
-	clientSession.HandleSession()
-	connection.SetDeadline(time.Time{})
-}
-
 // StartCommands starts listening commands connections from proxy.
 func (server *SServer) StartCommands(parentContext context.Context) {
 	logger := log.WithFields(log.Fields{"connection_string": server.config.GetAcraAPIConnectionString(), "from_descriptor": false})
@@ -468,9 +454,30 @@ func (server *SServer) StartCommands(parentContext context.Context) {
 		server.errorSignalChannel <- syscall.SIGTERM
 		return
 	}
+	server.config.HTTPAPIConnectionWrapper.SetListener(listener)
+	listener = server.config.HTTPAPIConnectionWrapper
 	server.listenerAPI = listener
 	server.addListener(listener)
-	server.run(parentContext, listener, &callbackData{funcName: "handleCommandsConnection", connectionType: apiConnectionType, callbackFunc: server.handleCommandsConnection}, logger)
+	server.runCommands(parentContext, listener, logger)
+}
+
+func (server *SServer) runCommands(ctx context.Context, listener net.Listener, logger *log.Entry) {
+	defer server.waitForExitTimeout()
+
+	connContextCallback := server.config.HTTPAPIConnectionWrapper.OnConnectionContext
+	apiServer := NewHTTPAPIServer(
+		ctx,
+		server.config.GetKeyStore(),
+		server.config.TraceToLog,
+		server.config.GetTraceOptions(),
+		server.config.GetTLSClientIDExtractor(),
+		connContextCallback,
+	)
+	err := apiServer.Start(listener, &server.backgroundWorkersSync)
+	if err != nil {
+		// TODO: what status code to use?
+		logger.WithError(err).Errorln("Handling HTTP API requests")
+	}
 }
 
 // StartCommandsFromFileDescriptor starts listening commands connections from file descriptor.
@@ -498,7 +505,7 @@ func (server *SServer) StartCommandsFromFileDescriptor(parentContext context.Con
 	}
 	server.listenerAPI = listenerWithFileDescriptor
 	server.addListener(listenerWithFileDescriptor)
-	server.run(parentContext, listenerWithFileDescriptor, &callbackData{funcName: "handleCommandsConnection", connectionType: apiConnectionType, callbackFunc: server.handleCommandsConnection}, logger)
+	server.runCommands(parentContext, listenerWithFileDescriptor, logger)
 }
 
 func (server *SServer) run(parentContext context.Context, listener net.Listener, data *callbackData, logger *log.Entry) {

@@ -18,14 +18,15 @@ package network
 
 import (
 	"fmt"
-	"github.com/cossacklabs/themis/gothemis/errors"
-	log "github.com/sirupsen/logrus"
 	"net"
 	url_ "net/url"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/cossacklabs/themis/gothemis/errors"
+	log "github.com/sirupsen/logrus"
 )
 
 // Custom connection schemes, used in AcraTranslator

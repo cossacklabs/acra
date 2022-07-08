@@ -38,8 +38,11 @@ encryptor_config_file:
 # Generate with yaml config markdown text file with descriptions of all args
 generate_markdown_args_table: false
 
-# Enable HTTP API
+# Enable HTTP API. Use together with --http_api_tls_transport_enable whenever possible.
 http_api_enable: false
+
+# Enable HTTPS support for the API. Use together with the --http_api_enable. TLS configuration is the same as in the Acra Proxy.
+http_api_tls_transport_enable: false
 
 # Port for AcraServer for HTTP API
 incoming_connection_api_port: 9090
