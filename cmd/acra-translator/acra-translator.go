@@ -26,6 +26,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	_ "net/http/pprof"
+	"os"
+	"os/signal"
+	"strings"
+	"sync"
+	"syscall"
+	"time"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/cmd/acra-translator/common"
 	_ "github.com/cossacklabs/acra/cmd/acra-translator/docs"
@@ -47,13 +55,6 @@ import (
 	"github.com/cossacklabs/acra/pseudonymization/storage"
 	"github.com/cossacklabs/acra/utils"
 	bolt "go.etcd.io/bbolt"
-	_ "net/http/pprof"
-	"os"
-	"os/signal"
-	"strings"
-	"sync"
-	"syscall"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -277,7 +278,7 @@ func realMain() error {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).Errorln("Can't initialize HTTPServerConnectionWrapper")
 		os.Exit(1)
 	}
-	httpWrapper.AddConnectionContextCallback(common.ConnectionToContextCallback{})
+	httpWrapper.AddConnectionContextCallback(network.ConnectionToContextCallback{})
 	config.HTTPConnectionWrapper = httpWrapper
 	// we should register transport callback last because http2 server require that it should receive *tls.Conn object
 	// and we need to wrap source connection with our wrappers before switching to TLS

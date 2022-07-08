@@ -1,8 +1,11 @@
-# 0.94.0 - 2022-07-04
+# 0.94.0 - 2022-07-08
 - Extend encryptor config struct with database settings section
   - Has subsections for mysql-specific settings as well as for postgres-specific ones
 - Change in parser to properly extract quoted identifiers in PostgreSQL queries
 - Table/column matching logic is slightly changed to better match what DMBS does
+
+# 0.94.0 - 2022-07-01
+- Refactor HTTP API and bring TLS to it
 
 # 0.93.0 - 2022-06-15
 - Add searchable encryption demo

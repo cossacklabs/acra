@@ -35,27 +35,29 @@ import (
 
 // Config describes AcraServer configuration
 type Config struct {
-	dbPort                  int
-	dbHost                  string
-	detectPoisonRecords     bool
-	stopOnPoison            bool
-	scriptOnPoison          string
-	withZone                bool
-	withAPI                 bool
-	acraConnectionString    string
-	acraAPIConnectionString string
-	ConnectionWrapper       network.ConnectionWrapper
-	mysql                   bool
-	postgresql              bool
-	debug                   bool
-	censor                  acracensor.AcraCensorInterface
-	TraceToLog              bool
-	tableSchema             encryptorConfig.TableSchemaStore
-	dataEncryptor           encryptor.DataEncryptor
-	keystore                keystore.ServerKeyStore
-	traceOptions            []trace.StartOption
-	serviceName             string
-	configPath              string
+	dbPort                   int
+	dbHost                   string
+	detectPoisonRecords      bool
+	stopOnPoison             bool
+	scriptOnPoison           string
+	withZone                 bool
+	withAPI                  bool
+	acraConnectionString     string
+	acraAPIConnectionString  string
+	ConnectionWrapper        network.ConnectionWrapper
+	HTTPAPIConnectionWrapper network.HTTPServerConnectionWrapper
+	tlsClientIDExtractor     network.TLSClientIDExtractor
+	mysql                    bool
+	postgresql               bool
+	debug                    bool
+	censor                   acracensor.AcraCensorInterface
+	TraceToLog               bool
+	tableSchema              encryptorConfig.TableSchemaStore
+	dataEncryptor            encryptor.DataEncryptor
+	keystore                 keystore.ServerKeyStore
+	traceOptions             []trace.StartOption
+	serviceName              string
+	configPath               string
 }
 
 // NewConfig returns new Config object
@@ -269,4 +271,14 @@ func (config *Config) GetSQLDialect() dialect.Dialect {
 	}
 
 	return pgDialect.NewPostgreSQLDialect()
+}
+
+// SetTLSClientIDExtractor set clientID extractor from TLS metadata
+func (config *Config) SetTLSClientIDExtractor(tlsClientIDExtractor network.TLSClientIDExtractor) {
+	config.tlsClientIDExtractor = tlsClientIDExtractor
+}
+
+// GetTLSClientIDExtractor return configured TLSClietIDExtractor
+func (config *Config) GetTLSClientIDExtractor() network.TLSClientIDExtractor {
+	return config.tlsClientIDExtractor
 }

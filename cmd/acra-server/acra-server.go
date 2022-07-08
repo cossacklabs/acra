@@ -145,7 +145,8 @@ func realMain() error {
 	scriptOnPoison := flag.String("poison_run_script_file", "", "On detecting poison record: log about poison record detection, execute script, return decrypted data")
 
 	withZone := flag.Bool("zonemode_enable", false, "Turn on zone mode")
-	enableHTTPAPI := flag.Bool("http_api_enable", false, "Enable HTTP API")
+	enableHTTPAPI := flag.Bool("http_api_enable", false, "Enable HTTP API. Use together with --http_api_tls_transport_enable whenever possible.")
+	httpAPIUseTLS := flag.Bool("http_api_tls_transport_enable", false, "Enable HTTPS support for the API. Use together with the --http_api_enable. TLS configuration is the same as in the Acra Proxy.")
 
 	tlsKey := flag.String("tls_key", "", "Path to tls private key")
 	tlsCert := flag.String("tls_cert", "", "Path to tls certificate")
@@ -430,12 +431,42 @@ func realMain() error {
 		log.WithError(err).Errorln("Can't initialize clientID extractor")
 		os.Exit(1)
 	}
+	serverConfig.SetTLSClientIDExtractor(clientIDExtractor)
 	// configured TLS wrapper which may be used for communication with app or database
 	tlsWrapper, err := network.NewTLSAuthenticationConnectionWrapper(
 		*tlsUseClientIDFromCertificate, dbTLSConfig, appSideTLSConfig, clientIDExtractor)
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize TLS connection wrapper")
 		os.Exit(1)
+	}
+
+	{
+		var httpAPIConnWrapper network.HTTPServerConnectionWrapper
+		var err error
+		if *httpAPIUseTLS {
+			if !*enableHTTPAPI {
+				log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).
+					Warningln("--http_api_tls_transport_enable is provided, but the HTTP API server is not configured. Use --http_api_enable to enable it.")
+				os.Exit(1)
+			}
+			httpAPIConnWrapper, err = common.BuildHTTPAPIConnectionWrapper(tlsWrapper, *tlsUseClientIDFromCertificate, []byte(*clientID))
+		} else {
+			if *enableHTTPAPI {
+				log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).
+					Warningln("HTTP API server is used without TLS. Consider using TLS whenever possible.")
+				if *clientID == "" && !*withZone {
+					log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
+						Warning("HTTP API server is configured without TLS, which requires non-empty clientID or zone mode. Either configure TLS for the HTTP API server, use --client_id option or enable zones.")
+				}
+			}
+			httpAPIConnWrapper, err = common.BuildHTTPAPIConnectionWrapper(nil, *tlsUseClientIDFromCertificate, []byte(*clientID))
+		}
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+				Errorln("Can't initialize HTTPAPIConnectionWrapper")
+			os.Exit(1)
+		}
+		serverConfig.HTTPAPIConnectionWrapper = httpAPIConnWrapper
 	}
 
 	proxyTLSWrapper := base.NewTLSConnectionWrapper(*tlsUseClientIDFromCertificate, tlsWrapper)
