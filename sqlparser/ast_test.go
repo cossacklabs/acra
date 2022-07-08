@@ -669,7 +669,7 @@ func TestSplitStatementToPieces(t *testing.T) {
 }
 
 func TestEmptyQuery(t *testing.T) {
-	for _, dialect := range []dialect.Dialect{postgresql.NewPostgreSQLDialect(), mysql.NewANSIMySQLDialect(), mysql.NewMySQLDialect()} {
+	for _, dialect := range []dialect.Dialect{postgresql.NewPostgreSQLDialect(), mysql.NewMySQLDialect(mysql.SetANSIMode(true)), mysql.NewMySQLDialect()} {
 		statement, err := ParseWithDialect(dialect, "")
 		if err != nil {
 			t.Fatal(err)

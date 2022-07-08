@@ -66,8 +66,6 @@ import (
 	pseudonymizationCommon "github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/pseudonymization/storage"
 	"github.com/cossacklabs/acra/sqlparser"
-	mysqlDialect "github.com/cossacklabs/acra/sqlparser/dialect/mysql"
-	pgDialect "github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
 	"github.com/cossacklabs/acra/utils"
 
 	log "github.com/sirupsen/logrus"
@@ -606,15 +604,15 @@ func realMain() error {
 			log.WithError(err).Errorln("Can't initialize proxy for connections")
 			return err
 		}
-		sqlparser.SetDefaultDialect(mysqlDialect.NewMySQLDialect())
 	} else {
 		proxyFactory, err = postgresql.NewProxyFactory(base.NewProxySetting(sqlParser, serverConfig.GetTableSchema(), keyStore, proxyTLSWrapper, serverConfig.GetCensor(), poisonCallbacks, *withZone), keyStore, tokenizer)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize proxy for connections")
 			return err
 		}
-		sqlparser.SetDefaultDialect(pgDialect.NewPostgreSQLDialect())
 	}
+
+	sqlparser.SetDefaultDialect(serverConfig.GetSQLDialect())
 
 	server, err := common.NewEEAcraServerMainComponent(serverConfig, proxyFactory, errorSignalChannel, restartSignalsChannel)
 	if err != nil {

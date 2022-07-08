@@ -22,6 +22,7 @@ import (
 
 // TableSchemaStore fetches schema for encryptable tables in the database.
 type TableSchemaStore interface {
+	GetDatabaseSettings() DatabaseSettings
 	// GetTableSchema returns schema for given table if configured, or nil otherwise.
 	GetTableSchema(tableName string) TableSchema
 	GetGlobalSettingsMask() SettingMask
@@ -50,14 +51,16 @@ func (d defaultValues) ShouldReEncryptAcraStructToAcraBlock() bool {
 }
 
 type storeConfig struct {
-	Defaults *defaultValues
-	Schemas  []*tableSchema
+	DatabaseSettings *databaseSettings `yaml:"database_settings"`
+	Defaults         *defaultValues
+	Schemas          []*tableSchema
 }
 
 // MapTableSchemaStore store schemas per table name
 type MapTableSchemaStore struct {
-	schemas    map[string]*tableSchema
-	globalMask SettingMask
+	databaseSettings *databaseSettings
+	schemas          map[string]*tableSchema
+	globalMask       SettingMask
 }
 
 // NewMapTableSchemaStore return new MapTableSchemaStore
@@ -92,7 +95,30 @@ func MapTableSchemaStoreFromConfig(config []byte) (*MapTableSchemaStore, error) 
 		}
 		mapSchemas[schema.TableName] = schema
 	}
-	return &MapTableSchemaStore{schemas: mapSchemas, globalMask: mask}, nil
+	return &MapTableSchemaStore{
+		databaseSettings: storeConfig.DatabaseSettings,
+		schemas:          mapSchemas,
+		globalMask:       mask,
+	}, nil
+}
+
+// GetDatabaseSettings return struct with database-specific configuration
+func (store *MapTableSchemaStore) GetDatabaseSettings() DatabaseSettings {
+	// Create default set of values so GetDatabaseSettings() won't fail
+	// if this section is missing in the config file or if the config
+	// file was not specified at all and MapTableSchemaStoreFromConfig()
+	// never executed
+	if store.databaseSettings == nil {
+		defaultMySQLCaseSensitiveTableID := false
+		return &databaseSettings{
+			MysqlSetting: mysqlSetting{
+				CaseSensitiveTableIdentifiers: &defaultMySQLCaseSensitiveTableID,
+			},
+			PostgresqlSetting: postgresqlSetting{},
+		}
+	}
+
+	return store.databaseSettings
 }
 
 // GetGlobalSettingsMask return OR of all masks of column settings

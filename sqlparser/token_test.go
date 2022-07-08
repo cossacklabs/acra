@@ -202,7 +202,7 @@ func TestSplitStatement(t *testing.T) {
 func TestSetDefaultDialect(t *testing.T) {
 	tests := []dialect.Dialect{
 		mysql.NewMySQLDialect(),
-		mysql.NewANSIMySQLDialect(),
+		mysql.NewMySQLDialect(mysql.SetANSIMode(true)),
 		postgresql.NewPostgreSQLDialect(),
 	}
 	for _, testDialect := range tests {

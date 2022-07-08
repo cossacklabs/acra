@@ -1,3 +1,6 @@
+database_config:
+  mysql_case_sensitive_table_identifiers: true
+
 schemas:
   # used in test.py
 - table: test_transparent_encryption

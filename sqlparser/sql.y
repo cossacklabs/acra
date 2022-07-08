@@ -3178,7 +3178,11 @@ using_opt:
   { $$ = $2 }
 
 sql_id:
-  ID
+  DOUBLE_QUOTE_STRING
+  {
+    $$ = NewColIdentWithQuotes(string($1), '"')
+  }
+| ID
   {
     $$ = NewColIdent(string($1))
   }

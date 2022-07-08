@@ -10140,6 +10140,312 @@ class TestPostgresqlTypeAwareDecryptionWithDefaultsPsycopg3(Psycopg3ExecutorMixi
     # and therefore most of the frontends doesn't do that. So, test also with it.
     pass
 
+
+class TestDifferentCaseTableIdentifiersPostgreSQL(BaseTransparentEncryption):
+    # Testing behavior of PostgreSQL parser: before comparing with things in encryptor config
+    # - raw identifiers (table, column names) should be converted to lowercase
+    # - if wrapped with double quotes, should be taken as is
+    # see https://www.postgresql.org/docs/current/sql-syntax-lexical.html
+
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/postgresql_identifiers.yaml')
+
+    def checkSkip(self):
+        if not TEST_WITH_TLS or not TEST_POSTGRESQL:
+            self.skipTest("this test is only for PostgreSQL")
+
+    def setUp(self):
+        super().setUp()
+        self.engine1.execute('CREATE TABLE IF NOT EXISTS "lowercase_table" (id SERIAL PRIMARY KEY, "data" BYTEA, "DATA" BYTEA);')
+        self.engine1.execute('CREATE TABLE IF NOT EXISTS "LOWERCASE_TABLE" (id SERIAL PRIMARY KEY, "data" BYTEA, "DATA" BYTEA);')
+        self.engine1.execute('CREATE TABLE IF NOT EXISTS "uppercase_table" (id SERIAL PRIMARY KEY, "data" BYTEA, "DATA" BYTEA);')
+        self.engine1.execute('CREATE TABLE IF NOT EXISTS "UPPERCASE_TABLE" (id SERIAL PRIMARY KEY, "data" BYTEA, "DATA" BYTEA);')
+
+    def tearDown(self):
+        self.engine1.execute('DROP TABLE "lowercase_table";')
+        self.engine1.execute('DROP TABLE "LOWERCASE_TABLE";')
+        self.engine1.execute('DROP TABLE "uppercase_table";')
+        self.engine1.execute('DROP TABLE "UPPERCASE_TABLE";')
+        super().tearDown()
+
+    def runTestCase(self,
+                    table_name: str,
+                    quoted_table_name: bool,
+                    column_name: str,
+                    quoted_column_name: bool,
+                    should_match: bool):
+        test_string = "test"
+
+        if quoted_table_name:
+            table_name = '"' + table_name + '"'
+
+        if quoted_column_name:
+            row_name = column_name
+            column_name = '"' + column_name + '"'
+        else:
+            row_name = column_name.lower()
+
+        # generate random id
+        id = get_random_id()
+
+        def check():
+            # ensure it is encrypted (if should_match) or ensure it's not encrypted (if not should_match)
+            if should_match:
+                # ensure decrypted data matches what was inserted
+
+                result = self.engine1.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
+                row = result.fetchone()
+
+                self.assertEqual(
+                    bytes(row[row_name]),
+                    bytes(test_string, "UTF-8"),
+                    f"Table identifier {table_name}, column identifier {column_name}, did not match (decryption failed?)"
+                )
+
+                # ensure database does not contain plaintext
+
+                result = self.engine2.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
+                row = result.fetchone()
+
+                self.assertNotEqual(
+                    bytes(row[row_name]),
+                    bytes(test_string, "UTF-8"),
+                    f"Table identifier {table_name}, column identifier {column_name}, did not match (DB contains plaintext)"
+                )
+
+                result = self.engine_raw.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
+                row = result.fetchone()
+
+                self.assertNotEqual(
+                    bytes(row[row_name]),
+                    bytes(test_string, "UTF-8"),
+                    f"Table identifier {table_name}, column identifier {column_name}, did not match (DB contains plaintext)"
+                )
+            else:
+                # ensure database contains plaintext
+
+                result = self.engine2.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
+                row = result.fetchone()
+
+                self.assertEqual(
+                    bytes(row[row_name]),
+                    bytes(test_string, "UTF-8"),
+                    f"Table identifier {table_name}, column identifier {column_name}, matched (no plaintext in DB)"
+                )
+
+                result = self.engine_raw.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
+                row = result.fetchone()
+
+                self.assertEqual(
+                    bytes(row[row_name]),
+                    bytes(test_string, "UTF-8"),
+                    f"Table identifier {table_name}, column identifier {column_name}, matched (no plaintext in DB)"
+                )
+
+        # insert a record
+        self.engine1.execute(f"INSERT INTO {table_name} (id, {column_name}) VALUES ({id}, '{test_string}');")
+        check()
+
+        # update a record
+        self.engine1.execute(f"UPDATE {table_name} SET {column_name}='{test_string}' WHERE id={id};")
+        check()
+
+    def testLowerConfigLowerQuery(self):
+        # table should match, lowercase config identifier == lowercase SQL identifier
+        # column should only match in quoted "DATA" case
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("lowercase_table", NOT_QUOTED, "data", NOT_QUOTED, SHOULD_NOT_MATCH)
+        self.runTestCase("lowercase_table", NOT_QUOTED, "data", QUOTED, SHOULD_NOT_MATCH)
+        self.runTestCase("lowercase_table", NOT_QUOTED, "DATA", NOT_QUOTED, SHOULD_NOT_MATCH)
+        self.runTestCase("lowercase_table", NOT_QUOTED, "DATA", QUOTED, SHOULD_MATCH)
+
+    def testLowerConfigLowerQuotedQuery(self):
+        # should match, lowercase config identifier == lowercase SQL identifier
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("lowercase_table", QUOTED, "DATA", QUOTED, SHOULD_MATCH)
+
+    def testLowerConfigUpperQuery(self):
+        # should match, lowercase config identifier == lowercase SQL identifier (converted)
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("LOWERCASE_TABLE", NOT_QUOTED, "DATA", QUOTED, SHOULD_MATCH)
+
+    def testLowerConfigUpperQuotedQuery(self):
+        # should NOT match, lowercase config identifier != uppercase SQL identifier
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("LOWERCASE_TABLE", QUOTED, "DATA", QUOTED, SHOULD_NOT_MATCH)
+
+    def testUpperConfigLowerQuery(self):
+        # should NOT match, uppercase config identifier != lowercase SQL identifier
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("uppercase_table", NOT_QUOTED, "data", NOT_QUOTED, SHOULD_NOT_MATCH)
+
+    def testUpperConfigLowerQuotedQuery(self):
+        # should NOT match, uppercase config identifier != lowercase SQL identifier
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("uppercase_table", QUOTED, "data", NOT_QUOTED, SHOULD_NOT_MATCH)
+
+    def testUpperConfigUpperQuery(self):
+        # should NOT match, uppercase config identifier != lowercase SQL identifier (converted)
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("UPPERCASE_TABLE", NOT_QUOTED, "data", NOT_QUOTED, SHOULD_NOT_MATCH)
+
+    def testUpperConfigUpperQuotedQuery(self):
+        # should match, uppercase config identifier == uppercase SQL identifier
+        # column should match in all cases except quoted "DATA"
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("UPPERCASE_TABLE", QUOTED, "data", NOT_QUOTED, SHOULD_MATCH)
+        self.runTestCase("UPPERCASE_TABLE", QUOTED, "data", QUOTED, SHOULD_MATCH)
+        self.runTestCase("UPPERCASE_TABLE", QUOTED, "DATA", NOT_QUOTED, SHOULD_MATCH)
+        self.runTestCase("UPPERCASE_TABLE", QUOTED, "DATA", QUOTED, SHOULD_NOT_MATCH)
+
+
+class TestDifferentCaseTableIdentifiersMySQL(BaseTransparentEncryption):
+    # Testing behavior of MySQL parser: before comparing with things in encryptor config
+    # - column identifiers should be converted to lowercase
+    # - table identifiers should be used as is (in this test, as config enables case sensitivity)
+    # - backquotes should have no effect on case sensitivity
+    # see https://dev.mysql.com/doc/refman/8.0/en/identifier-case-sensitivity.html
+
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/mysql_identifiers.yaml')
+
+    def checkSkip(self):
+        if not TEST_WITH_TLS or not (TEST_MYSQL or TEST_MARIADB):
+            self.skipTest("this test is only for MySQL/MariaDB")
+
+    def setUp(self):
+        super().setUp()
+        self.engine1.execute(f"CREATE TABLE IF NOT EXISTS lowercase_table (id INT PRIMARY KEY AUTO_INCREMENT, data BLOB);")
+        self.engine1.execute(f"CREATE TABLE IF NOT EXISTS LOWERCASE_TABLE (id INT PRIMARY KEY AUTO_INCREMENT, data BLOB);")
+        self.engine1.execute(f"CREATE TABLE IF NOT EXISTS uppercase_table (id INT PRIMARY KEY AUTO_INCREMENT, data BLOB);")
+        self.engine1.execute(f"CREATE TABLE IF NOT EXISTS UPPERCASE_TABLE (id INT PRIMARY KEY AUTO_INCREMENT, data BLOB);")
+
+    def tearDown(self):
+        self.engine1.execute(f"DROP TABLE lowercase_table;")
+        self.engine1.execute(f"DROP TABLE LOWERCASE_TABLE;")
+        self.engine1.execute(f"DROP TABLE uppercase_table;")
+        self.engine1.execute(f"DROP TABLE UPPERCASE_TABLE;")
+        super().tearDown()
+
+    def runTestCase(self,
+                    table_name: str,
+                    quoted_table_name: bool,
+                    column_name: str,
+                    quoted_column_name: bool,
+                    should_match: bool):
+        test_string = "test"
+
+        if quoted_table_name:
+            table_name = '`' + table_name + '`'
+
+        row_name = column_name
+
+        if quoted_column_name:
+            column_name = '`' + column_name + '`'
+
+        # generate random id
+        id = get_random_id()
+
+        def check():
+            # ensure it is encrypted (if should_match) or ensure it's not encrypted (if not should_match)
+            if should_match:
+                # ensure decrypted data matches what was inserted
+
+                result = self.engine1.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
+                row = result.fetchone()
+
+                self.assertEqual(
+                    bytes(row[row_name]),
+                    bytes(test_string, "UTF-8"),
+                    f"Table identifier {table_name}, column identifier {column_name}, did not match (decryption failed?)"
+                )
+
+                # ensure database does not contain plaintext
+
+                result = self.engine2.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
+                row = result.fetchone()
+
+                self.assertNotEqual(
+                    bytes(row[row_name]),
+                    bytes(test_string, "UTF-8"),
+                    f"Table identifier {table_name}, column identifier {column_name} did not match (DB contains plaintext)"
+                )
+
+                result = self.engine_raw.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
+                row = result.fetchone()
+
+                self.assertNotEqual(
+                    bytes(row[row_name]),
+                    bytes(test_string, "UTF-8"),
+                    f"Table identifier {table_name}, column identifier {column_name}, did not match (DB contains plaintext)"
+                )
+            else:
+                # ensure database contains plaintext
+
+                result = self.engine2.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
+                row = result.fetchone()
+
+                self.assertEqual(
+                    bytes(row[row_name]),
+                    bytes(test_string, "UTF-8"),
+                    f"Table identifier {table_name}, column identifier {column_name}, matched (no plaintext in DB)"
+                )
+
+                result = self.engine_raw.execute(f"SELECT {column_name} FROM {table_name} WHERE id={id};")
+                row = result.fetchone()
+
+                self.assertEqual(
+                    bytes(row[row_name]),
+                    bytes(test_string, "UTF-8"),
+                    f"Table identifier {table_name}, column identifier {column_name}, matched (no plaintext in DB)"
+                )
+
+        # insert a record
+        self.engine1.execute(f"INSERT INTO {table_name} (id, {column_name}) VALUES ({id}, \"{test_string}\");")
+        check()
+
+        # update a record
+        self.engine1.execute(f"UPDATE {table_name} SET {column_name}=\"{test_string}\" WHERE id={id};")
+        check()
+
+    def testLowerConfigLowerQuery(self):
+        # should match, lowercase config identifier == lowercase SQL identifier
+        # column identifiers are always case-insensitive in MySQL and backquotes do not affect this,
+        # see https://dev.mysql.com/doc/refman/8.0/en/identifier-case-sensitivity.html
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("lowercase_table", NOT_QUOTED, "data", NOT_QUOTED, SHOULD_MATCH)
+        self.runTestCase("lowercase_table", NOT_QUOTED, "Data", NOT_QUOTED, SHOULD_MATCH)
+        self.runTestCase("lowercase_table", QUOTED,     "DATA", NOT_QUOTED, SHOULD_MATCH)
+        self.runTestCase("lowercase_table", NOT_QUOTED, "data", QUOTED,     SHOULD_MATCH)
+        self.runTestCase("lowercase_table", QUOTED,     "Data", QUOTED,     SHOULD_MATCH)
+        self.runTestCase("lowercase_table", NOT_QUOTED, "DATA", QUOTED,     SHOULD_MATCH)
+
+    def testLowerConfigUpperQuery(self):
+        # should NOT match, lowercase config identifier == lowercase SQL identifier
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("LOWERCASE_TABLE", NOT_QUOTED, "data", NOT_QUOTED, SHOULD_NOT_MATCH)
+
+    def testUpperConfigLowerQuery(self):
+        # should NOT match, uppercase config identifier != lowercase SQL identifier
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("uppercase_table", NOT_QUOTED, "data", NOT_QUOTED, SHOULD_NOT_MATCH)
+
+    def testUpperConfigUpperQuery(self):
+        # should match, uppercase config identifier == uppercase SQL identifier
+        QUOTED, NOT_QUOTED = (True, False)
+        SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
+        self.runTestCase("UPPERCASE_TABLE", NOT_QUOTED, "data", NOT_QUOTED, SHOULD_MATCH)
+
+
 if __name__ == '__main__':
     import xmlrunner
     output_path = os.environ.get('TEST_XMLOUTPUT', '')

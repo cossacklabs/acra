@@ -87,7 +87,7 @@ func (encryptor *QueryDataEncryptor) ID() string {
 // encryptInsertQuery encrypt data in insert query in VALUES and ON DUPLICATE KEY UPDATE statements
 func (encryptor *QueryDataEncryptor) encryptInsertQuery(ctx context.Context, insert *sqlparser.Insert, bindPlaceholders map[int]config.ColumnEncryptionSetting) (bool, error) {
 	tableName := insert.Table.Name
-	schema := encryptor.schemaStore.GetTableSchema(tableName.String())
+	schema := encryptor.schemaStore.GetTableSchema(tableName.ValueForConfig())
 	if schema == nil {
 		// unsupported table, we have not schema and query hasn't columns description
 		logrus.Debugf("Hasn't schema for table %s", tableName)
@@ -95,14 +95,14 @@ func (encryptor *QueryDataEncryptor) encryptInsertQuery(ctx context.Context, ins
 	}
 
 	if encryptor.encryptor == nil {
-		return false, encryptor.onReturning(ctx, insert.Returning, tableName.RawValue())
+		return false, encryptor.onReturning(ctx, insert.Returning, tableName.ValueForConfig())
 	}
 
 	var columnsName []string
 	if len(insert.Columns) > 0 {
 		columnsName = make([]string, 0, len(insert.Columns))
 		for _, col := range insert.Columns {
-			columnsName = append(columnsName, col.String())
+			columnsName = append(columnsName, col.ValueForConfig())
 		}
 	} else if cols := schema.Columns(); len(cols) > 0 {
 		columnsName = cols
@@ -268,7 +268,7 @@ func GetTablesWithAliases(tables sqlparser.TableExprs) []*AliasedTableName {
 // hasTablesToEncrypt check that exists schema for any table in tables
 func (encryptor *QueryDataEncryptor) hasTablesToEncrypt(tables []*AliasedTableName) bool {
 	for _, table := range tables {
-		if v := encryptor.schemaStore.GetTableSchema(table.TableName.Name.String()); v != nil {
+		if v := encryptor.schemaStore.GetTableSchema(table.TableName.Name.ValueForConfig()); v != nil {
 			return true
 		}
 	}
@@ -282,7 +282,7 @@ func (encryptor *QueryDataEncryptor) encryptUpdateExpressions(ctx context.Contex
 	for _, expr := range exprs {
 		// recognize table name of column
 		if expr.Name.Qualifier.IsEmpty() {
-			schema = encryptor.schemaStore.GetTableSchema(firstTable.Name.String())
+			schema = encryptor.schemaStore.GetTableSchema(firstTable.Name.ValueForConfig())
 		} else {
 			tableName := qualifierMap[expr.Name.Qualifier.Name.String()]
 			schema = encryptor.schemaStore.GetTableSchema(tableName)
@@ -290,7 +290,7 @@ func (encryptor *QueryDataEncryptor) encryptUpdateExpressions(ctx context.Contex
 		if schema == nil {
 			continue
 		}
-		columnName := expr.Name.Name.String()
+		columnName := expr.Name.Name.ValueForConfig()
 		if changedExpr, err := encryptor.encryptExpression(ctx, expr.Expr, schema, columnName, bindPlaceholders); err != nil {
 			logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptorCantEncryptExpression).WithError(err).Errorln("Can't update expression with encrypted sql value")
 			return changed, err
@@ -309,9 +309,9 @@ func NewAliasToTableMapFromTables(tables []*AliasedTableName) AliasToTableMap {
 	qualifierMap := AliasToTableMap{}
 	for _, table := range tables {
 		if table.As.IsEmpty() {
-			qualifierMap[table.TableName.Name.String()] = table.TableName.Name.String()
+			qualifierMap[table.TableName.Name.ValueForConfig()] = table.TableName.Name.ValueForConfig()
 		} else {
-			qualifierMap[table.As.String()] = table.TableName.Name.String()
+			qualifierMap[table.As.ValueForConfig()] = table.TableName.Name.ValueForConfig()
 		}
 	}
 	return qualifierMap
@@ -508,7 +508,7 @@ func (encryptor *QueryDataEncryptor) getInsertPlaceholders(ctx context.Context, 
 	logger := logging.GetLoggerFromContext(ctx)
 	// Look for the schema of the table where the INSERT happens.
 	// If we don't have a schema then we don't know what to encrypt, so do nothing.
-	schema := encryptor.schemaStore.GetTableSchema(tableName.String())
+	schema := encryptor.schemaStore.GetTableSchema(tableName.ValueForConfig())
 	if schema == nil {
 		logger.WithField("table", tableName).Debugln("No encryption schema")
 		return nil, nil
@@ -591,7 +591,7 @@ func (encryptor *QueryDataEncryptor) encryptInsertValues(ctx context.Context, in
 	tableName := insert.Table.Name
 	// Look for the schema of the table where the INSERT happens.
 	// If we don't have a schema then we don't know what to encrypt, so do nothing.
-	schema := encryptor.schemaStore.GetTableSchema(tableName.String())
+	schema := encryptor.schemaStore.GetTableSchema(tableName.ValueForConfig())
 	if schema == nil {
 		logrus.WithField("table", tableName).Debugln("No encryption schema")
 		return values, false, nil
@@ -626,7 +626,8 @@ func (encryptor *QueryDataEncryptor) encryptUpdateValues(ctx context.Context, up
 	// and we need to take all of that into account. But we're interested only in the first table.
 	// If the updated table does not have a schema entry, there is nothing to encrypt here.
 	tables := GetTablesWithAliases(update.TableExprs)
-	tableName := tables[0].TableName.Name.String()
+	//tableName := tables[0].TableName.Name.String()
+	tableName := tables[0].TableName.Name.ValueForConfig()
 	schema := encryptor.schemaStore.GetTableSchema(tableName)
 	if schema == nil {
 		logrus.WithField("table", tableName).Debugln("No encryption schema")

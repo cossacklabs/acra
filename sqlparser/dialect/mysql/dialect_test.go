@@ -3,13 +3,13 @@ package mysql
 import "testing"
 
 func TestNewANSIMySQLDialect(t *testing.T) {
-	if !NewANSIMySQLDialect().ansiMode {
+	if !NewMySQLDialect(SetANSIMode(true)).ansiMode {
 		t.Fatal("Incorrectly initialized dialect with ANSI mode on")
 	}
 }
 
 func TestMySQLDialect_IsANSIModeOn(t *testing.T) {
-	if !NewANSIMySQLDialect().IsModeANSIOn() {
+	if !NewMySQLDialect(SetANSIMode(true)).IsModeANSIOn() {
 		t.Fatal("Incorrectly set ANSI mode for dialect")
 	}
 
@@ -30,7 +30,7 @@ func TestMySQLDialect_QuoteHandler(t *testing.T) {
 		expectedANSIMode bool
 	}{
 		{
-			NewANSIMySQLDialect(),
+			NewMySQLDialect(SetANSIMode(true)),
 			true,
 		},
 		{

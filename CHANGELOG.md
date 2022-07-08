@@ -1,5 +1,23 @@
 # Acra ChangeLog
 
+## [0.94.0](https://github.com/cossacklabs/acra/releases/tag/0.94.0), not released yet
+
+_Core_:
+
+- **AcraServer**:
+  - Added new section to encryptor config called `database_settings`. [#532](https://github.com/cossacklabs/acra/pull/532)
+    - Contains subsections `mysql` and `postgresql`
+    - Currently `mysql` subsection has one option, `case_sensitive_table_identifiers`, boolean, to configure whether table names should be considered case-sensitive when comparing with names in encryptor config
+  - Table/column matching now works like this:
+    - For PostgreSQL:
+      - Raw identifiers are case-insensitive
+      - Identifiers wrapped with double quotes are case-sensitive
+    - MySQL:
+      - Column identifiers are always case-insensitive
+      - Table names are case-insensitive by default, could be changed with `case_sensitive_table_identifiers` option mentioned above
+    Case-insensitive means the identifier is converted to lowercase before comparing with values from encryptor config, encryptor config should contain lowercase version of column/table name.
+    Case-sensitive means identifiers are compared with values from encryptor config "as is", encryptor config should contain exactly the same identifier as in database schema.
+
 ## [0.93.0](https://github.com/cossacklabs/acra/releases/tag/0.93.0), May 27th 2021
 This release brings type awareness which improves transparent encryption on AcraServer. Type awareness means that it's possible to tell AcraServer what are the original data types for fields. During decryption, AcraServer will convert decrypted fields to their original data types. No need to change client application code to work with "binary data".
 

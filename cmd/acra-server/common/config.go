@@ -18,9 +18,11 @@ package common
 
 import (
 	"errors"
-	"io/ioutil"
-
 	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/sqlparser/dialect"
+	mysqlDialect "github.com/cossacklabs/acra/sqlparser/dialect/mysql"
+	pgDialect "github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
+	"io/ioutil"
 
 	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/encryptor"
@@ -258,6 +260,17 @@ func (config *Config) SetScriptOnPoison(script string) {
 // SetStopOnPoison tells AcraServer to shutdown when poison record is triggered.
 func (config *Config) SetStopOnPoison(stop bool) {
 	config.stopOnPoison = stop
+}
+
+// GetSQLDialect returns MySQL or PostgreSQL dialect depending on the configuration.
+func (config *Config) GetSQLDialect() dialect.Dialect {
+	if config.mysql {
+		caseSensitiveTableName := config.GetTableSchema().GetDatabaseSettings().GetMySQLDatabaseSettings().GetCaseSensitiveTableIdentifiers()
+		caseSensitiveTableNameOption := mysqlDialect.SetTableNameCaseSensitivity(caseSensitiveTableName)
+		return mysqlDialect.NewMySQLDialect(caseSensitiveTableNameOption)
+	}
+
+	return pgDialect.NewPostgreSQLDialect()
 }
 
 // SetTLSClientIDExtractor set clientID extractor from TLS metadata
