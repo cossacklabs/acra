@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 )
 
 var lock = sync.Mutex{}
@@ -18,6 +20,7 @@ func RegisterEncryptorCreator(encryptorID string, encryptorCreateFunc EncryptorC
 	lock.Lock()
 	encryptorCreators[encryptorID] = encryptorCreateFunc
 	lock.Unlock()
+	log.WithField("encryptor", encryptorID).Debug("Registered KMS Encryptor creator")
 }
 
 // GetEncryptorCreator return EncryptorCreator by its ID from registry

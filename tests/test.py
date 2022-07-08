@@ -1336,10 +1336,10 @@ class AWSKMSClient:
     def disable_key(self, keyId):
         self.kms_client.disable_key(KeyId=keyId)
 
-    def generate_master_key(self, keyId):
-        response = self.kms_client.generate_data_key(
+    def encrypt(self, keyId, data):
+        response = self.kms_client.encrypt(
             KeyId=keyId,
-            NumberOfBytes=32,
+            Plaintext=data,
         )
         return response
 
@@ -3085,26 +3085,12 @@ class AWSKMSMasterKeyLoaderMixin:
 
         self.kms_client = AWSKMSClient()
         self.master_key_kek_uri = self.kms_client.create_key()
-        response = self.kms_client.generate_master_key(keyId=self.master_key_kek_uri)
+
+        master_key = b64decode(get_master_key())
+        response = self.kms_client.encrypt(keyId=self.master_key_kek_uri, data=master_key)
 
         self.master_key_ciphertext = b64encode(response['CiphertextBlob']).decode("utf-8")
-        self.master_key_plaintext = b64encode(response['Plaintext']).decode("utf-8")
         self.create_configuration_file()
-
-        self.keys_dir = tempfile.TemporaryDirectory().name
-
-        os.environ[ACRA_MASTER_KEY_VAR_NAME] = self.master_key_plaintext
-
-        create_client_keypair_from_certificate(TEST_TLS_CLIENT_CERT, keys_dir=self.keys_dir)
-        create_client_keypair_from_certificate(TEST_TLS_CLIENT_2_CERT,  keys_dir=self.keys_dir)
-
-        zones.clear()
-        zones.append(json.loads(subprocess.check_output(
-            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.keys_dir)],
-            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
-        zones.append(json.loads(subprocess.check_output(
-            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.keys_dir)],
-            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
 
         super().setUp()
 
@@ -3124,7 +3110,6 @@ class AWSKMSMasterKeyLoaderMixin:
 
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
         args = {
-            'keys_dir': self.keys_dir,
             'kms_credentials_path': self.config_file,
             'master_key_encryption_key_uri': '{0}//{1}'.format('aws-kms:', self.master_key_kek_uri)
         }

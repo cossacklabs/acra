@@ -113,7 +113,3 @@ func newKmsClient(configuration *Configuration) (*kms.Client, error) {
 	}
 	return kms.NewFromConfig(cfg), nil
 }
-
-func init() {
-	baseKMS.RegisterEncryptorCreator(KeyIdentifierPrefix, NewEncryptor)
-}
