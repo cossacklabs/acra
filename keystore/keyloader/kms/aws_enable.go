@@ -9,5 +9,5 @@ import (
 )
 
 func init() {
-	kms.RegisterEncryptorCreator(aws.KeyIdentifierPrefix, aws.NewEncryptor)
+	kms.RegisterEncryptorCreator(kms.TypeAWS, aws.NewEncryptor)
 }

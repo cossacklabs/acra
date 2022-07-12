@@ -3,6 +3,7 @@ package kms
 import (
 	"context"
 	"crypto/subtle"
+
 	"github.com/cossacklabs/acra/keystore"
 	keystoreCE "github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/kms"
@@ -13,20 +14,14 @@ import (
 
 // Loader is implementation of MasterKeyLoader for kms
 type Loader struct {
-	keyID     kms.KeyIdentifier
 	encryptor kms.Encryptor
 }
 
 // NewLoader create new kms MasterKeyLoader
-func NewLoader(credentialPath, keyIdentifierURI string) (*Loader, error) {
-	keyID, err := kms.NewKeyIdentifierFromURI(keyIdentifierURI)
-	if err != nil {
-		return nil, err
-	}
-
-	createEncryptor, ok := kms.GetEncryptorCreator(keyID.Prefix())
+func NewLoader(credentialPath, kmsType string) (*Loader, error) {
+	createEncryptor, ok := kms.GetEncryptorCreator(kmsType)
 	if !ok {
-		log.Errorln("Unknown key ID provided")
+		log.Errorf("Unknown KMS type provided %s", kmsType)
 		return nil, nil
 	}
 
@@ -38,16 +33,15 @@ func NewLoader(credentialPath, keyIdentifierURI string) (*Loader, error) {
 
 	log.Infof("Initialized %s MasterKeyLoader", encryptor.ID())
 	return &Loader{
-		keyID:     keyID,
 		encryptor: encryptor,
 	}, nil
 }
 
 // LoadMasterKey implementation kms MasterKeyLoader for loading AcraMasterKey for keystore v1
 func (loader *Loader) LoadMasterKey() ([]byte, error) {
-	rawKey, err := loader.decryptWithKMSKey(loader.keyID)
+	rawKey, err := loader.decryptWithKMSKey(kms.AcraMasterKeyKEKID)
 	if err != nil {
-		log.WithError(err).Warnf("Failed to decrypt ACRA_MASTER_KEY with KMS keyID %s", loader.keyID.ID())
+		log.WithError(err).Warnf("Failed to decrypt ACRA_MASTER_KEY with KMS keyID %s", kms.AcraMasterKeyKEKID)
 		return nil, err
 	}
 
@@ -61,9 +55,9 @@ func (loader *Loader) LoadMasterKey() ([]byte, error) {
 
 // LoadMasterKeys implementation kms MasterKeyLoader for loading AcraMasterKey for keystore v2
 func (loader *Loader) LoadMasterKeys() (encryption []byte, signature []byte, err error) {
-	rawKey, err := loader.decryptWithKMSKey(loader.keyID)
+	rawKey, err := loader.decryptWithKMSKey(kms.AcraMasterKeyKEKID)
 	if err != nil {
-		log.WithError(err).Warnf("Failed to decrypt ACRA_MASTER_KEY with KMS keyID %s", loader.keyID.ID())
+		log.WithError(err).Warnf("Failed to decrypt ACRA_MASTER_KEY with KMS keyID %s", kms.AcraMasterKeyKEKID)
 		return nil, nil, err
 	}
 
@@ -93,14 +87,14 @@ func (loader *Loader) LoadMasterKeys() (encryption []byte, signature []byte, err
 	return keys.Encryption, keys.Signature, nil
 }
 
-func (loader *Loader) decryptWithKMSKey(keyID kms.KeyIdentifier) ([]byte, error) {
+func (loader *Loader) decryptWithKMSKey(keyID string) ([]byte, error) {
 	cipherMasterKey, err := keystore.GetMasterKeyFromEnvironmentVariable(keystore.AcraMasterKeyVarName)
 	if err != nil {
 		return nil, err
 	}
 
 	ctx, _ := context.WithTimeout(context.Background(), network.DefaultNetworkTimeout)
-	masterKey, err := loader.encryptor.Decrypt(ctx, keyID.ID(), cipherMasterKey)
+	masterKey, err := loader.encryptor.Decrypt(ctx, keyID, cipherMasterKey)
 	if err != nil {
 		return nil, err
 	}

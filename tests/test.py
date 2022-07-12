@@ -1333,6 +1333,20 @@ class AWSKMSClient:
         response = self.kms_client.create_key(Description='AcraMasterKey KEK')
         return response['KeyMetadata']['Arn']
 
+    def create_alias(self, keyId, alias_name):
+        self.kms_client.create_alias(
+            AliasName=alias_name,
+            TargetKeyId=keyId
+        )
+
+    def delete_alias(self, alias_name):
+        self.kms_client.delete_alias(
+            AliasName=alias_name,
+        )
+
+    def close(self):
+        self.kms_client.close()
+
     def disable_key(self, keyId):
         self.kms_client.disable_key(KeyId=keyId)
 
@@ -3085,6 +3099,7 @@ class AWSKMSMasterKeyLoaderMixin:
 
         self.kms_client = AWSKMSClient()
         self.master_key_kek_uri = self.kms_client.create_key()
+        self.kms_client.create_alias(keyId=self.master_key_kek_uri, alias_name='alias/acra_master_key')
 
         master_key = b64decode(get_master_key())
         response = self.kms_client.encrypt(keyId=self.master_key_kek_uri, data=master_key)
@@ -3111,7 +3126,7 @@ class AWSKMSMasterKeyLoaderMixin:
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
         args = {
             'kms_credentials_path': self.config_file,
-            'master_key_encryption_key_uri': '{0}//{1}'.format('aws-kms:', self.master_key_kek_uri)
+            'kms_type': 'aws'
         }
         os.environ[ACRA_MASTER_KEY_VAR_NAME] = self.master_key_ciphertext
         acra_kwargs.update(args)
@@ -3119,7 +3134,9 @@ class AWSKMSMasterKeyLoaderMixin:
 
     def tearDown(self):
         super().tearDown()
+        self.kms_client.delete_alias(alias_name='alias/acra_master_key')
         self.kms_client.disable_key(keyId=self.master_key_kek_uri)
+        self.kms_client.close()
         os.environ[ACRA_MASTER_KEY_VAR_NAME] = get_master_key()
 
 

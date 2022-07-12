@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -19,9 +20,6 @@ type Configuration struct {
 	Region          string `json:"region"`
 	Endpoint        string `json:"endpoint"`
 }
-
-// KeyIdentifierPrefix describe prefix used for AWS KMS KeyID
-const KeyIdentifierPrefix = "aws-kms:"
 
 // Encryptor implementation of AWS Encryptor
 type Encryptor struct {
@@ -67,7 +65,7 @@ func (e *Encryptor) Encrypt(ctx context.Context, keyID string, data []byte) ([]b
 func (e *Encryptor) Decrypt(ctx context.Context, keyID string, blob []byte) ([]byte, error) {
 	input := &kms.DecryptInput{
 		CiphertextBlob: blob,
-		KeyId:          aws.String(keyID),
+		KeyId:          aws.String(fmt.Sprintf("alias/%s", keyID)),
 	}
 
 	result, err := e.client.Decrypt(ctx, input)
