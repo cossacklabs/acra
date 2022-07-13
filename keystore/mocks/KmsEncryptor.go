@@ -13,13 +13,13 @@ type Encryptor struct {
 	mock.Mock
 }
 
-// Decrypt provides a mock function with given fields: ctx, keyID, data
-func (_m *Encryptor) Decrypt(ctx context.Context, keyID string, data []byte) ([]byte, error) {
-	ret := _m.Called(ctx, keyID, data)
+// Decrypt provides a mock function with given fields: ctx, keyID, data, _a3
+func (_m *Encryptor) Decrypt(ctx context.Context, keyID []byte, data []byte, _a3 []byte) ([]byte, error) {
+	ret := _m.Called(ctx, keyID, data, _a3)
 
 	var r0 []byte
-	if rf, ok := ret.Get(0).(func(context.Context, string, []byte) []byte); ok {
-		r0 = rf(ctx, keyID, data)
+	if rf, ok := ret.Get(0).(func(context.Context, []byte, []byte, []byte) []byte); ok {
+		r0 = rf(ctx, keyID, data, _a3)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]byte)
@@ -27,8 +27,8 @@ func (_m *Encryptor) Decrypt(ctx context.Context, keyID string, data []byte) ([]
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, string, []byte) error); ok {
-		r1 = rf(ctx, keyID, data)
+	if rf, ok := ret.Get(1).(func(context.Context, []byte, []byte, []byte) error); ok {
+		r1 = rf(ctx, keyID, data, _a3)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -36,13 +36,13 @@ func (_m *Encryptor) Decrypt(ctx context.Context, keyID string, data []byte) ([]
 	return r0, r1
 }
 
-// Encrypt provides a mock function with given fields: ctx, keyID, data
-func (_m *Encryptor) Encrypt(ctx context.Context, keyID string, data []byte) ([]byte, error) {
-	ret := _m.Called(ctx, keyID, data)
+// Encrypt provides a mock function with given fields: ctx, keyID, data, _a3
+func (_m *Encryptor) Encrypt(ctx context.Context, keyID []byte, data []byte, _a3 []byte) ([]byte, error) {
+	ret := _m.Called(ctx, keyID, data, _a3)
 
 	var r0 []byte
-	if rf, ok := ret.Get(0).(func(context.Context, string, []byte) []byte); ok {
-		r0 = rf(ctx, keyID, data)
+	if rf, ok := ret.Get(0).(func(context.Context, []byte, []byte, []byte) []byte); ok {
+		r0 = rf(ctx, keyID, data, _a3)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]byte)
@@ -50,8 +50,8 @@ func (_m *Encryptor) Encrypt(ctx context.Context, keyID string, data []byte) ([]
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, string, []byte) error); ok {
-		r1 = rf(ctx, keyID, data)
+	if rf, ok := ret.Get(1).(func(context.Context, []byte, []byte, []byte) error); ok {
+		r1 = rf(ctx, keyID, data, _a3)
 	} else {
 		r1 = ret.Error(1)
 	}

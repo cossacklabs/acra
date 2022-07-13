@@ -15,10 +15,10 @@ import (
 
 // Configuration represent configuration file structure for AWS KMS
 type Configuration struct {
-	AccessKeyID     string `json:"access_key_id"`
-	SecretAccessKey string `json:"secret_access_key"`
-	Region          string `json:"region"`
-	Endpoint        string `json:"endpoint"`
+	AccessKeyID     string  `json:"access_key_id"`
+	SecretAccessKey string  `json:"secret_access_key"`
+	Region          string  `json:"region"`
+	Endpoint        *string `json:"endpoint,omitempty"`
 }
 
 // Encryptor implementation of AWS Encryptor
@@ -47,10 +47,16 @@ func (e *Encryptor) ID() string {
 }
 
 // Encrypt implementation of kms.Encryptor method
-func (e *Encryptor) Encrypt(ctx context.Context, keyID string, data []byte) ([]byte, error) {
+func (e *Encryptor) Encrypt(ctx context.Context, keyID []byte, data []byte, context []byte) ([]byte, error) {
+	// using alias based keyId format
+	// https://docs.aws.amazon.com/cli/latest/reference/kms/encrypt.html#options
 	input := &kms.EncryptInput{
-		KeyId:     aws.String(keyID),
+		KeyId:     aws.String(fmt.Sprintf("alias/%s", keyID)),
 		Plaintext: data,
+	}
+	//  set encryption context in case of provided additional authenticated data
+	if context != nil {
+		input.EncryptionContext = map[string]string{"context": string(context)}
 	}
 
 	result, err := e.client.Encrypt(ctx, input)
@@ -62,10 +68,17 @@ func (e *Encryptor) Encrypt(ctx context.Context, keyID string, data []byte) ([]b
 }
 
 // Decrypt implementation of kms.Encryptor method
-func (e *Encryptor) Decrypt(ctx context.Context, keyID string, blob []byte) ([]byte, error) {
+func (e *Encryptor) Decrypt(ctx context.Context, keyID []byte, blob []byte, context []byte) ([]byte, error) {
+	// using alias based keyId format
+	// https://docs.aws.amazon.com/cli/latest/reference/kms/encrypt.html#options
 	input := &kms.DecryptInput{
 		CiphertextBlob: blob,
 		KeyId:          aws.String(fmt.Sprintf("alias/%s", keyID)),
+	}
+
+	//  set encryption context in case of provided additional authenticated data
+	if context != nil {
+		input.EncryptionContext = map[string]string{"context": string(context)}
 	}
 
 	result, err := e.client.Decrypt(ctx, input)
@@ -97,11 +110,11 @@ func newKmsClient(configuration *Configuration) (*kms.Client, error) {
 			}}),
 	}
 
-	if configuration.Endpoint != "" {
+	if configuration.Endpoint != nil {
 		loadOptions = append(loadOptions,
 			config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(
 				func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-					return aws.Endpoint{URL: configuration.Endpoint}, nil
+					return aws.Endpoint{URL: *configuration.Endpoint}, nil
 				})))
 	}
 

@@ -32,8 +32,8 @@ func GetEncryptorCreator(encryptorID string) (EncryptorCreateFunc, bool) {
 // Encryptor is main kms encryptor interface
 type Encryptor interface {
 	ID() string
-	Encrypt(ctx context.Context, keyID string, data []byte) ([]byte, error)
-	Decrypt(ctx context.Context, keyID string, data []byte) ([]byte, error)
+	Encrypt(ctx context.Context, keyID []byte, data []byte, context []byte) ([]byte, error)
+	Decrypt(ctx context.Context, keyID []byte, data []byte, context []byte) ([]byte, error)
 }
 
 // AcraMasterKeyKEKID represent ID/alias of encryption key used for MasterKey loading

@@ -3,7 +3,6 @@ package kms
 import (
 	"context"
 	"crypto/subtle"
-
 	"github.com/cossacklabs/acra/keystore"
 	keystoreCE "github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/kms"
@@ -39,7 +38,7 @@ func NewLoader(credentialPath, kmsType string) (*Loader, error) {
 
 // LoadMasterKey implementation kms MasterKeyLoader for loading AcraMasterKey for keystore v1
 func (loader *Loader) LoadMasterKey() ([]byte, error) {
-	rawKey, err := loader.decryptWithKMSKey(kms.AcraMasterKeyKEKID)
+	rawKey, err := loader.decryptWithKMSKey([]byte(kms.AcraMasterKeyKEKID))
 	if err != nil {
 		log.WithError(err).Warnf("Failed to decrypt ACRA_MASTER_KEY with KMS keyID %s", kms.AcraMasterKeyKEKID)
 		return nil, err
@@ -55,7 +54,7 @@ func (loader *Loader) LoadMasterKey() ([]byte, error) {
 
 // LoadMasterKeys implementation kms MasterKeyLoader for loading AcraMasterKey for keystore v2
 func (loader *Loader) LoadMasterKeys() (encryption []byte, signature []byte, err error) {
-	rawKey, err := loader.decryptWithKMSKey(kms.AcraMasterKeyKEKID)
+	rawKey, err := loader.decryptWithKMSKey([]byte(kms.AcraMasterKeyKEKID))
 	if err != nil {
 		log.WithError(err).Warnf("Failed to decrypt ACRA_MASTER_KEY with KMS keyID %s", kms.AcraMasterKeyKEKID)
 		return nil, nil, err
@@ -87,14 +86,14 @@ func (loader *Loader) LoadMasterKeys() (encryption []byte, signature []byte, err
 	return keys.Encryption, keys.Signature, nil
 }
 
-func (loader *Loader) decryptWithKMSKey(keyID string) ([]byte, error) {
+func (loader *Loader) decryptWithKMSKey(keyID []byte) ([]byte, error) {
 	cipherMasterKey, err := keystore.GetMasterKeyFromEnvironmentVariable(keystore.AcraMasterKeyVarName)
 	if err != nil {
 		return nil, err
 	}
 
 	ctx, _ := context.WithTimeout(context.Background(), network.DefaultNetworkTimeout)
-	masterKey, err := loader.encryptor.Decrypt(ctx, keyID, cipherMasterKey)
+	masterKey, err := loader.encryptor.Decrypt(ctx, keyID, cipherMasterKey, nil)
 	if err != nil {
 		return nil, err
 	}

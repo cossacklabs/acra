@@ -26,7 +26,7 @@ func TestSuccessMasterKeyLoading(t *testing.T) {
 	defer os.Unsetenv(keystore.AcraMasterKeyVarName)
 
 	kmsEncryptor.On("ID").Return("mocked KMS encryptor")
-	kmsEncryptor.On("Decrypt", mock.Anything, kms.AcraMasterKeyKEKID, key).Return([]byte(masterKey), nil)
+	kmsEncryptor.On("Decrypt", mock.Anything, []byte(kms.AcraMasterKeyKEKID), key, []byte(nil)).Return([]byte(masterKey), nil)
 
 	encryptorCreator := func(path string) (kms.Encryptor, error) {
 		return kmsEncryptor, nil
