@@ -2,7 +2,10 @@ package hashicorp
 
 import (
 	"flag"
+
+	"github.com/cossacklabs/acra/keystore/keyloader"
 	"github.com/hashicorp/vault/api"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -53,6 +56,33 @@ func (options *VaultCLIOptions) TLSConfig() *api.TLSConfig {
 }
 
 // GetVaultCLIParameters returns a copy of VaultCLIOptions parsed from the command line.
-func GetVaultCLIParameters() VaultCLIOptions {
-	return vaultOptions
+func GetVaultCLIParameters() *VaultCLIOptions {
+	return &vaultOptions
+}
+
+// New create MasterKeyLoader from VaultCLIOptions - implementation of keyloader.CliMasterKeyLoaderCreator interface
+func (options VaultCLIOptions) New() (keyloader.MasterKeyLoader, error) {
+	if options.Address == "" {
+		return nil, nil
+	}
+
+	log.Infoln("Initializing connection to HashiCorp Vault for ACRA_MASTER_KEY loading")
+	vaultConfig := api.DefaultConfig()
+	vaultConfig.Address = options.Address
+
+	if options.EnableTLS {
+		log.Infoln("Configuring TLS connection to HashiCorp Vault")
+
+		if err := vaultConfig.ConfigureTLS(options.TLSConfig()); err != nil {
+			return nil, err
+		}
+	}
+
+	keyLoader, err := NewVaultLoader(vaultConfig, options.SecretsPath)
+	if err != nil {
+		log.WithError(err).Errorln("Can't initialize HashiCorp Vault loader")
+		return nil, err
+	}
+	log.Infoln("Initialized HashiCorp Vault ACRA_MASTER_KEY loader")
+	return keyLoader, nil
 }

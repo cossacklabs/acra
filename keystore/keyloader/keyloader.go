@@ -2,11 +2,13 @@ package keyloader
 
 import (
 	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
-
-	"github.com/hashicorp/vault/api"
 	log "github.com/sirupsen/logrus"
 )
+
+// CliMasterKeyLoaderCreator represent interface for all creators of MasterKeyLoader
+type CliMasterKeyLoaderCreator interface {
+	New() (MasterKeyLoader, error)
+}
 
 // MasterKeyLoader interface for loading ACRA_MASTER_KEYs from different sources.
 type MasterKeyLoader interface {
@@ -16,42 +18,30 @@ type MasterKeyLoader interface {
 
 // GetInitializedMasterKeyLoader returns initialized MasterKeyLoader interface depending on hashicorp vault params
 // with predefined ACRA_MASTER_KEY env name
-func GetInitializedMasterKeyLoader(vaultParams hashicorp.VaultCLIOptions) (keyLoader MasterKeyLoader, err error) {
-	return initMasterKeyLoaderWithEnv(keystore.AcraMasterKeyVarName, vaultParams)
+func GetInitializedMasterKeyLoader(creators ...CliMasterKeyLoaderCreator) (keyLoader MasterKeyLoader, err error) {
+	return initMasterKeyLoaderWithEnv(keystore.AcraMasterKeyVarName, creators...)
 }
 
 // GetInitializedMasterKeyLoaderWithEnv returns initialized MasterKeyLoader interface depending on hashicorp vault params and env name
-func GetInitializedMasterKeyLoaderWithEnv(envVarName string, vaultParams hashicorp.VaultCLIOptions) (keyLoader MasterKeyLoader, err error) {
-	return initMasterKeyLoaderWithEnv(envVarName, vaultParams)
+func GetInitializedMasterKeyLoaderWithEnv(envVarName string, creators ...CliMasterKeyLoaderCreator) (keyLoader MasterKeyLoader, err error) {
+	return initMasterKeyLoaderWithEnv(envVarName, creators...)
 }
 
 // initMasterKeyLoaderWithEnv returns initialized MasterKeyLoader interface depending on incoming params,
-// if HashiCorp Vault connection address is provided, hashicorp.VaultLoader will be initialized,
+// via provided CliMasterKeyLoaderCreator
 // otherwise EnvLoader with env name will be returned.
-func initMasterKeyLoaderWithEnv(envVarName string, vaultParams hashicorp.VaultCLIOptions) (keyLoader MasterKeyLoader, err error) {
+func initMasterKeyLoaderWithEnv(envVarName string, creators ...CliMasterKeyLoaderCreator) (keyLoader MasterKeyLoader, err error) {
 	log.Infof("Initializing ACRA_MASTER_KEY loader...")
 
-	if vaultParams.Address != "" {
-		log.Infoln("Initializing connection to HashiCorp Vault for ACRA_MASTER_KEY loading")
-
-		vaultConfig := api.DefaultConfig()
-		vaultConfig.Address = vaultParams.Address
-
-		if vaultParams.EnableTLS {
-			log.Infoln("Configuring TLS connection to HashiCorp Vault")
-
-			if err := vaultConfig.ConfigureTLS(vaultParams.TLSConfig()); err != nil {
-				return nil, err
-			}
-		}
-
-		keyLoader, err = hashicorp.NewVaultLoader(vaultConfig, vaultParams.SecretsPath)
+	for _, creator := range creators {
+		masterKeyLoader, err := creator.New()
 		if err != nil {
-			log.WithError(err).Errorln("Can't initialize HashiCorp Vault loader")
-			return
+			return nil, err
 		}
-		log.Infoln("Initialized HashiCorp Vault ACRA_MASTER_KEY loader")
-		return
+
+		if masterKeyLoader != nil {
+			return masterKeyLoader, nil
+		}
 	}
 
 	log.Infof("Initialized default env %s loader", envVarName)

@@ -4,6 +4,10 @@ go 1.14
 
 require (
 	contrib.go.opencensus.io/exporter/jaeger v0.2.1
+	github.com/aws/aws-sdk-go-v2 v1.16.6
+	github.com/aws/aws-sdk-go-v2/config v1.15.12
+	github.com/aws/aws-sdk-go-v2/credentials v1.12.7
+	github.com/aws/aws-sdk-go-v2/service/kms v1.17.4
 	github.com/cossacklabs/themis/gothemis v0.14.0
 	github.com/gin-gonic/gin v1.7.2
 	github.com/go-redis/redis/v7 v7.0.1

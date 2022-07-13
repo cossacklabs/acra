@@ -188,9 +188,10 @@ jobs:
       - store_artifacts:
           path: /home/user/tests_output
 
-  postgresql-vault:
+  postgresql-master-key-loaders:
     docker:
       - image: cossacklabs/ci-py-go-themis:latest
+      - image: nsmithuk/local-kms:3.11.2
       - image: cossacklabs/postgresql-ssl:11-1
         environment:
           POSTGRES_PASSWORD: test
@@ -211,9 +212,10 @@ jobs:
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
       TEST_WITH_VAULT: "on"
+      TEST_WITH_AWS_KMS: "on"
       VAULT_API_TOKEN: cm9vdF90b2tlbgo= # base64 of the root_token
       TEST_POSTGRESQL: "off"
-      TEST_NAME_PATTERN: "VaultMasterKeyLoader"
+      TEST_NAME_PATTERN: "MasterKeyLoader"
       TEST_BINARY_OUTPUT_FOLDER: /tmp/acra-binaries
     steps:
       # prepare
@@ -566,7 +568,7 @@ workflows:
       - mariadb-ssl:
           requires:
             - build_binaries
-      - postgresql-vault:
+      - postgresql-master-key-loaders:
           requires:
             - build_binaries
       - postgresql-vault-ssl:
