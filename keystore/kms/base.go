@@ -8,41 +8,50 @@ import (
 )
 
 var lock = sync.Mutex{}
-var encryptorCreators = map[string]EncryptorCreateFunc{}
+var keystoreCreators = map[string]KeystoreCreateFunc{}
 
-// EncryptorCreateFunc generic function for creating Encryptor
-type EncryptorCreateFunc func(credentialPath string) (Encryptor, error)
+// KeystoreCreateFunc generic function for creating Encryptor
+type KeystoreCreateFunc func(credentialPath string) (Keystore, error)
 
-// RegisterEncryptorCreator add new EncryptorCreator to registry
-func RegisterEncryptorCreator(encryptorID string, encryptorCreateFunc EncryptorCreateFunc) {
+// RegisterKeystoreCreator add new EncryptorCreator to registry
+func RegisterKeystoreCreator(encryptorID string, keystoreCreateFunc KeystoreCreateFunc) {
 	lock.Lock()
-	encryptorCreators[encryptorID] = encryptorCreateFunc
+	keystoreCreators[encryptorID] = keystoreCreateFunc
 	lock.Unlock()
-	log.WithField("encryptor", encryptorID).Debug("Registered KMS Encryptor creator")
+	log.WithField("encryptor", encryptorID).Debug("Registered KMS keystore creator")
 }
 
-// GetEncryptorCreator return EncryptorCreator by its ID from registry
-func GetEncryptorCreator(encryptorID string) (EncryptorCreateFunc, bool) {
-	creator, ok := encryptorCreators[encryptorID]
+// GetKeystoreCreator return KeystoreCreator by its ID from registry
+func GetKeystoreCreator(encryptorID string) (KeystoreCreateFunc, bool) {
+	creator, ok := keystoreCreators[encryptorID]
 	return creator, ok
+}
+
+// CreateKeyMetadata represent common structure for creating KMS key
+type CreateKeyMetadata struct {
+	KeyName     string
+	Description string
+}
+
+// KeyMetadata represent structure that store key creation result
+type KeyMetadata struct {
+	KeyID string
+}
+
+//go:generate mockery --name Keystore --output ../mocks --filename KmsKeystore.go
+// Keystore is main kms keystore interface
+type Keystore interface {
+	Encryptor
+
+	ID() string
+	CreateKey(ctx context.Context, metaData CreateKeyMetadata) (*KeyMetadata, error)
+	IsKeyExist(ctx context.Context, keyID string) (bool, error)
 }
 
 //go:generate mockery --name Encryptor --output ../mocks --filename KmsEncryptor.go
 
 // Encryptor is main kms encryptor interface
 type Encryptor interface {
-	ID() string
 	Encrypt(ctx context.Context, keyID []byte, data []byte, context []byte) ([]byte, error)
 	Decrypt(ctx context.Context, keyID []byte, data []byte, context []byte) ([]byte, error)
-}
-
-// AcraMasterKeyKEKID represent ID/alias of encryption key used for MasterKey loading
-const AcraMasterKeyKEKID = "acra_master_key"
-
-// TypeAWS supported KMS type AWS
-const TypeAWS = "aws"
-
-// SupportedTypes contains all possible values for flag `--kms_type`
-var SupportedTypes = []string{
-	TypeAWS,
 }

@@ -10,12 +10,30 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const kmsTypeFlag = "kms_type"
+// AcraMasterKeyKEKID represent ID/alias of encryption key used for MasterKey loading
+const AcraMasterKeyKEKID = "acra_master_key"
+
+// TypeAWS supported KMS type AWS
+const TypeAWS = "aws"
+
+// supportedTypes contains all possible values for flag `--kms_type`
+var supportedTypes = []string{
+	TypeAWS,
+}
+
+// KeyPolicyCreate represent KMS key policy
+const KeyPolicyCreate = "create"
+
+// SupportedPolicies contains all possible values for flag `--kms_key_policy`
+var SupportedPolicies = []string{
+	KeyPolicyCreate,
+}
 
 // CLIOptions keep command-line options related to KMS ACRA_MASTER_KEY loading.
 type CLIOptions struct {
 	KMSType         string
 	CredentialsPath string
+	KeyPolicy       string
 }
 
 var cliOptions CLIOptions
@@ -31,8 +49,8 @@ func (options *CLIOptions) RegisterCLIParameters(flags *flag.FlagSet, prefix str
 	if description != "" {
 		description = " (" + description + ")"
 	}
-	if flags.Lookup(prefix+kmsTypeFlag) == nil {
-		flags.StringVar(&options.KMSType, prefix+kmsTypeFlag, "", fmt.Sprintf("KMS type for using: <%s>", strings.Join(kms.SupportedTypes, "|")+description))
+	if flags.Lookup(prefix+"kms_type") == nil {
+		flags.StringVar(&options.KMSType, prefix+"kms_type", "", fmt.Sprintf("KMS type for using: <%s>", strings.Join(supportedTypes, "|")+description))
 		// TODO: how to better provide an example of configuration files for different providers
 		flags.StringVar(&options.CredentialsPath, prefix+"kms_credentials_path", "", "KMS credentials JSON file path"+description)
 	}
@@ -49,6 +67,28 @@ func (options *CLIOptions) New() (keyloader.MasterKeyLoader, error) {
 		return nil, nil
 	}
 
+	keystore, err := options.NewKeystore()
+	if err != nil {
+		return nil, err
+	}
+
 	log.Infoln("Using KMS for ACRA_MASTER_KEY loading...")
-	return NewLoader(options.CredentialsPath, options.KMSType)
+	return NewLoader(keystore), nil
+}
+
+// NewKeystore create kms.Keystore from kms.CLIOptions
+func (options *CLIOptions) NewKeystore() (kms.Keystore, error) {
+	createKeystore, ok := kms.GetKeystoreCreator(options.KMSType)
+	if !ok {
+		log.Errorf("Unknown KMS type provided %s", options.KMSType)
+		return nil, nil
+	}
+
+	keystore, err := createKeystore(options.CredentialsPath)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Infof("Initialized %s keystore", keystore.ID())
+	return keystore, nil
 }

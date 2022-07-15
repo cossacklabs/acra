@@ -7,14 +7,13 @@ import (
 	"testing"
 
 	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/keystore/kms"
 	"github.com/cossacklabs/acra/keystore/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
 func TestSuccessMasterKeyLoading(t *testing.T) {
-	kmsEncryptor := &mocks.Encryptor{}
+	kmsEncryptor := &mocks.Keystore{}
 
 	key := make([]byte, 64)
 	_, err := rand.Read(key)
@@ -26,15 +25,9 @@ func TestSuccessMasterKeyLoading(t *testing.T) {
 	defer os.Unsetenv(keystore.AcraMasterKeyVarName)
 
 	kmsEncryptor.On("ID").Return("mocked KMS encryptor")
-	kmsEncryptor.On("Decrypt", mock.Anything, []byte(kms.AcraMasterKeyKEKID), key, []byte(nil)).Return([]byte(masterKey), nil)
+	kmsEncryptor.On("Decrypt", mock.Anything, []byte(AcraMasterKeyKEKID), key, []byte(nil)).Return([]byte(masterKey), nil)
 
-	encryptorCreator := func(path string) (kms.Encryptor, error) {
-		return kmsEncryptor, nil
-	}
-	kms.RegisterEncryptorCreator(kms.TypeAWS, encryptorCreator)
-
-	kmsLoader, err := NewLoader("config.json", kms.TypeAWS)
-	assert.NoError(t, err)
+	kmsLoader := NewLoader(kmsEncryptor)
 
 	loadedMasterKey, err := kmsLoader.LoadMasterKey()
 	assert.NoError(t, err)

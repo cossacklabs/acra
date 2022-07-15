@@ -22,25 +22,27 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"flag"
 	"fmt"
+	baseKMS "github.com/cossacklabs/acra/keystore/kms"
 	"io/ioutil"
 	"os"
 	"strings"
-
-	"github.com/cossacklabs/acra/network"
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
+	"github.com/cossacklabs/acra/keystore/keyloader/kms"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 
 	log "github.com/sirupsen/logrus"
@@ -65,10 +67,12 @@ func main() {
 	poisonRecord := flag.Bool("generate_poisonrecord_keys", false, "Generate keypair and symmetric key for poison records")
 	cmd.RegisterRedisKeyStoreParameters()
 	keystoreVersion := flag.String("keystore", "", "set keystore format: v1 (current), v2 (new)")
+	kmsKeyPolicy := flag.String("kms_key_policy", kms.KeyPolicyCreate, fmt.Sprintf("KMS usage key policy: <%s>", strings.Join(kms.SupportedPolicies, "|")))
 
 	tlsClientCert := flag.String("tls_cert", "", "Path to TLS certificate to use as client_id identifier")
 	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
 
+	kms.RegisterCLIParameters()
 	hashicorp.RegisterVaultCLIParameters()
 	logging.SetLogLevel(logging.LogVerbose)
 
@@ -146,6 +150,28 @@ func main() {
 			log.WithError(err).Errorln("Failed to generate master key")
 			os.Exit(1)
 		}
+
+		if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSType != "" {
+			kmsKeystore, err := kmsOptions.NewKeystore()
+			if err != nil {
+				log.WithError(err).WithField("path", *masterKey).Errorln("Failed to initializer kms keystore")
+				os.Exit(1)
+			}
+
+			switch *kmsKeyPolicy {
+			case kms.KeyPolicyCreate:
+				newKey, err = newMasterKeyWithKMSCreate(kmsKeystore, newKey)
+				if err != nil {
+					log.WithError(err).WithField("path", *masterKey).Errorln("Failed to create key with KMS")
+					os.Exit(1)
+				}
+
+			default:
+				log.WithField("supported", kms.SupportedPolicies).WithField("policy", kmsOptions.KeyPolicy).Errorln("Unsupported key policy for `kms_key_policy`")
+				os.Exit(1)
+			}
+		}
+
 		if err := ioutil.WriteFile(*masterKey, newKey, 0600); err != nil {
 			log.WithError(err).WithField("path", *masterKey).Errorln("Failed to write master key")
 			os.Exit(1)
@@ -332,4 +358,33 @@ func openKeyStoreV2(keyDirPath string, loader keyloader.MasterKeyLoader) keystor
 		os.Exit(1)
 	}
 	return keystoreV2.NewServerKeyStore(keyDirectory)
+}
+
+func newMasterKeyWithKMSCreate(kmsKeystore baseKMS.Keystore, key []byte) ([]byte, error) {
+	ok, err := kmsKeystore.IsKeyExist(context.Background(), kms.AcraMasterKeyKEKID)
+	if err != nil {
+		log.WithError(err).WithField("key", kms.AcraMasterKeyKEKID).Errorln("Failed to check if key is exist in KMS")
+		os.Exit(1)
+	}
+	if ok {
+		log.WithField("key", kms.AcraMasterKeyKEKID).Errorln("Key already exist in KMS")
+		os.Exit(1)
+	}
+
+	keyMetaData, err := kmsKeystore.CreateKey(context.Background(), baseKMS.CreateKeyMetadata{
+		KeyName: kms.AcraMasterKeyKEKID,
+	})
+	if err != nil {
+		log.WithError(err).WithField("key", kms.AcraMasterKeyKEKID).Errorln("Failed to create key")
+		os.Exit(1)
+	}
+
+	log.WithField("keyID", keyMetaData.KeyID).Infof("New KMS key created")
+	key, err = kmsKeystore.Encrypt(context.Background(), []byte(kms.AcraMasterKeyKEKID), key, nil)
+	if err != nil {
+		log.WithError(err).WithField("key", kms.AcraMasterKeyKEKID).Errorln("Failed to enc")
+		os.Exit(1)
+	}
+
+	return key, nil
 }
