@@ -162,7 +162,7 @@ func main() {
 			case kms.KeyPolicyCreate:
 				newKey, err = newMasterKeyWithKMSCreate(kmsKeystore, newKey)
 				if err != nil {
-					log.WithError(err).WithField("path", *masterKey).Errorln("Failed to create key with KMS")
+					log.WithField("path", *masterKey).Errorln("Failed to create key with KMS")
 					os.Exit(1)
 				}
 
@@ -361,29 +361,31 @@ func openKeyStoreV2(keyDirPath string, loader keyloader.MasterKeyLoader) keystor
 }
 
 func newMasterKeyWithKMSCreate(kmsKeystore baseKMS.Keystore, key []byte) ([]byte, error) {
-	ok, err := kmsKeystore.IsKeyExist(context.Background(), kms.AcraMasterKeyKEKID)
+	ctx, _ := context.WithTimeout(context.Background(), network.DefaultNetworkTimeout)
+
+	ok, err := kmsKeystore.IsKeyExist(ctx, kms.AcraMasterKeyKEKID)
 	if err != nil {
 		log.WithError(err).WithField("key", kms.AcraMasterKeyKEKID).Errorln("Failed to check if key is exist in KMS")
-		os.Exit(1)
+		return nil, err
 	}
 	if ok {
 		log.WithField("key", kms.AcraMasterKeyKEKID).Errorln("Key already exist in KMS")
-		os.Exit(1)
+		return nil, err
 	}
 
-	keyMetaData, err := kmsKeystore.CreateKey(context.Background(), baseKMS.CreateKeyMetadata{
+	keyMetaData, err := kmsKeystore.CreateKey(ctx, baseKMS.CreateKeyMetadata{
 		KeyName: kms.AcraMasterKeyKEKID,
 	})
 	if err != nil {
-		log.WithError(err).WithField("key", kms.AcraMasterKeyKEKID).Errorln("Failed to create key")
-		os.Exit(1)
+		log.WithError(err).WithField("key", kms.AcraMasterKeyKEKID).Errorln("Failed to create KMS key")
+		return nil, err
 	}
 
 	log.WithField("keyID", keyMetaData.KeyID).Infof("New KMS key created")
-	key, err = kmsKeystore.Encrypt(context.Background(), []byte(kms.AcraMasterKeyKEKID), key, nil)
+	key, err = kmsKeystore.Encrypt(ctx, []byte(kms.AcraMasterKeyKEKID), key, nil)
 	if err != nil {
-		log.WithError(err).WithField("key", kms.AcraMasterKeyKEKID).Errorln("Failed to enc")
-		os.Exit(1)
+		log.WithError(err).WithField("key", kms.AcraMasterKeyKEKID).Errorln("Failed to encrypt with KMS key")
+		return nil, err
 	}
 
 	return key, nil
