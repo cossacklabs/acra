@@ -13,7 +13,7 @@ import (
 )
 
 func TestSuccessMasterKeyLoading(t *testing.T) {
-	kmsEncryptor := &mocks.Keystore{}
+	kmsKeyManager := &mocks.KeyManager{}
 
 	key := make([]byte, 64)
 	_, err := rand.Read(key)
@@ -24,10 +24,10 @@ func TestSuccessMasterKeyLoading(t *testing.T) {
 	os.Setenv(keystore.AcraMasterKeyVarName, masterKey)
 	defer os.Unsetenv(keystore.AcraMasterKeyVarName)
 
-	kmsEncryptor.On("ID").Return("mocked KMS encryptor")
-	kmsEncryptor.On("Decrypt", mock.Anything, []byte(AcraMasterKeyKEKID), key, []byte(nil)).Return([]byte(masterKey), nil)
+	kmsKeyManager.On("ID").Return("mocked KMS encryptor")
+	kmsKeyManager.On("Decrypt", mock.Anything, []byte(AcraMasterKeyKEKID), key, []byte(nil)).Return([]byte(masterKey), nil)
 
-	kmsLoader := NewLoader(kmsEncryptor)
+	kmsLoader := NewLoader(kmsKeyManager)
 
 	loadedMasterKey, err := kmsLoader.LoadMasterKey()
 	assert.NoError(t, err)
