@@ -67,28 +67,28 @@ func (options *CLIOptions) New() (keyloader.MasterKeyLoader, error) {
 		return nil, nil
 	}
 
-	keystore, err := options.NewKeystore()
+	keyManager, err := options.NewKeyManager()
 	if err != nil {
 		return nil, err
 	}
 
 	log.Infoln("Using KMS for ACRA_MASTER_KEY loading...")
-	return NewLoader(keystore), nil
+	return NewLoader(keyManager), nil
 }
 
-// NewKeystore create kms.Keystore from kms.CLIOptions
-func (options *CLIOptions) NewKeystore() (kms.Keystore, error) {
-	createKeystore, ok := kms.GetKeystoreCreator(options.KMSType)
+// NewKeyManager create kms.KeyManager from kms.CLIOptions
+func (options *CLIOptions) NewKeyManager() (kms.KeyManager, error) {
+	createKeyManager, ok := kms.GetKeyManagerCreator(options.KMSType)
 	if !ok {
 		log.Errorf("Unknown KMS type provided %s", options.KMSType)
 		return nil, nil
 	}
 
-	keystore, err := createKeystore(options.CredentialsPath)
+	keyManager, err := createKeyManager(options.CredentialsPath)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Infof("Initialized %s keystore", keystore.ID())
-	return keystore, nil
+	log.Infof("Initialized %s keystore", keyManager.ID())
+	return keyManager, nil
 }

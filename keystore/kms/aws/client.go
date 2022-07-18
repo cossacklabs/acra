@@ -27,8 +27,8 @@ type KMSClient struct {
 	client *kms.Client
 }
 
-// NewKmsClient create new KMS AWS client
-func NewKmsClient(cfg *Configuration) (*KMSClient, error) {
+// NewKMSClient create new KMS AWS client
+func NewKMSClient(cfg *Configuration) (*KMSClient, error) {
 	client, err := newKmsClient(cfg)
 	if err != nil {
 		return nil, err

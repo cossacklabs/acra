@@ -9,5 +9,5 @@ import (
 )
 
 func init() {
-	kms.RegisterKeystoreCreator(TypeAWS, aws.NewKeystore)
+	kms.RegisterKeyManagerCreator(TypeAWS, aws.NewKeyManager)
 }

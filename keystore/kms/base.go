@@ -8,22 +8,22 @@ import (
 )
 
 var lock = sync.Mutex{}
-var keystoreCreators = map[string]KeystoreCreateFunc{}
+var keyManagerCreators = map[string]KeyManagerCreateFunc{}
 
-// KeystoreCreateFunc generic function for creating Encryptor
-type KeystoreCreateFunc func(credentialPath string) (Keystore, error)
+// KeyManagerCreateFunc generic function for creating KeyManager
+type KeyManagerCreateFunc func(credentialPath string) (KeyManager, error)
 
-// RegisterKeystoreCreator add new EncryptorCreator to registry
-func RegisterKeystoreCreator(encryptorID string, keystoreCreateFunc KeystoreCreateFunc) {
+// RegisterKeyManagerCreator add new kms KeyManager to registry
+func RegisterKeyManagerCreator(encryptorID string, keyMangerCreateFunc KeyManagerCreateFunc) {
 	lock.Lock()
-	keystoreCreators[encryptorID] = keystoreCreateFunc
+	keyManagerCreators[encryptorID] = keyMangerCreateFunc
 	lock.Unlock()
-	log.WithField("encryptor", encryptorID).Debug("Registered KMS keystore creator")
+	log.WithField("encryptor", encryptorID).Debug("Registered KMS KeyManager creator")
 }
 
-// GetKeystoreCreator return KeystoreCreator by its ID from registry
-func GetKeystoreCreator(encryptorID string) (KeystoreCreateFunc, bool) {
-	creator, ok := keystoreCreators[encryptorID]
+// GetKeyManagerCreator return KeyManagerCreateFunc by its ID from registry
+func GetKeyManagerCreator(encryptorID string) (KeyManagerCreateFunc, bool) {
+	creator, ok := keyManagerCreators[encryptorID]
 	return creator, ok
 }
 
@@ -38,9 +38,9 @@ type KeyMetadata struct {
 	KeyID string
 }
 
-//go:generate mockery --name Keystore --output ../mocks --filename KmsKeystore.go
-// Keystore is main kms keystore interface
-type Keystore interface {
+//go:generate mockery --name KeyManager --output ../mocks --filename KeyManager.go
+// KeyManager is main kms interface
+type KeyManager interface {
 	Encryptor
 
 	ID() string

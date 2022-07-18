@@ -152,7 +152,7 @@ func main() {
 		}
 
 		if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSType != "" {
-			kmsKeystore, err := kmsOptions.NewKeystore()
+			keyManager, err := kmsOptions.NewKeyManager()
 			if err != nil {
 				log.WithError(err).WithField("path", *masterKey).Errorln("Failed to initializer kms keystore")
 				os.Exit(1)
@@ -160,7 +160,7 @@ func main() {
 
 			switch *kmsKeyPolicy {
 			case kms.KeyPolicyCreate:
-				newKey, err = newMasterKeyWithKMSCreate(kmsKeystore, newKey)
+				newKey, err = newMasterKeyWithKMSCreate(keyManager, newKey)
 				if err != nil {
 					log.WithField("path", *masterKey).Errorln("Failed to create key with KMS")
 					os.Exit(1)
@@ -360,10 +360,10 @@ func openKeyStoreV2(keyDirPath string, loader keyloader.MasterKeyLoader) keystor
 	return keystoreV2.NewServerKeyStore(keyDirectory)
 }
 
-func newMasterKeyWithKMSCreate(kmsKeystore baseKMS.Keystore, key []byte) ([]byte, error) {
+func newMasterKeyWithKMSCreate(keyManager baseKMS.KeyManager, key []byte) ([]byte, error) {
 	ctx, _ := context.WithTimeout(context.Background(), network.DefaultNetworkTimeout)
 
-	ok, err := kmsKeystore.IsKeyExist(ctx, kms.AcraMasterKeyKEKID)
+	ok, err := keyManager.IsKeyExist(ctx, kms.AcraMasterKeyKEKID)
 	if err != nil {
 		log.WithError(err).WithField("key", kms.AcraMasterKeyKEKID).Errorln("Failed to check if key is exist in KMS")
 		return nil, err
@@ -373,7 +373,7 @@ func newMasterKeyWithKMSCreate(kmsKeystore baseKMS.Keystore, key []byte) ([]byte
 		return nil, err
 	}
 
-	keyMetaData, err := kmsKeystore.CreateKey(ctx, baseKMS.CreateKeyMetadata{
+	keyMetaData, err := keyManager.CreateKey(ctx, baseKMS.CreateKeyMetadata{
 		KeyName: kms.AcraMasterKeyKEKID,
 	})
 	if err != nil {
@@ -382,7 +382,7 @@ func newMasterKeyWithKMSCreate(kmsKeystore baseKMS.Keystore, key []byte) ([]byte
 	}
 
 	log.WithField("keyID", keyMetaData.KeyID).Infof("New KMS key created")
-	key, err = kmsKeystore.Encrypt(ctx, []byte(kms.AcraMasterKeyKEKID), key, nil)
+	key, err = keyManager.Encrypt(ctx, []byte(kms.AcraMasterKeyKEKID), key, nil)
 	if err != nil {
 		log.WithError(err).WithField("key", kms.AcraMasterKeyKEKID).Errorln("Failed to encrypt with KMS key")
 		return nil, err

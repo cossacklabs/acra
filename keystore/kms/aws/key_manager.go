@@ -9,33 +9,33 @@ import (
 	baseKMS "github.com/cossacklabs/acra/keystore/kms"
 )
 
-// Keystore implementation of AWS Keystore
-type Keystore struct {
+// KeyManager is AWS implementation of kms.KeyManager
+type KeyManager struct {
 	cfg    *Configuration
 	client *KMSClient
 }
 
-// NewKeystore create new AWS KMS encryptor which implement Keystore interface
-func NewKeystore(credentialPath string) (baseKMS.Keystore, error) {
+// NewKeyManager create new AWS KeyManager which implement kms.KeyManager interface
+func NewKeyManager(credentialPath string) (baseKMS.KeyManager, error) {
 	cfg, err := readConfigByPath(credentialPath)
 	if err != nil {
 		return nil, err
 	}
 
-	client, err := NewKmsClient(cfg)
+	client, err := NewKMSClient(cfg)
 	if err != nil {
 		return nil, err
 	}
-	return &Keystore{cfg, client}, nil
+	return &KeyManager{cfg, client}, nil
 }
 
 // ID return source of
-func (k *Keystore) ID() string {
+func (k *KeyManager) ID() string {
 	return "KMS AWS"
 }
 
 // CreateKey create key on KMS according to specification
-func (k *Keystore) CreateKey(ctx context.Context, metaData baseKMS.CreateKeyMetadata) (*baseKMS.KeyMetadata, error) {
+func (k *KeyManager) CreateKey(ctx context.Context, metaData baseKMS.CreateKeyMetadata) (*baseKMS.KeyMetadata, error) {
 	keyMetadata, err := k.client.CreateKey(ctx, metaData)
 	if err != nil {
 		return nil, err
@@ -51,7 +51,7 @@ func (k *Keystore) CreateKey(ctx context.Context, metaData baseKMS.CreateKeyMeta
 }
 
 // IsKeyExist check if key is present on KMS
-func (k *Keystore) IsKeyExist(ctx context.Context, keyID string) (bool, error) {
+func (k *KeyManager) IsKeyExist(ctx context.Context, keyID string) (bool, error) {
 	aliases, err := k.client.ListAliases(ctx, nil)
 	if err != nil {
 		return false, err
@@ -74,7 +74,7 @@ func (k *Keystore) IsKeyExist(ctx context.Context, keyID string) (bool, error) {
 }
 
 // Encrypt implementation of kms.Encryptor method
-func (k *Keystore) Encrypt(ctx context.Context, keyID []byte, data []byte, context []byte) ([]byte, error) {
+func (k *KeyManager) Encrypt(ctx context.Context, keyID []byte, data []byte, context []byte) ([]byte, error) {
 	var encryptionContext map[string]string
 	if context != nil {
 		//  set encryption context in case of provided additional authenticated data
@@ -85,7 +85,7 @@ func (k *Keystore) Encrypt(ctx context.Context, keyID []byte, data []byte, conte
 }
 
 // Decrypt implementation of kms.Encryptor method
-func (k *Keystore) Decrypt(ctx context.Context, keyID []byte, blob []byte, context []byte) ([]byte, error) {
+func (k *KeyManager) Decrypt(ctx context.Context, keyID []byte, blob []byte, context []byte) ([]byte, error) {
 	var encryptionContext map[string]string
 	if context != nil {
 		//  set encryption context in case of provided additional authenticated data
