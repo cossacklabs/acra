@@ -26,6 +26,12 @@ insert:
 # Folder from which the keys will be loaded
 keys_dir: .acrakeys
 
+# KMS credentials JSON file path
+kms_credentials_path: 
+
+# KMS type for using: <aws>
+kms_type: 
+
 # Handle MySQL connections
 mysql_enable: false
 

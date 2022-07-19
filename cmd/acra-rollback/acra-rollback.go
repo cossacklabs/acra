@@ -28,16 +28,17 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
-	"github.com/cossacklabs/acra/acrastruct"
-	"github.com/cossacklabs/acra/keystore/keyloader"
-	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/cossacklabs/acra/acrastruct"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
+	"github.com/cossacklabs/acra/keystore/keyloader"
+	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
+	"github.com/cossacklabs/acra/keystore/keyloader/kms"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
@@ -170,6 +171,7 @@ func main() {
 	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
 	usePostgresql := flag.Bool("postgresql_enable", false, "Handle Postgresql connections")
 
+	kms.RegisterCLIParameters()
 	hashicorp.RegisterVaultCLIParameters()
 	logging.SetLogLevel(logging.LogVerbose)
 
@@ -223,7 +225,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(hashicorp.GetVaultCLIParameters())
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(hashicorp.GetVaultCLIParameters(), kms.GetCLIParameters())
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
 		os.Exit(1)
