@@ -1228,12 +1228,9 @@ class KeyMakerTestWithAWSKMS(unittest.TestCase):
             'region': 'eu-west-1',
             'endpoint':  os.environ.get('AWS_KMS_ADDRESS', 'http://localhost:8080')
         }
-        cfg_json_string = json.dumps(configuration)
-        self.config_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8').name
-
-        # Open the file for writing.
-        with open(self.config_file, 'w') as f:
-            f.write(cfg_json_string)
+        self.config_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
+        json.dump(configuration, self.config_file)
+        self.config_file.flush()
 
     def test_generate_master_key_with_kms_create(self):
         master_key_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
@@ -1241,7 +1238,7 @@ class KeyMakerTestWithAWSKMS(unittest.TestCase):
             [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
             '--generate_master_key={}'.format(master_key_file.name),
             '--kms_type=aws',
-            '--kms_credentials_path={}'.format(self.config_file)])
+            '--kms_credentials_path={}'.format(self.config_file.name)])
 
         resp = self.kms_client.list_aliases()
         created_arn = resp['Aliases'][0]['AliasArn']
@@ -1249,15 +1246,19 @@ class KeyMakerTestWithAWSKMS(unittest.TestCase):
         ciphertext = open(master_key_file.name, "rb").read()
         decrypt_resp = self.kms_client.decrypt(keyId=created_arn, ciphertextBlob=ciphertext)
         self.assertEqual(len(decrypt_resp['Plaintext']), 32)
+        self.assertNotEqual(len(decrypt_resp['Plaintext']), ciphertext)
 
         # should exit 1 for next create as key already exist on KMS
         with tempfile.NamedTemporaryFile('w+', encoding='utf-8') as master_key_file:
-            with self.assertRaises(subprocess.CalledProcessError) as exc:
+            try:
                 subprocess.check_output(
                     [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
                      '--generate_master_key={}'.format(master_key_file.name),
                      '--kms_type=aws',
-                     '--kms_credentials_path={}'.format(self.config_file)])
+                     '--kms_credentials_path={}'.format(self.config_file.name)], stderr=subprocess.STDOUT)
+            except subprocess.CalledProcessError as exp:
+                self.assertIn("alias/acra_master_key already exists", str(exp.output))
+
 
     def tearDown(self):
         self.kms_client.delete_alias(alias_name='alias/acra_master_key')
@@ -3179,16 +3180,13 @@ class AWSKMSMasterKeyLoaderMixin:
             'region': 'eu-west-1',
             'endpoint':  self.kms_client.get_kms_url()
         }
-        cfg_json_string = json.dumps(configuration)
-        self.config_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8').name
-
-        # Open the file for writing.
-        with open(self.config_file, 'w') as f:
-            f.write(cfg_json_string)
+        self.config_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
+        json.dump(configuration, self.config_file)
+        self.config_file.flush()
 
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
         args = {
-            'kms_credentials_path': self.config_file,
+            'kms_credentials_path': self.config_file.name,
             'kms_type': 'aws'
         }
         os.environ[ACRA_MASTER_KEY_VAR_NAME] = self.master_key_ciphertext

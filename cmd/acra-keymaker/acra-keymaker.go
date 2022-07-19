@@ -154,7 +154,7 @@ func main() {
 		if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSType != "" {
 			keyManager, err := kmsOptions.NewKeyManager()
 			if err != nil {
-				log.WithError(err).WithField("path", *masterKey).Errorln("Failed to initializer kms keystore")
+				log.WithError(err).WithField("path", *masterKey).Errorln("Failed to initializer kms KeyManager")
 				os.Exit(1)
 			}
 
@@ -189,7 +189,7 @@ func main() {
 		}
 	}
 
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(hashicorp.GetVaultCLIParameters())
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(hashicorp.GetVaultCLIParameters(), kms.GetCLIParameters())
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
 		os.Exit(1)

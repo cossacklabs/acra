@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -88,7 +87,7 @@ func (e *KMSClient) CreateKey(ctx context.Context, keyMetadata baseKMS.CreateKey
 // CreateAlias create alias for provided KeyID
 func (e *KMSClient) CreateAlias(ctx context.Context, keyID, aliasName string) error {
 	input := &kms.CreateAliasInput{
-		AliasName:   aws.String(fmt.Sprintf("alias/%s", aliasName)),
+		AliasName:   aws.String(getAliasedName(aliasName)),
 		TargetKeyId: aws.String(keyID),
 	}
 

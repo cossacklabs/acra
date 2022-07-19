@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	baseKMS "github.com/cossacklabs/acra/keystore/kms"
@@ -65,7 +64,7 @@ func (k *KeyManager) IsKeyExist(ctx context.Context, keyID string) (bool, error)
 		}
 		region := arnParts[3]
 
-		if *alias.AliasName == fmt.Sprintf("alias/%s", keyID) && region == k.cfg.Region {
+		if *alias.AliasName == getAliasedName(keyID) && region == k.cfg.Region {
 			return true, nil
 		}
 	}
@@ -81,7 +80,7 @@ func (k *KeyManager) Encrypt(ctx context.Context, keyID []byte, data []byte, con
 		encryptionContext = map[string]string{"context": string(context)}
 	}
 
-	return k.client.Encrypt(ctx, fmt.Sprintf("alias/%s", keyID), data, encryptionContext)
+	return k.client.Encrypt(ctx, getAliasedName(string(keyID)), data, encryptionContext)
 }
 
 // Decrypt implementation of kms.Encryptor method
@@ -92,5 +91,9 @@ func (k *KeyManager) Decrypt(ctx context.Context, keyID []byte, blob []byte, con
 		encryptionContext = map[string]string{"context": string(context)}
 	}
 
-	return k.client.Decrypt(ctx, fmt.Sprintf("alias/%s", keyID), blob, encryptionContext)
+	return k.client.Decrypt(ctx, getAliasedName(string(keyID)), blob, encryptionContext)
+}
+
+func getAliasedName(name string) string {
+	return "alias/" + name
 }

@@ -89,6 +89,6 @@ func (options *CLIOptions) NewKeyManager() (kms.KeyManager, error) {
 		return nil, err
 	}
 
-	log.Infof("Initialized %s keystore", keyManager.ID())
+	log.Infof("Initialized %s KeyManager", keyManager.ID())
 	return keyManager, nil
 }
