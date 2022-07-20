@@ -1246,7 +1246,7 @@ class KeyMakerTestWithAWSKMS(unittest.TestCase):
         ciphertext = open(master_key_file.name, "rb").read()
         decrypt_resp = self.kms_client.decrypt(keyId=created_arn, ciphertextBlob=ciphertext)
         self.assertEqual(len(decrypt_resp['Plaintext']), 32)
-        self.assertNotEqual(len(decrypt_resp['Plaintext']), ciphertext)
+        self.assertNotEqual(decrypt_resp['Plaintext'], ciphertext)
 
         # should exit 1 for next create as key already exist on KMS
         with tempfile.NamedTemporaryFile('w+', encoding='utf-8') as master_key_file:
