@@ -59,20 +59,6 @@ func (_m *Encryptor) Encrypt(ctx context.Context, keyID []byte, data []byte, _a3
 	return r0, r1
 }
 
-// ID provides a mock function with given fields:
-func (_m *Encryptor) ID() string {
-	ret := _m.Called()
-
-	var r0 string
-	if rf, ok := ret.Get(0).(func() string); ok {
-		r0 = rf()
-	} else {
-		r0 = ret.Get(0).(string)
-	}
-
-	return r0
-}
-
 type NewEncryptorT interface {
 	mock.TestingT
 	Cleanup(func())

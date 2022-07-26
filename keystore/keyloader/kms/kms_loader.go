@@ -17,30 +17,17 @@ type Loader struct {
 }
 
 // NewLoader create new kms MasterKeyLoader
-func NewLoader(credentialPath, kmsType string) (*Loader, error) {
-	createEncryptor, ok := kms.GetEncryptorCreator(kmsType)
-	if !ok {
-		log.Errorf("Unknown KMS type provided %s", kmsType)
-		return nil, nil
-	}
-
-	encryptor, err := createEncryptor(credentialPath)
-	if err != nil {
-		log.WithError(err).Errorf("Failed to initialize %s MasterKeyLoader", encryptor.ID())
-		return nil, err
-	}
-
-	log.Infof("Initialized %s MasterKeyLoader", encryptor.ID())
+func NewLoader(encryptor kms.Encryptor) *Loader {
 	return &Loader{
 		encryptor: encryptor,
-	}, nil
+	}
 }
 
 // LoadMasterKey implementation kms MasterKeyLoader for loading AcraMasterKey for keystore v1
 func (loader *Loader) LoadMasterKey() ([]byte, error) {
-	rawKey, err := loader.decryptWithKMSKey([]byte(kms.AcraMasterKeyKEKID))
+	rawKey, err := loader.decryptWithKMSKey([]byte(AcraMasterKeyKEKID))
 	if err != nil {
-		log.WithError(err).Warnf("Failed to decrypt ACRA_MASTER_KEY with KMS keyID %s", kms.AcraMasterKeyKEKID)
+		log.WithError(err).Warnf("Failed to decrypt ACRA_MASTER_KEY with KMS keyID %s", AcraMasterKeyKEKID)
 		return nil, err
 	}
 
@@ -54,9 +41,9 @@ func (loader *Loader) LoadMasterKey() ([]byte, error) {
 
 // LoadMasterKeys implementation kms MasterKeyLoader for loading AcraMasterKey for keystore v2
 func (loader *Loader) LoadMasterKeys() (encryption []byte, signature []byte, err error) {
-	rawKey, err := loader.decryptWithKMSKey([]byte(kms.AcraMasterKeyKEKID))
+	rawKey, err := loader.decryptWithKMSKey([]byte(AcraMasterKeyKEKID))
 	if err != nil {
-		log.WithError(err).Warnf("Failed to decrypt ACRA_MASTER_KEY with KMS keyID %s", kms.AcraMasterKeyKEKID)
+		log.WithError(err).Warnf("Failed to decrypt ACRA_MASTER_KEY with KMS keyID %s", AcraMasterKeyKEKID)
 		return nil, nil, err
 	}
 

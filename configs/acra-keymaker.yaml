@@ -38,6 +38,15 @@ keys_public_output_dir: .acrakeys
 # set keystore format: v1 (current), v2 (new)
 keystore: 
 
+# KMS credentials JSON file path
+kms_credentials_path: 
+
+# KMS usage key policy: <create>
+kms_key_policy: create
+
+# KMS type for using: <aws>
+kms_type: 
+
 # Number of Redis database for keys
 redis_db_keys: 0
 
