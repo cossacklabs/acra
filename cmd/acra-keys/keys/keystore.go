@@ -28,6 +28,7 @@ import (
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
+
 	"github.com/go-redis/redis/v7"
 	log "github.com/sirupsen/logrus"
 )
@@ -178,6 +179,7 @@ func openKeyStoreV1(params KeyStoreParameters, loader keyloader.MasterKeyLoader)
 
 	keyStore := filesystem.NewCustomFilesystemKeyStore()
 	keyStore.Encryptor(scellEncryptor)
+
 	keyDir := params.KeyDir()
 	keyDirPublic := params.KeyDirPublic()
 	if keyDir != keyDirPublic {

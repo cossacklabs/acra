@@ -257,6 +257,7 @@ func (m *MigrateKeysSubcommand) openKeyStoreV1(params KeyStoreParameters, loader
 
 	keyStore := filesystem.NewCustomFilesystemKeyStore()
 	keyStore.Encryptor(encryptor)
+
 	keyDir := params.KeyDir()
 	keyDirPublic := params.KeyDirPublic()
 	if keyDir != keyDirPublic {
