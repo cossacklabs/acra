@@ -35,7 +35,6 @@ type TranslatorFileSystemKeyStoreBuilder struct {
 	keyStoreBuilder *KeyStoreBuilder
 	directory       string
 	encryptor       keystore.KeyEncryptor
-	cacheEncryptor  keystore.KeyEncryptor
 }
 
 // NewCustomTranslatorFileSystemKeyStore allows to customize a translator keystore.

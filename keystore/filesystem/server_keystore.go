@@ -80,23 +80,22 @@ func NewFileSystemKeyStoreWithCacheSize(directory string, encryptor keystore.Key
 }
 
 // NewFilesystemKeyStore represents keystore that reads keys from key folders, and stores them in memory.
-func NewFilesystemKeyStore(directory string, encryptor, cacheEncryptor keystore.KeyEncryptor) (*KeyStore, error) {
+func NewFilesystemKeyStore(directory string, encryptor keystore.KeyEncryptor) (*KeyStore, error) {
 	return NewCustomFilesystemKeyStore().KeyDirectory(directory).Encryptor(encryptor).Build()
 }
 
 // NewFilesystemKeyStoreTwoPath creates new KeyStore using separate folders for private and public keys.
-func NewFilesystemKeyStoreTwoPath(privateKeyFolder, publicKeyFolder string, encryptor, cacheEncryptor keystore.KeyEncryptor) (*KeyStore, error) {
+func NewFilesystemKeyStoreTwoPath(privateKeyFolder, publicKeyFolder string, encryptor keystore.KeyEncryptor) (*KeyStore, error) {
 	return NewCustomFilesystemKeyStore().KeyDirectories(privateKeyFolder, publicKeyFolder).Encryptor(encryptor).Build()
 }
 
 // KeyStoreBuilder allows to build a custom keystore.
 type KeyStoreBuilder struct {
-	privateKeyDir  string
-	publicKeyDir   string
-	encryptor      keystore.KeyEncryptor
-	cacheEncryptor keystore.KeyEncryptor
-	storage        Storage
-	cacheSize      int
+	privateKeyDir string
+	publicKeyDir  string
+	encryptor     keystore.KeyEncryptor
+	storage       Storage
+	cacheSize     int
 }
 
 // NewCustomFilesystemKeyStore allows a custom-made KeyStore to be built.

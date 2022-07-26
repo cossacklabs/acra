@@ -1002,12 +1002,7 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 		t.Fatalf("failed to initialize encryptor: %v", err)
 	}
 
-	cacheEncryptor, err := keystore.NewSCellKeyEncryptor([]byte("test cache key"))
-	if err != nil {
-		t.Fatalf("failed to initialize encryptor: %v", err)
-	}
-
-	keyStore, err := NewFilesystemKeyStoreTwoPath(privateKeys, publicKeys, encryptor, cacheEncryptor)
+	keyStore, err := NewFilesystemKeyStoreTwoPath(privateKeys, publicKeys, encryptor)
 	if err != nil {
 		t.Fatalf("failed to initialize keystore: %v", err)
 	}
@@ -1250,7 +1245,7 @@ func TestKeyStore_GetPoisonKeyPair(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	keyStore, err := NewFilesystemKeyStore(tmpDir, encryptor, encryptor)
+	keyStore, err := NewFilesystemKeyStore(tmpDir, encryptor)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1626,13 +1621,7 @@ func TestListKeysDifferentPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cacheEncryptor, err := keystore.NewSCellKeyEncryptor([]byte("some cache key"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	keyStore, err := NewFilesystemKeyStoreTwoPath(keyPrivateDir, keyPublicDir, encryptor, cacheEncryptor)
-
+	keyStore, err := NewFilesystemKeyStoreTwoPath(keyPrivateDir, keyPublicDir, encryptor)
 	if err != nil {
 		t.Fatal(err)
 	}
