@@ -176,22 +176,8 @@ func openKeyStoreV1(params KeyStoreParameters, loader keyloader.MasterKeyLoader)
 		return nil, err
 	}
 
-	cacheEncryptionKey, err := keystore.GenerateSymmetricKey()
-	if err != nil {
-		log.WithError(err).Errorln("Can't generate cache encryption key")
-		return nil, err
-	}
-
-	scellCacheEncryptor, err := keystore.NewSCellKeyEncryptor(cacheEncryptionKey)
-	if err != nil {
-		log.WithError(err).Errorln("Can't init cache scell encryptor")
-		return nil, err
-	}
-
 	keyStore := filesystem.NewCustomFilesystemKeyStore()
 	keyStore.Encryptor(scellEncryptor)
-	keyStore.CacheEncryptor(scellCacheEncryptor)
-
 	keyDir := params.KeyDir()
 	keyDirPublic := params.KeyDirPublic()
 	if keyDir != keyDirPublic {

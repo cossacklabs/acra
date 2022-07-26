@@ -59,12 +59,6 @@ func (b *TranslatorFileSystemKeyStoreBuilder) Encryptor(encryptor keystore.KeyEn
 	return b
 }
 
-// CacheEncryptor sets key cache encryptor.
-func (b *TranslatorFileSystemKeyStoreBuilder) CacheEncryptor(encryptor keystore.KeyEncryptor) *TranslatorFileSystemKeyStoreBuilder {
-	b.keyStoreBuilder.CacheEncryptor(encryptor)
-	return b
-}
-
 // Storage sets custom storage.
 func (b *TranslatorFileSystemKeyStoreBuilder) Storage(storage Storage) *TranslatorFileSystemKeyStoreBuilder {
 	b.keyStoreBuilder.Storage(storage)

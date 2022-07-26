@@ -81,12 +81,12 @@ func NewFileSystemKeyStoreWithCacheSize(directory string, encryptor keystore.Key
 
 // NewFilesystemKeyStore represents keystore that reads keys from key folders, and stores them in memory.
 func NewFilesystemKeyStore(directory string, encryptor, cacheEncryptor keystore.KeyEncryptor) (*KeyStore, error) {
-	return NewCustomFilesystemKeyStore().KeyDirectory(directory).Encryptor(encryptor).CacheEncryptor(cacheEncryptor).Build()
+	return NewCustomFilesystemKeyStore().KeyDirectory(directory).Encryptor(encryptor).Build()
 }
 
 // NewFilesystemKeyStoreTwoPath creates new KeyStore using separate folders for private and public keys.
 func NewFilesystemKeyStoreTwoPath(privateKeyFolder, publicKeyFolder string, encryptor, cacheEncryptor keystore.KeyEncryptor) (*KeyStore, error) {
-	return NewCustomFilesystemKeyStore().KeyDirectories(privateKeyFolder, publicKeyFolder).Encryptor(encryptor).CacheEncryptor(cacheEncryptor).Build()
+	return NewCustomFilesystemKeyStore().KeyDirectories(privateKeyFolder, publicKeyFolder).Encryptor(encryptor).Build()
 }
 
 // KeyStoreBuilder allows to build a custom keystore.
@@ -128,12 +128,6 @@ func (b *KeyStoreBuilder) Encryptor(encryptor keystore.KeyEncryptor) *KeyStoreBu
 	return b
 }
 
-// CacheEncryptor sets cryptographic backend for storing encryption.
-func (b *KeyStoreBuilder) CacheEncryptor(encryptor keystore.KeyEncryptor) *KeyStoreBuilder {
-	b.cacheEncryptor = encryptor
-	return b
-}
-
 // Storage sets custom storage backend.
 func (b *KeyStoreBuilder) Storage(storage Storage) *KeyStoreBuilder {
 	b.storage = storage
@@ -163,7 +157,7 @@ func (b *KeyStoreBuilder) Build() (*KeyStore, error) {
 	if b.encryptor == nil {
 		return nil, errNoEncryptor
 	}
-	return newFilesystemKeyStore(b.privateKeyDir, b.publicKeyDir, b.storage, b.encryptor, b.cacheEncryptor, b.cacheSize)
+	return newFilesystemKeyStore(b.privateKeyDir, b.publicKeyDir, b.storage, b.encryptor, b.cacheSize)
 }
 
 // IsKeyDirectory checks if the local directory contains a keystore v1.
@@ -206,7 +200,7 @@ func openKeyStorage() (Storage, error) {
 	return &DummyStorage{}, nil
 }
 
-func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, storage Storage, encryptor, cacheEncryptor keystore.KeyEncryptor, cacheSize int) (*KeyStore, error) {
+func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, storage Storage, encryptor keystore.KeyEncryptor, cacheSize int) (*KeyStore, error) {
 	fi, err := storage.Stat(privateKeyFolder)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
@@ -223,11 +217,26 @@ func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, storage Sto
 		return nil, err
 	}
 	var cache keystore.Cache
+	var cacheEncryptor keystore.KeyEncryptor
+
 	if cacheSize == keystore.WithoutCache {
+		cacheEncryptor = dummyEncryptor{}
 		cache = keystore.NoCache{}
 	} else {
 		cache, err = lru.NewCacheKeystoreWrapper(cacheSize)
 		if err != nil {
+			return nil, err
+		}
+
+		cacheEncryptionKey, err := keystore.GenerateSymmetricKey()
+		if err != nil {
+			log.WithError(err).Errorln("Can't generate cache encryption key")
+			return nil, err
+		}
+
+		cacheEncryptor, err = keystore.NewSCellKeyEncryptor(cacheEncryptionKey)
+		if err != nil {
+			log.WithError(err).Errorln("Can't init cache scell encryptor")
 			return nil, err
 		}
 	}
