@@ -498,9 +498,15 @@ func testFilesystemKeyStoreBasic(storage Storage, t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	cacheEncryptor, err := keystore.NewSCellKeyEncryptor([]byte("some cache key"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	generalStore, err := NewCustomFilesystemKeyStore().
 		KeyDirectory(privateKeyDirectory).
 		Encryptor(encryptor).
+		CacheEncryptor(cacheEncryptor).
 		Storage(storage).
 		Build()
 	if err != nil {
@@ -509,6 +515,7 @@ func testFilesystemKeyStoreBasic(storage Storage, t *testing.T) {
 	splitKeysStore, err := NewCustomFilesystemKeyStore().
 		KeyDirectories(privateKeyDirectory, publicKeyDirectory).
 		Encryptor(encryptor).
+		CacheEncryptor(cacheEncryptor).
 		Storage(storage).
 		Build()
 	if err != nil {
@@ -517,6 +524,7 @@ func testFilesystemKeyStoreBasic(storage Storage, t *testing.T) {
 	noCacheKeyStore, err := NewCustomFilesystemKeyStore().
 		KeyDirectories(privateKeyDirectory, publicKeyDirectory).
 		Encryptor(encryptor).
+		CacheEncryptor(cacheEncryptor).
 		CacheSize(keystore.WithoutCache).
 		Storage(storage).
 		Build()
@@ -556,9 +564,15 @@ func testFilesystemKeyStoreSymmetricWithCache(storage Storage, t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	cacheEncryptor, err := keystore.NewSCellKeyEncryptor([]byte("some cache key"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	store, err := NewCustomFilesystemKeyStore().
 		KeyDirectory(keyDirectory).
 		Encryptor(encryptor).
+		CacheEncryptor(cacheEncryptor).
 		// set 3 because 1 key and 2 GetHistoricalFileNames call that cached too
 		CacheSize(3).
 		Storage(storage).
@@ -613,7 +627,7 @@ func testFilesystemKeyStoreSymmetricWithCache(storage Storage, t *testing.T) {
 	if !ok {
 		t.Fatal("Expected key in result")
 	}
-	decrypted, err := encryptor.Decrypt(value, testID2)
+	decrypted, err := cacheEncryptor.Decrypt(value, testID2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -647,9 +661,15 @@ func testFilesystemKeyStoreWithCache(storage Storage, t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cacheEncryptor, err := keystore.NewSCellKeyEncryptor([]byte("some cache key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	store, err := NewCustomFilesystemKeyStore().
 		KeyDirectory(keyDirectory).
 		Encryptor(encryptor).
+		CacheEncryptor(cacheEncryptor).
 		CacheSize(1).
 		Storage(storage).
 		Build()
@@ -691,7 +711,7 @@ func testFilesystemKeyStoreWithCache(storage Storage, t *testing.T) {
 	if !ok {
 		t.Fatal("Expected key in result")
 	}
-	decrypted, err := encryptor.Decrypt(value, testID2)
+	decrypted, err := cacheEncryptor.Decrypt(value, testID2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -725,9 +745,16 @@ func testFilesystemKeyStoreWithOnlyCachedData(storage Storage, t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	cacheEncryptor, err := keystore.NewSCellKeyEncryptor([]byte("some cache key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	store, err := NewCustomFilesystemKeyStore().
 		KeyDirectory(keyDirectory).
 		Encryptor(encryptor).
+		CacheEncryptor(cacheEncryptor).
 		CacheSize(keystore.InfiniteCacheSize).
 		Storage(storage).
 		Build()
@@ -907,9 +934,16 @@ func testFilesystemKeyStoreRotateZoneKey(storage Storage, t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	cacheEncryptor, err := keystore.NewSCellKeyEncryptor([]byte("some cache key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	keyStore, err := NewCustomFilesystemKeyStore().
 		KeyDirectory(keyDirectory).
 		Encryptor(encryptor).
+		CacheEncryptor(cacheEncryptor).
 		Storage(storage).
 		Build()
 	if err != nil {
@@ -998,7 +1032,13 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to initialize encryptor: %v", err)
 	}
-	keyStore, err := NewFilesystemKeyStoreTwoPath(privateKeys, publicKeys, encryptor)
+
+	cacheEncryptor, err := keystore.NewSCellKeyEncryptor([]byte("test cache key"))
+	if err != nil {
+		t.Fatalf("failed to initialize encryptor: %v", err)
+	}
+
+	keyStore, err := NewFilesystemKeyStoreTwoPath(privateKeys, publicKeys, encryptor, cacheEncryptor)
 	if err != nil {
 		t.Fatalf("failed to initialize keystore: %v", err)
 	}
@@ -1127,9 +1167,15 @@ func testHistoricalKeyAccess(storage Storage, t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cacheEncryptor, err := keystore.NewSCellKeyEncryptor([]byte("some cache key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	keyStore, err := NewCustomFilesystemKeyStore().
 		KeyDirectory(keyDirectory).
 		Encryptor(encryptor).
+		CacheEncryptor(cacheEncryptor).
 		Storage(storage).
 		Build()
 	if err != nil {
@@ -1240,7 +1286,7 @@ func TestKeyStore_GetPoisonKeyPair(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	keyStore, err := NewFilesystemKeyStore(tmpDir, encryptor)
+	keyStore, err := NewFilesystemKeyStore(tmpDir, encryptor, encryptor)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1328,9 +1374,16 @@ func getKeystore() (*KeyStore, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
+
+	cacheEncryptor, err := keystore.NewSCellKeyEncryptor([]byte("some cache key"))
+	if err != nil {
+		return nil, "", err
+	}
+
 	keyStore, err := NewCustomFilesystemKeyStore().
 		KeyDirectory(keyDir).
 		Encryptor(encryptor).
+		CacheEncryptor(cacheEncryptor).
 		Storage(&fileStorage{}).
 		Build()
 	return keyStore, keyDir, err
@@ -1615,7 +1668,12 @@ func TestListKeysDifferentPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	keyStore, err := NewFilesystemKeyStoreTwoPath(keyPrivateDir, keyPublicDir, encryptor)
+	cacheEncryptor, err := keystore.NewSCellKeyEncryptor([]byte("some cache key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	keyStore, err := NewFilesystemKeyStoreTwoPath(keyPrivateDir, keyPublicDir, encryptor, cacheEncryptor)
 
 	if err != nil {
 		t.Fatal(err)

@@ -59,7 +59,7 @@ func TestImportKeyStoreV1(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to initialize encryptor: %v", err)
 	}
-	keyStoreV1, err := filesystemV1.NewFilesystemKeyStore(keyDirV1, encryptor)
+	keyStoreV1, err := filesystemV1.NewFilesystemKeyStore(keyDirV1, encryptor, encryptor)
 	if err != nil {
 		t.Fatalf("failed to initialize keystore v1: %v", err)
 	}

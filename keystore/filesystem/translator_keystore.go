@@ -35,6 +35,7 @@ type TranslatorFileSystemKeyStoreBuilder struct {
 	keyStoreBuilder *KeyStoreBuilder
 	directory       string
 	encryptor       keystore.KeyEncryptor
+	cacheEncryptor  keystore.KeyEncryptor
 }
 
 // NewCustomTranslatorFileSystemKeyStore allows to customize a translator keystore.
@@ -55,6 +56,12 @@ func (b *TranslatorFileSystemKeyStoreBuilder) KeyDirectory(directory string) *Tr
 func (b *TranslatorFileSystemKeyStoreBuilder) Encryptor(encryptor keystore.KeyEncryptor) *TranslatorFileSystemKeyStoreBuilder {
 	b.keyStoreBuilder.Encryptor(encryptor)
 	b.encryptor = encryptor
+	return b
+}
+
+// CacheEncryptor sets key cache encryptor.
+func (b *TranslatorFileSystemKeyStoreBuilder) CacheEncryptor(encryptor keystore.KeyEncryptor) *TranslatorFileSystemKeyStoreBuilder {
+	b.keyStoreBuilder.CacheEncryptor(encryptor)
 	return b
 }
 

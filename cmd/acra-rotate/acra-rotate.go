@@ -58,9 +58,23 @@ func openKeyStoreV1(dirPath string, loader keyloader.MasterKeyLoader) keystore.S
 		log.WithError(err).Errorln("Can't init scell encryptor")
 		os.Exit(1)
 	}
+
+	cacheEncryptionKey, err := keystore.GenerateSymmetricKey()
+	if err != nil {
+		log.WithError(err).Errorln("Can't generate cache encryption key")
+		os.Exit(1)
+	}
+
+	scellCacheEncryptor, err := keystore.NewSCellKeyEncryptor(cacheEncryptionKey)
+	if err != nil {
+		log.WithError(err).Errorln("Can't init cache scell encryptor")
+		os.Exit(1)
+	}
+
 	keyStore := filesystem.NewCustomFilesystemKeyStore()
 	keyStore.KeyDirectory(dirPath)
 	keyStore.Encryptor(scellEncryptor)
+	keyStore.CacheEncryptor(scellCacheEncryptor)
 	redis := cmd.GetRedisParameters()
 	if redis.KeysConfigured() {
 		keyStorage, err := filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)

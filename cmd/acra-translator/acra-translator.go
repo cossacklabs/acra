@@ -663,6 +663,19 @@ func openKeyStoreV1(keysDir string, cacheSize int, loader keyloader.MasterKeyLoa
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitPrivateKeysEncryptor).WithError(err).Errorln("Can't init scell encryptor")
 		return nil, nil, err
 	}
+
+	cacheEncryptionKey, err := keystore.GenerateSymmetricKey()
+	if err != nil {
+		log.WithError(err).Errorln("Can't generate cache encryption key")
+		return nil, nil, err
+	}
+
+	scellCacheEncryptor, err := keystore.NewSCellKeyEncryptor(cacheEncryptionKey)
+	if err != nil {
+		log.WithError(err).Errorln("Can't init cache scell encryptor")
+		return nil, nil, err
+	}
+
 	var keyStorage filesystem.Storage = &filesystem.DummyStorage{}
 	redis := cmd.GetRedisParameters()
 	if redis.KeysConfigured() {
@@ -676,6 +689,7 @@ func openKeyStoreV1(keysDir string, cacheSize int, loader keyloader.MasterKeyLoa
 	keyStore.KeyDirectory(keysDir)
 	keyStore.CacheSize(cacheSize)
 	keyStore.Encryptor(scellEncryptor)
+	keyStore.CacheEncryptor(scellCacheEncryptor)
 	keyStore.Storage(keyStorage)
 	keyStoreV1, err := keyStore.Build()
 	if err != nil {
@@ -687,6 +701,7 @@ func openKeyStoreV1(keysDir string, cacheSize int, loader keyloader.MasterKeyLoa
 	transportKeyStore := filesystem.NewCustomTranslatorFileSystemKeyStore()
 	transportKeyStore.KeyDirectory(keysDir)
 	transportKeyStore.Encryptor(scellEncryptor)
+	transportKeyStore.CacheEncryptor(scellCacheEncryptor)
 	transportKeyStore.Storage(keyStorage)
 	transportKeyStoreV1, err := transportKeyStore.Build()
 	if err != nil {
