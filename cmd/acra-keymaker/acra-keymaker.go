@@ -209,8 +209,6 @@ func main() {
 	}
 
 	if *poisonRecord {
-		//TODO: ask if we want to create KMS key per each poison key (private and symmetric) or just one
-
 		// Generate poison record symmetric key
 		if err = store.GeneratePoisonSymmetricKey(); err != nil {
 			panic(err)
