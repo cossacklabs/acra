@@ -17,6 +17,12 @@ keys_dir: .acrakeys
 # path to key directory for public keys
 keys_dir_public: 
 
+# KMS credentials JSON file path
+kms_credentials_path: 
+
+# KMS type for using: <aws>
+kms_type: 
+
 # Number of Redis database for keys
 redis_db_keys: 0
 

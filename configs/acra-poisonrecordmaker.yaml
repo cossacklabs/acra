@@ -14,6 +14,12 @@ generate_markdown_args_table: false
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
 
+# KMS credentials JSON file path
+kms_credentials_path: 
+
+# KMS type for using: <aws>
+kms_type: 
+
 # Number of Redis database for keys
 redis_db_keys: 0
 
