@@ -21,14 +21,15 @@ package main
 import (
 	"database/sql"
 	"flag"
-	"github.com/cossacklabs/acra/crypto"
 	"os"
 
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
+	"github.com/cossacklabs/acra/keystore/keyloader/kms"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
@@ -58,6 +59,7 @@ func openKeyStoreV1(dirPath string, loader keyloader.MasterKeyLoader) keystore.S
 		log.WithError(err).Errorln("Can't init scell encryptor")
 		os.Exit(1)
 	}
+
 	keyStore := filesystem.NewCustomFilesystemKeyStore()
 	keyStore.KeyDirectory(dirPath)
 	keyStore.Encryptor(scellEncryptor)
@@ -131,6 +133,7 @@ func main() {
 	dryRun := flag.Bool("dry-run", false, "perform rotation without saving rotated AcraStructs and keys")
 	logging.SetLogLevel(logging.LogVerbose)
 
+	kms.RegisterCLIParameters()
 	hashicorp.RegisterVaultCLIParameters()
 
 	err := cmd.Parse(DefaultConfigPath, ServiceName)
@@ -140,7 +143,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(hashicorp.GetVaultCLIParameters())
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(hashicorp.GetVaultCLIParameters(), kms.GetCLIParameters())
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
 		os.Exit(1)

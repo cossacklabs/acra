@@ -35,6 +35,7 @@ import (
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
+	"github.com/cossacklabs/acra/keystore/keyloader/kms"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
@@ -63,6 +64,7 @@ func main() {
 	dataLength := flag.Int("data_length", poison.UseDefaultDataLength, fmt.Sprintf("Length of random data for data block in acrastruct. -1 is random in range 1..%v", poison.DefaultDataLength))
 	recordType := flag.String("type", RecordTypeAcraStruct, fmt.Sprintf("Type of poison record: \"%s\" | \"%s\"\n", RecordTypeAcraStruct, RecordTypeAcraBlock))
 
+	kms.RegisterCLIParameters()
 	cmd.RegisterRedisKeyStoreParameters()
 	hashicorp.RegisterVaultCLIParameters()
 
@@ -75,7 +77,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(hashicorp.GetVaultCLIParameters())
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(hashicorp.GetVaultCLIParameters(), kms.GetCLIParameters())
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
 		os.Exit(1)
@@ -115,6 +117,7 @@ func openKeyStoreV1(output string, loader keyloader.MasterKeyLoader) keystore.Po
 		log.WithError(err).Errorln("Can't init scell encryptor")
 		os.Exit(1)
 	}
+
 	keyStore := filesystem.NewCustomFilesystemKeyStore()
 	keyStore.KeyDirectory(output)
 	keyStore.Encryptor(scellEncryptor)

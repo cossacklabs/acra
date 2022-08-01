@@ -62,7 +62,7 @@ func GetCLIParameters() *CLIOptions {
 }
 
 // New create MasterKeyLoader from kms.CLIOptions - implementation of keyloader.CliMasterKeyLoaderCreator interface
-func (options *CLIOptions) New() (keyloader.MasterKeyLoader, error) {
+func (options CLIOptions) New() (keyloader.MasterKeyLoader, error) {
 	if options.KMSType == "" {
 		return nil, nil
 	}
