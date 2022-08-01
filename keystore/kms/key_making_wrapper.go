@@ -2,6 +2,7 @@ package kms
 
 import (
 	"context"
+
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/network"
 	log "github.com/sirupsen/logrus"

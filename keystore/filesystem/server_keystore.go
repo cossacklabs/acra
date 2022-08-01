@@ -25,6 +25,7 @@ limitations under the License.
 package filesystem
 
 import (
+	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -39,6 +40,7 @@ import (
 	fs "github.com/cossacklabs/acra/keystore/filesystem/internal"
 	"github.com/cossacklabs/acra/keystore/lru"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -343,7 +345,7 @@ func (store *KeyStore) SaveKeyPairWithFilename(keypair *keys.Keypair, filename s
 		return err
 	}
 
-	cacheEncryptedPrivate, err := store.cacheEncryptor.Encrypt(keypair.Private.Value, id)
+	cacheEncryptedPrivate, err := store.cacheEncryptor.Encrypt(store.encryptorCtx, keypair.Private.Value, keyContext)
 	if err != nil {
 		return err
 	}
@@ -447,7 +449,7 @@ func (store *KeyStore) generateZoneKey(id []byte) ([]byte, []byte, error) {
 	}
 	store.lock.Lock()
 	defer store.lock.Unlock()
-	cacheEncryptedKey, err := store.cacheEncryptor.Encrypt(keypair.Private.Value, id)
+	cacheEncryptedKey, err := store.cacheEncryptor.Encrypt(store.encryptorCtx, keypair.Private.Value, *keyContext)
 	if err != nil {
 		return nil, nil, nil
 	}
@@ -589,14 +591,14 @@ func (store *KeyStore) getPrivateKeyByFilename(filename string, keyContext keyst
 			return encryptedPrivateKey.Value, nil
 		}
 
-		loadedKey, err := store.loadKeyAndCache(id, filename, loadKeyCallback)
+		loadedKey, err := store.loadKeyAndCache(filename, keyContext, loadKeyCallback)
 		if err != nil {
 			return nil, err
 		}
 		return &keys.PrivateKey{Value: loadedKey}, nil
 	}
 
-	decryptedKey, err := store.cacheEncryptor.Decrypt(encryptedKey, id)
+	decryptedKey, err := store.cacheEncryptor.Decrypt(store.encryptorCtx, encryptedKey, keyContext)
 	if err != nil {
 		return nil, err
 	}
@@ -687,7 +689,8 @@ func (store *KeyStore) GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error)
 	if err != nil {
 		return nil, err
 	}
-	return store.getPrivateKeysByFilenames(id, filenames)
+	keyContext := keystore.NewKeyContext(keystore.PurposeStorageZonePrivateKey).WithZoneID(id).WithContext(id)
+	return store.getPrivateKeysByFilenames(filenames, *keyContext)
 }
 
 // GetPeerPublicKey returns public key for this clientID, gets it from cache or reads from fs.
@@ -970,14 +973,14 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 	if penultimateKeyPart == "log" && lastKeyPart == "key" {
 		return &keystore.KeyDescription{
 			ID:      fileInfo.Name(),
-			Purpose: PurposeAuditLog,
+			Purpose: keystore.PurposeAuditLog,
 		}, nil
 	}
 
 	if lastKeyPart == "server" || lastKeyPart == "server.pub" || lastKeyPart == "translator" || lastKeyPart == "translator.pub" {
 		return &keystore.KeyDescription{
 			ID:       fileInfo.Name(),
-			Purpose:  PurposeLegacy,
+			Purpose:  keystore.PurposeLegacy,
 			ClientID: []byte(components[0]),
 		}, nil
 	}
@@ -999,7 +1002,7 @@ func (store *KeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	privateKey, privateOk := store.cache.Get(PoisonKeyFilename)
 	publicKey, publicOk := store.cache.Get(poisonKeyFilenamePublic)
 	if privateOk && publicOk {
-		decryptedPrivate, err := store.cacheEncryptor.Decrypt(privateKey, *keyContext)
+		decryptedPrivate, err := store.cacheEncryptor.Decrypt(store.encryptorCtx, privateKey, *keyContext)
 		if err != nil {
 			return nil, err
 		}
@@ -1013,11 +1016,11 @@ func (store *KeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 		}
 		return nil, err
 	}
-	if private.Value, err = store.encryptor.Decrypt(private.Value, *keyContext); err != nil {
+	if private.Value, err = store.encryptor.Decrypt(store.encryptorCtx, private.Value, *keyContext); err != nil {
 		return nil, err
 	}
 
-	cacheEncrypted, err := store.cacheEncryptor.Encrypt(private.Value, []byte(PoisonKeyFilename))
+	cacheEncrypted, err := store.cacheEncryptor.Encrypt(store.encryptorCtx, private.Value, *keyContext)
 	if err != nil {
 		return nil, err
 	}
@@ -1180,22 +1183,15 @@ func (store *KeyStore) Get(keyID string) ([]byte, bool) {
 // GetHMACSecretKey return key for hmac calculation according to id
 func (store *KeyStore) GetHMACSecretKey(id []byte) ([]byte, error) {
 	filename := getHmacKeyFilename(id)
+	keyContext := keystore.NewKeyContext(keystore.PurposeSearchHMAC).WithClientID(id).WithContext(id)
+
 	encryptedKey, ok := store.Get(filename)
 	if !ok {
-		return store.loadKeyAndCache(id, filename, func() ([]byte, error) {
+		return store.loadKeyAndCache(filename, *keyContext, func() ([]byte, error) {
 			return store.ReadKeyFile(store.GetPrivateKeyFilePath(filename))
 		})
 	}
-	return store.cacheEncryptor.Decrypt(encryptedKey, id)
-
-	keyContext := keystore.NewKeyContext(keystore.PurposeSearchHMAC).WithClientID(id).WithContext(id)
-	decryptedKey, err := store.encryptor.Decrypt(store.encryptorCtx, encryptedKey, *keyContext)
-	if err != nil {
-		return nil, err
-	}
-	log.Debugf("Load key from fs: %s", filename)
-	store.Add(filename, encryptedKey)
-	return decryptedKey, nil
+	return store.cacheEncryptor.Decrypt(store.encryptorCtx, encryptedKey, *keyContext)
 }
 
 // GenerateHmacKey key for hmac calculation in in folder for private keys
@@ -1212,7 +1208,7 @@ func (store *KeyStore) GenerateHmacKey(id []byte) error {
 		return err
 	}
 
-	cacheEncryptedKey, err := store.cacheEncryptor.Encrypt(key, id)
+	cacheEncryptedKey, err := store.cacheEncryptor.Encrypt(store.encryptorCtx, key, *keyContext)
 	if err != nil {
 		return err
 	}
@@ -1244,7 +1240,7 @@ func (store *KeyStore) GenerateLogKey() error {
 		return err
 	}
 
-	cacheEncryptedKey, err := store.cacheEncryptor.Encrypt(key, []byte(SecureLogKeyFilename))
+	cacheEncryptedKey, err := store.cacheEncryptor.Encrypt(store.encryptorCtx, key, *keyContext)
 	if err != nil {
 		return err
 	}
@@ -1265,14 +1261,16 @@ func (store *KeyStore) GenerateLogKey() error {
 // GetLogSecretKey return key for log integrity checks
 func (store *KeyStore) GetLogSecretKey() ([]byte, error) {
 	filename := getLogKeyFilename()
+	keyContext := keystore.NewKeyContext(keystore.PurposeAuditLog).WithContext([]byte(SecureLogKeyFilename))
+
 	encryptedKey, ok := store.Get(filename)
 	if !ok {
-		return store.loadKeyAndCache([]byte(SecureLogKeyFilename), filename, func() ([]byte, error) {
+		return store.loadKeyAndCache(filename, *keyContext, func() ([]byte, error) {
 			return store.ReadKeyFile(store.GetPrivateKeyFilePath(filename))
 		})
 	}
 
-	return store.cacheEncryptor.Decrypt(encryptedKey, []byte(SecureLogKeyFilename))
+	return store.cacheEncryptor.Decrypt(store.encryptorCtx, encryptedKey, *keyContext)
 }
 
 // generateSymmetricKey generate symmetric key with specific identifier
@@ -1293,26 +1291,26 @@ func (store *KeyStore) generateAndSaveSymmetricKey(filename string, keyContext k
 func (store *KeyStore) readEncryptedKey(filename string, keyContext keystore.KeyContext) ([]byte, error) {
 	encryptedSymKey, ok := store.Get(filename)
 	if !ok {
-		return store.loadKeyAndCache(id, filename, func() ([]byte, error) {
+		return store.loadKeyAndCache(filename, keyContext, func() ([]byte, error) {
 			return store.ReadKeyFile(store.GetPrivateKeyFilePath(filename))
 		})
 	}
-	return store.cacheEncryptor.Decrypt(encryptedSymKey, id)
+	return store.cacheEncryptor.Decrypt(store.encryptorCtx, encryptedSymKey, keyContext)
 }
 
-func (store *KeyStore) loadKeyAndCache(id []byte, filename string, loadKeyCallback func() ([]byte, error)) ([]byte, error) {
+func (store *KeyStore) loadKeyAndCache(filename string, keyContext keystore.KeyContext, loadKeyCallback func() ([]byte, error)) ([]byte, error) {
 	encryptedKey, err := loadKeyCallback()
 	if err != nil {
 		return nil, err
 	}
-	decrypted, err := store.encryptor.Decrypt(encryptedKey, id)
+	decrypted, err := store.encryptor.Decrypt(store.encryptorCtx, encryptedKey, keyContext)
 	if err != nil {
 		return nil, err
 	}
 
-	cacheEncrypted, err := store.cacheEncryptor.Encrypt(decrypted, id)
+	cacheEncrypted, err := store.cacheEncryptor.Encrypt(store.encryptorCtx, decrypted, keyContext)
 	if err != nil {
-		log.WithError(err).WithField("id", id).Debugln("Failed to encrypt with cacheEncryptor")
+		log.WithError(err).WithField("id", keyContext.Context).Debugln("Failed to encrypt with cacheEncryptor")
 		return nil, err
 	}
 
@@ -1324,7 +1322,9 @@ func (store *KeyStore) loadKeyAndCache(id []byte, filename string, loadKeyCallba
 // GenerateClientIDSymmetricKey generate symmetric key for specified client id
 func (store *KeyStore) GenerateClientIDSymmetricKey(id []byte) error {
 	keyName := getClientIDSymmetricKeyName(id)
-	return store.generateAndSaveSymmetricKey(id, store.GetPrivateKeyFilePath(keyName))
+
+	keyContext := keystore.NewKeyContext(keystore.PurposeStorageClientSymmetricKey).WithClientID(id).WithContext(id)
+	return store.generateAndSaveSymmetricKey(store.GetPrivateKeyFilePath(keyName), *keyContext)
 }
 
 // GenerateZoneIDSymmetricKey generate symmetric key for specified zone id

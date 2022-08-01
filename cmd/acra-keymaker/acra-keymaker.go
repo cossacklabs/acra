@@ -198,11 +198,6 @@ func main() {
 	switch *keystoreVersion {
 	case "v1":
 		store = openKeyStoreV1(*outputDir, *outputPublicKey, keyLoader)
-		if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSType != "" {
-			keyManager, _ := kmsOptions.NewKeyManager()
-			store = baseKMS.NewKeyMakingWrapper(store, keyManager)
-		}
-
 	case "v2":
 		store = openKeyStoreV2(*outputDir, keyLoader)
 	case "":
@@ -293,7 +288,7 @@ func main() {
 	}
 }
 
-func openKeyStoreV1(output, outputPublic string, loader keyloader.MasterKeyLoader) keystore.KeyMaking {
+func openKeyStoreV1(output, outputPublic string, loader keyloader.MasterKeyLoader) (keyMaking keystore.KeyMaking) {
 	var keyStoreEncryptor keystore.KeyEncryptor
 	if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSType != "" {
 		keyManager, err := kmsOptions.NewKeyManager()
@@ -333,12 +328,17 @@ func openKeyStoreV1(output, outputPublic string, loader keyloader.MasterKeyLoade
 		}
 		keyStore.Storage(keyStorage)
 	}
-	keyStoreV1, err := keyStore.Build()
+	keyMaking, err := keyStore.Build()
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore")
 		os.Exit(1)
 	}
-	return keyStoreV1
+
+	if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSType != "" {
+		keyManager, _ := kmsOptions.NewKeyManager()
+		keyMaking = baseKMS.NewKeyMakingWrapper(keyMaking, keyManager)
+	}
+	return
 }
 
 func openKeyStoreV2(keyDirPath string, loader keyloader.MasterKeyLoader) keystore.KeyMaking {

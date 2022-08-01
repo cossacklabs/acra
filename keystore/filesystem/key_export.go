@@ -18,10 +18,10 @@ package filesystem
 
 import (
 	"context"
-	"github.com/cossacklabs/acra/keystore"
 	"path/filepath"
 	"strings"
 
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 )

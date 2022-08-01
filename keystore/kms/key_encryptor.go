@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/cossacklabs/acra/keystore"
+	log "github.com/sirupsen/logrus"
 )
 
 // KmsEncryptor errors
@@ -30,7 +31,7 @@ func NewKeyEncryptor(kmsEncryptor Encryptor) *KeyEncryptor {
 func (encryptor *KeyEncryptor) Encrypt(ctx context.Context, key []byte, keyContext keystore.KeyContext) ([]byte, error) {
 	keyID, err := getKeyIDFromContext(keyContext)
 	if err != nil {
-		// TODO: add logging
+		log.WithError(err).Errorln("Failed to obtain keyID from keyContext")
 		return nil, err
 	}
 	return encryptor.kmsEncryptor.Encrypt(ctx, keyID, key, nil)
@@ -40,10 +41,10 @@ func (encryptor *KeyEncryptor) Encrypt(ctx context.Context, key []byte, keyConte
 func (encryptor *KeyEncryptor) Decrypt(ctx context.Context, key []byte, keyContext keystore.KeyContext) ([]byte, error) {
 	keyID, err := getKeyIDFromContext(keyContext)
 	if err != nil {
-		// TODO: add logging
+		log.WithError(err).Errorln("Failed to obtain keyID from keyContext")
 		return nil, err
 	}
-	return encryptor.kmsEncryptor.Encrypt(ctx, keyID, key, nil)
+	return encryptor.kmsEncryptor.Decrypt(ctx, keyID, key, nil)
 }
 
 func getKeyIDFromContext(ctx keystore.KeyContext) ([]byte, error) {

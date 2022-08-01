@@ -18,6 +18,7 @@ package filesystem
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -619,7 +620,7 @@ func testFilesystemKeyStoreSymmetricWithCache(storage Storage, t *testing.T) {
 	}
 
 	keyContext := keystore.NewKeyContext(keystore.PurposeStorageClientSymmetricKey).WithContext(testID2)
-	decrypted, err := store.cacheEncryptor.Decrypt(value, testID2)
+	decrypted, err := store.cacheEncryptor.Decrypt(context.Background(), value, *keyContext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -698,7 +699,9 @@ func testFilesystemKeyStoreWithCache(storage Storage, t *testing.T) {
 	if !ok {
 		t.Fatal("Expected key in result")
 	}
-	decrypted, err := store.cacheEncryptor.Decrypt(value, testID2)
+
+	keyContext := keystore.NewKeyContext(keystore.PurposeStorageClientSymmetricKey).WithContext(testID2)
+	decrypted, err := store.cacheEncryptor.Decrypt(context.Background(), value, *keyContext)
 	if err != nil {
 		t.Fatal(err)
 	}
