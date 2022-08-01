@@ -123,7 +123,7 @@ func getIDFromFilename(fname string) (keystore.KeyPurpose, []byte) {
 		return "", []byte(fname[:len(fname)-len("_sym")])
 	}
 
-	return "", []byte(fname)
+	return keystore.PurposeUndefined, []byte(fname)
 }
 
 type dummyEncryptor struct{}

@@ -57,14 +57,16 @@ func getKeyIDFromContext(ctx keystore.KeyContext) ([]byte, error) {
 		if ctx.ClientID == nil {
 			return nil, ErrEmptyClientIDProvided
 		}
-		return []byte(string(ctx.ClientID) + "/" + ctx.Purpose.String()), nil
+		return []byte("acra_" + string(ctx.ClientID)), nil
 	case keystore.PurposeStorageZoneSymmetricKey, keystore.PurposeStorageZonePrivateKey:
 		if ctx.ZoneID == nil {
 			return nil, ErrEmptyZoneIDProvided
 		}
-		return []byte(string(ctx.ClientID) + "/" + ctx.Purpose.String()), nil
-	case keystore.PurposeAuditLog, keystore.PurposePoisonRecordSymmetricKey, keystore.PurposePoisonRecordKeyPair:
-		return []byte("acra/common/" + ctx.Purpose.String()), nil
+		return []byte("acra_" + string(ctx.ZoneID)), nil
+	case keystore.PurposePoisonRecordSymmetricKey, keystore.PurposePoisonRecordKeyPair:
+		return []byte("acra_poison"), nil
+	case keystore.PurposeAuditLog:
+		return []byte("acra_audit_log"), nil
 	default:
 		return nil, ErrUnsupportedKeyPurpose
 	}

@@ -68,6 +68,7 @@ const (
 	PurposeStorageZonePrivateKey     KeyPurpose = "private_zone"
 	PurposeStorageZonePublicKey      KeyPurpose = "public_zone"
 	PurposeLegacy                    KeyPurpose = "legacy"
+	PurposeUndefined                 KeyPurpose = "undefined"
 )
 
 // Errors returned during accessing to client id or master key.
