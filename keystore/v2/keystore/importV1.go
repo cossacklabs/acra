@@ -18,6 +18,7 @@ package keystore
 
 import (
 	"errors"
+	"github.com/cossacklabs/acra/keystore"
 
 	filesystemV1 "github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/utils"
@@ -37,7 +38,7 @@ type KeyFileImportV1 interface {
 func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key filesystemV1.ExportedKey) error {
 	log := s.log.WithField("purpose", key.Purpose).WithField("id", key.ID)
 	switch key.Purpose {
-	case filesystemV1.PurposePoisonRecordKeyPair:
+	case keystore.PurposePoisonRecordKeyPair:
 		keypair, err := oldKeyStore.ExportKeyPair(key)
 		if err != nil {
 			log.WithError(err).Debug("failed to export poison record key pair")
@@ -49,7 +50,7 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			log.WithError(err).Debug("failed to import poison record key pair")
 			return err
 		}
-	case filesystemV1.PurposeStorageClientKeyPair:
+	case keystore.PurposeStorageClientKeyPair:
 		keypair, err := oldKeyStore.ExportKeyPair(key)
 		if err != nil {
 			log.WithError(err).Debug("failed to export client storage key pair")
@@ -61,7 +62,7 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			log.WithError(err).Debug("failed to import client storage key pair")
 			return err
 		}
-	case filesystemV1.PurposeStorageZoneKeyPair:
+	case keystore.PurposeStorageZoneKeyPair:
 		keypair, err := oldKeyStore.ExportKeyPair(key)
 		if err != nil {
 			log.WithError(err).Debug("failed to export zone storage key pair")
@@ -73,7 +74,7 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			log.WithError(err).Debug("failed to import zone storage key pair")
 			return err
 		}
-	case filesystemV1.PurposeAuditLog:
+	case keystore.PurposeAuditLog:
 		symkey, err := oldKeyStore.ExportSymmetricKey(key)
 		if err != nil {
 			log.WithError(err).Debug("Failed to export audit log key")
@@ -85,7 +86,7 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			log.WithError(err).Debug("Failed to import audit log key")
 			return err
 		}
-	case filesystemV1.PurposeSearchHMAC:
+	case keystore.PurposeSearchHMAC:
 		symkey, err := oldKeyStore.ExportSymmetricKey(key)
 		if err != nil {
 			log.WithError(err).Debug("Failed to export search HMAC key")
@@ -98,7 +99,7 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			return err
 		}
 
-	case filesystemV1.PurposePoisonRecordSymmetricKey:
+	case keystore.PurposePoisonRecordSymmetricKey:
 		symkey, err := oldKeyStore.ExportSymmetricKey(key)
 		if err != nil {
 			log.WithError(err).Debug("Failed to export poison record symmetric key")
@@ -111,7 +112,7 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			return err
 		}
 
-	case filesystemV1.PurposeStorageClientSymmetricKey:
+	case keystore.PurposeStorageClientSymmetricKey:
 		symkey, err := oldKeyStore.ExportSymmetricKey(key)
 		if err != nil {
 			log.WithError(err).Debug("Failed to export client storage symmetric key")
@@ -124,7 +125,7 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			return err
 		}
 
-	case filesystemV1.PurposeStorageZoneSymmetricKey:
+	case keystore.PurposeStorageZoneSymmetricKey:
 		symkey, err := oldKeyStore.ExportSymmetricKey(key)
 		if err != nil {
 			log.WithError(err).Debug("Failed to export zone storage symmetric key")

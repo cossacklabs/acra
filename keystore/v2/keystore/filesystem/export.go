@@ -17,7 +17,9 @@
 package filesystem
 
 import (
+	"context"
 	"errors"
+	keystoreV1 "github.com/cossacklabs/acra/keystore"
 	"time"
 
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
@@ -121,7 +123,8 @@ func (s *KeyStore) encryptAndSignKeyRings(rings []asn1.KeyRing, cryptosuite *cry
 	}
 	defer utils.ZeroizeBytes(keysBytes)
 
-	encryptedKeyBytes, err := cryptosuite.KeyEncryptor.Encrypt(keysBytes, exportKeyContext)
+	keyContext := keystoreV1.NewEmptyKeyContext().WithContext(exportKeyContext)
+	encryptedKeyBytes, err := cryptosuite.KeyEncryptor.Encrypt(context.Background(), keysBytes, *keyContext)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +162,8 @@ func (s *KeyStore) decryptAndVerifyKeyRings(ringData []byte, cryptosuite *crypto
 		return nil, errUnsupportedVersion
 	}
 
-	decryptedKeyBytes, err := cryptosuite.KeyEncryptor.Decrypt(container.Payload.Data.Bytes, exportKeyContext)
+	keyContext := keystoreV1.NewEmptyKeyContext().WithContext(exportKeyContext)
+	decryptedKeyBytes, err := cryptosuite.KeyEncryptor.Decrypt(context.Background(), container.Payload.Data.Bytes, *keyContext)
 	if err != nil {
 		return nil, err
 	}

@@ -17,6 +17,7 @@
 package filesystem
 
 import (
+	"context"
 	"errors"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/go-redis/redis/v7"
@@ -257,12 +258,14 @@ func (s *KeyStore) keyStoreContext(context []byte) []byte {
 	return c
 }
 
-func (s *KeyStore) encrypt(data, context []byte) ([]byte, error) {
-	return s.encryptor.Encrypt(data, s.keyStoreContext(context))
+func (s *KeyStore) encrypt(data, ctx []byte) ([]byte, error) {
+	keyContext := keystoreV1.NewEmptyKeyContext().WithContext(s.keyStoreContext(ctx))
+	return s.encryptor.Encrypt(context.Background(), data, *keyContext)
 }
 
-func (s *KeyStore) decrypt(data, context []byte) ([]byte, error) {
-	return s.encryptor.Decrypt(data, s.keyStoreContext(context))
+func (s *KeyStore) decrypt(data, ctx []byte) ([]byte, error) {
+	keyContext := keystoreV1.NewEmptyKeyContext().WithContext(s.keyStoreContext(ctx))
+	return s.encryptor.Decrypt(context.Background(), data, *keyContext)
 }
 
 func (s *KeyStore) keyRingSignatureContext(path string) []byte {

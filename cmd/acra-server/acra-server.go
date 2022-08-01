@@ -37,6 +37,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	baseKMS "github.com/cossacklabs/acra/keystore/kms"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -870,20 +871,34 @@ func waitReadPipe(timeoutDuration time.Duration) error {
 }
 
 func openKeyStoreV1(output string, cacheSize int, loader keyloader.MasterKeyLoader) (keystore.ServerKeyStore, error) {
-	masterKey, err := loader.LoadMasterKey()
-	if err != nil {
-		log.WithError(err).Errorln("Cannot load master key")
-		return nil, err
+	var keyStoreEncryptor keystore.KeyEncryptor
+	// TODO: consider creating new flag exactly for KMS keystore
+
+	if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSType != "" {
+		keyManager, err := kmsOptions.NewKeyManager()
+		if err != nil {
+			log.WithError(err).Errorln("Failed to initializer kms KeyManager")
+			return nil, err
+		}
+
+		keyStoreEncryptor = baseKMS.NewKeyEncryptor(keyManager)
+	} else {
+		masterKey, err := loader.LoadMasterKey()
+		if err != nil {
+			log.WithError(err).Errorln("Cannot load master key")
+			return nil, err
+		}
+		keyStoreEncryptor, err = keystore.NewSCellKeyEncryptor(masterKey)
+		if err != nil {
+			log.WithError(err).Errorln("Can't init scell encryptor")
+			return nil, err
+		}
 	}
-	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
-	if err != nil {
-		log.WithError(err).Errorln("Can't init scell encryptor")
-		return nil, err
-	}
+
 	keyStore := filesystem.NewCustomFilesystemKeyStore()
 	keyStore.KeyDirectory(output)
 	keyStore.CacheSize(cacheSize)
-	keyStore.Encryptor(scellEncryptor)
+	keyStore.Encryptor(keyStoreEncryptor)
 
 	redis := cmd.GetRedisParameters()
 	if redis.KeysConfigured() {

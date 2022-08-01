@@ -18,6 +18,7 @@ package filesystem
 
 import (
 	"bytes"
+	"context"
 	"encoding/gob"
 	"path/filepath"
 	"strings"
@@ -82,57 +83,58 @@ func isPrivate(fname string) bool {
 	return true
 }
 
-func getIDFromFilename(fname string) []byte {
+func getIDFromFilename(fname string) (keystore.KeyPurpose, []byte) {
 	if isHistoricalFilename(fname) {
 		fname = filepath.Dir(fname)
 	}
 	if fname == PoisonKeyFilename {
-		return []byte(fname)
+		return keystore.PurposePoisonRecordKeyPair, []byte(fname)
 	}
 	if fname == getSymmetricKeyName(PoisonKeyFilename) {
-		return []byte(fname[:len(fname)-len("_sym")])
+		return keystore.PurposePoisonRecordSymmetricKey, []byte(fname[:len(fname)-len("_sym")])
 	}
 	fname = filepath.Base(fname)
 	if strings.HasSuffix(fname, ".old") {
 		fname = fname[:len(fname)-len(".old")]
 	}
 	if strings.HasSuffix(fname, "_hmac") {
-		return []byte(fname[:len(fname)-len("_hmac")])
+		return keystore.PurposeSearchHMAC, []byte(fname[:len(fname)-len("_hmac")])
 	}
 	if strings.HasSuffix(fname, "_server") {
-		return []byte(fname[:len(fname)-len("_server")])
+		return keystore.PurposeLegacy, []byte(fname[:len(fname)-len("_server")])
 	}
 	if strings.HasSuffix(fname, "_translator") {
-		return []byte(fname[:len(fname)-len("_translator")])
+		return keystore.PurposeLegacy, []byte(fname[:len(fname)-len("_translator")])
 	}
 	if strings.HasSuffix(fname, "_storage") {
-		return []byte(fname[:len(fname)-len("_storage")])
+		return keystore.PurposeStorageClientPrivateKey, []byte(fname[:len(fname)-len("_storage")])
 	}
 	if strings.HasSuffix(fname, "_storage_sym") {
-		return []byte(fname[:len(fname)-len("_storage_sym")])
+		return keystore.PurposeStorageClientSymmetricKey, []byte(fname[:len(fname)-len("_storage_sym")])
 	}
 	if strings.HasSuffix(fname, "_zone") {
-		return []byte(fname[:len(fname)-len("_zone")])
+		return keystore.PurposeStorageZonePrivateKey, []byte(fname[:len(fname)-len("_zone")])
 	}
 	if strings.HasSuffix(fname, "_zone_sym") {
-		return []byte(fname[:len(fname)-len("_zone_sym")])
+		return keystore.PurposeStorageZoneSymmetricKey, []byte(fname[:len(fname)-len("_zone_sym")])
 	}
 	if strings.HasSuffix(fname, "_sym") {
-		return []byte(fname[:len(fname)-len("_sym")])
+		//TODO: what it the sym key here?
+		return "", []byte(fname[:len(fname)-len("_sym")])
 	}
 
-	return []byte(fname)
+	return "", []byte(fname)
 }
 
 type dummyEncryptor struct{}
 
 // Encrypt return data as is, used for tests
-func (d dummyEncryptor) Encrypt(key, context []byte) ([]byte, error) {
+func (d dummyEncryptor) Encrypt(ctx context.Context, key []byte, keyContext keystore.KeyContext) ([]byte, error) {
 	return key, nil
 }
 
 // Decrypt return data as is, used for tests
-func (d dummyEncryptor) Decrypt(key, context []byte) ([]byte, error) {
+func (d dummyEncryptor) Decrypt(ctx context.Context, key []byte, keyContext keystore.KeyContext) ([]byte, error) {
 	return key, nil
 }
 
@@ -151,7 +153,10 @@ func readFilesAsKeys(files []string, basePath string, encryptor keystore2.KeyEnc
 		// remove absolute first part, leave only relative to path
 		relativeName := strings.Replace(f, basePath+"/", "", -1)
 		if isPrivate(relativeName) {
-			content, err = encryptor.Decrypt(content, getIDFromFilename(relativeName))
+			purpose, id := getIDFromFilename(relativeName)
+
+			keyContext := keystore.NewKeyContext(purpose).WithContext(id).WithZoneID(id).WithClientID(id)
+			content, err = encryptor.Decrypt(context.Background(), content, *keyContext)
 			if err != nil {
 				return nil, err
 			}
@@ -210,7 +215,8 @@ func (store *KeyBackuper) Export() (*keystore.KeysBackup, error) {
 	if err != nil {
 		return nil, err
 	}
-	encryptedKeys, err := encryptor.Encrypt(buf.Bytes(), nil)
+
+	encryptedKeys, err := encryptor.Encrypt(context.Background(), buf.Bytes(), *keystore.NewEmptyKeyContext())
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +229,8 @@ func (store *KeyBackuper) Import(backup *keystore.KeysBackup) error {
 	if err != nil {
 		return err
 	}
-	decryptedData, err := decryptor.Decrypt(backup.Keys, nil)
+
+	decryptedData, err := decryptor.Decrypt(context.Background(), backup.Keys, *keystore.NewEmptyKeyContext())
 	if err != nil {
 		return err
 	}
@@ -240,7 +247,10 @@ func (store *KeyBackuper) Import(backup *keystore.KeysBackup) error {
 		fullName := filepath.Join(store.privateFolder, key.Name)
 		content := key.Content
 		if isPrivateKey {
-			content, err = store.currentDecryptor.Encrypt(key.Content, getIDFromFilename(key.Name))
+
+			purpose, id := getIDFromFilename(key.Name)
+			keyContext := keystore.NewKeyContext(purpose).WithContext(id).WithClientID(id).WithZoneID(id)
+			content, err = store.currentDecryptor.Encrypt(context.Background(), key.Content, *keyContext)
 			// anyway fill with zeros
 			utils.ZeroizeBytes(key.Content)
 			if err != nil {

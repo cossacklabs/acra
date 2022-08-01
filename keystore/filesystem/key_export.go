@@ -17,6 +17,8 @@
 package filesystem
 
 import (
+	"context"
+	"github.com/cossacklabs/acra/keystore"
 	"path/filepath"
 	"strings"
 
@@ -58,30 +60,14 @@ type KeyFileClassifier interface {
 // For example, symmetric keys will not have public or private parts,
 // and only public or private key of a key pair may be present.
 type ExportedKey struct {
-	Purpose string
-	ID      []byte
-
+	Purpose       keystore.KeyPurpose
 	PublicPath    string
 	PrivatePath   string
 	SymmetricPath string
+	ID            []byte
 }
 
 // Exported key purpose constants:
-const (
-	PurposeSearchHMAC                = "search_hmac"
-	PurposeAuditLog                  = "audit_log"
-	PurposePoisonRecordSymmetricKey  = "poison_sym_key"
-	PurposeStorageClientSymmetricKey = "storage_sym_key"
-	PurposeStorageZoneSymmetricKey   = "zone_sym_key"
-	PurposePoisonRecordKeyPair       = "poison_key"
-	PurposeStorageClientKeyPair      = "storage"
-	PurposeStorageClientPublicKey    = "public_storage"
-	PurposeStorageClientPrivateKey   = "private_storage"
-	PurposeStorageZoneKeyPair        = "zone"
-	PurposeStorageZonePrivateKey     = "private_zone"
-	PurposeStorageZonePublicKey      = "public_zone"
-	PurposeLegacy                    = "legacy"
-)
 
 // ExportPublicKey loads a public key for export.
 func (store *KeyStore) ExportPublicKey(key ExportedKey) (*keys.PublicKey, error) {
@@ -102,7 +88,9 @@ func (store *KeyStore) ExportPrivateKey(key ExportedKey) (*keys.PrivateKey, erro
 	if err != nil {
 		return nil, err
 	}
-	decryptedKey, err := store.encryptor.Decrypt(privateKey.Value, key.ID)
+
+	keyContext := keystore.NewKeyContext(key.Purpose).WithContext(key.ID).WithClientID(key.ID).WithZoneID(key.ID)
+	decryptedKey, err := store.encryptor.Decrypt(context.Background(), privateKey.Value, *keyContext)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +120,9 @@ func (store *KeyStore) ExportSymmetricKey(key ExportedKey) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	keyValue, err := store.encryptor.Decrypt(encrypted, key.ID)
+
+	keyContext := keystore.NewKeyContext(key.Purpose).WithContext(key.ID).WithClientID(key.ID).WithZoneID(key.ID)
+	keyValue, err := store.encryptor.Decrypt(context.Background(), encrypted, *keyContext)
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +212,7 @@ func (store *KeyStore) EnumerateExportedKeyPaths() ([]string, error) {
 // map keys, we have to get a bit creative.
 
 func (key *ExportedKey) fusedID() string {
-	return key.Purpose + string(key.ID)
+	return key.Purpose.String() + string(key.ID)
 }
 
 func (key *ExportedKey) addPathFrom(other *ExportedKey) {
@@ -238,7 +228,7 @@ func (key *ExportedKey) addPathFrom(other *ExportedKey) {
 }
 
 // NewExportedSymmetricKey makes an ExportedKey for an unencrypted symmetric key file.
-func NewExportedSymmetricKey(symmetricPath string, context []byte, purpose string) *ExportedKey {
+func NewExportedSymmetricKey(symmetricPath string, context []byte, purpose keystore.KeyPurpose) *ExportedKey {
 	return &ExportedKey{
 		Purpose:       purpose,
 		ID:            context,
@@ -247,7 +237,7 @@ func NewExportedSymmetricKey(symmetricPath string, context []byte, purpose strin
 }
 
 // NewExportedPlaintextSymmetricKey makes an ExportedKey for an unencrypted symmetric key file.
-func NewExportedPlaintextSymmetricKey(symmetricPath string, purpose string) *ExportedKey {
+func NewExportedPlaintextSymmetricKey(symmetricPath string, purpose keystore.KeyPurpose) *ExportedKey {
 	return &ExportedKey{
 		Purpose:       purpose,
 		SymmetricPath: symmetricPath,
@@ -255,7 +245,7 @@ func NewExportedPlaintextSymmetricKey(symmetricPath string, purpose string) *Exp
 }
 
 // NewExportedPublicKey makes an ExportedKey for a public key file.
-func NewExportedPublicKey(publicPath string, id []byte, purpose string) *ExportedKey {
+func NewExportedPublicKey(publicPath string, id []byte, purpose keystore.KeyPurpose) *ExportedKey {
 	return &ExportedKey{
 		Purpose:    purpose,
 		ID:         id,
@@ -264,7 +254,7 @@ func NewExportedPublicKey(publicPath string, id []byte, purpose string) *Exporte
 }
 
 // NewExportedPrivateKey makes an ExportedKey for a private key file.
-func NewExportedPrivateKey(privatePath string, id []byte, purpose string) *ExportedKey {
+func NewExportedPrivateKey(privatePath string, id []byte, purpose keystore.KeyPurpose) *ExportedKey {
 	return &ExportedKey{
 		Purpose:     purpose,
 		ID:          id,
@@ -277,54 +267,54 @@ func (*DefaultKeyFileClassifier) ClassifyExportedKey(path string) *ExportedKey {
 	filename := filepath.Base(path)
 
 	if filename == SecureLogKeyFilename {
-		return NewExportedSymmetricKey(path, []byte(SecureLogKeyFilename), PurposeAuditLog)
+		return NewExportedSymmetricKey(path, []byte(SecureLogKeyFilename), keystore.PurposeAuditLog)
 	}
 
 	// Poison key is in ".poison_key" subdirectory, we can't look at filename alone.
 	if strings.HasSuffix(path, "/"+getSymmetricKeyName(PoisonKeyFilename)) {
-		return NewExportedSymmetricKey(path, []byte(PoisonKeyFilename), PurposePoisonRecordSymmetricKey)
+		return NewExportedSymmetricKey(path, []byte(PoisonKeyFilename), keystore.PurposePoisonRecordSymmetricKey)
 	}
 
 	if strings.HasSuffix(filename, "_hmac") {
 		id := []byte(strings.TrimSuffix(filename, "_hmac"))
-		return NewExportedSymmetricKey(path, id, PurposeSearchHMAC)
+		return NewExportedSymmetricKey(path, id, keystore.PurposeSearchHMAC)
 	}
 
 	if strings.HasSuffix(filename, "_storage_sym") {
 		id := []byte(strings.TrimSuffix(filename, "_storage_sym"))
-		return NewExportedSymmetricKey(path, id, PurposeStorageClientSymmetricKey)
+		return NewExportedSymmetricKey(path, id, keystore.PurposeStorageClientSymmetricKey)
 	}
 
 	if strings.HasSuffix(filename, "_zone_sym") {
 		id := []byte(strings.TrimSuffix(filename, "_zone_sym"))
-		return NewExportedSymmetricKey(path, id, PurposeStorageZoneSymmetricKey)
+		return NewExportedSymmetricKey(path, id, keystore.PurposeStorageZoneSymmetricKey)
 	}
 
 	// Poison key pairs use PoisonKeyFilename as context for encryption.
 	if strings.HasSuffix(path, poisonKeyFilenamePublic) {
 		id := []byte(PoisonKeyFilename)
-		return NewExportedPublicKey(path, id, PurposePoisonRecordKeyPair)
+		return NewExportedPublicKey(path, id, keystore.PurposePoisonRecordKeyPair)
 	}
 	if strings.HasSuffix(path, PoisonKeyFilename) {
 		id := []byte(PoisonKeyFilename)
-		return NewExportedPrivateKey(path, id, PurposePoisonRecordKeyPair)
+		return NewExportedPrivateKey(path, id, keystore.PurposePoisonRecordKeyPair)
 	}
 
 	if strings.HasSuffix(filename, "_storage.pub") {
 		id := []byte(strings.TrimSuffix(filename, "_storage.pub"))
-		return NewExportedPublicKey(path, id, PurposeStorageClientKeyPair)
+		return NewExportedPublicKey(path, id, keystore.PurposeStorageClientKeyPair)
 	}
 	if strings.HasSuffix(filename, "_storage") {
 		id := []byte(strings.TrimSuffix(filename, "_storage"))
-		return NewExportedPrivateKey(path, id, PurposeStorageClientKeyPair)
+		return NewExportedPrivateKey(path, id, keystore.PurposeStorageClientKeyPair)
 	}
 
 	if strings.HasSuffix(filename, "_zone.pub") {
 		id := []byte(strings.TrimSuffix(filename, "_zone.pub"))
-		return NewExportedPublicKey(path, id, PurposeStorageZoneKeyPair)
+		return NewExportedPublicKey(path, id, keystore.PurposeStorageZoneKeyPair)
 	}
 
 	id := []byte(strings.TrimSuffix(filename, "_zone"))
-	return NewExportedPrivateKey(path, id, PurposeStorageZoneKeyPair)
+	return NewExportedPrivateKey(path, id, keystore.PurposeStorageZoneKeyPair)
 
 }

@@ -198,6 +198,11 @@ func main() {
 	switch *keystoreVersion {
 	case "v1":
 		store = openKeyStoreV1(*outputDir, *outputPublicKey, keyLoader)
+		if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSType != "" {
+			keyManager, _ := kmsOptions.NewKeyManager()
+			store = baseKMS.NewKeyMakingWrapper(store, keyManager)
+		}
+
 	case "v2":
 		store = openKeyStoreV2(*outputDir, keyLoader)
 	case "":
@@ -209,6 +214,8 @@ func main() {
 	}
 
 	if *poisonRecord {
+		//TODO: ask if we want to create KMS key per each poison key (private and symmetric) or just one
+
 		// Generate poison record symmetric key
 		if err = store.GeneratePoisonSymmetricKey(); err != nil {
 			panic(err)
@@ -287,23 +294,35 @@ func main() {
 }
 
 func openKeyStoreV1(output, outputPublic string, loader keyloader.MasterKeyLoader) keystore.KeyMaking {
-	masterKey, err := loader.LoadMasterKey()
-	if err != nil {
-		log.WithError(err).Errorln("Cannot load master key")
-		os.Exit(1)
+	var keyStoreEncryptor keystore.KeyEncryptor
+	if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSType != "" {
+		keyManager, err := kmsOptions.NewKeyManager()
+		if err != nil {
+			log.WithError(err).Errorln("Failed to initializer kms KeyManager")
+			os.Exit(1)
+		}
+
+		keyStoreEncryptor = baseKMS.NewKeyEncryptor(keyManager)
+	} else {
+		masterKey, err := loader.LoadMasterKey()
+		if err != nil {
+			log.WithError(err).Errorln("Cannot load master key")
+			os.Exit(1)
+		}
+		keyStoreEncryptor, err = keystore.NewSCellKeyEncryptor(masterKey)
+		if err != nil {
+			log.WithError(err).Errorln("Can't init scell encryptor")
+			os.Exit(1)
+		}
 	}
-	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
-	if err != nil {
-		log.WithError(err).Errorln("Can't init scell encryptor")
-		os.Exit(1)
-	}
+
 	keyStore := filesystem.NewCustomFilesystemKeyStore()
 	if outputPublic != output {
 		keyStore.KeyDirectories(output, outputPublic)
 	} else {
 		keyStore.KeyDirectory(output)
 	}
-	keyStore.Encryptor(scellEncryptor)
+	keyStore.Encryptor(keyStoreEncryptor)
 	redis := cmd.GetRedisParameters()
 	if redis.KeysConfigured() {
 		keyStorage, err := filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
