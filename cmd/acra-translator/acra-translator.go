@@ -665,6 +665,7 @@ func openKeyStoreV1(keysDir string, cacheSize int, loader keyloader.MasterKeyLoa
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitPrivateKeysEncryptor).WithError(err).Errorln("Can't init scell encryptor")
 		return nil, nil, err
 	}
+
 	var keyStorage filesystem.Storage = &filesystem.DummyStorage{}
 	redis := cmd.GetRedisParameters()
 	if redis.KeysConfigured() {

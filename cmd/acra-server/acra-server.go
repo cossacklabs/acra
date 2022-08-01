@@ -880,6 +880,7 @@ func openKeyStoreV1(output string, cacheSize int, loader keyloader.MasterKeyLoad
 		log.WithError(err).Errorln("Can't init scell encryptor")
 		return nil, err
 	}
+
 	keyStore := filesystem.NewCustomFilesystemKeyStore()
 	keyStore.KeyDirectory(output)
 	keyStore.CacheSize(cacheSize)

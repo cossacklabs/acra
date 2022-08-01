@@ -324,6 +324,7 @@ func openKeyStoreV1(keysDir string, loader keyloader.MasterKeyLoader) keystore.D
 		log.WithError(err).Errorln("Can't init scell encryptor")
 		os.Exit(1)
 	}
+
 	keystorage, err := filesystem.NewFilesystemKeyStore(keysDir, scellEncryptor)
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize keystore")
