@@ -1,3 +1,6 @@
+# 0.94.0 - 2022-08-03
+- Fixed reloading on SIGHUP signal
+
 # 0.94.0 - 2022-07-08
 - Extend encryptor config struct with database settings section
   - Has subsections for mysql-specific settings as well as for postgres-specific ones
