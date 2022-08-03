@@ -39,7 +39,7 @@ RUN chmod +x /image.scripts/*.sh
 # Install Go
 ## TODO: upgrade mockery (Makefile:install_dev_deps) to latest when Acra will support minimal version 1.18
 
-RUN GO_VERSIONS='1.15.2 1.16.9 1.17.3' \
+RUN GO_VERSIONS='1.17.3 1.18.5 1.19' \
     GO_TARBALL_CLEAN=1 \
     /image.scripts/install_go.sh
 

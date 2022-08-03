@@ -5,7 +5,7 @@ jobs:
       - image: cossacklabs/ci-py-go-themis:latest
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.15.2 1.16.9 1.17.3
+      GO_VERSIONS: 1.17.3 1.18.5 1.19
     steps:
         # prepare
         - checkout
@@ -37,7 +37,7 @@ jobs:
       - image: redis:6.0.16-alpine
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.15.2 1.16.9 1.17.3
+      GO_VERSIONS: 1.17.3 1.18.5 1.19
       TEST_DB_PORT: "5432"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
@@ -69,12 +69,12 @@ jobs:
           environment:
             - TEST_BUILD_TAGS: "integration,boltdb,redis,vault"
             - TEST_EXTRA_BUILD_FLAGS: "-race"
-            - GO_VERSIONS: 1.17.3
+            - GO_VERSIONS: 1.19
         # and run all other versions without race detector
       - run:
           command: .circleci/check_gotest.sh
           environment:
-            - GO_VERSIONS: 1.15.2 1.16.9
+            - GO_VERSIONS: 1.17.3 1.18.5 1.19
             - TEST_BUILD_TAGS: "integration,boltdb,redis,vault"
       # check python wrapper
       - run: PYTHONPATH=`pwd`/wrappers/python python3 wrappers/python/acrawriter/tests.py
@@ -99,7 +99,7 @@ jobs:
       TEST_DB_NAME: test
       TEST_DB_PORT: "5432"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.15.2 1.16.9 1.17.3
+      GO_VERSIONS: 1.17.3 1.18.5 1.19
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
       TEST_REDIS: "on"
@@ -151,7 +151,7 @@ jobs:
       TEST_DB_NAME: test
       TEST_DB_PORT: "5432"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.15.2 1.16.9 1.17.3
+      GO_VERSIONS: 1.17.3 1.18.5 1.19
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
       TEST_REDIS: "on"
@@ -208,7 +208,7 @@ jobs:
       TEST_DB_NAME: test
       TEST_DB_PORT: "5432"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.15.2 1.16.9 1.17.3
+      GO_VERSIONS: 1.17.3 1.18.5 1.19
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
       TEST_WITH_VAULT: "on"
@@ -264,7 +264,7 @@ jobs:
       TEST_DB_NAME: test
       TEST_DB_PORT: "5432"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.15.2 1.16.9 1.17.3
+      GO_VERSIONS: 1.17.3 1.18.5 1.19
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
       TEST_WITH_VAULT: "on"
@@ -375,7 +375,7 @@ jobs:
       TEST_DB_NAME: test
       TEST_DB_PORT: "3306"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.15.2 1.16.9 1.17.3
+      GO_VERSIONS: 1.17.3 1.18.5 1.19
       TEST_MYSQL: "true"
       TEST_MARIADB: "true"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
@@ -485,7 +485,7 @@ jobs:
       TEST_DB_NAME: test
       TEST_DB_PORT: "3306"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.15.2 1.16.9 1.17.3
+      GO_VERSIONS: 1.17.3 1.18.5 1.19
       TEST_MYSQL: "true"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
