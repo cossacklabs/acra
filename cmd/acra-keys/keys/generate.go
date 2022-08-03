@@ -298,7 +298,7 @@ func (g *GenerateKeySubcommand) Execute() {
 		}
 	}
 
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(g.CommonKeyStoreParameters.VaultCLIOptions())
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(g.CommonKeyStoreParameters.VaultCLIOptions(), g.CommonKeyStoreParameters.KMSCLIOptions())
 	if err != nil {
 		return
 	}

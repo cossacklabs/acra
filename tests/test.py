@@ -3198,6 +3198,15 @@ class AWSKMSMasterKeyLoaderMixin:
         acra_kwargs.update(args)
         return super(AWSKMSMasterKeyLoaderMixin, self).fork_acra(popen_kwargs, **acra_kwargs)
 
+    def fork_translator(self, translator_kwargs, popen_kwargs=None):
+        args = {
+            'kms_credentials_path': self.config_file,
+            'kms_type': 'aws'
+        }
+        os.environ[ACRA_MASTER_KEY_VAR_NAME] = self.master_key_ciphertext
+        translator_kwargs.update(args)
+        return super(AWSKMSMasterKeyLoaderMixin, self).fork_translator(translator_kwargs, popen_kwargs)
+
     def tearDown(self):
         super().tearDown()
         self.kms_client.delete_alias(alias_name='alias/acra_master_key')
@@ -4710,6 +4719,15 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
         self.apiEncryptionTest(self.http_encrypt_request, use_http=True)
 
 
+class AcraTranslatorTestWithAWSKMS(AWSKMSMasterKeyLoaderMixin, AcraTranslatorTest):
+    # ignore test as test logic contains some internal keys generation with ENV MasterKey loading
+    def testGRPCApi(self):
+        pass
+
+    def testHTTPApi(self):
+        pass
+
+
 class TestTranslatorDisableCachedOnStartup(AcraTranslatorMixin, BaseTestCase):
     def checkSkip(self):
         super().checkSkip()
@@ -4759,6 +4777,10 @@ class TestTranslatorDisableCachedOnStartup(AcraTranslatorMixin, BaseTestCase):
             self.assertEqual(response, b"Can't encrypt data")
             with self.assertRaises(ValueError):
                 deserialize_and_decrypt_acrastruct(response, client_id_private_key, client_id)
+
+
+class TestTranslatorDisableCachedOnStartupWithAWSKMS(AWSKMSMasterKeyLoaderMixin, TestTranslatorDisableCachedOnStartup):
+    pass
 
 
 class TestTranslatorEnableCachedOnStartup(AcraTranslatorMixin, BaseTestCase):
