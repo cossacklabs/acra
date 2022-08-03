@@ -19,12 +19,15 @@ package keys
 import (
 	"errors"
 	"flag"
+	"os"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
 	"github.com/cossacklabs/acra/keystore/keyloader/kms"
+	baseKMS "github.com/cossacklabs/acra/keystore/kms"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
@@ -175,19 +178,30 @@ func OpenKeyStoreForImport(params KeyStoreParameters) (api.MutableKeyStore, erro
 }
 
 func openKeyStoreV1(params KeyStoreParameters, loader keyloader.MasterKeyLoader) (*filesystem.KeyStore, error) {
-	masterKey, err := loader.LoadMasterKey()
-	if err != nil {
-		log.WithError(err).Errorln("Cannot load master key")
-		return nil, err
-	}
-	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
-	if err != nil {
-		log.WithError(err).Errorln("Failed to initialise Secure Cell encryptor")
-		return nil, err
+	var keyStoreEncryptor keystore.KeyEncryptor
+	if kmsOptions := params.KMSCLIOptions(); kmsOptions.KMSKeystoreEncryptor {
+		keyManager, err := kmsOptions.NewKeyManager()
+		if err != nil {
+			log.WithError(err).Errorln("Failed to initializer kms KeyManager")
+			os.Exit(1)
+		}
+
+		keyStoreEncryptor = baseKMS.NewKeyEncryptor(keyManager)
+	} else {
+		masterKey, err := loader.LoadMasterKey()
+		if err != nil {
+			log.WithError(err).Errorln("Cannot load master key")
+			return nil, err
+		}
+		keyStoreEncryptor, err = keystore.NewSCellKeyEncryptor(masterKey)
+		if err != nil {
+			log.WithError(err).Errorln("Failed to initialise Secure Cell encryptor")
+			return nil, err
+		}
 	}
 
 	keyStore := filesystem.NewCustomFilesystemKeyStore()
-	keyStore.Encryptor(scellEncryptor)
+	keyStore.Encryptor(keyStoreEncryptor)
 
 	keyDir := params.KeyDir()
 	keyDirPublic := params.KeyDirPublic()

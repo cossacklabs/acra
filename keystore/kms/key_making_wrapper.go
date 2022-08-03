@@ -21,6 +21,7 @@ const (
 type KeyMaking interface {
 	zone.KeyChecker
 	keystore.KeyMaking
+	keystore.PoisonKeyStorageAndGenerator
 }
 
 // KeyMakingWrapper wrap keystore.KeyMaking implementation with KMS key creation at start

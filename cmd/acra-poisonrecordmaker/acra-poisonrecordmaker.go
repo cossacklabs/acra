@@ -36,6 +36,7 @@ import (
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
 	"github.com/cossacklabs/acra/keystore/keyloader/kms"
+	baseKMS "github.com/cossacklabs/acra/keystore/kms"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
@@ -107,20 +108,31 @@ func main() {
 }
 
 func openKeyStoreV1(output string, loader keyloader.MasterKeyLoader) keystore.PoisonKeyStorageAndGenerator {
-	masterKey, err := loader.LoadMasterKey()
-	if err != nil {
-		log.WithError(err).Errorln("Cannot load master key")
-		os.Exit(1)
-	}
-	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
-	if err != nil {
-		log.WithError(err).Errorln("Can't init scell encryptor")
-		os.Exit(1)
+	var keyStoreEncryptor keystore.KeyEncryptor
+	if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSKeystoreEncryptor {
+		keyManager, err := kmsOptions.NewKeyManager()
+		if err != nil {
+			log.WithError(err).Errorln("Failed to initializer kms KeyManager")
+			os.Exit(1)
+		}
+
+		keyStoreEncryptor = baseKMS.NewKeyEncryptor(keyManager)
+	} else {
+		masterKey, err := loader.LoadMasterKey()
+		if err != nil {
+			log.WithError(err).Errorln("Cannot load master key")
+			os.Exit(1)
+		}
+		keyStoreEncryptor, err = keystore.NewSCellKeyEncryptor(masterKey)
+		if err != nil {
+			log.WithError(err).Errorln("Can't init scell encryptor")
+			os.Exit(1)
+		}
 	}
 
-	keyStore := filesystem.NewCustomFilesystemKeyStore()
-	keyStore.KeyDirectory(output)
-	keyStore.Encryptor(scellEncryptor)
+	keyStoreBuilder := filesystem.NewCustomFilesystemKeyStore()
+	keyStoreBuilder.KeyDirectory(output)
+	keyStoreBuilder.Encryptor(keyStoreEncryptor)
 	redis := cmd.GetRedisParameters()
 	if redis.KeysConfigured() {
 		keyStorage, err := filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
@@ -129,12 +141,17 @@ func openKeyStoreV1(output string, loader keyloader.MasterKeyLoader) keystore.Po
 				Errorln("Can't initialize Redis client")
 			os.Exit(1)
 		}
-		keyStore.Storage(keyStorage)
+		keyStoreBuilder.Storage(keyStorage)
 	}
-	keyStoreV1, err := keyStore.Build()
+	keyStoreV1, err := keyStoreBuilder.Build()
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore")
 		os.Exit(1)
+	}
+
+	if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSKeystoreEncryptor {
+		keyManager, _ := kmsOptions.NewKeyManager()
+		return baseKMS.NewKeyMakingWrapper(keyStoreV1, keyManager)
 	}
 	return keyStoreV1
 }

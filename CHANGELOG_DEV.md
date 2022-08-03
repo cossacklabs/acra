@@ -1,6 +1,6 @@
 # 0.94.0 - 2022-08-03
 - Implement KMS Keystore encryptor
-- Extend `acra-keymaker` and `acra-addzone` tools with ability to create key encryption keys on KMS
+- Extend `acra-keymaker`, `acra-addzone` and `acra-poisonrecord` tools with ability to create key encryption keys on KMS
 
 # 0.94.0 - 2022-07-08
 - Extend encryptor config struct with database settings section
