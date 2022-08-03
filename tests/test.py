@@ -274,7 +274,7 @@ def get_tls_connection_args(client_key, client_cert, for_mysql=TEST_MYSQL):
             'sslcert': client_cert,
             'sslkey': client_key,
             'sslrootcert': TEST_TLS_CA,
-            'sslmode': 'require',
+            'sslmode': SSLMODE,
         })
     return connect_args
 
@@ -1465,19 +1465,12 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     def with_tls(self):
         return TEST_WITH_TLS
 
-    def _fork_acra(self, acra_kwargs, popen_kwargs):
-        logging.info("fork acra")
+    def get_acra_cli_args(self, acra_kwargs):
         connection_string = self.get_acraserver_connection_string(
             acra_kwargs.get('incoming_connection_port', self.ACRASERVER_PORT))
         api_connection_string = self.get_acraserver_api_connection_string(
             acra_kwargs.get('incoming_connection_api_port')
         )
-        for path in [socket_path_from_connection_string(connection_string), socket_path_from_connection_string(api_connection_string)]:
-            try:
-                os.remove(path)
-            except:
-                pass
-
         args = {
             'db_host': DB_HOST,
             'db_port': DB_PORT,
@@ -1526,6 +1519,18 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             args['mysql_enable'] = 'true'
             args['postgresql_enable'] = 'false'
         args.update(acra_kwargs)
+        return args
+
+    def _fork_acra(self, acra_kwargs, popen_kwargs):
+        logging.info("fork acra")
+        args = self.get_acra_cli_args(acra_kwargs)
+        for path in [socket_path_from_connection_string(args['incoming_connection_string']),
+                     socket_path_from_connection_string(args['incoming_connection_api_string'])]:
+            try:
+                os.remove(path)
+            except:
+                pass
+
         if not popen_kwargs:
             popen_kwargs = {}
         cli_args = sorted(['--{}={}'.format(k, v) for k, v in args.items() if v is not None])
@@ -1534,7 +1539,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         process = fork(lambda: subprocess.Popen([self.get_acraserver_bin_path()] + cli_args,
                                                      **popen_kwargs))
         try:
-            self.wait_acraserver_connection(connection_string)
+            self.wait_acraserver_connection(args['incoming_connection_string'])
         except:
             stop_process(process)
             raise
@@ -1587,7 +1592,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra()
 
-            base_args = get_connect_args(port=self.ACRASERVER_PORT, sslmode='require')
+            base_args = get_connect_args(port=self.ACRASERVER_PORT, sslmode=SSLMODE)
 
             tls_args_1 = base_args.copy()
             tls_args_1.update(get_tls_connection_args(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT))
@@ -1746,6 +1751,17 @@ class AcraTranslatorMixin(object):
             # https://requests.readthedocs.io/en/master/user/advanced/#client-side-certificates
             # first crt, second key
             'cert': (TEST_TLS_CLIENT_CERT, TEST_TLS_CLIENT_KEY),
+        }
+
+    def get_base_translator_args(self):
+        return {
+            'tls_ocsp_from_cert': 'ignore',
+            'tls_crl_from_cert': 'ignore',
+            'tls_key': abs_path(TEST_TLS_SERVER_KEY),
+            'tls_cert': abs_path(TEST_TLS_SERVER_CERT),
+            'tls_ca': TEST_TLS_CA,
+            'tls_identifier_extractor_type': self.get_identifier_extractor_type(),
+            'acratranslator_client_id_from_connection_enable': 'true',
         }
 
     def http_decrypt_request(self, port, client_id, zone_id, acrastruct):
@@ -2632,17 +2648,6 @@ class BasePoisonRecordTest(AcraCatchLogsMixin, AcraTranslatorMixin, BaseTestCase
         translator_kwargs.update(args)
 
         return super(BasePoisonRecordTest, self).fork_translator(translator_kwargs, popen_kwargs)
-
-    def get_base_translator_args(self):
-        return {
-            'tls_ocsp_from_cert': 'ignore',
-            'tls_crl_from_cert': 'ignore',
-            'tls_key': abs_path(TEST_TLS_SERVER_KEY),
-            'tls_cert': abs_path(TEST_TLS_SERVER_CERT),
-            'tls_ca': TEST_TLS_CA,
-            'tls_identifier_extractor_type': self.get_identifier_extractor_type(),
-            'acratranslator_client_id_from_connection_enable': 'true',
-        }
 
 
 class TestPoisonRecordShutdown(BasePoisonRecordTest):
@@ -10609,6 +10614,146 @@ class TestDifferentCaseTableIdentifiersMySQL(BaseTransparentEncryption):
         QUOTED, NOT_QUOTED = (True, False)
         SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
         self.runTestCase("UPPERCASE_TABLE", NOT_QUOTED, "data", NOT_QUOTED, SHOULD_MATCH)
+
+
+class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
+    def setUp(self):
+        pass
+
+    def copy_keystore(self):
+        new_keystore = tempfile.mkdtemp()
+        return shutil.copytree(KEYS_FOLDER.name, new_keystore, dirs_exist_ok=True)
+
+    def find_forked_pid(self, filepath):
+        with open(filepath, 'r') as f:
+            for line in f:
+                if 'process forked to PID' in line:
+                    pid = re.search(r'(\d+)', line).group(1)
+                    return int(pid)
+
+    def testAcraServerReload(self):
+        '''verify keys_dir changing on SIGHUP after changing config file and keep PORT same due to re-use of socket
+        descriptors
+        '''
+        acra_args = self.get_acra_cli_args({})
+        temp_keystore = self.copy_keystore()
+        config = load_yaml_config('configs/acra-server.yaml')
+        config.update(acra_args)
+        config['keys_dir'] = temp_keystore
+        config['log_to_file'] = tempfile.NamedTemporaryFile().name
+        temp_config = tempfile.NamedTemporaryFile()
+        dump_yaml_config(config, temp_config.name)
+
+        acra = fork(lambda: subprocess.Popen([
+            self.get_acraserver_bin_path(), '--config_file={}'.format(temp_config.name)]))
+        try:
+            self.wait_acraserver_connection(config['incoming_connection_string'])
+        except:
+            stop_process(acra)
+            shutil.rmtree(temp_keystore)
+            raise
+        test_engine = None
+        try:
+            # copied from BaseTestCase._fork_acra
+            base_args = get_connect_args(port=self.ACRASERVER_PORT, sslmode=SSLMODE)
+            tls_args = base_args.copy()
+            tls_args.update(get_tls_connection_args(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT))
+            connect_str = get_engine_connection_string(
+                self.get_acraserver_connection_string(self.ACRASERVER_PORT), DB_NAME)
+            test_engine = sa.create_engine(connect_str, connect_args=tls_args)
+
+            result = test_engine.execute('select 1').fetchone()
+            self.assertEqual(1, result[0])
+
+            # use another keystore and delete previous
+            shutil.rmtree(temp_keystore)
+            config['keys_dir'] = KEYS_FOLDER.name
+            test_port = utils.get_free_port()
+            connection_string = self.get_acraserver_connection_string(test_port)
+            config['incoming_connection_string'] = connection_string
+            dump_yaml_config(config, temp_config.name)
+            acra.send_signal(signal.SIGHUP)
+            # close current connections
+            test_engine.dispose()
+
+            connect_str = get_engine_connection_string(
+                self.get_acraserver_connection_string(self.ACRASERVER_PORT), DB_NAME)
+            tls_args['port'] = self.ACRASERVER_PORT
+            test_engine = sa.create_engine(connect_str, connect_args=tls_args)
+
+            result = test_engine.execute('select 1').fetchone()
+            self.assertEqual(1, result[0])
+
+            with self.assertRaises(Exception) as exc:
+                wait_connection(test_port, 1)
+            self.assertEqual(exc.exception.args[0], WAIT_CONNECTION_ERROR_MESSAGE)
+        finally:
+            pid = self.find_forked_pid(config['log_to_file'])
+            if pid:
+                os.kill(pid, signal.SIGKILL)
+            os.remove(config['log_to_file'])
+            if test_engine:
+                test_engine.dispose()
+            stop_process(acra)
+
+    def testAcraTranslatorReload(self):
+        '''verify keys_dir changing on SIGHUP after changing config file and keep PORT same due to re-use of socket
+        descriptors
+        '''
+        grpc_port = utils.get_free_port()
+        temp_keystore = self.copy_keystore()
+        default_args = self.get_base_translator_args()
+        default_args.update({
+            'd': 1,
+            'incoming_connection_close_timeout': 0,
+            'logging_format': 'cef',
+            'keystore_cache_on_start_enable': 'false',
+            'incoming_connection_grpc_string': 'tcp://127.0.0.1:{}'.format(grpc_port),
+            'keys_dir': temp_keystore,
+            'log_to_file': tempfile.NamedTemporaryFile().name,
+        })
+        config = load_yaml_config('configs/acra-translator.yaml')
+        config.update(default_args)
+        temp_config = tempfile.NamedTemporaryFile()
+        dump_yaml_config(config, temp_config.name)
+
+        translator = fork(lambda: subprocess.Popen([os.path.join(BINARY_OUTPUT_FOLDER, 'acra-translator'),
+                                                    '--config_file={}'.format(temp_config.name)]))
+        try:
+            wait_connection(grpc_port)
+        except:
+            stop_process(translator)
+            shutil.rmtree(temp_keystore)
+            raise
+        test_data = b'test data'
+        try:
+            ciphertext = self.grpc_encrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, None, test_data)
+            self.assertNotEqual(ciphertext, b'')
+            # load default config
+            shutil.rmtree(temp_keystore)
+            config['keys_dir'] = KEYS_FOLDER.name
+            new_grpc_port = utils.get_free_port()
+            config['incoming_connection_grpc_string'] = 'tcp://127.0.0.1:{}'.format(new_grpc_port)
+            dump_yaml_config(config, temp_config.name)
+            translator.send_signal(signal.SIGHUP)
+            try:
+                wait_connection(grpc_port)
+            except:
+                stop_process(translator)
+                raise
+
+            plaintext = self.grpc_decrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, None, ciphertext)
+            self.assertEqual(plaintext, test_data)
+
+            with self.assertRaises(Exception) as exc:
+                wait_connection(new_grpc_port, 1)
+            self.assertEqual(exc.exception.args[0], WAIT_CONNECTION_ERROR_MESSAGE)
+        finally:
+            stop_process(translator)
+            pid = self.find_forked_pid(config['log_to_file'])
+            if pid:
+                os.kill(pid, signal.SIGKILL)
+            os.remove(config['log_to_file'])
 
 
 if __name__ == '__main__':
