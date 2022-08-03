@@ -33,7 +33,6 @@ var SupportedPolicies = []string{
 type CLIOptions struct {
 	KMSType              string
 	CredentialsPath      string
-	KeyPolicy            string
 	KMSKeystoreEncryptor bool
 }
 
@@ -52,9 +51,7 @@ func (options *CLIOptions) RegisterCLIParameters(flags *flag.FlagSet, prefix str
 	}
 	if flags.Lookup(prefix+"kms_type") == nil {
 		flags.StringVar(&options.KMSType, prefix+"kms_type", "", fmt.Sprintf("KMS type for using: <%s>", strings.Join(supportedTypes, "|")+description))
-		// TODO: how to better provide an example of configuration files for different providers
 		flags.StringVar(&options.CredentialsPath, prefix+"kms_credentials_path", "", "KMS credentials JSON file path"+description)
-		flags.StringVar(&options.CredentialsPath, "kms_key_policy", KeyPolicyCreate, fmt.Sprintf("KMS usage key policy: <%s>", strings.Join(SupportedPolicies, "|")))
 		flags.BoolVar(&options.KMSKeystoreEncryptor, "kms_keystore_encryptor", false, "Use KMS for keystore encryption")
 	}
 }

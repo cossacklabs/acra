@@ -17,9 +17,6 @@ keys_output_dir: .acrakeys
 # KMS credentials JSON file path
 kms_credentials_path: 
 
-# KMS usage key policy: <create>
-kms_key_policy: create
-
 # Use KMS for keystore encryption
 kms_keystore_encryptor: false
 

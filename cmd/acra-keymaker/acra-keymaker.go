@@ -67,6 +67,7 @@ func main() {
 	poisonRecord := flag.Bool("generate_poisonrecord_keys", false, "Generate keypair and symmetric key for poison records")
 	cmd.RegisterRedisKeyStoreParameters()
 	keystoreVersion := flag.String("keystore", "", "set keystore format: v1 (current), v2 (new)")
+	kmsKeyPolicy := flag.String("kms_key_policy", kms.KeyPolicyCreate, fmt.Sprintf("KMS usage key policy: <%s>", strings.Join(kms.SupportedPolicies, "|")))
 
 	tlsClientCert := flag.String("tls_cert", "", "Path to TLS certificate to use as client_id identifier")
 	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
@@ -157,7 +158,7 @@ func main() {
 				os.Exit(1)
 			}
 
-			switch kmsOptions.KeyPolicy {
+			switch *kmsKeyPolicy {
 			case kms.KeyPolicyCreate:
 				newKey, err = newMasterKeyWithKMSCreate(keyManager, newKey)
 				if err != nil {
@@ -166,7 +167,7 @@ func main() {
 				}
 
 			default:
-				log.WithField("supported", kms.SupportedPolicies).WithField("policy", kmsOptions.KeyPolicy).Errorln("Unsupported key policy for `kms_key_policy`")
+				log.WithField("supported", kms.SupportedPolicies).WithField("policy", *kmsKeyPolicy).Errorln("Unsupported key policy for `kms_key_policy`")
 				os.Exit(1)
 			}
 		}
