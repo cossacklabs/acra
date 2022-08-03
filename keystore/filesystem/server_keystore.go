@@ -442,14 +442,14 @@ func (store *KeyStore) backupHistoricalKeyFile(filename string) error {
 func (store *KeyStore) generateZoneKey(id []byte) ([]byte, []byte, error) {
 	/* save private key in fs, return id and public key*/
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeStorageZonePrivateKey).WithContext(id).WithZoneID(id)
-	keypair, err := store.generateKeyPair(GetZoneKeyFilename(id), *keyContext)
+	keyContext := keystore.NewZoneIDKeyContext(keystore.PurposeStorageZonePrivateKey, id)
+	keypair, err := store.generateKeyPair(GetZoneKeyFilename(id), keyContext)
 	if err != nil {
 		return []byte{}, []byte{}, err
 	}
 	store.lock.Lock()
 	defer store.lock.Unlock()
-	cacheEncryptedKey, err := store.cacheEncryptor.Encrypt(store.encryptorCtx, keypair.Private.Value, *keyContext)
+	cacheEncryptedKey, err := store.cacheEncryptor.Encrypt(store.encryptorCtx, keypair.Private.Value, keyContext)
 	if err != nil {
 		return nil, nil, nil
 	}
@@ -656,8 +656,8 @@ func (store *KeyStore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.Pu
 func (store *KeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
 	fname := GetZoneKeyFilename(id)
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeStorageZonePrivateKey).WithZoneID(id).WithContext(id)
-	return store.getPrivateKeyByFilename(fname, *keyContext)
+	keyContext := keystore.NewZoneIDKeyContext(keystore.PurposeStorageZonePrivateKey, id)
+	return store.getPrivateKeyByFilename(fname, keyContext)
 }
 
 // HasZonePrivateKey returns if private key for this zoneID exists in cache or is written to fs.
@@ -689,8 +689,8 @@ func (store *KeyStore) GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error)
 	if err != nil {
 		return nil, err
 	}
-	keyContext := keystore.NewKeyContext(keystore.PurposeStorageZonePrivateKey).WithZoneID(id).WithContext(id)
-	return store.getPrivateKeysByFilenames(filenames, *keyContext)
+	keyContext := keystore.NewZoneIDKeyContext(keystore.PurposeStorageZonePrivateKey, id)
+	return store.getPrivateKeysByFilenames(filenames, keyContext)
 }
 
 // GetPeerPublicKey returns public key for this clientID, gets it from cache or reads from fs.
@@ -720,8 +720,8 @@ func (store *KeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
 func (store *KeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
 	fname := getServerKeyFilename(id)
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeStorageClientPrivateKey).WithClientID(id).WithContext(id)
-	return store.getPrivateKeyByFilename(fname, *keyContext)
+	keyContext := keystore.NewClientIDKeyContext(keystore.PurposeStorageClientPrivateKey, id)
+	return store.getPrivateKeyByFilename(fname, keyContext)
 }
 
 // GetServerDecryptionPrivateKey reads encrypted server storage private key from fs,
@@ -729,8 +729,8 @@ func (store *KeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
 // and returns plaintext private key, or reading/decryption error.
 func (store *KeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error) {
 	fname := GetServerDecryptionKeyFilename(id)
-	keyContext := keystore.NewKeyContext(keystore.PurposeStorageClientPrivateKey).WithClientID(id).WithContext(id)
-	return store.getPrivateKeyByFilename(fname, *keyContext)
+	keyContext := keystore.NewClientIDKeyContext(keystore.PurposeStorageClientPrivateKey, id)
+	return store.getPrivateKeyByFilename(fname, keyContext)
 }
 
 // GetServerDecryptionPrivateKeys reads encrypted server storage private keys from fs,
@@ -742,8 +742,8 @@ func (store *KeyStore) GetServerDecryptionPrivateKeys(id []byte) ([]*keys.Privat
 		return nil, err
 	}
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeStorageClientPrivateKey).WithClientID(id).WithContext(id)
-	return store.getPrivateKeysByFilenames(filenames, *keyContext)
+	keyContext := keystore.NewClientIDKeyContext(keystore.PurposeStorageClientPrivateKey, id)
+	return store.getPrivateKeysByFilenames(filenames, keyContext)
 }
 
 // GenerateConnectorKeys generates AcraConnector transport EC keypair using clientID as part of key name.
@@ -755,8 +755,8 @@ func (store *KeyStore) GenerateConnectorKeys(id []byte) error {
 	}
 	filename := getConnectorKeyFilename(id)
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeLegacy).WithContext(id)
-	_, err := store.generateKeyPair(filename, *keyContext)
+	keyContext := keystore.NewKeyContext(keystore.PurposeLegacy, id)
+	_, err := store.generateKeyPair(filename, keyContext)
 	if err != nil {
 		return err
 	}
@@ -772,8 +772,8 @@ func (store *KeyStore) GenerateServerKeys(id []byte) error {
 	}
 	filename := getServerKeyFilename(id)
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeLegacy).WithContext(id)
-	_, err := store.generateKeyPair(filename, *keyContext)
+	keyContext := keystore.NewKeyContext(keystore.PurposeLegacy, id)
+	_, err := store.generateKeyPair(filename, keyContext)
 	if err != nil {
 		return err
 	}
@@ -789,8 +789,8 @@ func (store *KeyStore) GenerateTranslatorKeys(id []byte) error {
 	}
 	filename := getTranslatorKeyFilename(id)
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeLegacy).WithContext(id)
-	_, err := store.generateKeyPair(filename, *keyContext)
+	keyContext := keystore.NewKeyContext(keystore.PurposeLegacy, id)
+	_, err := store.generateKeyPair(filename, keyContext)
 	if err != nil {
 		return err
 	}
@@ -806,8 +806,8 @@ func (store *KeyStore) GenerateDataEncryptionKeys(id []byte) error {
 		return keystore.ErrInvalidClientID
 	}
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeStorageClientPrivateKey).WithClientID(id).WithContext(id)
-	_, err := store.generateKeyPair(GetServerDecryptionKeyFilename(id), *keyContext)
+	keyContext := keystore.NewClientIDKeyContext(keystore.PurposeStorageClientPrivateKey, id)
+	_, err := store.generateKeyPair(GetServerDecryptionKeyFilename(id), keyContext)
 	if err != nil {
 		return err
 	}
@@ -997,12 +997,12 @@ func (store *KeyStore) Reset() {
 // Returns an error if fs or crypto operations fail. Also, returns ErrKeysNotFound
 // if the key pair doesn't exist.
 func (store *KeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
-	keyContext := keystore.NewKeyContext(keystore.PurposePoisonRecordKeyPair).WithContext([]byte(PoisonKeyFilename))
+	keyContext := keystore.NewKeyContext(keystore.PurposePoisonRecordKeyPair, []byte(PoisonKeyFilename))
 
 	privateKey, privateOk := store.cache.Get(PoisonKeyFilename)
 	publicKey, publicOk := store.cache.Get(poisonKeyFilenamePublic)
 	if privateOk && publicOk {
-		decryptedPrivate, err := store.cacheEncryptor.Decrypt(store.encryptorCtx, privateKey, *keyContext)
+		decryptedPrivate, err := store.cacheEncryptor.Decrypt(store.encryptorCtx, privateKey, keyContext)
 		if err != nil {
 			return nil, err
 		}
@@ -1016,11 +1016,11 @@ func (store *KeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 		}
 		return nil, err
 	}
-	if private.Value, err = store.encryptor.Decrypt(store.encryptorCtx, private.Value, *keyContext); err != nil {
+	if private.Value, err = store.encryptor.Decrypt(store.encryptorCtx, private.Value, keyContext); err != nil {
 		return nil, err
 	}
 
-	cacheEncrypted, err := store.cacheEncryptor.Encrypt(store.encryptorCtx, private.Value, *keyContext)
+	cacheEncrypted, err := store.cacheEncryptor.Encrypt(store.encryptorCtx, private.Value, keyContext)
 	if err != nil {
 		return nil, err
 	}
@@ -1047,8 +1047,8 @@ func (store *KeyStore) GetPoisonPrivateKeys() ([]*keys.PrivateKey, error) {
 		return nil, err
 	}
 
-	keyContext := keystore.NewKeyContext(keystore.PurposePoisonRecordKeyPair).WithContext([]byte(PoisonKeyFilename))
-	poisonKeys, err := store.getPrivateKeysByFilenames(filenames, *keyContext)
+	keyContext := keystore.NewKeyContext(keystore.PurposePoisonRecordKeyPair, []byte(PoisonKeyFilename))
+	poisonKeys, err := store.getPrivateKeysByFilenames(filenames, keyContext)
 	if err != nil {
 		if IsKeyReadError(err) {
 			return nil, keystore.ErrKeysNotFound
@@ -1068,8 +1068,8 @@ func (store *KeyStore) GetPoisonPrivateKeys() ([]*keys.PrivateKey, error) {
 func (store *KeyStore) GetPoisonSymmetricKeys() ([][]byte, error) {
 	keyFileName := getSymmetricKeyName(PoisonKeyFilename)
 
-	keyContext := keystore.NewKeyContext(keystore.PurposePoisonRecordSymmetricKey).WithContext([]byte(keyFileName))
-	keys, err := store.getSymmetricKeys(keyFileName, *keyContext)
+	keyContext := keystore.NewKeyContext(keystore.PurposePoisonRecordSymmetricKey, []byte(keyFileName))
+	keys, err := store.getSymmetricKeys(keyFileName, keyContext)
 
 	if err != nil {
 		if IsKeyReadError(err) {
@@ -1089,8 +1089,8 @@ func (store *KeyStore) GetPoisonSymmetricKeys() ([][]byte, error) {
 func (store *KeyStore) GetPoisonSymmetricKey() ([]byte, error) {
 	keyFileName := getSymmetricKeyName(PoisonKeyFilename)
 
-	keyContext := keystore.NewKeyContext(keystore.PurposePoisonRecordSymmetricKey).WithContext([]byte(keyFileName))
-	key, err := store.getLatestSymmetricKey(keyFileName, *keyContext)
+	keyContext := keystore.NewKeyContext(keystore.PurposePoisonRecordSymmetricKey, []byte(keyFileName))
+	key, err := store.getLatestSymmetricKey(keyFileName, keyContext)
 	if err == nil {
 		return key, nil
 	}
@@ -1112,24 +1112,24 @@ func (store *KeyStore) RotateZoneKey(zoneID []byte) ([]byte, error) {
 func (store *KeyStore) RotateSymmetricZoneKey(zoneID []byte) error {
 	keyName := getZoneIDSymmetricKeyName(zoneID)
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeStorageZoneSymmetricKey).WithZoneID(zoneID).WithContext(zoneID)
-	return store.generateAndSaveSymmetricKey(store.GetPrivateKeyFilePath(keyName), *keyContext)
+	keyContext := keystore.NewZoneIDKeyContext(keystore.PurposeStorageZoneSymmetricKey, zoneID)
+	return store.generateAndSaveSymmetricKey(store.GetPrivateKeyFilePath(keyName), keyContext)
 }
 
 // SaveZoneKeypair save or overwrite zone keypair
 func (store *KeyStore) SaveZoneKeypair(id []byte, keypair *keys.Keypair) error {
 	filename := GetZoneKeyFilename(id)
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeStorageZonePrivateKey).WithZoneID(id).WithContext(id)
-	return store.SaveKeyPairWithFilename(keypair, filename, *keyContext)
+	keyContext := keystore.NewZoneIDKeyContext(keystore.PurposeStorageZonePrivateKey, id)
+	return store.SaveKeyPairWithFilename(keypair, filename, keyContext)
 }
 
 // SaveDataEncryptionKeys save or overwrite decryption keypair for client id
 func (store *KeyStore) SaveDataEncryptionKeys(id []byte, keypair *keys.Keypair) error {
 	filename := GetServerDecryptionKeyFilename(id)
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeStorageClientPrivateKey).WithClientID(id).WithContext(id)
-	return store.SaveKeyPairWithFilename(keypair, filename, *keyContext)
+	keyContext := keystore.NewClientIDKeyContext(keystore.PurposeStorageClientPrivateKey, id)
+	return store.SaveKeyPairWithFilename(keypair, filename, keyContext)
 }
 
 // destroyKeyWithFilename removes private and public key with given filename.
@@ -1183,15 +1183,15 @@ func (store *KeyStore) Get(keyID string) ([]byte, bool) {
 // GetHMACSecretKey return key for hmac calculation according to id
 func (store *KeyStore) GetHMACSecretKey(id []byte) ([]byte, error) {
 	filename := getHmacKeyFilename(id)
-	keyContext := keystore.NewKeyContext(keystore.PurposeSearchHMAC).WithClientID(id).WithContext(id)
+	keyContext := keystore.NewClientIDKeyContext(keystore.PurposeSearchHMAC, id)
 
 	encryptedKey, ok := store.Get(filename)
 	if !ok {
-		return store.loadKeyAndCache(filename, *keyContext, func() ([]byte, error) {
+		return store.loadKeyAndCache(filename, keyContext, func() ([]byte, error) {
 			return store.ReadKeyFile(store.GetPrivateKeyFilePath(filename))
 		})
 	}
-	return store.cacheEncryptor.Decrypt(store.encryptorCtx, encryptedKey, *keyContext)
+	return store.cacheEncryptor.Decrypt(store.encryptorCtx, encryptedKey, keyContext)
 }
 
 // GenerateHmacKey key for hmac calculation in in folder for private keys
@@ -1202,13 +1202,13 @@ func (store *KeyStore) GenerateHmacKey(id []byte) error {
 		return err
 	}
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeSearchHMAC).WithContext(id).WithClientID(id)
-	encryptedKey, err := store.encryptor.Encrypt(store.encryptorCtx, key, *keyContext)
+	keyContext := keystore.NewClientIDKeyContext(keystore.PurposeSearchHMAC, id)
+	encryptedKey, err := store.encryptor.Encrypt(store.encryptorCtx, key, keyContext)
 	if err != nil {
 		return err
 	}
 
-	cacheEncryptedKey, err := store.cacheEncryptor.Encrypt(store.encryptorCtx, key, *keyContext)
+	cacheEncryptedKey, err := store.cacheEncryptor.Encrypt(store.encryptorCtx, key, keyContext)
 	if err != nil {
 		return err
 	}
@@ -1234,13 +1234,13 @@ func (store *KeyStore) GenerateLogKey() error {
 		return err
 	}
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeAuditLog).WithContext([]byte(SecureLogKeyFilename))
-	encryptedKey, err := store.encryptor.Encrypt(store.encryptorCtx, key, *keyContext)
+	keyContext := keystore.NewKeyContext(keystore.PurposeAuditLog, []byte(SecureLogKeyFilename))
+	encryptedKey, err := store.encryptor.Encrypt(store.encryptorCtx, key, keyContext)
 	if err != nil {
 		return err
 	}
 
-	cacheEncryptedKey, err := store.cacheEncryptor.Encrypt(store.encryptorCtx, key, *keyContext)
+	cacheEncryptedKey, err := store.cacheEncryptor.Encrypt(store.encryptorCtx, key, keyContext)
 	if err != nil {
 		return err
 	}
@@ -1261,16 +1261,16 @@ func (store *KeyStore) GenerateLogKey() error {
 // GetLogSecretKey return key for log integrity checks
 func (store *KeyStore) GetLogSecretKey() ([]byte, error) {
 	filename := getLogKeyFilename()
-	keyContext := keystore.NewKeyContext(keystore.PurposeAuditLog).WithContext([]byte(SecureLogKeyFilename))
+	keyContext := keystore.NewKeyContext(keystore.PurposeAuditLog, []byte(SecureLogKeyFilename))
 
 	encryptedKey, ok := store.Get(filename)
 	if !ok {
-		return store.loadKeyAndCache(filename, *keyContext, func() ([]byte, error) {
+		return store.loadKeyAndCache(filename, keyContext, func() ([]byte, error) {
 			return store.ReadKeyFile(store.GetPrivateKeyFilePath(filename))
 		})
 	}
 
-	return store.cacheEncryptor.Decrypt(store.encryptorCtx, encryptedKey, *keyContext)
+	return store.cacheEncryptor.Decrypt(store.encryptorCtx, encryptedKey, keyContext)
 }
 
 // generateSymmetricKey generate symmetric key with specific identifier
@@ -1323,16 +1323,16 @@ func (store *KeyStore) loadKeyAndCache(filename string, keyContext keystore.KeyC
 func (store *KeyStore) GenerateClientIDSymmetricKey(id []byte) error {
 	keyName := getClientIDSymmetricKeyName(id)
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeStorageClientSymmetricKey).WithClientID(id).WithContext(id)
-	return store.generateAndSaveSymmetricKey(store.GetPrivateKeyFilePath(keyName), *keyContext)
+	keyContext := keystore.NewClientIDKeyContext(keystore.PurposeStorageClientSymmetricKey, id)
+	return store.generateAndSaveSymmetricKey(store.GetPrivateKeyFilePath(keyName), keyContext)
 }
 
 // GenerateZoneIDSymmetricKey generate symmetric key for specified zone id
 func (store *KeyStore) GenerateZoneIDSymmetricKey(id []byte) error {
 	keyName := getZoneIDSymmetricKeyName(id)
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeStorageZoneSymmetricKey).WithZoneID(id).WithContext(id)
-	return store.generateAndSaveSymmetricKey(store.GetPrivateKeyFilePath(keyName), *keyContext)
+	keyContext := keystore.NewZoneIDKeyContext(keystore.PurposeStorageZoneSymmetricKey, id)
+	return store.generateAndSaveSymmetricKey(store.GetPrivateKeyFilePath(keyName), keyContext)
 }
 
 // GeneratePoisonSymmetricKey generate symmetric key for poison records
@@ -1340,15 +1340,15 @@ func (store *KeyStore) GeneratePoisonSymmetricKey() error {
 	keyName := getSymmetricKeyName(PoisonKeyFilename)
 	keyPath := store.GetPrivateKeyFilePath(keyName)
 
-	keyContext := keystore.NewKeyContext(keystore.PurposePoisonRecordSymmetricKey).WithContext([]byte(keyName))
-	return store.generateAndSaveSymmetricKey(keyPath, *keyContext)
+	keyContext := keystore.NewKeyContext(keystore.PurposePoisonRecordSymmetricKey, []byte(keyName))
+	return store.generateAndSaveSymmetricKey(keyPath, keyContext)
 }
 
 // GeneratePoisonKeyPair generates new poison keypair, saving it in the storage.
 // Old keypair is rotated.
 func (store *KeyStore) GeneratePoisonKeyPair() error {
-	keyContext := keystore.NewKeyContext(keystore.PurposePoisonRecordKeyPair).WithContext([]byte(PoisonKeyFilename))
-	_, err := store.generateKeyPair(PoisonKeyFilename, *keyContext)
+	keyContext := keystore.NewKeyContext(keystore.PurposePoisonRecordKeyPair, []byte(PoisonKeyFilename))
+	_, err := store.generateKeyPair(PoisonKeyFilename, keyContext)
 	return err
 }
 
@@ -1388,30 +1388,30 @@ func (store *KeyStore) getLatestSymmetricKey(keyname string, keyContext keystore
 func (store *KeyStore) GetClientIDSymmetricKeys(id []byte) ([][]byte, error) {
 	keyName := getClientIDSymmetricKeyName(id)
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeStorageClientSymmetricKey).WithContext(id).WithClientID(id)
-	return store.getSymmetricKeys(keyName, *keyContext)
+	keyContext := keystore.NewClientIDKeyContext(keystore.PurposeStorageClientSymmetricKey, id)
+	return store.getSymmetricKeys(keyName, keyContext)
 }
 
 // GetClientIDSymmetricKey return latest symmetric key for encryption by specified client id
 func (store *KeyStore) GetClientIDSymmetricKey(id []byte) ([]byte, error) {
 	keyName := getClientIDSymmetricKeyName(id)
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeStorageClientSymmetricKey).WithContext(id).WithClientID(id)
-	return store.getLatestSymmetricKey(keyName, *keyContext)
+	keyContext := keystore.NewClientIDKeyContext(keystore.PurposeStorageClientSymmetricKey, id)
+	return store.getLatestSymmetricKey(keyName, keyContext)
 }
 
 // GetZoneIDSymmetricKeys return symmetric keys for specified zone id
 func (store *KeyStore) GetZoneIDSymmetricKeys(id []byte) ([][]byte, error) {
 	keyName := getZoneIDSymmetricKeyName(id)
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeStorageZoneSymmetricKey).WithContext(id).WithZoneID(id)
-	return store.getSymmetricKeys(keyName, *keyContext)
+	keyContext := keystore.NewZoneIDKeyContext(keystore.PurposeStorageZoneSymmetricKey, id)
+	return store.getSymmetricKeys(keyName, keyContext)
 }
 
 // GetZoneIDSymmetricKey return latest symmetric key for encryption in specified zone id
 func (store *KeyStore) GetZoneIDSymmetricKey(id []byte) ([]byte, error) {
 	keyName := getZoneIDSymmetricKeyName(id)
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeStorageZoneSymmetricKey).WithContext(id).WithZoneID(id)
-	return store.getLatestSymmetricKey(keyName, *keyContext)
+	keyContext := keystore.NewZoneIDKeyContext(keystore.PurposeStorageZoneSymmetricKey, id)
+	return store.getLatestSymmetricKey(keyName, keyContext)
 }

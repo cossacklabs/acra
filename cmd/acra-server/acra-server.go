@@ -874,7 +874,7 @@ func openKeyStoreV1(output string, cacheSize int, loader keyloader.MasterKeyLoad
 	var keyStoreEncryptor keystore.KeyEncryptor
 	// TODO: consider creating new flag exactly for KMS keystore
 
-	if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSType != "" {
+	if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSKeystoreEncryptor {
 		keyManager, err := kmsOptions.NewKeyManager()
 		if err != nil {
 			log.WithError(err).Errorln("Failed to initializer kms KeyManager")

@@ -220,33 +220,48 @@ type KeyContext struct {
 }
 
 // NewEmptyKeyContext create new empty key context
-func NewEmptyKeyContext() *KeyContext {
-	return &KeyContext{}
-}
-
-// NewKeyContext create new key context with key purpose
-func NewKeyContext(purpose KeyPurpose) *KeyContext {
-	return &KeyContext{
-		Purpose: purpose,
+func NewEmptyKeyContext(ctx []byte) KeyContext {
+	return KeyContext{
+		Context: ctx,
 	}
 }
 
-// WithZoneID set zoneID to key context
-func (k *KeyContext) WithZoneID(zoneID []byte) *KeyContext {
-	k.ZoneID = zoneID
-	return k
+// NewKeyContext create new key context with key purpose and pure context
+func NewKeyContext(purpose KeyPurpose, ctx []byte) KeyContext {
+	return KeyContext{
+		Purpose: purpose,
+		Context: ctx,
+	}
 }
 
-// WithClientID set clientID to key context
-func (k *KeyContext) WithClientID(clientID []byte) *KeyContext {
-	k.ClientID = clientID
-	return k
+// NewClientIDKeyContext create new key context with key purpose and clientID
+func NewClientIDKeyContext(purpose KeyPurpose, clientID []byte) KeyContext {
+	return KeyContext{
+		Purpose:  purpose,
+		ClientID: clientID,
+	}
 }
 
-// WithContext set encryption context to key context
-func (k *KeyContext) WithContext(ctx []byte) *KeyContext {
-	k.Context = ctx
-	return k
+// NewZoneIDKeyContext create new key context with key purpose and zoneID
+func NewZoneIDKeyContext(purpose KeyPurpose, zoneID []byte) KeyContext {
+	return KeyContext{
+		Purpose: purpose,
+		ZoneID:  zoneID,
+	}
+}
+
+// GetKeyContextFromContext return byte context depending on provided options
+func GetKeyContextFromContext(keyContext KeyContext) []byte {
+	if keyContext.ClientID != nil {
+		return keyContext.ClientID
+	}
+	if keyContext.ZoneID != nil {
+		return keyContext.ZoneID
+	}
+	if keyContext.Context != nil {
+		return keyContext.Context
+	}
+	return nil
 }
 
 // KeyEncryptor describes Encrypt and Decrypt interfaces.
@@ -267,13 +282,13 @@ func NewSCellKeyEncryptor(masterKey []byte) (*SCellKeyEncryptor, error) {
 
 // Encrypt return encrypted key using masterKey and context.
 func (encryptor *SCellKeyEncryptor) Encrypt(ctx context.Context, key []byte, keyContext KeyContext) ([]byte, error) {
-	encrypted, _, err := encryptor.scell.Protect(key, keyContext.Context)
+	encrypted, _, err := encryptor.scell.Protect(key, GetKeyContextFromContext(keyContext))
 	return encrypted, err
 }
 
 // Decrypt return decrypted key using masterKey and context.
 func (encryptor *SCellKeyEncryptor) Decrypt(ctx context.Context, key []byte, keyContext KeyContext) ([]byte, error) {
-	return encryptor.scell.Unprotect(key, nil, keyContext.Context)
+	return encryptor.scell.Unprotect(key, nil, GetKeyContextFromContext(keyContext))
 }
 
 // TransportKeyStore provides access to transport keys. It is used by acra-connector tool.

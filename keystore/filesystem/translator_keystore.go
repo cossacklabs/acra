@@ -113,8 +113,8 @@ func (store *TranslatorFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.Priva
 
 	var privateKey []byte
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeLegacy).WithContext(id)
-	if privateKey, err = store.encryptor.Decrypt(context.Background(), keyData, *keyContext); err != nil {
+	keyContext := keystore.NewKeyContext(keystore.PurposeLegacy, id)
+	if privateKey, err = store.encryptor.Decrypt(context.Background(), keyData, keyContext); err != nil {
 		return nil, err
 	}
 	return &keys.PrivateKey{Value: privateKey}, nil

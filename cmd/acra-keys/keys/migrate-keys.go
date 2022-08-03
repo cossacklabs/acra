@@ -226,7 +226,7 @@ func MigrateV1toV2(srcV1 filesystem.KeyExport, dstV2 keystoreV2.KeyFileImportV1)
 
 	log.Tracef("Importing %d keys from keystore v1", expected)
 	for _, key := range keys {
-		log := log.WithField("purpose", key.Purpose).WithField("id", key.ID)
+		log := log.WithField("purpose", key.KeyContext.Purpose).WithField("id", keystore.GetKeyContextFromContext(key.KeyContext))
 		err := dstV2.ImportKeyFileV1(srcV1, key)
 		if err != nil {
 			log.WithError(err).Warn("Failed to import key")

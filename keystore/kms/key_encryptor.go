@@ -58,7 +58,7 @@ func getKeyIDFromContext(ctx keystore.KeyContext) ([]byte, error) {
 			return nil, ErrEmptyClientIDProvided
 		}
 		return []byte("acra_" + string(ctx.ClientID)), nil
-	case keystore.PurposeStorageZoneSymmetricKey, keystore.PurposeStorageZonePrivateKey:
+	case keystore.PurposeStorageZoneSymmetricKey, keystore.PurposeStorageZonePrivateKey, keystore.PurposeStorageZoneKeyPair:
 		if ctx.ZoneID == nil {
 			return nil, ErrEmptyZoneIDProvided
 		}

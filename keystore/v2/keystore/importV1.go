@@ -36,8 +36,10 @@ type KeyFileImportV1 interface {
 
 // ImportKeyFileV1 transfers key data from keystore version 1.
 func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key filesystemV1.ExportedKey) error {
-	log := s.log.WithField("purpose", key.Purpose).WithField("id", key.ID)
-	switch key.Purpose {
+	keyID := keystore.GetKeyContextFromContext(key.KeyContext)
+	log := s.log.WithField("purpose", key.KeyContext.Purpose).WithField("id", keyID)
+
+	switch key.KeyContext.Purpose {
 	case keystore.PurposePoisonRecordKeyPair:
 		keypair, err := oldKeyStore.ExportKeyPair(key)
 		if err != nil {
@@ -57,7 +59,7 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			return err
 		}
 		defer utils.ZeroizeKeyPair(keypair)
-		err = s.SaveDataEncryptionKeys(key.ID, keypair)
+		err = s.SaveDataEncryptionKeys(keyID, keypair)
 		if err != nil {
 			log.WithError(err).Debug("failed to import client storage key pair")
 			return err
@@ -69,7 +71,7 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			return err
 		}
 		defer utils.ZeroizeKeyPair(keypair)
-		err = s.SaveZoneKeypair(key.ID, keypair)
+		err = s.SaveZoneKeypair(keyID, keypair)
 		if err != nil {
 			log.WithError(err).Debug("failed to import zone storage key pair")
 			return err
@@ -93,7 +95,7 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			return err
 		}
 		defer utils.ZeroizeSymmetricKey(symkey)
-		err = s.importHmacKey(key.ID, symkey)
+		err = s.importHmacKey(keyID, symkey)
 		if err != nil {
 			log.WithError(err).Debug("Failed to import search HMAC key")
 			return err
@@ -119,7 +121,7 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			return err
 		}
 		defer utils.ZeroizeSymmetricKey(symkey)
-		err = s.importClientIDSymmetricKey(key.ID, symkey)
+		err = s.importClientIDSymmetricKey(keyID, symkey)
 		if err != nil {
 			log.WithError(err).Debug("Failed to import client storage symmetric key")
 			return err
@@ -132,7 +134,7 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			return err
 		}
 		defer utils.ZeroizeSymmetricKey(symkey)
-		err = s.importZoneIDSymmetricKey(key.ID, symkey)
+		err = s.importZoneIDSymmetricKey(keyID, symkey)
 		if err != nil {
 			log.WithError(err).Debug("Failed to import zone storage symmetric key")
 			return err

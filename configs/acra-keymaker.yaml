@@ -44,6 +44,9 @@ kms_credentials_path:
 # KMS usage key policy: <create>
 kms_key_policy: create
 
+# Use KMS for keystore encryption
+kms_keystore_encryptor: false
+
 # KMS type for using: <aws>
 kms_type: 
 

@@ -55,8 +55,8 @@ func testGenerateKeyPair(store *KeyStore, t *testing.T) {
 	}
 	defer store.fs.Remove(path)
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeStorageClientPrivateKey).WithContext(clientID)
-	keypair, err := store.generateKeyPair(path, *keyContext)
+	keyContext := keystore.NewClientIDKeyContext(keystore.PurposeStorageClientPrivateKey, clientID)
+	keypair, err := store.generateKeyPair(path, keyContext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,8 +144,8 @@ func testGenerateSymKeyUncreatedDir(store *KeyStore, t *testing.T) {
 		t.Fatal(err)
 	}
 
-	keyContext := keystore.NewEmptyKeyContext().WithContext([]byte("key"))
-	err = store.generateAndSaveSymmetricKey(fmt.Sprintf("%s/%s", dir, "test_id_sym"), *keyContext)
+	keyContext := keystore.NewEmptyKeyContext([]byte("key"))
+	err = store.generateAndSaveSymmetricKey(fmt.Sprintf("%s/%s", dir, "test_id_sym"), keyContext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -619,8 +619,8 @@ func testFilesystemKeyStoreSymmetricWithCache(storage Storage, t *testing.T) {
 		t.Fatal("Expected key in result")
 	}
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeStorageClientSymmetricKey).WithContext(testID2)
-	decrypted, err := store.cacheEncryptor.Decrypt(context.Background(), value, *keyContext)
+	keyContext := keystore.NewClientIDKeyContext(keystore.PurposeStorageClientSymmetricKey, testID2)
+	decrypted, err := store.cacheEncryptor.Decrypt(context.Background(), value, keyContext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -700,8 +700,8 @@ func testFilesystemKeyStoreWithCache(storage Storage, t *testing.T) {
 		t.Fatal("Expected key in result")
 	}
 
-	keyContext := keystore.NewKeyContext(keystore.PurposeStorageClientSymmetricKey).WithContext(testID2)
-	decrypted, err := store.cacheEncryptor.Decrypt(context.Background(), value, *keyContext)
+	keyContext := keystore.NewClientIDKeyContext(keystore.PurposeStorageClientSymmetricKey, testID2)
+	decrypted, err := store.cacheEncryptor.Decrypt(context.Background(), value, keyContext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -963,14 +963,14 @@ func testSaveKeypairs(store *KeyStore, t *testing.T) {
 	}
 	// no matter which function to generate correct filename we will use
 	filename := GetServerDecryptionKeyFilename(testID)
-	keyContext := keystore.NewKeyContext(keystore.PurposeStorageClientPrivateKey).WithContext(testID)
-	if _, err := store.getPrivateKeyByFilename(filename, *keyContext); err == nil {
+	keyContext := keystore.NewClientIDKeyContext(keystore.PurposeStorageClientPrivateKey, testID)
+	if _, err := store.getPrivateKeyByFilename(filename, keyContext); err == nil {
 		t.Fatal("Expected error")
 	}
-	if err = store.SaveKeyPairWithFilename(startKeypair, filename, *keyContext); err != nil {
+	if err = store.SaveKeyPairWithFilename(startKeypair, filename, keyContext); err != nil {
 		t.Fatal(err)
 	}
-	if privateKey, err := store.getPrivateKeyByFilename(filename, *keyContext); err != nil {
+	if privateKey, err := store.getPrivateKeyByFilename(filename, keyContext); err != nil {
 		t.Fatal(err)
 	} else {
 		if !bytes.Equal(startKeypair.Private.Value, privateKey.Value) {
@@ -978,10 +978,10 @@ func testSaveKeypairs(store *KeyStore, t *testing.T) {
 		}
 	}
 
-	if err = store.SaveKeyPairWithFilename(overwritedKeypair, filename, *keyContext); err != nil {
+	if err = store.SaveKeyPairWithFilename(overwritedKeypair, filename, keyContext); err != nil {
 		t.Fatal(err)
 	}
-	if privateKey, err := store.getPrivateKeyByFilename(filename, *keyContext); err != nil {
+	if privateKey, err := store.getPrivateKeyByFilename(filename, keyContext); err != nil {
 		t.Fatal(err)
 	} else {
 		if !bytes.Equal(overwritedKeypair.Private.Value, privateKey.Value) {
@@ -1064,7 +1064,7 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 	seenStorageZoneKeyPair := false
 
 	for i := range exportedKeys {
-		switch exportedKeys[i].Purpose {
+		switch exportedKeys[i].KeyContext.Purpose {
 		case keystore.PurposePoisonRecordKeyPair:
 			seenPoisonKeyPair = true
 			publicKey, err := keyStore.ExportPublicKey(exportedKeys[i])
@@ -1114,7 +1114,7 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 				t.Error("incorrect zone storage private key value")
 			}
 		default:
-			t.Errorf("unknow key purpose: %s", exportedKeys[i].Purpose)
+			t.Errorf("unknow key purpose: %s", exportedKeys[i].KeyContext.Purpose)
 		}
 	}
 

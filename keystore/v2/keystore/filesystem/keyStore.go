@@ -259,13 +259,13 @@ func (s *KeyStore) keyStoreContext(context []byte) []byte {
 }
 
 func (s *KeyStore) encrypt(data, ctx []byte) ([]byte, error) {
-	keyContext := keystoreV1.NewEmptyKeyContext().WithContext(s.keyStoreContext(ctx))
-	return s.encryptor.Encrypt(context.Background(), data, *keyContext)
+	keyContext := keystoreV1.NewEmptyKeyContext(s.keyStoreContext(ctx))
+	return s.encryptor.Encrypt(context.Background(), data, keyContext)
 }
 
 func (s *KeyStore) decrypt(data, ctx []byte) ([]byte, error) {
-	keyContext := keystoreV1.NewEmptyKeyContext().WithContext(s.keyStoreContext(ctx))
-	return s.encryptor.Decrypt(context.Background(), data, *keyContext)
+	keyContext := keystoreV1.NewEmptyKeyContext(s.keyStoreContext(ctx))
+	return s.encryptor.Decrypt(context.Background(), data, keyContext)
 }
 
 func (s *KeyStore) keyRingSignatureContext(path string) []byte {

@@ -1225,7 +1225,7 @@ class KeyMakerTestWithAWSKMS(unittest.TestCase):
         configuration = {
             'access_key_id': 'access_key_id',
             'secret_access_key': 'secret_key_id',
-            'region': 'eu-west-1',
+            'region': os.environ.get('KMS_REGION', 'eu-west-2'),
             'endpoint':  os.environ.get('AWS_KMS_ADDRESS', 'http://localhost:8080')
         }
         self.config_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
@@ -1373,7 +1373,7 @@ class VaultClient:
 class AWSKMSClient:
     def __init__(self):
         self.url = os.environ.get('AWS_KMS_ADDRESS', 'http://localhost:8080')
-        self.kms_client = boto3.client('kms', aws_access_key_id='', aws_secret_access_key='', region_name='eu-west-1', endpoint_url=self.url)
+        self.kms_client = boto3.client('kms', aws_access_key_id='', aws_secret_access_key='', region_name=os.environ.get('KMS_REGION', 'eu-west-2'), endpoint_url=self.url)
         # override request signer to skip boto3 looking for credentials in ~/.aws_credentials
         self.kms_client._request_signer.sign = (lambda *args, **kwargs: None)
 
@@ -2299,6 +2299,65 @@ class ZoneHexFormatTest(BaseTestCase):
         self.assertEqual(row['empty'], b'')
 
 
+class KMSAWSType:
+    def setUp(self):
+        if not TEST_WITH_AWS_KMS:
+            self.skipTest("test with AWS KMS ACRA_MASTER_KEY loader")
+
+        configuration = {
+            'access_key_id': 'access_key_id',
+            'secret_access_key': 'secret_key_id',
+            'region': os.environ.get('KMS_REGION', 'eu-west-2'),
+            'endpoint':  os.environ.get('AWS_KMS_ADDRESS', 'http://localhost:8080')
+        }
+        self.config_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
+        json.dump(configuration, self.config_file)
+        self.config_file.flush()
+        super().setUp()
+
+    def get_kms_type(self):
+        return 'aws'
+
+    def get_kms_configuration_path(self):
+        return self.config_file.name
+
+
+class KMSEncryptorMixing:
+    ZONES = []
+
+    def setUp(self):
+        self.keystore = tempfile.TemporaryDirectory()
+        self.keys_dir = os.path.join(self.keystore.name, '.acrakeys')
+
+        extra_args = {
+            'kms_keystore_encryptor' : 'true',
+            'kms_type': self.get_kms_type(),
+            'kms_credentials_path': self.get_kms_configuration_path(),
+        }
+        assert create_client_keypair_from_certificate(TEST_TLS_CLIENT_CERT, keys_dir=self.keys_dir, extra_kwargs=extra_args) == 0
+        assert create_client_keypair_from_certificate(TEST_TLS_CLIENT_2_CERT, keys_dir=self.keys_dir, extra_kwargs=extra_args) == 0
+
+        self.ZONES.append(json.loads(subprocess.check_output(
+            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.keys_dir),
+            '--kms_keystore_encryptor=true', '--kms_type={}'.format(self.get_kms_type()), '--kms_credentials_path={}'.format( self.get_kms_configuration_path())],
+            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
+
+        self.ZONES.append(json.loads(subprocess.check_output(
+            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.keys_dir),
+             '--kms_keystore_encryptor=true', '--kms_type={}'.format(self.get_kms_type()), '--kms_credentials_path={}'.format( self.get_kms_configuration_path())],
+            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
+
+        super().setUp()
+
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        acra_kwargs['kms_type'] = self.get_kms_type()
+        acra_kwargs['kms_credentials_path'] = self.get_kms_configuration_path()
+        acra_kwargs['kms_keystore_encryptor'] = 'true'
+        acra_kwargs['keys_dir'] = self.keys_dir
+
+        return super(KMSEncryptorMixing, self).fork_acra(popen_kwargs, **acra_kwargs)
+
+
 class TestEnableCachedOnStartupTest(HexFormatTest):
 
     def checkSkip(self):
@@ -2325,6 +2384,15 @@ class TestEnableCachedOnStartupTest(HexFormatTest):
     def testClientIDRead(self):
         self.cached_dir.cleanup()
         super().testClientIDRead()
+
+
+class TestEnableCachedOnStartupAWSKMSKeystore(TestEnableCachedOnStartupTest, KMSAWSType, KMSEncryptorMixing):
+    # just passed test to check if cache on start is working with KMS
+    def testReadAcrastructInAcrastruct(self):
+        pass
+
+    def testClientIDRead(self):
+        pass
 
 
 class TestEnableCachedOnStartupServerV2ErrorExit(BaseTestCase):
@@ -3177,7 +3245,7 @@ class AWSKMSMasterKeyLoaderMixin:
         configuration = {
             'access_key_id': 'access_key_id',
             'secret_access_key': 'secret_key_id',
-            'region': 'eu-west-1',
+            'region': os.environ.get('KMS_REGION', 'eu-west-2'),
             'endpoint':  self.kms_client.get_kms_url()
         }
         self.config_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
@@ -4778,6 +4846,10 @@ class TestTranslatorDisableCachedOnStartupWithAWSKMS(AWSKMSMasterKeyLoaderMixin,
     pass
 
 
+class TestTranslatorDisableCachedOnStartupWithAWSKMSKeystore(KMSAWSType, KMSEncryptorMixing, TestTranslatorDisableCachedOnStartup):
+    pass
+
+
 class TestTranslatorEnableCachedOnStartup(AcraTranslatorMixin, BaseTestCase):
     def checkSkip(self):
         super().checkSkip()
@@ -5557,13 +5629,14 @@ class BaseTransparentEncryption(BaseTestCase):
         sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
         )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_config.yaml')
+    ZONES = zones
 
     def setUp(self):
         self.prepare_encryptor_config(client_id=TLS_CERT_CLIENT_ID_1)
         super(BaseTransparentEncryption, self).setUp()
 
     def prepare_encryptor_config(self, client_id=None):
-        prepare_encryptor_config(zone_id=zones[0][ZONE_ID], config_path=self.ENCRYPTOR_CONFIG, client_id=client_id)
+        prepare_encryptor_config(zone_id=self.ZONES[0][ZONE_ID], config_path=self.ENCRYPTOR_CONFIG, client_id=client_id)
 
     def tearDown(self):
         self.engine_raw.execute(self.encryptor_table.delete())
@@ -5835,6 +5908,10 @@ class TestPostgresqlBinaryPreparedTransparentEncryption(BaseBinaryPostgreSQLTest
             context,
         )
         self.executor2.execute_prepared_statement(query, parameters)
+
+
+class TestPostgresqlBinaryPreparedTransparentEncryptionWithAWSKMSKeystore(KMSAWSType, KMSEncryptorMixing, TestPostgresqlBinaryPreparedTransparentEncryption):
+    pass
 
 
 class TestPostgresqlBinaryPreparedTransparentEncryptionWithAWSKMSMasterKeyLoader(AWSKMSMasterKeyLoaderMixin, TestPostgresqlBinaryPreparedTransparentEncryption):
@@ -6986,6 +7063,10 @@ class TestTransparentSearchableEncryptionWithZone(BaseSearchableTransparentEncry
 
 
 class TestTransparentSearchableEncryptionWithZoneWithAWSKMSMasterKeyLoader(AWSKMSMasterKeyLoaderMixin, TestTransparentSearchableEncryptionWithZone):
+    pass
+
+
+class TestTransparentSearchableEncryptionWithZoneWithAWSKMSKeystore(KMSAWSType, KMSEncryptorMixing, TestTransparentSearchableEncryptionWithZone):
     pass
 
 

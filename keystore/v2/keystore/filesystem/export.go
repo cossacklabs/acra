@@ -123,8 +123,8 @@ func (s *KeyStore) encryptAndSignKeyRings(rings []asn1.KeyRing, cryptosuite *cry
 	}
 	defer utils.ZeroizeBytes(keysBytes)
 
-	keyContext := keystoreV1.NewEmptyKeyContext().WithContext(exportKeyContext)
-	encryptedKeyBytes, err := cryptosuite.KeyEncryptor.Encrypt(context.Background(), keysBytes, *keyContext)
+	keyContext := keystoreV1.NewEmptyKeyContext(exportKeyContext)
+	encryptedKeyBytes, err := cryptosuite.KeyEncryptor.Encrypt(context.Background(), keysBytes, keyContext)
 	if err != nil {
 		return nil, err
 	}
@@ -162,8 +162,8 @@ func (s *KeyStore) decryptAndVerifyKeyRings(ringData []byte, cryptosuite *crypto
 		return nil, errUnsupportedVersion
 	}
 
-	keyContext := keystoreV1.NewEmptyKeyContext().WithContext(exportKeyContext)
-	decryptedKeyBytes, err := cryptosuite.KeyEncryptor.Decrypt(context.Background(), container.Payload.Data.Bytes, *keyContext)
+	keyContext := keystoreV1.NewEmptyKeyContext(exportKeyContext)
+	decryptedKeyBytes, err := cryptosuite.KeyEncryptor.Decrypt(context.Background(), container.Payload.Data.Bytes, keyContext)
 	if err != nil {
 		return nil, err
 	}

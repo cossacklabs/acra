@@ -67,7 +67,6 @@ func main() {
 	poisonRecord := flag.Bool("generate_poisonrecord_keys", false, "Generate keypair and symmetric key for poison records")
 	cmd.RegisterRedisKeyStoreParameters()
 	keystoreVersion := flag.String("keystore", "", "set keystore format: v1 (current), v2 (new)")
-	kmsKeyPolicy := flag.String("kms_key_policy", kms.KeyPolicyCreate, fmt.Sprintf("KMS usage key policy: <%s>", strings.Join(kms.SupportedPolicies, "|")))
 
 	tlsClientCert := flag.String("tls_cert", "", "Path to TLS certificate to use as client_id identifier")
 	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
@@ -158,7 +157,7 @@ func main() {
 				os.Exit(1)
 			}
 
-			switch *kmsKeyPolicy {
+			switch kmsOptions.KeyPolicy {
 			case kms.KeyPolicyCreate:
 				newKey, err = newMasterKeyWithKMSCreate(keyManager, newKey)
 				if err != nil {
@@ -286,9 +285,9 @@ func main() {
 	}
 }
 
-func openKeyStoreV1(output, outputPublic string, loader keyloader.MasterKeyLoader) (keyMaking keystore.KeyMaking) {
+func openKeyStoreV1(output, outputPublic string, loader keyloader.MasterKeyLoader) keystore.KeyMaking {
 	var keyStoreEncryptor keystore.KeyEncryptor
-	if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSType != "" {
+	if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSKeystoreEncryptor {
 		keyManager, err := kmsOptions.NewKeyManager()
 		if err != nil {
 			log.WithError(err).Errorln("Failed to initializer kms KeyManager")
@@ -309,13 +308,13 @@ func openKeyStoreV1(output, outputPublic string, loader keyloader.MasterKeyLoade
 		}
 	}
 
-	keyStore := filesystem.NewCustomFilesystemKeyStore()
+	keyStoreBuilder := filesystem.NewCustomFilesystemKeyStore()
 	if outputPublic != output {
-		keyStore.KeyDirectories(output, outputPublic)
+		keyStoreBuilder.KeyDirectories(output, outputPublic)
 	} else {
-		keyStore.KeyDirectory(output)
+		keyStoreBuilder.KeyDirectory(output)
 	}
-	keyStore.Encryptor(keyStoreEncryptor)
+	keyStoreBuilder.Encryptor(keyStoreEncryptor)
 	redis := cmd.GetRedisParameters()
 	if redis.KeysConfigured() {
 		keyStorage, err := filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
@@ -324,19 +323,19 @@ func openKeyStoreV1(output, outputPublic string, loader keyloader.MasterKeyLoade
 				Errorln("Can't initialize Redis client")
 			os.Exit(1)
 		}
-		keyStore.Storage(keyStorage)
+		keyStoreBuilder.Storage(keyStorage)
 	}
-	keyMaking, err := keyStore.Build()
+	keyStore, err := keyStoreBuilder.Build()
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore")
 		os.Exit(1)
 	}
 
-	if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSType != "" {
+	if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSKeystoreEncryptor {
 		keyManager, _ := kmsOptions.NewKeyManager()
-		keyMaking = baseKMS.NewKeyMakingWrapper(keyMaking, keyManager)
+		return baseKMS.NewKeyMakingWrapper(keyStore, keyManager)
 	}
-	return
+	return keyStore
 }
 
 func openKeyStoreV2(keyDirPath string, loader keyloader.MasterKeyLoader) keystore.KeyMaking {

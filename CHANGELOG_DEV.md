@@ -1,3 +1,7 @@
+# 0.94.0 - 2022-08-03
+- Implement KMS Keystore encryptor
+- Extend `acra-keymaker` and `acra-addzone` tools with ability to create key encryption keys on KMS
+
 # 0.94.0 - 2022-07-08
 - Extend encryptor config struct with database settings section
   - Has subsections for mysql-specific settings as well as for postgres-specific ones
