@@ -10680,7 +10680,8 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
             # copied from BaseTestCase._fork_acra
             base_args = get_connect_args(port=self.ACRASERVER_PORT, sslmode=SSLMODE)
             tls_args = base_args.copy()
-            tls_args.update(get_tls_connection_args(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT))
+            if TEST_WITH_TLS:
+                tls_args.update(get_tls_connection_args(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT))
             connect_str = get_engine_connection_string(
                 self.get_acraserver_connection_string(self.ACRASERVER_PORT), DB_NAME)
             test_engine = sa.create_engine(connect_str, connect_args=tls_args)
