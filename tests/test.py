@@ -10691,6 +10691,9 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
             # use another keystore and delete previous
             shutil.rmtree(temp_keystore)
             config['keys_dir'] = KEYS_FOLDER.name
+            # turn off due to unsupported for keystore v2
+            config['keystore_cache_on_start_enable'] = False
+            config['keystore_cache_size'] = -1
             test_port = utils.get_free_port()
             connection_string = self.get_acraserver_connection_string(test_port)
             config['incoming_connection_string'] = connection_string
@@ -10730,10 +10733,12 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
             'd': 1,
             'incoming_connection_close_timeout': 0,
             'logging_format': 'cef',
-            'keystore_cache_on_start_enable': 'false',
             'incoming_connection_grpc_string': 'tcp://127.0.0.1:{}'.format(grpc_port),
             'keys_dir': temp_keystore,
             'log_to_file': tempfile.NamedTemporaryFile().name,
+            # turn off due to unsupported for keystore v2
+            'keystore_cache_size': -1,
+            'keystore_cache_on_start_enable': False,
         })
         config = load_yaml_config('configs/acra-translator.yaml')
         config.update(default_args)
