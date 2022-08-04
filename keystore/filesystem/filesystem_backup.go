@@ -27,6 +27,7 @@ import (
 	keystore2 "github.com/cossacklabs/acra/keystore"
 
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 )
 
@@ -153,8 +154,9 @@ func readFilesAsKeys(files []string, basePath string, encryptor keystore2.KeyEnc
 		relativeName := strings.Replace(f, basePath+"/", "", -1)
 		if isPrivate(relativeName) {
 			keyContext := getContextFromFilename(relativeName)
+			ctx, _ := context.WithTimeout(context.Background(), network.DefaultNetworkTimeout)
 
-			content, err = encryptor.Decrypt(context.Background(), content, keyContext)
+			content, err = encryptor.Decrypt(ctx, content, keyContext)
 			if err != nil {
 				return nil, err
 			}

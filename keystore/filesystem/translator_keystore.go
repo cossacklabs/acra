@@ -17,7 +17,6 @@ limitations under the License.
 package filesystem
 
 import (
-	"context"
 	"path/filepath"
 
 	"github.com/cossacklabs/acra/keystore"
@@ -114,7 +113,7 @@ func (store *TranslatorFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.Priva
 	var privateKey []byte
 
 	keyContext := keystore.NewKeyContext(keystore.PurposeLegacy, id)
-	if privateKey, err = store.encryptor.Decrypt(context.Background(), keyData, keyContext); err != nil {
+	if privateKey, err = store.encryptor.Decrypt(store.encryptorCtx, keyData, keyContext); err != nil {
 		return nil, err
 	}
 	return &keys.PrivateKey{Value: privateKey}, nil

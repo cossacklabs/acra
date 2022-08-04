@@ -252,11 +252,11 @@ func NewZoneIDKeyContext(purpose KeyPurpose, zoneID []byte) KeyContext {
 
 // GetKeyContextFromContext return byte context depending on provided options
 func GetKeyContextFromContext(keyContext KeyContext) []byte {
-	if keyContext.ClientID != nil {
-		return keyContext.ClientID
-	}
 	if keyContext.ZoneID != nil {
 		return keyContext.ZoneID
+	}
+	if keyContext.ClientID != nil {
+		return keyContext.ClientID
 	}
 	if keyContext.Context != nil {
 		return keyContext.Context

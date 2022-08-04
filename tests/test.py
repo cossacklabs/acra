@@ -396,6 +396,22 @@ def get_poison_record():
     return poison_record
 
 
+def get_new_poison_record(extra_kwargs: dict=None, keys_dir=None):
+    """generate one new poison record for speed up tests and don't create subprocess
+    for new records"""
+    args = [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-poisonrecordmaker')]
+    if keys_dir:
+        args.append('--keys_dir={}'.format(keys_dir))
+    else:
+        args.append('--keys_dir={}'.format(KEYS_FOLDER.name))
+
+    if extra_kwargs:
+        for key, value in extra_kwargs.items():
+            param = '-{0}={1}'.format(key, value)
+            args.append(param)
+    return b64decode(subprocess.check_output(args, timeout=PROCESS_CALL_TIMEOUT))
+
+
 def get_poison_record_with_acrablock():
     """generate one poison record with acrablock for speed up tests and don't create subprocess
     for new records"""
@@ -2322,12 +2338,13 @@ class KMSAWSType:
         return self.config_file.name
 
 
-class KMSEncryptorMixing:
+class KMSEncryptorMixin:
+    # using local list of zones to store KMS created zones that can be used instead of global ZONES list
     ZONES = []
+    poison_record = None
 
     def setUp(self):
-        self.keystore = tempfile.TemporaryDirectory()
-        self.keys_dir = os.path.join(self.keystore.name, '.acrakeys')
+        self.keys_dir = tempfile.TemporaryDirectory().name
 
         extra_args = {
             'kms_keystore_encryptor' : 'true',
@@ -2337,17 +2354,21 @@ class KMSEncryptorMixing:
         assert create_client_keypair_from_certificate(TEST_TLS_CLIENT_CERT, keys_dir=self.keys_dir, extra_kwargs=extra_args) == 0
         assert create_client_keypair_from_certificate(TEST_TLS_CLIENT_2_CERT, keys_dir=self.keys_dir, extra_kwargs=extra_args) == 0
 
+        self.poison_record = get_new_poison_record(extra_kwargs=extra_args, keys_dir=self.keys_dir)
+
         self.ZONES.append(json.loads(subprocess.check_output(
             [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.keys_dir),
-            '--kms_keystore_encryptor=true', '--kms_type={}'.format(self.get_kms_type()), '--kms_credentials_path={}'.format( self.get_kms_configuration_path())],
+            '--kms_keystore_encryptor=true', '--kms_type={}'.format(self.get_kms_type()), '--kms_credentials_path={}'.format(self.get_kms_configuration_path())],
             cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
 
         self.ZONES.append(json.loads(subprocess.check_output(
             [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.keys_dir),
-             '--kms_keystore_encryptor=true', '--kms_type={}'.format(self.get_kms_type()), '--kms_credentials_path={}'.format( self.get_kms_configuration_path())],
+             '--kms_keystore_encryptor=true', '--kms_type={}'.format(self.get_kms_type()), '--kms_credentials_path={}'.format(self.get_kms_configuration_path())],
             cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
-
         super().setUp()
+
+    def get_poison_records(self):
+        return self.poison_record
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         acra_kwargs['kms_type'] = self.get_kms_type()
@@ -2355,7 +2376,18 @@ class KMSEncryptorMixing:
         acra_kwargs['kms_keystore_encryptor'] = 'true'
         acra_kwargs['keys_dir'] = self.keys_dir
 
-        return super(KMSEncryptorMixing, self).fork_acra(popen_kwargs, **acra_kwargs)
+        return super(KMSEncryptorMixin, self).fork_acra(popen_kwargs, **acra_kwargs)
+
+    def fork_translator(self, translator_kwargs, popen_kwargs=None):
+        args = {
+            'kms_type': self.get_kms_type(),
+            'kms_credentials_path': self.get_kms_configuration_path(),
+            'kms_keystore_encryptor': 'true',
+            'keys_dir': self.keys_dir,
+            'logging_format': 'text',
+        }
+        translator_kwargs.update(args)
+        return super(KMSEncryptorMixin, self).fork_translator(translator_kwargs, popen_kwargs)
 
 
 class TestEnableCachedOnStartupTest(HexFormatTest):
@@ -2386,7 +2418,7 @@ class TestEnableCachedOnStartupTest(HexFormatTest):
         super().testClientIDRead()
 
 
-class TestEnableCachedOnStartupAWSKMSKeystore(TestEnableCachedOnStartupTest, KMSAWSType, KMSEncryptorMixing):
+class TestEnableCachedOnStartupAWSKMSKeystore(TestEnableCachedOnStartupTest, KMSAWSType, KMSEncryptorMixin):
     # just passed test to check if cache on start is working with KMS
     def testReadAcrastructInAcrastruct(self):
         pass
@@ -2769,7 +2801,7 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
         on data decryption failure
         """
         row_id = get_random_id()
-        poison_record = get_poison_record()
+        poison_record = self.get_poison_record_data()
         begin_tag = poison_record[:4]
         # test with extra long begin tag
         data = os.urandom(100) + begin_tag + poison_record + os.urandom(100)
@@ -2858,6 +2890,11 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
         with self.assertRaises(Exception) as exc:
             wait_connection(grpc_port, count=1, sleep=0)
         self.assertEqual(exc.exception.args[0], WAIT_CONNECTION_ERROR_MESSAGE)
+
+
+class TestPoisonRecordShutdownWithAWSKMSKeystore(KMSAWSType, KMSEncryptorMixin, TestPoisonRecordShutdown):
+    def get_poison_record_data(self):
+        return self.get_poison_records()
 
 
 class TestPoisonRecordShutdownWithAcraBlock(TestPoisonRecordShutdown):
@@ -4846,7 +4883,7 @@ class TestTranslatorDisableCachedOnStartupWithAWSKMS(AWSKMSMasterKeyLoaderMixin,
     pass
 
 
-class TestTranslatorDisableCachedOnStartupWithAWSKMSKeystore(KMSAWSType, KMSEncryptorMixing, TestTranslatorDisableCachedOnStartup):
+class TestTranslatorDisableCachedOnStartupWithAWSKMSKeystore(KMSAWSType, KMSEncryptorMixin, TestTranslatorDisableCachedOnStartup):
     pass
 
 
@@ -5910,7 +5947,7 @@ class TestPostgresqlBinaryPreparedTransparentEncryption(BaseBinaryPostgreSQLTest
         self.executor2.execute_prepared_statement(query, parameters)
 
 
-class TestPostgresqlBinaryPreparedTransparentEncryptionWithAWSKMSKeystore(KMSAWSType, KMSEncryptorMixing, TestPostgresqlBinaryPreparedTransparentEncryption):
+class TestPostgresqlBinaryPreparedTransparentEncryptionWithAWSKMSKeystore(KMSAWSType, KMSEncryptorMixin, TestPostgresqlBinaryPreparedTransparentEncryption):
     pass
 
 
@@ -7066,7 +7103,7 @@ class TestTransparentSearchableEncryptionWithZoneWithAWSKMSMasterKeyLoader(AWSKM
     pass
 
 
-class TestTransparentSearchableEncryptionWithZoneWithAWSKMSKeystore(KMSAWSType, KMSEncryptorMixing, TestTransparentSearchableEncryptionWithZone):
+class TestTransparentSearchableEncryptionWithZoneWithAWSKMSKeystore(KMSAWSType, KMSEncryptorMixin, TestTransparentSearchableEncryptionWithZone):
     pass
 
 

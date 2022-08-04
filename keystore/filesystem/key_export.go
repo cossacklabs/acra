@@ -17,7 +17,6 @@
 package filesystem
 
 import (
-	"context"
 	"path/filepath"
 	"strings"
 
@@ -88,7 +87,7 @@ func (store *KeyStore) ExportPrivateKey(key ExportedKey) (*keys.PrivateKey, erro
 		return nil, err
 	}
 
-	decryptedKey, err := store.encryptor.Decrypt(context.Background(), privateKey.Value, key.KeyContext)
+	decryptedKey, err := store.encryptor.Decrypt(store.encryptorCtx, privateKey.Value, key.KeyContext)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +118,7 @@ func (store *KeyStore) ExportSymmetricKey(key ExportedKey) ([]byte, error) {
 		return nil, err
 	}
 
-	keyValue, err := store.encryptor.Decrypt(context.Background(), encrypted, key.KeyContext)
+	keyValue, err := store.encryptor.Decrypt(store.encryptorCtx, encrypted, key.KeyContext)
 	if err != nil {
 		return nil, err
 	}
