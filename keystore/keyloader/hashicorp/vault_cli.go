@@ -46,7 +46,7 @@ func (options *VaultCLIOptions) RegisterCLIParameters(flags *flag.FlagSet, prefi
 	}
 }
 
-//TLSConfig return TLS configuration needed to connect to HashiCorp Vault
+// TLSConfig return TLS configuration needed to connect to HashiCorp Vault
 func (options *VaultCLIOptions) TLSConfig() *api.TLSConfig {
 	return &api.TLSConfig{
 		ClientKey:  options.ClientKey,

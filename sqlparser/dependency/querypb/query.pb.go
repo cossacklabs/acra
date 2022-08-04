@@ -5,9 +5,11 @@
 Package query is a generated protocol buffer package.
 
 It is generated from these files:
+
 	query.proto
 
 It has these top-level messages:
+
 	Target
 	VTGateCallerID
 	EventToken

@@ -38,8 +38,9 @@ type KeyMetadata struct {
 	KeyID string
 }
 
-//go:generate mockery --name KeyManager --output ../mocks --filename KeyManager.go
 // KeyManager is main kms interface
+//
+//go:generate mockery --name KeyManager --output ../mocks --filename KeyManager.go
 type KeyManager interface {
 	Encryptor
 

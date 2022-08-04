@@ -87,12 +87,12 @@ type GenerateKeySubcommand struct {
 	poisonRecord    bool
 }
 
-//GenerateAuditLog get auditLog flag
+// GenerateAuditLog get auditLog flag
 func (g *GenerateKeySubcommand) GenerateAuditLog() bool {
 	return g.auditLog
 }
 
-//GeneratePoisonRecord get poisonRecord flag
+// GeneratePoisonRecord get poisonRecord flag
 func (g *GenerateKeySubcommand) GeneratePoisonRecord() bool {
 	return g.poisonRecord
 }
@@ -123,12 +123,12 @@ func (g *GenerateKeySubcommand) GenerateAcraWriter() bool {
 	return g.acraWriter
 }
 
-//GenerateAcraBlocks get acraBlocks flag
+// GenerateAcraBlocks get acraBlocks flag
 func (g *GenerateKeySubcommand) GenerateAcraBlocks() bool {
 	return g.acraBlocks
 }
 
-//GenerateSearchHMAC get searchHMAC flag
+// GenerateSearchHMAC get searchHMAC flag
 func (g *GenerateKeySubcommand) GenerateSearchHMAC() bool {
 	return g.searchHMAC
 }
