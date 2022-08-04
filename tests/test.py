@@ -10649,8 +10649,9 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
     def find_forked_pid(self, filepath):
         with open(filepath, 'r') as f:
             for line in f:
+                # CEF:0|cossacklabs|acra-translator|0.93.0|100|acra-translator process forked to PID: 914350|1|unixTime=1659577578.966
                 if 'process forked to PID' in line:
-                    pid = re.search(r'(\d+)', line).group(1)
+                    pid = re.search(r'PID: (\d+)', line).group(1)
                     return int(pid)
 
     def testAcraServerReload(self):
@@ -10771,10 +10772,10 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
                 wait_connection(new_grpc_port, 1)
             self.assertEqual(exc.exception.args[0], WAIT_CONNECTION_ERROR_MESSAGE)
         finally:
-            stop_process(translator)
             pid = self.find_forked_pid(config['log_to_file'])
             if pid:
                 os.kill(pid, signal.SIGKILL)
+            stop_process(translator)
             os.remove(config['log_to_file'])
 
 
