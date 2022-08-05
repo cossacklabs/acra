@@ -55,8 +55,6 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
-	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
-	"github.com/cossacklabs/acra/keystore/keyloader/kms"
 	baseKMS "github.com/cossacklabs/acra/keystore/kms"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
@@ -181,8 +179,7 @@ func realMain() error {
 
 	enableAuditLog := flag.Bool("audit_log_enable", false, "Enable audit log functionality")
 
-	hashicorp.RegisterVaultCLIParameters()
-	kms.RegisterCLIParameters()
+	keyloader.RegisterCLIParameters()
 	cmd.RegisterTracingCmdParameters()
 	cmd.RegisterJaegerCmdParameters()
 	logging.RegisterCLIArgs()
@@ -289,7 +286,7 @@ func realMain() error {
 	serverConfig.SetServiceName(ServiceName)
 	serverConfig.SetConfigPath(cmd.ConfigPath(DefaultConfigPath))
 
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(hashicorp.GetVaultCLIParameters(), kms.GetCLIParameters())
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(keyloader.GetCLIParameters().KeystoreEncryptorType)
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
 		return err
@@ -872,10 +869,9 @@ func waitReadPipe(timeoutDuration time.Duration) error {
 
 func openKeyStoreV1(output string, cacheSize int, loader keyloader.MasterKeyLoader) (keystore.ServerKeyStore, error) {
 	var keyStoreEncryptor keystore.KeyEncryptor
-	// TODO: consider creating new flag exactly for KMS keystore
 
-	if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSKeystoreEncryptor {
-		keyManager, err := kmsOptions.NewKeyManager()
+	if keyLoaderParams := keyloader.GetCLIParameters(); keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
+		keyManager, err := keyLoaderParams.GetKMSParameters().NewKeyManager()
 		if err != nil {
 			log.WithError(err).Errorln("Failed to initializer kms KeyManager")
 			return nil, err

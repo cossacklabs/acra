@@ -49,6 +49,9 @@ func TestReadCMD_FS_V2(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
 				keyDir: dirName,
+				keyLoaderOptions: keyloader.CLIOptions{
+					KeystoreEncryptorType: keyloader.KeystoreStrategyMasterKey,
+				},
 			},
 			contextID:   clientID,
 			readKeyKind: KeyStoragePublic,
@@ -71,6 +74,9 @@ func TestReadCMD_FS_V2(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
 				keyDir: dirName,
+				keyLoaderOptions: keyloader.CLIOptions{
+					KeystoreEncryptorType: keyloader.KeystoreStrategyMasterKey,
+				},
 			},
 			contextID:   clientID,
 			readKeyKind: KeySymmetric,
@@ -93,6 +99,9 @@ func TestReadCMD_FS_V2(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
 				keyDir: dirName,
+				keyLoaderOptions: keyloader.CLIOptions{
+					KeystoreEncryptorType: keyloader.KeystoreStrategyMasterKey,
+				},
 			},
 			contextID:   zoneID,
 			readKeyKind: KeyZoneSymmetric,
@@ -134,6 +143,9 @@ func TestReadCMD_FS_V1(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
 				keyDir: dirName,
+				keyLoaderOptions: keyloader.CLIOptions{
+					KeystoreEncryptorType: keyloader.KeystoreStrategyMasterKey,
+				},
 			},
 			contextID:   clientID,
 			readKeyKind: KeyStoragePublic,
@@ -156,6 +168,9 @@ func TestReadCMD_FS_V1(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
 				keyDir: dirName,
+				keyLoaderOptions: keyloader.CLIOptions{
+					KeystoreEncryptorType: keyloader.KeystoreStrategyMasterKey,
+				},
 			},
 			contextID:   clientID,
 			readKeyKind: KeySymmetric,
@@ -178,6 +193,9 @@ func TestReadCMD_FS_V1(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
 				keyDir: dirName,
+				keyLoaderOptions: keyloader.CLIOptions{
+					KeystoreEncryptorType: keyloader.KeystoreStrategyMasterKey,
+				},
 			},
 			contextID:   zoneID,
 			readKeyKind: KeyZoneSymmetric,

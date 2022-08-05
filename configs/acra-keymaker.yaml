@@ -38,14 +38,14 @@ keys_public_output_dir: .acrakeys
 # set keystore format: v1 (current), v2 (new)
 keystore: 
 
+# Keystore encryptor strategy; : <master_key|kms_master_key|vault_master_key|kms_per_client
+keystore_encryption_type: master_key
+
 # KMS credentials JSON file path
 kms_credentials_path: 
 
 # KMS usage key policy: <create>
 kms_key_policy: create
-
-# Use KMS for keystore encryption
-kms_keystore_encryptor: false
 
 # KMS type for using: <aws>
 kms_type: 

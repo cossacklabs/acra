@@ -37,8 +37,6 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
-	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
-	"github.com/cossacklabs/acra/keystore/keyloader/kms"
 	baseKMS "github.com/cossacklabs/acra/keystore/kms"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
@@ -172,8 +170,7 @@ func main() {
 	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
 	usePostgresql := flag.Bool("postgresql_enable", false, "Handle Postgresql connections")
 
-	kms.RegisterCLIParameters()
-	hashicorp.RegisterVaultCLIParameters()
+	keyloader.RegisterCLIParameters()
 	logging.SetLogLevel(logging.LogVerbose)
 
 	err := cmd.Parse(defaultConfigPath, serviceName)
@@ -226,7 +223,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(hashicorp.GetVaultCLIParameters(), kms.GetCLIParameters())
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(keyloader.GetCLIParameters().KeystoreEncryptorType)
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
 		os.Exit(1)
@@ -316,8 +313,10 @@ func main() {
 
 func openKeyStoreV1(keysDir string, loader keyloader.MasterKeyLoader) keystore.DecryptionKeyStore {
 	var keyStoreEncryptor keystore.KeyEncryptor
-	if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSKeystoreEncryptor {
-		keyManager, err := kmsOptions.NewKeyManager()
+
+	var keyLoaderParams = keyloader.GetCLIParameters()
+	if keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
+		keyManager, err := keyLoaderParams.GetKMSParameters().NewKeyManager()
 		if err != nil {
 			log.WithError(err).Errorln("Failed to initializer kms KeyManager")
 			os.Exit(1)

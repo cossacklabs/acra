@@ -14,23 +14,14 @@ generate_markdown_args_table: false
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
 
+# Keystore encryptor strategy; : <master_key|kms_master_key|vault_master_key|kms_per_client
+keystore_encryption_type: master_key
+
 # KMS credentials JSON file path
 kms_credentials_path: 
 
-# Use KMS for keystore encryption
-kms_keystore_encryptor: false
-
 # KMS type for using: <aws>
 kms_type: 
-
-# Number of Redis database for keys
-redis_db_keys: 0
-
-# <host>:<port> used to connect to Redis
-redis_host_port: 
-
-# Password to Redis database
-redis_password: 
 
 # Type of poison record: "acrastruct" | "acrablock"
 

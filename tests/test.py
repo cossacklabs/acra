@@ -1254,6 +1254,7 @@ class KeyMakerTestWithAWSKMS(unittest.TestCase):
             [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
             '--generate_master_key={}'.format(master_key_file.name),
             '--kms_type=aws',
+            '--keystore_encryption_type=kms_master_key',
             '--kms_credentials_path={}'.format(self.config_file.name)])
 
         resp = self.kms_client.list_aliases()
@@ -1271,6 +1272,7 @@ class KeyMakerTestWithAWSKMS(unittest.TestCase):
                     [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
                      '--generate_master_key={}'.format(master_key_file.name),
                      '--kms_type=aws',
+                     '--keystore_encryption_type=kms_master_key',
                      '--kms_credentials_path={}'.format(self.config_file.name)], stderr=subprocess.STDOUT)
             except subprocess.CalledProcessError as exp:
                 self.assertIn("alias/acra_master_key already exists", str(exp.output))
@@ -1374,10 +1376,11 @@ class VaultClient:
             mount_point=mount_point,
         )
 
-    def get_vault_cli_args(self, mount_path=None, secret_path=None):
+    def get_vault_cli_args(self, mount_path=None, secret_path=None, keystore_encryption_type='vault_master_key'):
         args = {
             'vault_connection_api_string': self.vault_client.url,
-            'vault_secrets_path': '{0}/{1}'.format(mount_path, secret_path)
+            'vault_secrets_path': '{0}/{1}'.format(mount_path, secret_path),
+            'keystore_encryption_type': keystore_encryption_type
         }
 
         if TEST_SSL_VAULT:
@@ -2338,7 +2341,7 @@ class KMSAWSType:
         return self.config_file.name
 
 
-class KMSEncryptorMixin:
+class KMSPerClientEncryptorMixin:
     # using local list of zones to store KMS created zones that can be used instead of global ZONES list
     ZONES = []
     poison_record = None
@@ -2350,6 +2353,7 @@ class KMSEncryptorMixin:
             'kms_keystore_encryptor' : 'true',
             'kms_type': self.get_kms_type(),
             'kms_credentials_path': self.get_kms_configuration_path(),
+            'keystore_encryption_type': "kms_per_client",
         }
         assert create_client_keypair_from_certificate(TEST_TLS_CLIENT_CERT, keys_dir=self.keys_dir, extra_kwargs=extra_args) == 0
         assert create_client_keypair_from_certificate(TEST_TLS_CLIENT_2_CERT, keys_dir=self.keys_dir, extra_kwargs=extra_args) == 0
@@ -2358,12 +2362,12 @@ class KMSEncryptorMixin:
 
         self.ZONES.append(json.loads(subprocess.check_output(
             [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.keys_dir),
-            '--kms_keystore_encryptor=true', '--kms_type={}'.format(self.get_kms_type()), '--kms_credentials_path={}'.format(self.get_kms_configuration_path())],
+            '--keystore_encryption_type=kms_per_client', '--kms_type={}'.format(self.get_kms_type()), '--kms_credentials_path={}'.format(self.get_kms_configuration_path())],
             cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
 
         self.ZONES.append(json.loads(subprocess.check_output(
             [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.keys_dir),
-             '--kms_keystore_encryptor=true', '--kms_type={}'.format(self.get_kms_type()), '--kms_credentials_path={}'.format(self.get_kms_configuration_path())],
+            '--keystore_encryption_type=kms_per_client', '--kms_type={}'.format(self.get_kms_type()), '--kms_credentials_path={}'.format(self.get_kms_configuration_path())],
             cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
         super().setUp()
 
@@ -2373,21 +2377,21 @@ class KMSEncryptorMixin:
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         acra_kwargs['kms_type'] = self.get_kms_type()
         acra_kwargs['kms_credentials_path'] = self.get_kms_configuration_path()
-        acra_kwargs['kms_keystore_encryptor'] = 'true'
+        acra_kwargs['keystore_encryption_type'] = 'kms_per_client'
         acra_kwargs['keys_dir'] = self.keys_dir
 
-        return super(KMSEncryptorMixin, self).fork_acra(popen_kwargs, **acra_kwargs)
+        return super(KMSPerClientEncryptorMixin, self).fork_acra(popen_kwargs, **acra_kwargs)
 
     def fork_translator(self, translator_kwargs, popen_kwargs=None):
         args = {
             'kms_type': self.get_kms_type(),
             'kms_credentials_path': self.get_kms_configuration_path(),
-            'kms_keystore_encryptor': 'true',
+            'keystore_encryption_type': 'kms_per_client',
             'keys_dir': self.keys_dir,
             'logging_format': 'text',
         }
         translator_kwargs.update(args)
-        return super(KMSEncryptorMixin, self).fork_translator(translator_kwargs, popen_kwargs)
+        return super(KMSPerClientEncryptorMixin, self).fork_translator(translator_kwargs, popen_kwargs)
 
 
 class TestEnableCachedOnStartupTest(HexFormatTest):
@@ -2418,7 +2422,7 @@ class TestEnableCachedOnStartupTest(HexFormatTest):
         super().testClientIDRead()
 
 
-class TestEnableCachedOnStartupAWSKMSKeystore(TestEnableCachedOnStartupTest, KMSAWSType, KMSEncryptorMixin):
+class TestEnableCachedOnStartupAWSKMSKeystore(TestEnableCachedOnStartupTest, KMSAWSType, KMSPerClientEncryptorMixin):
     # just passed test to check if cache on start is working with KMS
     def testReadAcrastructInAcrastruct(self):
         pass
@@ -2892,7 +2896,7 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
         self.assertEqual(exc.exception.args[0], WAIT_CONNECTION_ERROR_MESSAGE)
 
 
-class TestPoisonRecordShutdownWithAWSKMSKeystore(KMSAWSType, KMSEncryptorMixin, TestPoisonRecordShutdown):
+class TestPoisonRecordShutdownWithAWSKMSKeystore(KMSAWSType, KMSPerClientEncryptorMixin, TestPoisonRecordShutdown):
     def get_poison_record_data(self):
         return self.get_poison_records()
 
@@ -3249,11 +3253,11 @@ class HashiCorpVaultMasterKeyLoaderMixin:
         return super().fork_translator(translator_kwargs, popen_kwargs)
 
     def read_rotation_public_key(self,  extra_kwargs: dict = None):
-        args = self.vault_client.get_vault_cli_args(self.DEFAULT_MOUNT_PATH,self.secret_path)
+        args = self.vault_client.get_vault_cli_args(self.DEFAULT_MOUNT_PATH, self.secret_path, keystore_encryption_type='master_key')
         return super().read_rotation_public_key(extra_kwargs=args)
 
     def create_keypair(self, extra_kwargs: dict = None):
-        args = self.vault_client.get_vault_cli_args(self.DEFAULT_MOUNT_PATH,self.secret_path)
+        args = self.vault_client.get_vault_cli_args(self.DEFAULT_MOUNT_PATH, self.secret_path, keystore_encryption_type='master_key')
         return super().create_keypair(extra_kwargs=args)
 
     def tearDown(self):
@@ -3292,7 +3296,8 @@ class AWSKMSMasterKeyLoaderMixin:
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
         args = {
             'kms_credentials_path': self.config_file.name,
-            'kms_type': 'aws'
+            'kms_type': 'aws',
+            'keystore_encryption_type': 'kms_master_key'
         }
         os.environ[ACRA_MASTER_KEY_VAR_NAME] = self.master_key_ciphertext
         acra_kwargs.update(args)
@@ -3301,7 +3306,8 @@ class AWSKMSMasterKeyLoaderMixin:
     def fork_translator(self, translator_kwargs, popen_kwargs=None):
         args = {
             'kms_credentials_path': self.config_file,
-            'kms_type': 'aws'
+            'kms_type': 'aws',
+            'keystore_encryption_type': 'kms_master_key'
         }
         os.environ[ACRA_MASTER_KEY_VAR_NAME] = self.master_key_ciphertext
         translator_kwargs.update(args)
@@ -4883,7 +4889,7 @@ class TestTranslatorDisableCachedOnStartupWithAWSKMS(AWSKMSMasterKeyLoaderMixin,
     pass
 
 
-class TestTranslatorDisableCachedOnStartupWithAWSKMSKeystore(KMSAWSType, KMSEncryptorMixin, TestTranslatorDisableCachedOnStartup):
+class TestTranslatorDisableCachedOnStartupWithAWSKMSKeystore(KMSAWSType, KMSPerClientEncryptorMixin, TestTranslatorDisableCachedOnStartup):
     pass
 
 
@@ -5947,7 +5953,7 @@ class TestPostgresqlBinaryPreparedTransparentEncryption(BaseBinaryPostgreSQLTest
         self.executor2.execute_prepared_statement(query, parameters)
 
 
-class TestPostgresqlBinaryPreparedTransparentEncryptionWithAWSKMSKeystore(KMSAWSType, KMSEncryptorMixin, TestPostgresqlBinaryPreparedTransparentEncryption):
+class TestPostgresqlBinaryPreparedTransparentEncryptionWithAWSKMSKeystore(KMSAWSType, KMSPerClientEncryptorMixin, TestPostgresqlBinaryPreparedTransparentEncryption):
     pass
 
 
@@ -7103,7 +7109,7 @@ class TestTransparentSearchableEncryptionWithZoneWithAWSKMSMasterKeyLoader(AWSKM
     pass
 
 
-class TestTransparentSearchableEncryptionWithZoneWithAWSKMSKeystore(KMSAWSType, KMSEncryptorMixin, TestTransparentSearchableEncryptionWithZone):
+class TestTransparentSearchableEncryptionWithZoneWithAWSKMSKeystore(KMSAWSType, KMSPerClientEncryptorMixin, TestTransparentSearchableEncryptionWithZone):
     pass
 
 

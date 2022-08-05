@@ -35,7 +35,6 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
-	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
 	"github.com/cossacklabs/acra/keystore/keyloader/kms"
 	baseKMS "github.com/cossacklabs/acra/keystore/kms"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
@@ -72,8 +71,7 @@ func main() {
 	tlsClientCert := flag.String("tls_cert", "", "Path to TLS certificate to use as client_id identifier")
 	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
 
-	kms.RegisterCLIParameters()
-	hashicorp.RegisterVaultCLIParameters()
+	keyloader.RegisterCLIParameters()
 	logging.SetLogLevel(logging.LogVerbose)
 
 	err := cmd.Parse(DefaultConfigPath, ServiceName)
@@ -151,7 +149,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSType != "" {
+		if kmsOptions := keyloader.GetCLIParameters().GetKMSParameters(); kmsOptions.KMSType != "" {
 			keyManager, err := kmsOptions.NewKeyManager()
 			if err != nil {
 				log.WithError(err).WithField("path", *masterKey).Errorln("Failed to initializer kms KeyManager")
@@ -189,7 +187,7 @@ func main() {
 		}
 	}
 
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(hashicorp.GetVaultCLIParameters(), kms.GetCLIParameters())
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(keyloader.GetCLIParameters().KeystoreEncryptorType)
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
 		os.Exit(1)
@@ -288,8 +286,10 @@ func main() {
 
 func openKeyStoreV1(output, outputPublic string, loader keyloader.MasterKeyLoader) keystore.KeyMaking {
 	var keyStoreEncryptor keystore.KeyEncryptor
-	if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSKeystoreEncryptor {
-		keyManager, err := kmsOptions.NewKeyManager()
+
+	var keyLoaderParams = keyloader.GetCLIParameters()
+	if keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
+		keyManager, err := keyLoaderParams.GetKMSParameters().NewKeyManager()
 		if err != nil {
 			log.WithError(err).Errorln("Failed to initializer kms KeyManager")
 			os.Exit(1)
@@ -332,8 +332,8 @@ func openKeyStoreV1(output, outputPublic string, loader keyloader.MasterKeyLoade
 		os.Exit(1)
 	}
 
-	if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSKeystoreEncryptor {
-		keyManager, _ := kmsOptions.NewKeyManager()
+	if keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
+		keyManager, _ := keyLoaderParams.GetKMSParameters().NewKeyManager()
 		return baseKMS.NewKeyMakingWrapper(keyStore, keyManager)
 	}
 	return keyStore

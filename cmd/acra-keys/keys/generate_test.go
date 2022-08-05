@@ -52,6 +52,9 @@ func TestRotateSymmetricZoneKey(t *testing.T) {
 	generateCmd := &GenerateKeySubcommand{
 		CommonKeyStoreParameters: CommonKeyStoreParameters{
 			keyDir: dirName,
+			keyLoaderOptions: keyloader.CLIOptions{
+				KeystoreEncryptorType: keyloader.KeystoreStrategyMasterKey,
+			},
 		},
 		zoneID:        zoneID,
 		rotateZoneSym: true,

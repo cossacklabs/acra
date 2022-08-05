@@ -36,8 +36,6 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
-	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
-	"github.com/cossacklabs/acra/keystore/keyloader/kms"
 	baseKMS "github.com/cossacklabs/acra/keystore/kms"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
@@ -61,8 +59,7 @@ func main() {
 	outputDir := flag.String("keys_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved generated zone keys")
 	flag.Bool("fs_keystore_enable", true, "Use filesystem keystore (deprecated, ignored)")
 
-	kms.RegisterCLIParameters()
-	hashicorp.RegisterVaultCLIParameters()
+	keyloader.RegisterCLIParameters()
 	cmd.RegisterRedisKeyStoreParameters()
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 
@@ -80,7 +77,7 @@ func main() {
 		logging.SetLogLevel(logging.LogVerbose)
 	}
 
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(hashicorp.GetVaultCLIParameters(), kms.GetCLIParameters())
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(keyloader.GetCLIParameters().KeystoreEncryptorType)
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
 		os.Exit(1)
@@ -114,8 +111,10 @@ func main() {
 
 func openKeyStoreV1(output string, loader keyloader.MasterKeyLoader) keystore.KeyMaking {
 	var keyStoreEncryptor keystore.KeyEncryptor
-	if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSKeystoreEncryptor {
-		keyManager, err := kmsOptions.NewKeyManager()
+
+	var keyLoaderParams = keyloader.GetCLIParameters()
+	if keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
+		keyManager, err := keyLoaderParams.GetKMSParameters().NewKeyManager()
 		if err != nil {
 			log.WithError(err).Errorln("Failed to initializer kms KeyManager")
 			os.Exit(1)
@@ -154,8 +153,8 @@ func openKeyStoreV1(output string, loader keyloader.MasterKeyLoader) keystore.Ke
 		os.Exit(1)
 	}
 
-	if kmsOptions := kms.GetCLIParameters(); kmsOptions.KMSKeystoreEncryptor {
-		keyManager, _ := kmsOptions.NewKeyManager()
+	if keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
+		keyManager, _ := keyLoaderParams.GetKMSParameters().NewKeyManager()
 		return baseKMS.NewKeyMakingWrapper(keyStore, keyManager)
 	}
 

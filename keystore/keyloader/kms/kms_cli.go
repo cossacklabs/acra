@@ -1,14 +1,17 @@
 package kms
 
 import (
+	"errors"
 	"flag"
 	"fmt"
-	"github.com/cossacklabs/acra/keystore/kms"
 	"strings"
 
-	"github.com/cossacklabs/acra/keystore/keyloader"
+	"github.com/cossacklabs/acra/keystore/kms"
 	log "github.com/sirupsen/logrus"
 )
+
+// ErrUnknownKMSType error displaying unknown KMS type provided by flags
+var ErrUnknownKMSType = errors.New("unknown KMS type provided")
 
 // AcraMasterKeyKEKID represent ID/alias of encryption key used for MasterKey loading
 const AcraMasterKeyKEKID = "acra_master_key"
@@ -31,9 +34,8 @@ var SupportedPolicies = []string{
 
 // CLIOptions keep command-line options related to KMS ACRA_MASTER_KEY loading.
 type CLIOptions struct {
-	KMSType              string
-	CredentialsPath      string
-	KMSKeystoreEncryptor bool
+	KMSType         string
+	CredentialsPath string
 }
 
 var cliOptions CLIOptions
@@ -52,21 +54,11 @@ func (options *CLIOptions) RegisterCLIParameters(flags *flag.FlagSet, prefix str
 	if flags.Lookup(prefix+"kms_type") == nil {
 		flags.StringVar(&options.KMSType, prefix+"kms_type", "", fmt.Sprintf("KMS type for using: <%s>", strings.Join(supportedTypes, "|")+description))
 		flags.StringVar(&options.CredentialsPath, prefix+"kms_credentials_path", "", "KMS credentials JSON file path"+description)
-		flags.BoolVar(&options.KMSKeystoreEncryptor, "kms_keystore_encryptor", false, "Use KMS for keystore encryption")
 	}
 }
 
-// GetCLIParameters returns a copy of CLIOptions parsed from the command line.
-func GetCLIParameters() *CLIOptions {
-	return &cliOptions
-}
-
-// New create MasterKeyLoader from kms.CLIOptions - implementation of keyloader.CliMasterKeyLoaderCreator interface
-func (options CLIOptions) New() (keyloader.MasterKeyLoader, error) {
-	if options.KMSType == "" {
-		return nil, nil
-	}
-
+// NewMasterKeyLoader create MasterKeyLoader from kms.CLIOptions
+func (options *CLIOptions) NewMasterKeyLoader() (*Loader, error) {
 	keyManager, err := options.NewKeyManager()
 	if err != nil {
 		return nil, err
@@ -81,7 +73,7 @@ func (options *CLIOptions) NewKeyManager() (kms.KeyManager, error) {
 	createKeyManager, ok := kms.GetKeyManagerCreator(options.KMSType)
 	if !ok {
 		log.Errorf("Unknown KMS type provided %s", options.KMSType)
-		return nil, nil
+		return nil, ErrUnknownKMSType
 	}
 
 	keyManager, err := createKeyManager(options.CredentialsPath)

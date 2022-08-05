@@ -3,6 +3,7 @@ package keyloader
 import (
 	"github.com/cossacklabs/acra/keystore"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
+	log "github.com/sirupsen/logrus"
 )
 
 // EnvLoader unifying structure for implementation env MasterKeyLoader
@@ -12,6 +13,7 @@ type EnvLoader struct {
 
 // NewEnvLoader return key loader using env variable
 func NewEnvLoader(env string) EnvLoader {
+	log.Infof("Initializing default env %s loader", env)
 	return EnvLoader{
 		MasterKeyEnv: env,
 	}
