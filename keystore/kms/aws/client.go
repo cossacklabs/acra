@@ -106,7 +106,7 @@ func (e *KMSClient) ListAliases(ctx context.Context, keyID *string) ([]types.Ali
 		input.KeyId = keyID
 	}
 
-	aliases := make([]types.AliasListEntry, 0)
+	aliases := make([]types.AliasListEntry, 0, 8)
 	for {
 		result, err := e.client.ListAliases(ctx, input)
 		if err != nil {

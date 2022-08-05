@@ -2350,7 +2350,6 @@ class KMSPerClientEncryptorMixin:
         self.keys_dir = tempfile.TemporaryDirectory().name
 
         extra_args = {
-            'kms_keystore_encryptor' : 'true',
             'kms_type': self.get_kms_type(),
             'kms_credentials_path': self.get_kms_configuration_path(),
             'keystore_encryption_type': "kms_per_client",

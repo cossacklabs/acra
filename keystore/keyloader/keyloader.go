@@ -1,13 +1,8 @@
 package keyloader
 
 import (
-	"errors"
-
 	"github.com/cossacklabs/acra/keystore"
 )
-
-// ErrUnsupportedMasterKeyLoaderStrategy error displaying unsupported MasterKeyLoader strategy
-var ErrUnsupportedMasterKeyLoaderStrategy = errors.New("unsupported MasterKeyLoader strategy provided")
 
 // MasterKeyLoader interface for loading ACRA_MASTER_KEYs from different sources.
 type MasterKeyLoader interface {
@@ -35,9 +30,7 @@ func initMasterKeyLoaderWithEnv(envVarName string, loadStrategy string) (MasterK
 		return cliParams.GetKMSParameters().NewMasterKeyLoader()
 	case KeystoreStrategyHashicorpVaultMasterKey:
 		return cliParams.GetVaultCLIParameters().NewMasterKeyLoader()
-	case KeystoreStrategyMasterKey:
-		return NewEnvLoader(envVarName), nil
 	default:
-		return nil, ErrUnsupportedMasterKeyLoaderStrategy
+		return NewEnvLoader(envVarName), nil
 	}
 }
