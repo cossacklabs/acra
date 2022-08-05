@@ -22,9 +22,7 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 )
 
-//
 // PoisonKeyStore interface
-//
 const (
 	poisonSymmetricKeyPath = "poison-record-sym"
 	poisonKeyPath          = "poison-record"

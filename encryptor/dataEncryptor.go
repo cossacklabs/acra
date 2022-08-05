@@ -85,7 +85,7 @@ func EmptyCheckFunction(setting config.ColumnEncryptionSetting) bool {
 }
 
 // StandaloneAcraBlockEncryptorFilterFunction return true if operation should be applied only if setting configured for
-//encryption without any other operations like tokenization/masking
+// encryption without any other operations like tokenization/masking
 func StandaloneAcraBlockEncryptorFilterFunction(setting config.ColumnEncryptionSetting) bool {
 	return setting.GetCryptoEnvelope() != config.CryptoEnvelopeTypeAcraBlock || !setting.OnlyEncryption()
 }
@@ -95,7 +95,7 @@ func standaloneEncryptorFilterFunction(setting config.ColumnEncryptionSetting) b
 }
 
 // StandaloneAcraStructEncryptorFilterFunction return true if operation should be applied only if setting configured for
-//encryption without any other operations like tokenization/masking
+// encryption without any other operations like tokenization/masking
 func StandaloneAcraStructEncryptorFilterFunction(setting config.ColumnEncryptionSetting) bool {
 	return setting.GetCryptoEnvelope() != config.CryptoEnvelopeTypeAcraStruct || !setting.OnlyEncryption()
 }

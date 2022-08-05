@@ -127,7 +127,7 @@ func testMissingEndOfChain(t *testing.T, format string) {
 		t.Fatal(err)
 	}
 	_, err = verifier.VerifyIntegrityCheck(source)
-	if !errors.As(err, &ErrMissingEndOfChain) {
+	if !errors.Is(err, ErrMissingEndOfChain) {
 		t.Fatal(err)
 	}
 }
@@ -162,7 +162,7 @@ func testTruncationAttackPrevention(t *testing.T, format string) {
 	}
 	entry, err := verifier.VerifyIntegrityCheck(source)
 	// we expect that integrity will not match, since "check":"end" is cryptographically bounded to the log entry
-	if !errors.As(err, &ErrIntegrityNotMatch) {
+	if !errors.Is(err, ErrIntegrityNotMatch) {
 		t.Fatal(err)
 	}
 	// check additionally that we fail on last log entry (which is actually last but one after adversarial truncation)

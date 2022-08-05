@@ -44,7 +44,7 @@ func InitRegistry(keyStore keystore.ServerKeyStore) error {
 	return Register(NewAcraStructHandler())
 }
 
-//Register public API allows registering other handlers from other packages
+// Register public API allows registering other handlers from other packages
 func Register(handler ContainerHandler) error {
 	_, ok := registry.envelopes[handler.Name()]
 	if ok {

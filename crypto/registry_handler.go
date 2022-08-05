@@ -218,7 +218,7 @@ func DeserializeEncryptedData(encrypted []byte) ([]byte, byte, error) {
 	return internal, envelopeID, nil
 }
 
-//ExtractSerializedContainer retrieve length of wrapping container
+// ExtractSerializedContainer retrieve length of wrapping container
 func ExtractSerializedContainer(data []byte) (int, []byte, error) {
 	_, err := validateSerializedContainer(data)
 	if err == nil {

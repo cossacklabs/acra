@@ -51,7 +51,7 @@ if [ ! -f "$CSUMS_FILE" ]; then
   exit 1
 fi
 
-GO_VERSIONS="${GO_VERSIONS:-1.17.7}"
+GO_VERSIONS="${GO_VERSIONS:-1.19}"
 
 for GO_VERSION in $GO_VERSIONS; do
   # gotta replace `.` -> `\.` for AWK regex so it will match exactly what we're asking for

@@ -35,6 +35,7 @@ import (
 
 // WriteFull writes data to io.Writer.
 // if wr.Write will return n <= len(data) will
+//
 //	sent the rest of data until error or total sent byte count == len(data)
 func WriteFull(data []byte, wr io.Writer) (int, error) {
 	sliceCopy := data[:]

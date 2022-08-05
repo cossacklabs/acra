@@ -12,10 +12,10 @@ import (
 	"github.com/cossacklabs/acra/sqlparser/dialect"
 )
 
-//Mode enum type used for sqlparser.Parser mode definition
+// Mode enum type used for sqlparser.Parser mode definition
 type Mode string
 
-//Mode enum consts for sqlparser.Parser
+// Mode enum consts for sqlparser.Parser
 const (
 	ModeDefault Mode = "default"
 	ModeStrict  Mode = "strict"
@@ -27,12 +27,12 @@ const ValueMask = "replaced"
 // ErrQuerySyntaxError error returned by sqlparser.Parser
 var ErrQuerySyntaxError = errors.New("fail to parse specified query")
 
-//Parser object used to handle strict/non-strict flow for any sql parse errors
+// Parser object used to handle strict/non-strict flow for any sql parse errors
 type Parser struct {
 	parseQueryErrorMode Mode
 }
 
-//New sqlparser.Parser constructor
+// New sqlparser.Parser constructor
 func New(mode Mode) *Parser {
 	return &Parser{
 		parseQueryErrorMode: mode,
@@ -194,7 +194,7 @@ func SplitStatementToPieces(blob string) (pieces []string, err error) {
 func (EmptyStatement) Format(*TrackedBuffer)   {}
 func (EmptyStatement) walkSubtree(Visit) error { return nil }
 
-//Format format NotParsedStatement method
+// Format format NotParsedStatement method
 func (s NotParsedStatement) Format(buf *TrackedBuffer) { buf.WriteString(s.Query) }
 func (NotParsedStatement) walkSubtree(Visit) error     { return nil }
 

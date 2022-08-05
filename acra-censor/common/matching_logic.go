@@ -69,7 +69,7 @@ func checkSinglePatternMatch(query, pattern sqlparser.Statement) bool {
 	return false
 }
 
-//SQL statemnent handlers
+// SQL statemnent handlers
 func handleUnionStatement(query, pattern sqlparser.Statement) bool {
 	var match bool
 	queryUnionNode, ok := query.(*sqlparser.Union)
