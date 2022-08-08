@@ -2401,27 +2401,21 @@ class TestEnableCachedOnStartupTest(HexFormatTest):
             self.skipTest("test only for keystore Version v1")
 
     def setUp(self):
-        self.cached_dir = tempfile.TemporaryDirectory()
-        # fill temp dir with all keys
-        copy_tree(KEYS_FOLDER.name, self.cached_dir.name)
         super().setUp()
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         acra_kwargs['keystore_cache_on_start_enable'] = 'true'
-        acra_kwargs['keys_dir'] = self.cached_dir.name
         return super(TestEnableCachedOnStartupTest, self).fork_acra(
             popen_kwargs, **acra_kwargs)
 
     def testReadAcrastructInAcrastruct(self):
-        self.cached_dir.cleanup()
         super().testReadAcrastructInAcrastruct()
 
     def testClientIDRead(self):
-        self.cached_dir.cleanup()
         super().testClientIDRead()
 
 
-class TestEnableCachedOnStartupAWSKMSKeystore(TestEnableCachedOnStartupTest, KMSAWSType, KMSPerClientEncryptorMixin):
+class TestEnableCachedOnStartupAWSKMSKeystore(KMSAWSType, KMSPerClientEncryptorMixin, TestEnableCachedOnStartupTest):
     # just passed test to check if cache on start is working with KMS
     def testReadAcrastructInAcrastruct(self):
         pass
