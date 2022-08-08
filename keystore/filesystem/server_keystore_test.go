@@ -18,6 +18,7 @@ package filesystem
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -53,7 +54,9 @@ func testGenerateKeyPair(store *KeyStore, t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.fs.Remove(path)
-	keypair, err := store.generateKeyPair(path, clientID)
+
+	keyContext := keystore.NewClientIDKeyContext(keystore.PurposeStorageClientPrivateKey, clientID)
+	keypair, err := store.generateKeyPair(path, keyContext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +144,8 @@ func testGenerateSymKeyUncreatedDir(store *KeyStore, t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = store.generateAndSaveSymmetricKey([]byte("key"), fmt.Sprintf("%s/%s", dir, "test_id_sym"))
+	keyContext := keystore.NewEmptyKeyContext([]byte("key"))
+	err = store.generateAndSaveSymmetricKey(fmt.Sprintf("%s/%s", dir, "test_id_sym"), keyContext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -614,7 +618,9 @@ func testFilesystemKeyStoreSymmetricWithCache(storage Storage, t *testing.T) {
 	if !ok {
 		t.Fatal("Expected key in result")
 	}
-	decrypted, err := store.cacheEncryptor.Decrypt(value, testID2)
+
+	keyContext := keystore.NewClientIDKeyContext(keystore.PurposeStorageClientSymmetricKey, testID2)
+	decrypted, err := store.cacheEncryptor.Decrypt(context.Background(), value, keyContext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -693,7 +699,9 @@ func testFilesystemKeyStoreWithCache(storage Storage, t *testing.T) {
 	if !ok {
 		t.Fatal("Expected key in result")
 	}
-	decrypted, err := store.cacheEncryptor.Decrypt(value, testID2)
+
+	keyContext := keystore.NewClientIDKeyContext(keystore.PurposeStorageClientSymmetricKey, testID2)
+	decrypted, err := store.cacheEncryptor.Decrypt(context.Background(), value, keyContext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -955,13 +963,14 @@ func testSaveKeypairs(store *KeyStore, t *testing.T) {
 	}
 	// no matter which function to generate correct filename we will use
 	filename := GetServerDecryptionKeyFilename(testID)
-	if _, err := store.getPrivateKeyByFilename(testID, filename); err == nil {
+	keyContext := keystore.NewClientIDKeyContext(keystore.PurposeStorageClientPrivateKey, testID)
+	if _, err := store.getPrivateKeyByFilename(filename, keyContext); err == nil {
 		t.Fatal("Expected error")
 	}
-	if err = store.SaveKeyPairWithFilename(startKeypair, filename, testID); err != nil {
+	if err = store.SaveKeyPairWithFilename(startKeypair, filename, keyContext); err != nil {
 		t.Fatal(err)
 	}
-	if privateKey, err := store.getPrivateKeyByFilename(testID, filename); err != nil {
+	if privateKey, err := store.getPrivateKeyByFilename(filename, keyContext); err != nil {
 		t.Fatal(err)
 	} else {
 		if !bytes.Equal(startKeypair.Private.Value, privateKey.Value) {
@@ -969,10 +978,10 @@ func testSaveKeypairs(store *KeyStore, t *testing.T) {
 		}
 	}
 
-	if err = store.SaveKeyPairWithFilename(overwritedKeypair, filename, testID); err != nil {
+	if err = store.SaveKeyPairWithFilename(overwritedKeypair, filename, keyContext); err != nil {
 		t.Fatal(err)
 	}
-	if privateKey, err := store.getPrivateKeyByFilename(testID, filename); err != nil {
+	if privateKey, err := store.getPrivateKeyByFilename(filename, keyContext); err != nil {
 		t.Fatal(err)
 	} else {
 		if !bytes.Equal(overwritedKeypair.Private.Value, privateKey.Value) {
@@ -1055,8 +1064,8 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 	seenStorageZoneKeyPair := false
 
 	for i := range exportedKeys {
-		switch exportedKeys[i].Purpose {
-		case PurposePoisonRecordKeyPair:
+		switch exportedKeys[i].KeyContext.Purpose {
+		case keystore.PurposePoisonRecordKeyPair:
 			seenPoisonKeyPair = true
 			publicKey, err := keyStore.ExportPublicKey(exportedKeys[i])
 			if err != nil {
@@ -1072,7 +1081,7 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 			if !bytes.Equal(poisonKeyPair.Private.Value, privateKey.Value) {
 				t.Error("incorrect poison record private key value")
 			}
-		case PurposeStorageClientKeyPair:
+		case keystore.PurposeStorageClientKeyPair:
 			seenStorageClientKeyPair = true
 			publicKey, err := keyStore.ExportPublicKey(exportedKeys[i])
 			if err != nil {
@@ -1088,7 +1097,7 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 			if !bytes.Equal(storagePrivateKey.Value, privateKey.Value) {
 				t.Error("incorrect client storage private key value")
 			}
-		case PurposeStorageZoneKeyPair:
+		case keystore.PurposeStorageZoneKeyPair:
 			seenStorageZoneKeyPair = true
 			publicKey, err := keyStore.ExportPublicKey(exportedKeys[i])
 			if err != nil {
@@ -1105,7 +1114,7 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 				t.Error("incorrect zone storage private key value")
 			}
 		default:
-			t.Errorf("unknow key purpose: %s", exportedKeys[i].Purpose)
+			t.Errorf("unknow key purpose: %s", exportedKeys[i].KeyContext.Purpose)
 		}
 	}
 
@@ -1548,15 +1557,15 @@ func generateEveryKey(keyStore *KeyStore, t *testing.T) {
 
 func getAllExpectedKeys() []keystore.KeyDescription {
 	expectedKeys := []keystore.KeyDescription{
-		{ID: "poison_key", Purpose: PurposePoisonRecordKeyPair},
-		{ID: "poison_key.pub", Purpose: PurposePoisonRecordKeyPair},
-		{ID: "poison_key_sym", Purpose: PurposePoisonRecordSymmetricKey},
-		{ID: "cossack-hmac_hmac", Purpose: PurposeSearchHMAC, ClientID: []byte(hmacEncID)},
-		{ID: "cossack_storage", Purpose: PurposeStorageClientPrivateKey, ClientID: []byte(clientID)},
-		{ID: "cossack_storage.pub", Purpose: PurposeStorageClientPublicKey, ClientID: []byte(clientID)},
-		{ID: "cossack_storage_sym", Purpose: PurposeStorageClientSymmetricKey, ClientID: []byte(clientID)},
-		{ID: "secure_log_key", Purpose: PurposeAuditLog},
-		{ID: "sich_zone_sym", Purpose: PurposeStorageZoneSymmetricKey, ZoneID: []byte(zoneID)},
+		{ID: "poison_key", Purpose: keystore.PurposePoisonRecordKeyPair},
+		{ID: "poison_key.pub", Purpose: keystore.PurposePoisonRecordKeyPair},
+		{ID: "poison_key_sym", Purpose: keystore.PurposePoisonRecordSymmetricKey},
+		{ID: "cossack-hmac_hmac", Purpose: keystore.PurposeSearchHMAC, ClientID: []byte(hmacEncID)},
+		{ID: "cossack_storage", Purpose: keystore.PurposeStorageClientPrivateKey, ClientID: []byte(clientID)},
+		{ID: "cossack_storage.pub", Purpose: keystore.PurposeStorageClientPublicKey, ClientID: []byte(clientID)},
+		{ID: "cossack_storage_sym", Purpose: keystore.PurposeStorageClientSymmetricKey, ClientID: []byte(clientID)},
+		{ID: "secure_log_key", Purpose: keystore.PurposeAuditLog},
+		{ID: "sich_zone_sym", Purpose: keystore.PurposeStorageZoneSymmetricKey, ZoneID: []byte(zoneID)},
 	}
 	// sort to compare consistently
 	sort.Slice(expectedKeys, func(i, j int) bool {

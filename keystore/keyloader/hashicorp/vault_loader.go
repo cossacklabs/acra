@@ -62,27 +62,27 @@ type (
 )
 
 // NewVaultLoader read VAULT_API_TOKEN env, decode it and return initialized VaultLoader
-func NewVaultLoader(config *api.Config, secretPath string) (VaultLoader, error) {
+func NewVaultLoader(config *api.Config, secretPath string) (*VaultLoader, error) {
 	b64value := os.Getenv(vaultAPIToken)
 	if len(b64value) == 0 {
 		log.Warnf("%v environment variable is not set", vaultAPIToken)
-		return VaultLoader{}, ErrEmptyAPIToken
+		return nil, ErrEmptyAPIToken
 	}
 
 	decodeValue, err := base64.StdEncoding.DecodeString(b64value)
 	if err != nil {
 		log.WithError(err).Warnf("Failed to decode %s", vaultAPIToken)
-		return VaultLoader{}, err
+		return nil, err
 	}
 
 	client, err := api.NewClient(config)
 	if err != nil {
-		return VaultLoader{}, err
+		return nil, err
 	}
 
 	vaultToken := strings.Trim(string(decodeValue), "\n")
 	client.SetToken(vaultToken)
-	return VaultLoader{
+	return &VaultLoader{
 		client:     client,
 		secretPath: secretPath,
 	}, nil

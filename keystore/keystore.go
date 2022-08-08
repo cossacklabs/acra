@@ -20,6 +20,7 @@ limitations under the License.
 package keystore
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
@@ -43,6 +44,31 @@ const (
 	// SymmetricKeyLength in bytes for master key
 	SymmetricKeyLength = 32
 	NoKeyFoundExit     = true
+)
+
+// KeyPurpose describe usage of specific key
+type KeyPurpose string
+
+func (p KeyPurpose) String() string {
+	return string(p)
+}
+
+// Supported key purposes
+const (
+	PurposeSearchHMAC                KeyPurpose = "search_hmac"
+	PurposeAuditLog                  KeyPurpose = "audit_log"
+	PurposePoisonRecordSymmetricKey  KeyPurpose = "poison_sym_key"
+	PurposeStorageClientSymmetricKey KeyPurpose = "storage_sym_key"
+	PurposeStorageZoneSymmetricKey   KeyPurpose = "zone_sym_key"
+	PurposePoisonRecordKeyPair       KeyPurpose = "poison_key"
+	PurposeStorageClientKeyPair      KeyPurpose = "storage"
+	PurposeStorageClientPublicKey    KeyPurpose = "public_storage"
+	PurposeStorageClientPrivateKey   KeyPurpose = "private_storage"
+	PurposeStorageZoneKeyPair        KeyPurpose = "zone"
+	PurposeStorageZonePrivateKey     KeyPurpose = "private_zone"
+	PurposeStorageZonePublicKey      KeyPurpose = "public_zone"
+	PurposeLegacy                    KeyPurpose = "legacy"
+	PurposeUndefined                 KeyPurpose = "undefined"
 )
 
 // Errors returned during accessing to client id or master key.
@@ -185,10 +211,77 @@ func GetMasterKeyFromEnvironmentVariable(varname string) ([]byte, error) {
 	return key, nil
 }
 
+// KeyContext contains generic key context for key operation
+type KeyContext struct {
+	ClientID []byte
+	ZoneID   []byte
+	Context  []byte
+	Purpose  KeyPurpose
+}
+
+// NewEmptyKeyContext create new empty key context
+func NewEmptyKeyContext(ctx []byte) KeyContext {
+	return KeyContext{
+		Context: ctx,
+	}
+}
+
+// NewKeyContext create new key context with key purpose and pure context
+func NewKeyContext(purpose KeyPurpose, ctx []byte) KeyContext {
+	return KeyContext{
+		Purpose: purpose,
+		Context: ctx,
+	}
+}
+
+// NewClientIDKeyContext create new key context with key purpose and clientID
+func NewClientIDKeyContext(purpose KeyPurpose, clientID []byte) KeyContext {
+	return KeyContext{
+		Purpose:  purpose,
+		ClientID: clientID,
+	}
+}
+
+// NewZoneIDKeyContext create new key context with key purpose and zoneID
+func NewZoneIDKeyContext(purpose KeyPurpose, zoneID []byte) KeyContext {
+	return KeyContext{
+		Purpose: purpose,
+		ZoneID:  zoneID,
+	}
+}
+
+// GetKeyContextFromContext return byte context depending on provided options
+func GetKeyContextFromContext(keyContext KeyContext) []byte {
+	if keyContext.ZoneID != nil {
+		return keyContext.ZoneID
+	}
+	if keyContext.ClientID != nil {
+		return keyContext.ClientID
+	}
+	if keyContext.Context != nil {
+		return keyContext.Context
+	}
+	return nil
+}
+
+// String implementation of Stringer interface for KeyContext
+func (ctx KeyContext) String() string {
+	if ctx.ZoneID != nil {
+		return string(ctx.ZoneID)
+	}
+	if ctx.ClientID != nil {
+		return string(ctx.ClientID)
+	}
+	if ctx.Context != nil {
+		return string(ctx.Context)
+	}
+	return "empty KeyContext"
+}
+
 // KeyEncryptor describes Encrypt and Decrypt interfaces.
 type KeyEncryptor interface {
-	Encrypt(key, context []byte) ([]byte, error)
-	Decrypt(key, context []byte) ([]byte, error)
+	Encrypt(ctx context.Context, key []byte, keyContext KeyContext) ([]byte, error)
+	Decrypt(ctx context.Context, key []byte, keyContext KeyContext) ([]byte, error)
 }
 
 // SCellKeyEncryptor uses Themis Secure Cell with provided master key to encrypt and decrypt keys.
@@ -202,14 +295,14 @@ func NewSCellKeyEncryptor(masterKey []byte) (*SCellKeyEncryptor, error) {
 }
 
 // Encrypt return encrypted key using masterKey and context.
-func (encryptor *SCellKeyEncryptor) Encrypt(key, context []byte) ([]byte, error) {
-	encrypted, _, err := encryptor.scell.Protect(key, context)
+func (encryptor *SCellKeyEncryptor) Encrypt(ctx context.Context, key []byte, keyContext KeyContext) ([]byte, error) {
+	encrypted, _, err := encryptor.scell.Protect(key, GetKeyContextFromContext(keyContext))
 	return encrypted, err
 }
 
 // Decrypt return decrypted key using masterKey and context.
-func (encryptor *SCellKeyEncryptor) Decrypt(key, context []byte) ([]byte, error) {
-	return encryptor.scell.Unprotect(key, nil, context)
+func (encryptor *SCellKeyEncryptor) Decrypt(ctx context.Context, key []byte, keyContext KeyContext) ([]byte, error) {
+	return encryptor.scell.Unprotect(key, nil, GetKeyContextFromContext(keyContext))
 }
 
 // TransportKeyStore provides access to transport keys. It is used by acra-connector tool.
@@ -326,7 +419,7 @@ type ServerKeyStore interface {
 // "ClientID" and "ZoneID" are filled in where relevant.
 type KeyDescription struct {
 	ID       string
-	Purpose  string
+	Purpose  KeyPurpose
 	ClientID []byte `json:",omitempty"`
 	ZoneID   []byte `json:",omitempty"`
 }
