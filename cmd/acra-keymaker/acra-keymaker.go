@@ -149,8 +149,8 @@ func main() {
 			os.Exit(1)
 		}
 
-		if kmsOptions := keyloader.GetCLIParameters().GetKMSParameters(); kmsOptions.KMSType != "" {
-			keyManager, err := kmsOptions.NewKeyManager()
+		if cliOptions := keyloader.GetCLIParameters(); cliOptions.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSMasterKey {
+			keyManager, err := cliOptions.GetKMSParameters().NewKeyManager()
 			if err != nil {
 				log.WithError(err).WithField("path", *masterKey).Errorln("Failed to initializer kms KeyManager")
 				os.Exit(1)
@@ -187,7 +187,8 @@ func main() {
 		}
 	}
 
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	masterKeyLoaderFactory := keyloader.NewMasterKeyLoaderFactory(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(masterKeyLoaderFactory)
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
 		os.Exit(1)

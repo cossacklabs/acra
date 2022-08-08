@@ -1,15 +1,10 @@
 package hashicorp
 
 import (
-	"errors"
 	"flag"
 
 	"github.com/hashicorp/vault/api"
-	log "github.com/sirupsen/logrus"
 )
-
-// ErrEmptyConnectionURL error displaying empty Hashicorp Vault connection URL
-var ErrEmptyConnectionURL = errors.New("empty Hashicorp Vault connection URL provided")
 
 const (
 	defaultVaultSecretsPath   = "secret/"
@@ -24,13 +19,6 @@ type VaultCLIOptions struct {
 	ClientCert  string
 	ClientKey   string
 	EnableTLS   bool
-}
-
-var vaultOptions VaultCLIOptions
-
-// RegisterVaultCLIParameters registers CLI parameters for reading ACRA_MASTER_KEY from HashiCorp Vault.
-func RegisterVaultCLIParameters() {
-	vaultOptions.RegisterCLIParameters(flag.CommandLine, "", "")
 }
 
 // RegisterCLIParameters look up for vault_connection_api_string, if none exists, vault_connection_api_string and vault_secrets_path
@@ -56,31 +44,4 @@ func (options *VaultCLIOptions) TLSConfig() *api.TLSConfig {
 		ClientCert: options.ClientCert,
 		CAPath:     options.CAPath,
 	}
-}
-
-// NewMasterKeyLoader create MasterKeyLoader from VaultCLIOptions
-func (options *VaultCLIOptions) NewMasterKeyLoader() (*VaultLoader, error) {
-	if options.Address == "" {
-		return nil, ErrEmptyConnectionURL
-	}
-
-	log.Infoln("Initializing connection to HashiCorp Vault for ACRA_MASTER_KEY loading")
-	vaultConfig := api.DefaultConfig()
-	vaultConfig.Address = options.Address
-
-	if options.EnableTLS {
-		log.Infoln("Configuring TLS connection to HashiCorp Vault")
-
-		if err := vaultConfig.ConfigureTLS(options.TLSConfig()); err != nil {
-			return nil, err
-		}
-	}
-
-	keyLoader, err := NewVaultLoader(vaultConfig, options.SecretsPath)
-	if err != nil {
-		log.WithError(err).Errorln("Can't initialize HashiCorp Vault loader")
-		return nil, err
-	}
-	log.Infoln("Initialized HashiCorp Vault ACRA_MASTER_KEY loader")
-	return keyLoader, nil
 }

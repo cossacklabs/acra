@@ -1,8 +1,6 @@
 package keyloader
 
-import (
-	"github.com/cossacklabs/acra/keystore"
-)
+import "github.com/cossacklabs/acra/keystore"
 
 // MasterKeyLoader interface for loading ACRA_MASTER_KEYs from different sources.
 type MasterKeyLoader interface {
@@ -10,27 +8,46 @@ type MasterKeyLoader interface {
 	LoadMasterKeys() (encryption []byte, signature []byte, err error)
 }
 
+// MasterKeyLoaderFactory interface for creating ACRA_MASTER_KEYs loaders from different sources.
+type MasterKeyLoaderFactory interface {
+	CreateMasterKeyLoader() (MasterKeyLoader, error)
+}
+
 // GetInitializedMasterKeyLoader returns initialized MasterKeyLoader interface depending on incoming load key strategy
 // with predefined ACRA_MASTER_KEY env name
-func GetInitializedMasterKeyLoader(loadStrategy string) (keyLoader MasterKeyLoader, err error) {
-	return initMasterKeyLoaderWithEnv(keystore.AcraMasterKeyVarName, loadStrategy)
+func GetInitializedMasterKeyLoader(masterKeyLoaderFactory MasterKeyLoaderFactory) (keyLoader MasterKeyLoader, err error) {
+	return masterKeyLoaderFactory.CreateMasterKeyLoader()
 }
 
-// GetInitializedMasterKeyLoaderWithEnv returns initialized MasterKeyLoader interface depending on incoming load key strategy
-func GetInitializedMasterKeyLoaderWithEnv(envVarName string, loadStrategy string) (keyLoader MasterKeyLoader, err error) {
-	return initMasterKeyLoaderWithEnv(envVarName, loadStrategy)
+// MasterKeyLoaderCreator implementation of MasterKeyLoaderFactory depending on load strategy
+type MasterKeyLoaderCreator struct {
+	loadStrategy string
+	envName      string
 }
 
-// initMasterKeyLoaderWithEnv returns initialized MasterKeyLoader interface depending on incoming load key strategy
-// otherwise EnvLoader with env name will be returned.
-func initMasterKeyLoaderWithEnv(envVarName string, loadStrategy string) (MasterKeyLoader, error) {
+// NewMasterKeyLoaderFactory create new MasterKeyLoaderCreator with specified load strategy
+func NewMasterKeyLoaderFactory(loadStrategy string) MasterKeyLoaderFactory {
+	return MasterKeyLoaderCreator{
+		loadStrategy: loadStrategy,
+		envName:      keystore.AcraMasterKeyVarName,
+	}
+}
+
+// NewMasterKeyLoaderFactoryWithEnv create new MasterKeyLoaderCreator with specified envName
+func NewMasterKeyLoaderFactoryWithEnv(envName string) MasterKeyLoaderFactory {
+	return MasterKeyLoaderCreator{
+		envName: keystore.AcraMasterKeyVarName,
+	}
+}
+
+func (m MasterKeyLoaderCreator) CreateMasterKeyLoader() (MasterKeyLoader, error) {
 	cliParams := GetCLIParameters()
-	switch loadStrategy {
+	switch m.loadStrategy {
 	case KeystoreStrategyKMSMasterKey:
-		return cliParams.GetKMSParameters().NewMasterKeyLoader()
+		return NewKMSMasterKeyLoader(cliParams.GetKMSParameters())
 	case KeystoreStrategyHashicorpVaultMasterKey:
-		return cliParams.GetVaultCLIParameters().NewMasterKeyLoader()
+		return NewVaultMasterKeyLoader(cliParams.GetVaultCLIParameters())
 	default:
-		return NewEnvLoader(envVarName), nil
+		return NewEnvLoader(m.envName), nil
 	}
 }

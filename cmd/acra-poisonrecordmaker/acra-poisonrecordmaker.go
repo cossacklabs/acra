@@ -34,7 +34,6 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
-	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
 	baseKMS "github.com/cossacklabs/acra/keystore/kms"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
@@ -65,7 +64,6 @@ func main() {
 	recordType := flag.String("type", RecordTypeAcraStruct, fmt.Sprintf("Type of poison record: \"%s\" | \"%s\"\n", RecordTypeAcraStruct, RecordTypeAcraBlock))
 
 	keyloader.RegisterCLIParameters()
-	hashicorp.RegisterVaultCLIParameters()
 
 	logging.SetLogLevel(logging.LogDiscard)
 
@@ -76,7 +74,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	masterKeyLoaderFactory := keyloader.NewMasterKeyLoaderFactory(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(masterKeyLoaderFactory)
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
 		os.Exit(1)

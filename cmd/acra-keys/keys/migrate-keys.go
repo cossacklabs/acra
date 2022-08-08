@@ -175,12 +175,12 @@ func (m *MigrateKeysSubcommand) Execute() {
 		return
 	}
 
-	keyLoaderV1, err := keyloader.GetInitializedMasterKeyLoaderWithEnv(SrcMasterKeyVarName, m.src.keyLoaderOptions.KeystoreEncryptorType)
+	keyLoaderV1, err := keyloader.GetInitializedMasterKeyLoader(keyloader.NewMasterKeyLoaderFactoryWithEnv(SrcMasterKeyVarName))
 	if err != nil {
 		return
 	}
 
-	keyLoaderV2, err := keyloader.GetInitializedMasterKeyLoaderWithEnv(DstMasterKeyVarName, m.dst.keyLoaderOptions.KeystoreEncryptorType)
+	keyLoaderV2, err := keyloader.GetInitializedMasterKeyLoader(keyloader.NewMasterKeyLoaderFactoryWithEnv(DstMasterKeyVarName))
 	if err != nil {
 		return
 	}

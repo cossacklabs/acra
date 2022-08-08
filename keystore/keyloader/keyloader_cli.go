@@ -1,13 +1,19 @@
 package keyloader
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"strings"
 
 	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
 	"github.com/cossacklabs/acra/keystore/keyloader/kms"
+	"github.com/hashicorp/vault/api"
+	log "github.com/sirupsen/logrus"
 )
+
+// ErrEmptyConnectionURL error displaying empty Hashicorp Vault connection URL
+var ErrEmptyConnectionURL = errors.New("empty Hashicorp Vault connection URL provided")
 
 // represent all possible keyloader strategies
 const (
@@ -41,16 +47,16 @@ func RegisterCLIParameters() {
 
 // RegisterCLIParameters look up for vault_connection_api_string, if none exists, vault_connection_api_string and vault_secrets_path
 // will be added to provided flags.
-func (options *CLIOptions) RegisterCLIParameters(flags *flag.FlagSet, prefix string, description string) {
+func (cli *CLIOptions) RegisterCLIParameters(flags *flag.FlagSet, prefix string, description string) {
 	if description != "" {
 		description = " (" + description + ")"
 	}
 	if flags.Lookup(prefix+"kms_type") == nil {
-		flags.StringVar(&options.KeystoreEncryptorType, prefix+"keystore_encryption_type", KeystoreStrategyMasterKey, fmt.Sprintf("Keystore encryptor strategy; : <%s", strings.Join(SupportedKeystoreStrategies, "|")+description))
+		flags.StringVar(&cli.KeystoreEncryptorType, prefix+"keystore_encryption_type", KeystoreStrategyMasterKey, fmt.Sprintf("Keystore encryptor strategy; : <%s", strings.Join(SupportedKeystoreStrategies, "|")+description))
 	}
 
-	options.vaultOptions.RegisterCLIParameters(flags, prefix, description)
-	options.kmsOptions.RegisterCLIParameters(flags, prefix, description)
+	cli.vaultOptions.RegisterCLIParameters(flags, prefix, description)
+	cli.kmsOptions.RegisterCLIParameters(flags, prefix, description)
 }
 
 // GetCLIParameters returns a copy of CLIOptions parsed from the command line.
@@ -59,11 +65,49 @@ func GetCLIParameters() *CLIOptions {
 }
 
 // GetVaultCLIParameters returns a copy of VaultCLIOptions parsed from the command line.
-func (options *CLIOptions) GetVaultCLIParameters() *hashicorp.VaultCLIOptions {
-	return &options.vaultOptions
+func (cli *CLIOptions) GetVaultCLIParameters() *hashicorp.VaultCLIOptions {
+	return &cli.vaultOptions
 }
 
 // GetKMSParameters returns a copy of CLIOptions parsed from the command line.
-func (options *CLIOptions) GetKMSParameters() *kms.CLIOptions {
-	return &options.kmsOptions
+func (cli *CLIOptions) GetKMSParameters() *kms.CLIOptions {
+	return &cli.kmsOptions
+}
+
+// NewVaultMasterKeyLoader returns a copy of VaultCLIOptions parsed from the command line.
+func NewVaultMasterKeyLoader(vaultOptions *hashicorp.VaultCLIOptions) (MasterKeyLoader, error) {
+	if vaultOptions.Address == "" {
+		return nil, ErrEmptyConnectionURL
+	}
+
+	log.Infoln("Initializing connection to HashiCorp Vault for ACRA_MASTER_KEY loading")
+	vaultConfig := api.DefaultConfig()
+	vaultConfig.Address = vaultOptions.Address
+
+	if vaultOptions.EnableTLS {
+		log.Infoln("Configuring TLS connection to HashiCorp Vault")
+
+		if err := vaultConfig.ConfigureTLS(vaultOptions.TLSConfig()); err != nil {
+			return nil, err
+		}
+	}
+
+	keyLoader, err := hashicorp.NewVaultLoader(vaultConfig, vaultOptions.SecretsPath)
+	if err != nil {
+		log.WithError(err).Errorln("Can't initialize HashiCorp Vault loader")
+		return nil, err
+	}
+	log.Infoln("Initialized Hashicorp Vault ACRA_MASTER_KEY loader")
+	return keyLoader, nil
+}
+
+// NewKMSMasterKeyLoader returns a copy of CLIOptions parsed from the command line.
+func NewKMSMasterKeyLoader(kmsOptions *kms.CLIOptions) (MasterKeyLoader, error) {
+	keyManager, err := kmsOptions.NewKeyManager()
+	if err != nil {
+		return nil, err
+	}
+
+	log.Infoln("Using KMS for ACRA_MASTER_KEY loading...")
+	return kms.NewLoader(keyManager), nil
 }

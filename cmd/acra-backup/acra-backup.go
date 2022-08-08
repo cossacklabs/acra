@@ -27,7 +27,6 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
-	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 
@@ -58,8 +57,6 @@ func main() {
 	file := flag.String("file", "", fmt.Sprintf("path to file which will be used for %s|%s action", actionImport, actionExport))
 
 	keyloader.RegisterCLIParameters()
-	hashicorp.RegisterVaultCLIParameters()
-
 	err := cmd.Parse(DefaultConfigPath, ServiceName)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
@@ -83,7 +80,8 @@ func main() {
 		storage = &filesystem.DummyStorage{}
 	}
 
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	masterKeyLoaderFactory := keyloader.NewMasterKeyLoaderFactory(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(masterKeyLoaderFactory)
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
 		os.Exit(1)

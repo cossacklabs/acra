@@ -115,7 +115,8 @@ func (p *CommonKeyStoreParameters) RegisterPrefixed(flags *flag.FlagSet, default
 
 // OpenKeyStoreForReading opens a keystore suitable for reading keys.
 func OpenKeyStoreForReading(params KeyStoreParameters) (keystore.ServerKeyStore, error) {
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(params.KeyLoaderCLIOptions().KeystoreEncryptorType)
+	masterKeyLoaderFactory := keyloader.NewMasterKeyLoaderFactory(params.KeyLoaderCLIOptions().KeystoreEncryptorType)
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(masterKeyLoaderFactory)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +129,8 @@ func OpenKeyStoreForReading(params KeyStoreParameters) (keystore.ServerKeyStore,
 
 // OpenKeyStoreForWriting opens a keystore suitable for modifications.
 func OpenKeyStoreForWriting(params KeyStoreParameters) (keyStore keystore.KeyMaking, err error) {
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(params.KeyLoaderCLIOptions().KeystoreEncryptorType)
+	masterKeyLoaderFactory := keyloader.NewMasterKeyLoaderFactory(params.KeyLoaderCLIOptions().KeystoreEncryptorType)
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(masterKeyLoaderFactory)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +143,8 @@ func OpenKeyStoreForWriting(params KeyStoreParameters) (keyStore keystore.KeyMak
 
 // OpenKeyStoreForExport opens a keystore suitable for export operations.
 func OpenKeyStoreForExport(params KeyStoreParameters) (api.KeyStore, error) {
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(params.KeyLoaderCLIOptions().KeystoreEncryptorType)
+	masterKeyLoaderFactory := keyloader.NewMasterKeyLoaderFactory(params.KeyLoaderCLIOptions().KeystoreEncryptorType)
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(masterKeyLoaderFactory)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +158,8 @@ func OpenKeyStoreForExport(params KeyStoreParameters) (api.KeyStore, error) {
 
 // OpenKeyStoreForImport opens a keystore suitable for import operations.
 func OpenKeyStoreForImport(params KeyStoreParameters) (api.MutableKeyStore, error) {
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(params.KeyLoaderCLIOptions().KeystoreEncryptorType)
+	masterKeyLoaderFactory := keyloader.NewMasterKeyLoaderFactory(params.KeyLoaderCLIOptions().KeystoreEncryptorType)
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(masterKeyLoaderFactory)
 	if err != nil {
 		return nil, err
 	}

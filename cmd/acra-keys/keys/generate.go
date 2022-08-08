@@ -298,7 +298,8 @@ func (g *GenerateKeySubcommand) Execute() {
 		}
 	}
 
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(g.CommonKeyStoreParameters.KeyLoaderCLIOptions().KeystoreEncryptorType)
+	masterKeyLoaderFactory := keyloader.NewMasterKeyLoaderFactory(g.CommonKeyStoreParameters.KeyLoaderCLIOptions().KeystoreEncryptorType)
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(masterKeyLoaderFactory)
 	if err != nil {
 		return
 	}

@@ -223,7 +223,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	masterKeyLoaderFactory := keyloader.NewMasterKeyLoaderFactory(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(masterKeyLoaderFactory)
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
 		os.Exit(1)
