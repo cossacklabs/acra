@@ -28,7 +28,6 @@ import (
 	"fmt"
 	_ "net/http/pprof"
 	"os"
-	"os/exec"
 	"os/signal"
 	"strings"
 	"sync"
@@ -564,16 +563,17 @@ func realMain() error {
 		}
 		log.Debugf("Forking new process of %s", ServiceName)
 
-		binaryPath, err := exec.LookPath(os.Args[0])
+		executable, err := os.Executable()
 		if err != nil {
 			log.WithError(err).Errorln("Can't find full binary path")
 			shutdownCurrentInstance(err)
 			return
 		}
 		// Fork new process
-		fork, err := syscall.ForkExec(binaryPath, os.Args, execSpec)
+		fork, err := syscall.ForkExec(executable, os.Args, execSpec)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantForkProcess).
+				WithField("executable", executable).
 				Errorln("System error: failed to fork new process", err)
 			shutdownCurrentInstance(err)
 			return
