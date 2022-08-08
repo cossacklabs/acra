@@ -172,7 +172,7 @@ type ClientIDObserver interface {
 	OnNewClientID(clientID []byte)
 }
 
-//ClientIDObservable used to subscribe for clientID changes
+// ClientIDObservable used to subscribe for clientID changes
 type ClientIDObservable interface {
 	AddClientIDObserver(ClientIDObserver)
 }

@@ -116,8 +116,8 @@ func (m *MigrateKeysSubcommand) RegisterFlags() {
 	m.flagSet.BoolVar(&m.force, "force", false, "write to output keystore even if it exists")
 	m.src.RegisterRedisWithPrefix(m.flagSet, "src_", "old keystore, source")
 	m.dst.RegisterRedisWithPrefix(m.flagSet, "dst_", "new keystore, destination")
-	m.src.RegisterVaultWithPrefix(m.flagSet, "src_", "old keystore, source ACRA_MASTER_KEY")
-	m.dst.RegisterVaultWithPrefix(m.flagSet, "dst_", "new keystore, destination ACRA_MASTER_KEY")
+	m.src.RegisterKeyLoaderCLItWithPrefix(m.flagSet, "src_", "old keystore, source ACRA_MASTER_KEY")
+	m.dst.RegisterKeyLoaderCLItWithPrefix(m.flagSet, "dst_", "new keystore, destination ACRA_MASTER_KEY")
 
 	m.flagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": migrate keystore to a different format\n", CmdMigrateKeys)
@@ -175,12 +175,12 @@ func (m *MigrateKeysSubcommand) Execute() {
 		return
 	}
 
-	keyLoaderV1, err := keyloader.GetInitializedMasterKeyLoaderWithEnv(SrcMasterKeyVarName, m.src.VaultCLIOptions())
+	keyLoaderV1, err := keyloader.GetInitializedMasterKeyLoaderWithEnv(SrcMasterKeyVarName, m.src.keyLoaderOptions.KeystoreEncryptorType)
 	if err != nil {
 		return
 	}
 
-	keyLoaderV2, err := keyloader.GetInitializedMasterKeyLoaderWithEnv(DstMasterKeyVarName, m.dst.VaultCLIOptions())
+	keyLoaderV2, err := keyloader.GetInitializedMasterKeyLoaderWithEnv(DstMasterKeyVarName, m.dst.keyLoaderOptions.KeystoreEncryptorType)
 	if err != nil {
 		return
 	}
@@ -226,10 +226,10 @@ func MigrateV1toV2(srcV1 filesystem.KeyExport, dstV2 keystoreV2.KeyFileImportV1)
 
 	log.Tracef("Importing %d keys from keystore v1", expected)
 	for _, key := range keys {
-		log := log.WithField("purpose", key.Purpose).WithField("id", key.ID)
 		err := dstV2.ImportKeyFileV1(srcV1, key)
 		if err != nil {
-			log.WithError(err).Warn("Failed to import key")
+			log.WithField("purpose", key.KeyContext.Purpose).WithField("id", key.KeyContext).WithError(err).
+				Warn("Failed to import key")
 			continue
 		}
 		actual++

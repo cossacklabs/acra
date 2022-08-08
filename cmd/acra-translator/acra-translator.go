@@ -43,8 +43,7 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
-	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
-	"github.com/cossacklabs/acra/keystore/keyloader/kms"
+	baseKMS "github.com/cossacklabs/acra/keystore/kms"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystem2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	filesystemBackendV2CE "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
@@ -135,8 +134,7 @@ func realMain() error {
 	useClientIDFromConnection := flag.Bool("acratranslator_client_id_from_connection_enable", false, "Use clientID from TLS certificates or secure session handshake instead directly passed values in gRPC methods")
 	enableAuditLog := flag.Bool("audit_log_enable", false, "Enable audit log functionality")
 
-	kms.RegisterCLIParameters()
-	hashicorp.RegisterVaultCLIParameters()
+	keyloader.RegisterCLIParameters()
 	cmd.RegisterTracingCmdParameters()
 	cmd.RegisterJaegerCmdParameters()
 	logging.RegisterCLIArgs()
@@ -199,7 +197,7 @@ func realMain() error {
 
 	cmd.SetupTracing(ServiceName)
 
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(hashicorp.GetVaultCLIParameters(), kms.GetCLIParameters())
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(keyloader.GetCLIParameters().KeystoreEncryptorType)
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
 		return err
@@ -660,20 +658,34 @@ func waitReadPipe(timeoutDuration time.Duration) error {
 }
 
 func openKeyStoreV1(keysDir string, cacheSize int, loader keyloader.MasterKeyLoader) (keystore.ServerKeyStore, keystore.TranslationKeyStore, error) {
-	masterKey, err := loader.LoadMasterKey()
-	if err != nil {
-		log.WithError(err).
-			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantLoadMasterKey).
-			Errorln("Cannot load master key")
-		return nil, nil, err
-	}
-	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
-	if err != nil {
-		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitPrivateKeysEncryptor).WithError(err).Errorln("Can't init scell encryptor")
-		return nil, nil, err
+	var keyStoreEncryptor keystore.KeyEncryptor
+
+	var keyLoaderParams = keyloader.GetCLIParameters()
+	if keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
+		keyManager, err := keyLoaderParams.GetKMSParameters().NewKeyManager()
+		if err != nil {
+			log.WithError(err).Errorln("Failed to initializer kms KeyManager")
+			os.Exit(1)
+		}
+
+		keyStoreEncryptor = baseKMS.NewKeyEncryptor(keyManager)
+	} else {
+		masterKey, err := loader.LoadMasterKey()
+		if err != nil {
+			log.WithError(err).
+				WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantLoadMasterKey).
+				Errorln("Cannot load master key")
+			return nil, nil, err
+		}
+		keyStoreEncryptor, err = keystore.NewSCellKeyEncryptor(masterKey)
+		if err != nil {
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitPrivateKeysEncryptor).WithError(err).Errorln("Can't init scell encryptor")
+			return nil, nil, err
+		}
 	}
 
 	var keyStorage filesystem.Storage = &filesystem.DummyStorage{}
+	var err error
 	redis := cmd.GetRedisParameters()
 	if redis.KeysConfigured() {
 		keyStorage, err = filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
@@ -685,7 +697,7 @@ func openKeyStoreV1(keysDir string, cacheSize int, loader keyloader.MasterKeyLoa
 	keyStore := filesystem.NewCustomFilesystemKeyStore()
 	keyStore.KeyDirectory(keysDir)
 	keyStore.CacheSize(cacheSize)
-	keyStore.Encryptor(scellEncryptor)
+	keyStore.Encryptor(keyStoreEncryptor)
 	keyStore.Storage(keyStorage)
 	keyStoreV1, err := keyStore.Build()
 	if err != nil {
@@ -696,7 +708,7 @@ func openKeyStoreV1(keysDir string, cacheSize int, loader keyloader.MasterKeyLoa
 
 	transportKeyStore := filesystem.NewCustomTranslatorFileSystemKeyStore()
 	transportKeyStore.KeyDirectory(keysDir)
-	transportKeyStore.Encryptor(scellEncryptor)
+	transportKeyStore.Encryptor(keyStoreEncryptor)
 	transportKeyStore.Storage(keyStorage)
 	transportKeyStoreV1, err := transportKeyStore.Build()
 	if err != nil {

@@ -1,12 +1,15 @@
 package hashicorp
 
 import (
+	"errors"
 	"flag"
 
-	"github.com/cossacklabs/acra/keystore/keyloader"
 	"github.com/hashicorp/vault/api"
 	log "github.com/sirupsen/logrus"
 )
+
+// ErrEmptyConnectionURL error displaying empty Hashicorp Vault connection URL
+var ErrEmptyConnectionURL = errors.New("empty Hashicorp Vault connection URL provided")
 
 const (
 	defaultVaultSecretsPath   = "secret/"
@@ -46,7 +49,7 @@ func (options *VaultCLIOptions) RegisterCLIParameters(flags *flag.FlagSet, prefi
 	}
 }
 
-//TLSConfig return TLS configuration needed to connect to HashiCorp Vault
+// TLSConfig return TLS configuration needed to connect to HashiCorp Vault
 func (options *VaultCLIOptions) TLSConfig() *api.TLSConfig {
 	return &api.TLSConfig{
 		ClientKey:  options.ClientKey,
@@ -55,15 +58,10 @@ func (options *VaultCLIOptions) TLSConfig() *api.TLSConfig {
 	}
 }
 
-// GetVaultCLIParameters returns a copy of VaultCLIOptions parsed from the command line.
-func GetVaultCLIParameters() *VaultCLIOptions {
-	return &vaultOptions
-}
-
-// New create MasterKeyLoader from VaultCLIOptions - implementation of keyloader.CliMasterKeyLoaderCreator interface
-func (options VaultCLIOptions) New() (keyloader.MasterKeyLoader, error) {
+// NewMasterKeyLoader create MasterKeyLoader from VaultCLIOptions
+func (options *VaultCLIOptions) NewMasterKeyLoader() (*VaultLoader, error) {
 	if options.Address == "" {
-		return nil, nil
+		return nil, ErrEmptyConnectionURL
 	}
 
 	log.Infoln("Initializing connection to HashiCorp Vault for ACRA_MASTER_KEY loading")

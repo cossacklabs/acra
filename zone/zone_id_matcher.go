@@ -27,8 +27,8 @@ import (
 
 // were chosen upper symbols because if data is text than it's less possible to
 // catch three upper consonants in a row
-//var ZoneIDBegin = []byte{'Z', 'X', 'C'}
-//'44' - D - 68 - 0b1000100
+// var ZoneIDBegin = []byte{'Z', 'X', 'C'}
+// '44' - D - 68 - 0b1000100
 var (
 	ZoneTagSymbol     byte = 'D'
 	ZoneIDBegin            = []byte{ZoneTagSymbol, ZoneTagSymbol, ZoneTagSymbol, ZoneTagSymbol, ZoneTagSymbol, ZoneTagSymbol, ZoneTagSymbol, ZoneTagSymbol}

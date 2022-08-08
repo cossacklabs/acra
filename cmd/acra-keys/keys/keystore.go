@@ -19,12 +19,13 @@ package keys
 import (
 	"errors"
 	"flag"
+	"os"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
-	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
-	"github.com/cossacklabs/acra/keystore/keyloader/kms"
+	baseKMS "github.com/cossacklabs/acra/keystore/kms"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
@@ -46,8 +47,7 @@ type KeyStoreParameters interface {
 
 	RedisConfigured() bool
 	RedisOptions() *redis.Options
-	VaultCLIOptions() hashicorp.VaultCLIOptions
-	KMSCLIOptions() kms.CLIOptions
+	KeyLoaderCLIOptions() keyloader.CLIOptions
 }
 
 // CommonKeyStoreParameters is a mix-in of command line parameters for keystore construction.
@@ -55,9 +55,8 @@ type CommonKeyStoreParameters struct {
 	keyDir       string
 	keyDirPublic string
 
-	redisOptions cmd.RedisOptions
-	vaultOptions hashicorp.VaultCLIOptions
-	kmsOptions   kms.CLIOptions
+	redisOptions     cmd.RedisOptions
+	keyLoaderOptions keyloader.CLIOptions
 }
 
 // KeyDir returns path to key directory.
@@ -83,14 +82,9 @@ func (p *CommonKeyStoreParameters) RedisOptions() *redis.Options {
 	return p.redisOptions.KeysOptions()
 }
 
-// VaultCLIOptions returns Hashicorp Vault configuration options for ACRA_MASTER_KEY loading.
-func (p *CommonKeyStoreParameters) VaultCLIOptions() hashicorp.VaultCLIOptions {
-	return p.vaultOptions
-}
-
-// KMSCLIOptions returns KMS configuration options for ACRA_MASTER_KEY loading.
-func (p *CommonKeyStoreParameters) KMSCLIOptions() kms.CLIOptions {
-	return p.kmsOptions
+// KeyLoaderCLIOptions returns common keyloader CLI configuration options for ACRA_MASTER_KEY loading.
+func (p *CommonKeyStoreParameters) KeyLoaderCLIOptions() keyloader.CLIOptions {
+	return p.keyLoaderOptions
 }
 
 // RegisterRedisWithPrefix registers redis options in given flag set, using additional prefix.
@@ -98,17 +92,16 @@ func (p *CommonKeyStoreParameters) RegisterRedisWithPrefix(flags *flag.FlagSet, 
 	p.redisOptions.RegisterKeyStoreParameters(flags, prefix, description)
 }
 
-// RegisterVaultWithPrefix registers HashiCorp vault options in given flag set, using additional prefix.
-func (p *CommonKeyStoreParameters) RegisterVaultWithPrefix(flags *flag.FlagSet, prefix, description string) {
-	p.vaultOptions.RegisterCLIParameters(flags, prefix, description)
+// RegisterKeyLoaderCLItWithPrefix registers keyloader CLI options in given flag set, using additional prefix.
+func (p *CommonKeyStoreParameters) RegisterKeyLoaderCLItWithPrefix(flags *flag.FlagSet, prefix, description string) {
+	p.keyLoaderOptions.RegisterCLIParameters(flags, prefix, description)
 }
 
 // Register registers keystore flags with the given flag set.
 func (p *CommonKeyStoreParameters) Register(flags *flag.FlagSet) {
 	p.RegisterPrefixed(flags, DefaultKeyDirectory, "", "")
 	p.redisOptions.RegisterKeyStoreParameters(flags, "", "")
-	p.vaultOptions.RegisterCLIParameters(flags, "", "")
-	p.kmsOptions.RegisterCLIParameters(flags, "", "")
+	p.keyLoaderOptions.RegisterCLIParameters(flags, "", "")
 }
 
 // RegisterPrefixed registers keystore flags with the given flag set, using given prefix and description.
@@ -122,7 +115,7 @@ func (p *CommonKeyStoreParameters) RegisterPrefixed(flags *flag.FlagSet, default
 
 // OpenKeyStoreForReading opens a keystore suitable for reading keys.
 func OpenKeyStoreForReading(params KeyStoreParameters) (keystore.ServerKeyStore, error) {
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(params.VaultCLIOptions(), params.KMSCLIOptions())
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(params.KeyLoaderCLIOptions().KeystoreEncryptorType)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +128,7 @@ func OpenKeyStoreForReading(params KeyStoreParameters) (keystore.ServerKeyStore,
 
 // OpenKeyStoreForWriting opens a keystore suitable for modifications.
 func OpenKeyStoreForWriting(params KeyStoreParameters) (keyStore keystore.KeyMaking, err error) {
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(params.VaultCLIOptions(), params.KMSCLIOptions())
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(params.KeyLoaderCLIOptions().KeystoreEncryptorType)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +141,7 @@ func OpenKeyStoreForWriting(params KeyStoreParameters) (keyStore keystore.KeyMak
 
 // OpenKeyStoreForExport opens a keystore suitable for export operations.
 func OpenKeyStoreForExport(params KeyStoreParameters) (api.KeyStore, error) {
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(params.VaultCLIOptions(), params.KMSCLIOptions())
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(params.KeyLoaderCLIOptions().KeystoreEncryptorType)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +155,7 @@ func OpenKeyStoreForExport(params KeyStoreParameters) (api.KeyStore, error) {
 
 // OpenKeyStoreForImport opens a keystore suitable for import operations.
 func OpenKeyStoreForImport(params KeyStoreParameters) (api.MutableKeyStore, error) {
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(params.VaultCLIOptions(), params.KMSCLIOptions())
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(params.KeyLoaderCLIOptions().KeystoreEncryptorType)
 	if err != nil {
 		return nil, err
 	}
@@ -175,19 +168,32 @@ func OpenKeyStoreForImport(params KeyStoreParameters) (api.MutableKeyStore, erro
 }
 
 func openKeyStoreV1(params KeyStoreParameters, loader keyloader.MasterKeyLoader) (*filesystem.KeyStore, error) {
-	masterKey, err := loader.LoadMasterKey()
-	if err != nil {
-		log.WithError(err).Errorln("Cannot load master key")
-		return nil, err
-	}
-	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
-	if err != nil {
-		log.WithError(err).Errorln("Failed to initialise Secure Cell encryptor")
-		return nil, err
+	var keyStoreEncryptor keystore.KeyEncryptor
+
+	var keyLoaderParams = keyloader.GetCLIParameters()
+	if keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
+		keyManager, err := keyLoaderParams.GetKMSParameters().NewKeyManager()
+		if err != nil {
+			log.WithError(err).Errorln("Failed to initializer kms KeyManager")
+			os.Exit(1)
+		}
+
+		keyStoreEncryptor = baseKMS.NewKeyEncryptor(keyManager)
+	} else {
+		masterKey, err := loader.LoadMasterKey()
+		if err != nil {
+			log.WithError(err).Errorln("Cannot load master key")
+			return nil, err
+		}
+		keyStoreEncryptor, err = keystore.NewSCellKeyEncryptor(masterKey)
+		if err != nil {
+			log.WithError(err).Errorln("Failed to initialise Secure Cell encryptor")
+			return nil, err
+		}
 	}
 
 	keyStore := filesystem.NewCustomFilesystemKeyStore()
-	keyStore.Encryptor(scellEncryptor)
+	keyStore.Encryptor(keyStoreEncryptor)
 
 	keyDir := params.KeyDir()
 	keyDirPublic := params.KeyDirPublic()

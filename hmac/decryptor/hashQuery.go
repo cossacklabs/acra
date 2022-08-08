@@ -165,11 +165,11 @@ func (encryptor *HashQuery) getTableSchemaOfColumn(column *sqlparser.ColName, de
 //
 // Searchable encryption rewrites WHERE clauses with equality comparisons like this:
 //
-//     WHERE column = 'value'   ===>   WHERE substring(column, 1, <HMAC_size>) = <HMAC('value')>
+//	WHERE column = 'value'   ===>   WHERE substring(column, 1, <HMAC_size>) = <HMAC('value')>
 //
 // If the query is a parameterized prepared query then OnQuery() rewriting yields this:
 //
-//     WHERE column = $1        ===>   WHERE substring(column, 1, <HMAC_size>) = $1
+//	WHERE column = $1        ===>   WHERE substring(column, 1, <HMAC_size>) = $1
 //
 // and actual "value" is passed via parameters later. See OnBind() for details.
 func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObject) (base.OnQueryObject, bool, error) {
@@ -225,11 +225,11 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObjec
 //
 // Searchable encryption rewrites WHERE clauses with equality comparisons like this:
 //
-//     WHERE column = 'value'   ===>   WHERE substring(column, 1, <HMAC_size>) = <HMAC('value')>
+//	WHERE column = 'value'   ===>   WHERE substring(column, 1, <HMAC_size>) = <HMAC('value')>
 //
 // If the query is a parameterized prepared query then OnQuery() rewriting yields this:
 //
-//     WHERE column = $1        ===>   WHERE substring(column, 1, <HMAC_size>) = $1
+//	WHERE column = $1        ===>   WHERE substring(column, 1, <HMAC_size>) = $1
 //
 // and actual "value" is passed via parameters, visible here in OnBind().
 // If that's the case, HMAC computation should be performed for relevant values.

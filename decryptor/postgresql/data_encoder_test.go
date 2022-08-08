@@ -234,7 +234,7 @@ func TestTextMode(t *testing.T) {
 			t.Fatalf("[%d] Result data should be the same\n", i)
 		}
 		_, encodedData, encodeErr := encoder.OnColumn(ctx, decodedData)
-		if encodeErr != tcase.encodeErr && !errors.As(encodeErr, &tcase.encodeErr) {
+		if encodeErr != tcase.encodeErr && !errors.Is(encodeErr, tcase.encodeErr) {
 			t.Fatalf("[%d] Incorrect encode error. Expect %s, took %s\n", i, tcase.encodeErr.Error(), encodeErr.Error())
 		}
 		if !bytes.Equal(encodedData, tcase.encodedData) {
@@ -334,7 +334,7 @@ func TestBinaryMode(t *testing.T) {
 			t.Fatalf("[%d] Result data should be the same\n", i)
 		}
 		_, encodedData, encodeErr := encoder.OnColumn(ctx, decodedData)
-		if encodeErr != tcase.encodeErr && !errors.As(encodeErr, &tcase.encodeErr) {
+		if encodeErr != tcase.encodeErr && !errors.Is(encodeErr, tcase.encodeErr) {
 			t.Fatalf("[%d] Incorrect encode error. Expect %s, took %s\n", i, tcase.encodeErr.Error(), encodeErr.Error())
 		}
 		if !bytes.Equal(encodedData, tcase.encodedData) {

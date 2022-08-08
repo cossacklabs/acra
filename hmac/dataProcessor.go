@@ -31,7 +31,7 @@ import (
 // ErrHMACNotMatch hmac not equal to data in AcraStruct
 var ErrHMACNotMatch = errors.New("HMAC not match to data in AcraStruct")
 
-//Processor HMAC DataProcessor implementation
+// Processor HMAC DataProcessor implementation
 type Processor struct {
 	hashData        []byte
 	matchedHash     Hash
@@ -78,7 +78,7 @@ func (p *Processor) OnColumn(ctx context.Context, data []byte) (context.Context,
 	return ctx, data[p.matchedHash.Length():], nil
 }
 
-//Process HMAC DataProcessor implementation
+// Process HMAC DataProcessor implementation
 func (p *Processor) Process(data []byte, ctx *base.DataProcessorContext) ([]byte, error) {
 	accessContext := base.AccessContextFromContext(ctx.Context)
 	if p.hashData != nil && !p.matchedHash.IsEqual(data, accessContext.GetClientID(), p.hmacStore) {

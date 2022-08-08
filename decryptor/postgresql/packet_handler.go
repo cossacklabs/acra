@@ -483,11 +483,11 @@ var ErrUnsupportedPacketType = errors.New("unsupported postgresql message type")
 // There are two types of messages: startup and general ones.
 // Due to historical reasons, startup messages have the following format:
 //
-//     [4-byte length] [4-byte tag] [payload...]
+//	[4-byte length] [4-byte tag] [payload...]
 //
 // On the other hand, general messages have:
 //
-//     [1-byte tag] [4-byte length] [payload...]
+//	[1-byte tag] [4-byte length] [payload...]
 //
 // Overall, as of today (PostgreSQL 14), the protocol supports following packets,
 // that can be received from the client (Frontend or F), or both the client and
@@ -543,7 +543,7 @@ func (packet *PacketHandler) ReadClientPacket() error {
 //
 // Due to historical reasons, all startup messages have the following format:
 //
-//     [4-byte length] [4-byte tag] [payload...]
+//	[4-byte length] [4-byte tag] [payload...]
 //
 // If the packet cannot be parsed as a startup packets, the ErrUnsupportedPacketType
 // is returned.

@@ -1,4 +1,4 @@
-FROM debian:buster
+FROM debian:bullseye
 
 # Application name
 ARG APP_NAME
