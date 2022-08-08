@@ -17,7 +17,7 @@ keys_dir: .acrakeys
 # path to key directory for public keys
 keys_dir_public: 
 
-# Keystore encryptor strategy; : <master_key|kms_master_key|vault_master_key|kms_per_client
+# Keystore encryptor strategy; : <master_key|kms_encrypted_master_key|vault_master_key|kms_per_client
 keystore_encryption_type: master_key
 
 # KMS credentials JSON file path
@@ -77,7 +77,7 @@ dst_keys_dir_public:
 # keystore format to use: v1 (current), v2 (new)
 dst_keystore: 
 
-# Keystore encryptor strategy; : <master_key|kms_master_key|vault_master_key|kms_per_client (new keystore, destination ACRA_MASTER_KEY)
+# Keystore encryptor strategy; : <master_key|kms_encrypted_master_key|vault_master_key|kms_per_client (new keystore, destination ACRA_MASTER_KEY)
 dst_keystore_encryption_type: master_key
 
 # KMS credentials JSON file path ( (new keystore, destination ACRA_MASTER_KEY))
@@ -125,7 +125,7 @@ src_keys_dir_public:
 # keystore format to use: v1 (current), v2 (new)
 src_keystore: 
 
-# Keystore encryptor strategy; : <master_key|kms_master_key|vault_master_key|kms_per_client (old keystore, source ACRA_MASTER_KEY)
+# Keystore encryptor strategy; : <master_key|kms_encrypted_master_key|vault_master_key|kms_per_client (old keystore, source ACRA_MASTER_KEY)
 src_keystore_encryption_type: master_key
 
 # KMS credentials JSON file path ( (old keystore, source ACRA_MASTER_KEY))

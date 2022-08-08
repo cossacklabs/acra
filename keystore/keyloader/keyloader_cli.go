@@ -12,7 +12,7 @@ import (
 // represent all possible keyloader strategies
 const (
 	KeystoreStrategyMasterKey               = "master_key"
-	KeystoreStrategyKMSMasterKey            = "kms_master_key"
+	KeystoreStrategyKMSMasterKey            = "kms_encrypted_master_key"
 	KeystoreStrategyHashicorpVaultMasterKey = "vault_master_key"
 	KeystoreStrategyKMSPerClient            = "kms_per_client"
 )

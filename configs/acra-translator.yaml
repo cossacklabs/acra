@@ -50,7 +50,7 @@ keystore_cache_on_start_enable: true
 # Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache. Default is 1000
 keystore_cache_size: 1000
 
-# Keystore encryptor strategy; : <master_key|kms_master_key|vault_master_key|kms_per_client
+# Keystore encryptor strategy; : <master_key|kms_encrypted_master_key|vault_master_key|kms_per_client
 keystore_encryption_type: master_key
 
 # KMS credentials JSON file path

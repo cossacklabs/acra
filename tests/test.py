@@ -1254,7 +1254,7 @@ class KeyMakerTestWithAWSKMS(unittest.TestCase):
             [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
             '--generate_master_key={}'.format(master_key_file.name),
             '--kms_type=aws',
-            '--keystore_encryption_type=kms_master_key',
+            '--keystore_encryption_type=kms_encrypted_master_key',
             '--kms_credentials_path={}'.format(self.config_file.name)])
 
         resp = self.kms_client.list_aliases()
@@ -1272,7 +1272,7 @@ class KeyMakerTestWithAWSKMS(unittest.TestCase):
                     [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
                      '--generate_master_key={}'.format(master_key_file.name),
                      '--kms_type=aws',
-                     '--keystore_encryption_type=kms_master_key',
+                     '--keystore_encryption_type=kms_encrypted_master_key',
                      '--kms_credentials_path={}'.format(self.config_file.name)], stderr=subprocess.STDOUT)
             except subprocess.CalledProcessError as exp:
                 self.assertIn("alias/acra_master_key already exists", str(exp.output))
@@ -3290,7 +3290,7 @@ class AWSKMSMasterKeyLoaderMixin:
         args = {
             'kms_credentials_path': self.config_file.name,
             'kms_type': 'aws',
-            'keystore_encryption_type': 'kms_master_key'
+            'keystore_encryption_type': 'kms_encrypted_master_key'
         }
         os.environ[ACRA_MASTER_KEY_VAR_NAME] = self.master_key_ciphertext
         acra_kwargs.update(args)
@@ -3300,7 +3300,7 @@ class AWSKMSMasterKeyLoaderMixin:
         args = {
             'kms_credentials_path': self.config_file,
             'kms_type': 'aws',
-            'keystore_encryption_type': 'kms_master_key'
+            'keystore_encryption_type': 'kms_encrypted_master_key'
         }
         os.environ[ACRA_MASTER_KEY_VAR_NAME] = self.master_key_ciphertext
         translator_kwargs.update(args)

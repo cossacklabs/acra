@@ -264,6 +264,20 @@ func GetKeyContextFromContext(keyContext KeyContext) []byte {
 	return nil
 }
 
+// String implementation of Stringer interface for KeyContext
+func (ctx KeyContext) String() string {
+	if ctx.ZoneID != nil {
+		return string(ctx.ZoneID)
+	}
+	if ctx.ClientID != nil {
+		return string(ctx.ClientID)
+	}
+	if ctx.Context != nil {
+		return string(ctx.Context)
+	}
+	return "empty KeyContext"
+}
+
 // KeyEncryptor describes Encrypt and Decrypt interfaces.
 type KeyEncryptor interface {
 	Encrypt(ctx context.Context, key []byte, keyContext KeyContext) ([]byte, error)

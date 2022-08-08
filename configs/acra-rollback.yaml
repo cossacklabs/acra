@@ -26,7 +26,7 @@ insert:
 # Folder from which the keys will be loaded
 keys_dir: .acrakeys
 
-# Keystore encryptor strategy; : <master_key|kms_master_key|vault_master_key|kms_per_client
+# Keystore encryptor strategy; : <master_key|kms_encrypted_master_key|vault_master_key|kms_per_client
 keystore_encryption_type: master_key
 
 # KMS credentials JSON file path

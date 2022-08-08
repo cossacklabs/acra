@@ -20,7 +20,7 @@ keys_private_dir: .acrakeys
 # Folder with public keys. Leave empty if keys stored in same folder as keys_private_dir
 keys_public_dir: 
 
-# Keystore encryptor strategy; : <master_key|kms_master_key|vault_master_key|kms_per_client
+# Keystore encryptor strategy; : <master_key|kms_encrypted_master_key|vault_master_key|kms_per_client
 keystore_encryption_type: master_key
 
 # KMS credentials JSON file path
