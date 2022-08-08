@@ -36,7 +36,7 @@ func NewMasterKeyLoaderFactory(loadStrategy string) MasterKeyLoaderFactory {
 // NewMasterKeyLoaderFactoryWithEnv create new MasterKeyLoaderCreator with specified envName
 func NewMasterKeyLoaderFactoryWithEnv(envName string) MasterKeyLoaderFactory {
 	return MasterKeyLoaderCreator{
-		envName: keystore.AcraMasterKeyVarName,
+		envName: envName,
 	}
 }
 
