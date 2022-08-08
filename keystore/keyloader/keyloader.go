@@ -40,6 +40,7 @@ func NewMasterKeyLoaderFactoryWithEnv(envName string) MasterKeyLoaderFactory {
 	}
 }
 
+// CreateMasterKeyLoader create MasterKeyLoader depending on loadStrategy
 func (m MasterKeyLoaderCreator) CreateMasterKeyLoader() (MasterKeyLoader, error) {
 	cliParams := GetCLIParameters()
 	switch m.loadStrategy {
