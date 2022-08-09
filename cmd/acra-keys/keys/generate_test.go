@@ -32,7 +32,7 @@ import (
 
 func TestRotateSymmetricZoneKey(t *testing.T) {
 	zoneID := "DDDDDDDDHCzqZAZNbBvybWLR"
-	keyLoader := keyloader.NewEnvLoader(keystore.AcraMasterKeyVarName)
+	keyloader.RegisterKeyLoaderCreator(keyloader.KeystoreStrategyEnvMasterKey, keyloader.NewEnvLoaderCreator(keystore.AcraMasterKeyVarName))
 
 	masterKey, err := keystore.GenerateSymmetricKey()
 	if err != nil {
@@ -52,12 +52,15 @@ func TestRotateSymmetricZoneKey(t *testing.T) {
 	generateCmd := &GenerateKeySubcommand{
 		CommonKeyStoreParameters: CommonKeyStoreParameters{
 			keyDir: dirName,
+			keyLoaderOptions: keyloader.CLIOptions{
+				KeystoreEncryptorType: keyloader.KeystoreStrategyEnvMasterKey,
+			},
 		},
 		zoneID:        zoneID,
 		rotateZoneSym: true,
 	}
 
-	keyStore, err = openKeyStoreV1(generateCmd, keyLoader)
+	keyStore, err = openKeyStoreV1(generateCmd)
 	if err != nil {
 		t.Fatal(err)
 	}

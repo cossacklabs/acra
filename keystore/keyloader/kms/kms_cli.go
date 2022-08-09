@@ -38,6 +38,18 @@ type CLIOptions struct {
 	CredentialsPath string
 }
 
+var kmsOptions CLIOptions
+
+// RegisterCLIParameters registers CLI parameters for reading ACRA_MASTER_KEY from KMS.
+func RegisterCLIParameters() {
+	kmsOptions.RegisterCLIParameters(flag.CommandLine, "", "")
+}
+
+// GetCLIParameters returns a copy of CLIOptions parsed from the command line.
+func GetCLIParameters() *CLIOptions {
+	return &kmsOptions
+}
+
 // RegisterCLIParameters look up for vault_connection_api_string, if none exists, vault_connection_api_string and vault_secrets_path
 // will be added to provided flags.
 func (options *CLIOptions) RegisterCLIParameters(flags *flag.FlagSet, prefix string, description string) {
@@ -48,6 +60,17 @@ func (options *CLIOptions) RegisterCLIParameters(flags *flag.FlagSet, prefix str
 		flags.StringVar(&options.KMSType, prefix+"kms_type", "", fmt.Sprintf("KMS type for using: <%s>", strings.Join(supportedTypes, "|")+description))
 		flags.StringVar(&options.CredentialsPath, prefix+"kms_credentials_path", "", "KMS credentials JSON file path"+description)
 	}
+}
+
+// NewMasterKeyLoader create MasterKeyLoader from kms.CLIOptions
+func NewMasterKeyLoader(options *CLIOptions) (*Loader, error) {
+	keyManager, err := options.NewKeyManager()
+	if err != nil {
+		return nil, err
+	}
+
+	log.Infoln("Using KMS for ACRA_MASTER_KEY loading...")
+	return NewLoader(keyManager), nil
 }
 
 // NewKeyManager create kms.KeyManager from kms.CLIOptions

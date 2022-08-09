@@ -37,6 +37,8 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
+	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
+	"github.com/cossacklabs/acra/keystore/keyloader/kms"
 	baseKMS "github.com/cossacklabs/acra/keystore/kms"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
@@ -170,6 +172,8 @@ func main() {
 	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
 	usePostgresql := flag.Bool("postgresql_enable", false, "Handle Postgresql connections")
 
+	hashicorp.RegisterVaultCLIParameters()
+	kms.RegisterCLIParameters()
 	keyloader.RegisterCLIParameters()
 	logging.SetLogLevel(logging.LogVerbose)
 
@@ -223,18 +227,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	masterKeyLoaderFactory := keyloader.NewMasterKeyLoaderFactory(keyloader.GetCLIParameters().KeystoreEncryptorType)
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(masterKeyLoaderFactory)
-	if err != nil {
-		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
-		os.Exit(1)
-	}
-
 	var keystorage keystore.DecryptionKeyStore
 	if filesystemV2.IsKeyDirectory(*keysDir) {
-		keystorage = openKeyStoreV2(*keysDir, keyLoader)
+		keystorage = openKeyStoreV2(*keysDir)
 	} else {
-		keystorage = openKeyStoreV1(*keysDir, keyLoader)
+		keystorage = openKeyStoreV1(*keysDir)
 	}
 
 	db, err := sql.Open(dbDriverName, *connectionString)
@@ -312,12 +309,12 @@ func main() {
 	}
 }
 
-func openKeyStoreV1(keysDir string, loader keyloader.MasterKeyLoader) keystore.DecryptionKeyStore {
+func openKeyStoreV1(keysDir string) keystore.DecryptionKeyStore {
 	var keyStoreEncryptor keystore.KeyEncryptor
-
 	var keyLoaderParams = keyloader.GetCLIParameters()
+
 	if keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
-		keyManager, err := keyLoaderParams.GetKMSParameters().NewKeyManager()
+		keyManager, err := kms.GetCLIParameters().NewKeyManager()
 		if err != nil {
 			log.WithError(err).Errorln("Failed to initializer kms KeyManager")
 			os.Exit(1)
@@ -325,6 +322,12 @@ func openKeyStoreV1(keysDir string, loader keyloader.MasterKeyLoader) keystore.D
 
 		keyStoreEncryptor = baseKMS.NewKeyEncryptor(keyManager)
 	} else {
+		loader, err := keyloader.GetInitializedMasterKeyLoader(keyloader.GetCLIParameters().KeystoreEncryptorType)
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
+			os.Exit(1)
+		}
+
 		masterKey, err := loader.LoadMasterKey()
 		if err != nil {
 			log.WithError(err).Errorln("Cannot load master key")
@@ -345,7 +348,13 @@ func openKeyStoreV1(keysDir string, loader keyloader.MasterKeyLoader) keystore.D
 	return keystorage
 }
 
-func openKeyStoreV2(keyDirPath string, loader keyloader.MasterKeyLoader) keystore.DecryptionKeyStore {
+func openKeyStoreV2(keyDirPath string) keystore.DecryptionKeyStore {
+	loader, err := keyloader.GetInitializedMasterKeyLoader(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	if err != nil {
+		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
+		os.Exit(1)
+	}
+
 	encryption, signature, err := loader.LoadMasterKeys()
 	if err != nil {
 		log.WithError(err).Errorln("Cannot load master key")

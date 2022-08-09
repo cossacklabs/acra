@@ -17,8 +17,8 @@ keys_dir: .acrakeys
 # path to key directory for public keys
 keys_dir_public: 
 
-# Keystore encryptor strategy; : <master_key|kms_encrypted_master_key|vault_master_key|kms_per_client
-keystore_encryption_type: master_key
+# Keystore encryptor strategy: <env_master_key|kms_encrypted_master_key|vault_master_key|kms_per_client
+keystore_encryption_type: env_master_key
 
 # KMS credentials JSON file path
 kms_credentials_path: 
@@ -77,14 +77,8 @@ dst_keys_dir_public:
 # keystore format to use: v1 (current), v2 (new)
 dst_keystore: 
 
-# Keystore encryptor strategy; : <master_key|kms_encrypted_master_key|vault_master_key|kms_per_client (new keystore, destination ACRA_MASTER_KEY)
-dst_keystore_encryption_type: master_key
-
-# KMS credentials JSON file path ( (new keystore, destination ACRA_MASTER_KEY))
-dst_kms_credentials_path: 
-
-# KMS type for using: <aws ( (new keystore, destination ACRA_MASTER_KEY))>
-dst_kms_type: 
+# Keystore encryptor strategy: <env_master_key|kms_encrypted_master_key|vault_master_key|kms_per_client (new keystore, destination ACRA_MASTER_KEY)
+dst_keystore_encryption_type: env_master_key
 
 # Number of Redis database for keys (new keystore, destination)
 dst_redis_db_keys: 0
@@ -94,24 +88,6 @@ dst_redis_host_port:
 
 # Password to Redis database (new keystore, destination)
 dst_redis_password: 
-
-# Connection string (http://x.x.x.x:yyyy) for loading ACRA_MASTER_KEY from HashiCorp Vault ( (new keystore, destination ACRA_MASTER_KEY))
-dst_vault_connection_api_string: 
-
-# KV Secret Path (secret/) for reading ACRA_MASTER_KEY from HashiCorp Vault ( (new keystore, destination ACRA_MASTER_KEY))
-dst_vault_secrets_path: secret/
-
-# Path to CA certificate for HashiCorp Vault certificate validation ( (new keystore, destination ACRA_MASTER_KEY))
-dst_vault_tls_ca_path: 
-
-# Path to client TLS certificate for reading ACRA_MASTER_KEY from HashiCorp Vault ( (new keystore, destination ACRA_MASTER_KEY))
-dst_vault_tls_client_cert: 
-
-# Path to private key of the client TLS certificate for reading ACRA_MASTER_KEY from HashiCorp Vault ( (new keystore, destination ACRA_MASTER_KEY))
-dst_vault_tls_client_key: 
-
-# Use TLS to encrypt transport with HashiCorp Vault ( (new keystore, destination ACRA_MASTER_KEY))
-dst_vault_tls_transport_enable: false
 
 # write to output keystore even if it exists
 force: false
@@ -125,14 +101,8 @@ src_keys_dir_public:
 # keystore format to use: v1 (current), v2 (new)
 src_keystore: 
 
-# Keystore encryptor strategy; : <master_key|kms_encrypted_master_key|vault_master_key|kms_per_client (old keystore, source ACRA_MASTER_KEY)
-src_keystore_encryption_type: master_key
-
-# KMS credentials JSON file path ( (old keystore, source ACRA_MASTER_KEY))
-src_kms_credentials_path: 
-
-# KMS type for using: <aws ( (old keystore, source ACRA_MASTER_KEY))>
-src_kms_type: 
+# Keystore encryptor strategy: <env_master_key|kms_encrypted_master_key|vault_master_key|kms_per_client (old keystore, source ACRA_MASTER_KEY)
+src_keystore_encryption_type: env_master_key
 
 # Number of Redis database for keys (old keystore, source)
 src_redis_db_keys: 0
@@ -142,24 +112,6 @@ src_redis_host_port:
 
 # Password to Redis database (old keystore, source)
 src_redis_password: 
-
-# Connection string (http://x.x.x.x:yyyy) for loading ACRA_MASTER_KEY from HashiCorp Vault ( (old keystore, source ACRA_MASTER_KEY))
-src_vault_connection_api_string: 
-
-# KV Secret Path (secret/) for reading ACRA_MASTER_KEY from HashiCorp Vault ( (old keystore, source ACRA_MASTER_KEY))
-src_vault_secrets_path: secret/
-
-# Path to CA certificate for HashiCorp Vault certificate validation ( (old keystore, source ACRA_MASTER_KEY))
-src_vault_tls_ca_path: 
-
-# Path to client TLS certificate for reading ACRA_MASTER_KEY from HashiCorp Vault ( (old keystore, source ACRA_MASTER_KEY))
-src_vault_tls_client_cert: 
-
-# Path to private key of the client TLS certificate for reading ACRA_MASTER_KEY from HashiCorp Vault ( (old keystore, source ACRA_MASTER_KEY))
-src_vault_tls_client_key: 
-
-# Use TLS to encrypt transport with HashiCorp Vault ( (old keystore, source ACRA_MASTER_KEY))
-src_vault_tls_transport_enable: false
 
 # read private key of the keypair
 private: false

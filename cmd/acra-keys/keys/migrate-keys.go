@@ -175,21 +175,11 @@ func (m *MigrateKeysSubcommand) Execute() {
 		return
 	}
 
-	keyLoaderV1, err := keyloader.GetInitializedMasterKeyLoader(keyloader.NewMasterKeyLoaderFactoryWithEnv(SrcMasterKeyVarName))
-	if err != nil {
-		return
-	}
-
-	keyLoaderV2, err := keyloader.GetInitializedMasterKeyLoader(keyloader.NewMasterKeyLoaderFactoryWithEnv(DstMasterKeyVarName))
-	if err != nil {
-		return
-	}
-
-	keyStoreV1, err := m.openKeyStoreV1(m.SrcKeyStoreParams(), keyLoaderV1)
+	keyStoreV1, err := m.openKeyStoreV1(m.SrcKeyStoreParams())
 	if err != nil {
 		log.WithError(err).Fatal("Failed to open keystore v1 (src)")
 	}
-	keyStoreV2, err := m.openKeyStoreV2(m.DstKeyStoreParams(), keyLoaderV2)
+	keyStoreV2, err := m.openKeyStoreV2(m.DstKeyStoreParams())
 	if err != nil {
 		log.WithError(err).Fatal("Failed to open keystore v2 (dst)")
 	}
@@ -243,7 +233,15 @@ func MigrateV1toV2(srcV1 filesystem.KeyExport, dstV2 keystoreV2.KeyFileImportV1)
 	return nil
 }
 
-func (m *MigrateKeysSubcommand) openKeyStoreV1(params KeyStoreParameters, loader keyloader.MasterKeyLoader) (*filesystem.KeyStore, error) {
+func (m *MigrateKeysSubcommand) openKeyStoreV1(params KeyStoreParameters) (*filesystem.KeyStore, error) {
+	keyloader.RegisterKeyLoaderCreator(keyloader.KeystoreStrategyEnvMasterKey, keyloader.NewEnvLoaderCreator(SrcMasterKeyVarName))
+
+	loader, err := keyloader.GetInitializedMasterKeyLoader(params.KeyLoaderCLIOptions().KeystoreEncryptorType)
+	if err != nil {
+		log.WithError(err).Error("Cannot initialize ACRA_MASTER_KEY loader")
+		return nil, err
+	}
+
 	masterKey, err := loader.LoadMasterKey()
 	if err != nil {
 		log.WithError(err).Error("Cannot load master key")
@@ -284,7 +282,15 @@ func (m *MigrateKeysSubcommand) openKeyStoreV1(params KeyStoreParameters, loader
 	return keyStoreV1, nil
 }
 
-func (m *MigrateKeysSubcommand) openKeyStoreV2(params KeyStoreParameters, loader keyloader.MasterKeyLoader) (*keystoreV2.ServerKeyStore, error) {
+func (m *MigrateKeysSubcommand) openKeyStoreV2(params KeyStoreParameters) (*keystoreV2.ServerKeyStore, error) {
+	keyloader.RegisterKeyLoaderCreator(keyloader.KeystoreStrategyEnvMasterKey, keyloader.NewEnvLoaderCreator(DstMasterKeyVarName))
+
+	loader, err := keyloader.GetInitializedMasterKeyLoader(params.KeyLoaderCLIOptions().KeystoreEncryptorType)
+	if err != nil {
+		log.WithError(err).Error("Cannot initialize ACRA_MASTER_KEY loader")
+		return nil, err
+	}
+
 	encryption, signature, err := loader.LoadMasterKeys()
 	if err != nil {
 		log.WithError(err).Error("Cannot load master key")

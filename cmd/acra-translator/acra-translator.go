@@ -43,6 +43,8 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
+	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
+	"github.com/cossacklabs/acra/keystore/keyloader/kms"
 	baseKMS "github.com/cossacklabs/acra/keystore/kms"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystem2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
@@ -134,6 +136,8 @@ func realMain() error {
 	useClientIDFromConnection := flag.Bool("acratranslator_client_id_from_connection_enable", false, "Use clientID from TLS certificates or secure session handshake instead directly passed values in gRPC methods")
 	enableAuditLog := flag.Bool("audit_log_enable", false, "Enable audit log functionality")
 
+	hashicorp.RegisterVaultCLIParameters()
+	kms.RegisterCLIParameters()
 	keyloader.RegisterCLIParameters()
 	cmd.RegisterTracingCmdParameters()
 	cmd.RegisterJaegerCmdParameters()
@@ -197,20 +201,13 @@ func realMain() error {
 
 	cmd.SetupTracing(ServiceName)
 
-	masterKeyLoaderFactory := keyloader.NewMasterKeyLoaderFactory(keyloader.GetCLIParameters().KeystoreEncryptorType)
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(masterKeyLoaderFactory)
-	if err != nil {
-		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
-		return err
-	}
-
 	log.Infof("Initialising keystore...")
 	var keyStore keystore.ServerKeyStore
 	var transportKeystore keystore.TranslationKeyStore
 	if filesystem2.IsKeyDirectory(*keysDir) {
-		keyStore, transportKeystore, err = openKeyStoreV2(*keysDir, *keysCacheSize, keyLoader)
+		keyStore, transportKeystore, err = openKeyStoreV2(*keysDir, *keysCacheSize)
 	} else {
-		keyStore, transportKeystore, err = openKeyStoreV1(*keysDir, *keysCacheSize, keyLoader)
+		keyStore, transportKeystore, err = openKeyStoreV1(*keysDir, *keysCacheSize)
 	}
 	if err != nil {
 		log.WithError(err).Errorln("Can't open keyStore")
@@ -651,19 +648,25 @@ func waitReadPipe(timeoutDuration time.Duration) error {
 	return nil
 }
 
-func openKeyStoreV1(keysDir string, cacheSize int, loader keyloader.MasterKeyLoader) (keystore.ServerKeyStore, keystore.TranslationKeyStore, error) {
+func openKeyStoreV1(keysDir string, cacheSize int) (keystore.ServerKeyStore, keystore.TranslationKeyStore, error) {
 	var keyStoreEncryptor keystore.KeyEncryptor
 
 	var keyLoaderParams = keyloader.GetCLIParameters()
 	if keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
-		keyManager, err := keyLoaderParams.GetKMSParameters().NewKeyManager()
+		keyManager, err := kms.GetCLIParameters().NewKeyManager()
 		if err != nil {
 			log.WithError(err).Errorln("Failed to initializer kms KeyManager")
-			os.Exit(1)
+			return nil, nil, err
 		}
 
 		keyStoreEncryptor = baseKMS.NewKeyEncryptor(keyManager)
 	} else {
+		loader, err := keyloader.GetInitializedMasterKeyLoader(keyloader.GetCLIParameters().KeystoreEncryptorType)
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
+			return nil, nil, err
+		}
+
 		masterKey, err := loader.LoadMasterKey()
 		if err != nil {
 			log.WithError(err).
@@ -714,9 +717,15 @@ func openKeyStoreV1(keysDir string, cacheSize int, loader keyloader.MasterKeyLoa
 	return keyStoreV1, transportKeyStoreV1, nil
 }
 
-func openKeyStoreV2(keysDir string, cacheSize int, loader keyloader.MasterKeyLoader) (keystore.ServerKeyStore, keystore.TranslationKeyStore, error) {
+func openKeyStoreV2(keysDir string, cacheSize int) (keystore.ServerKeyStore, keystore.TranslationKeyStore, error) {
 	if cacheSize != keystore.WithoutCache {
 		return nil, nil, keystore.ErrCacheIsNotSupportedV2
+	}
+
+	loader, err := keyloader.GetInitializedMasterKeyLoader(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	if err != nil {
+		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
+		return nil, nil, err
 	}
 
 	encryption, signature, err := loader.LoadMasterKeys()

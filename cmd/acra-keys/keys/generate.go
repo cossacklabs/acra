@@ -25,7 +25,6 @@ import (
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/keystore/keyloader"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -298,17 +297,11 @@ func (g *GenerateKeySubcommand) Execute() {
 		}
 	}
 
-	masterKeyLoaderFactory := keyloader.NewMasterKeyLoaderFactory(g.CommonKeyStoreParameters.KeyLoaderCLIOptions().KeystoreEncryptorType)
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(masterKeyLoaderFactory)
-	if err != nil {
-		return
-	}
-
 	switch keystoreVersion {
 	case "v1":
-		keyStore, err = openKeyStoreV1(g, keyLoader)
+		keyStore, err = openKeyStoreV1(g)
 	case "v2":
-		keyStore, err = openKeyStoreV2(g, keyLoader)
+		keyStore, err = openKeyStoreV2(g)
 	case "":
 		log.Fatalf("Keystore version is required: --keystore={v1|v2}")
 	default:

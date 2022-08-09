@@ -1,5 +1,5 @@
-//go:build !kmw_aws_off
-// +build !kmw_aws_off
+//go:build !kms_aws_off
+// +build !kms_aws_off
 
 package kms
 
