@@ -1,4 +1,5 @@
 # 0.94.0 - 2022-08-03
+- Fixed reloading on SIGHUP signal
 - Implement KMS Keystore encryptor
 - Extend `acra-keymaker`, `acra-addzone` and `acra-poisonrecord` tools with ability to create key encryption keys on KMS
 - Introduce new flag `keystore_encryption_type` for all keystore related acra tools
