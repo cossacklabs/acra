@@ -116,6 +116,10 @@ func (m *MigrateKeysSubcommand) RegisterFlags() {
 	m.flagSet.BoolVar(&m.force, "force", false, "write to output keystore even if it exists")
 	m.src.RegisterRedisWithPrefix(m.flagSet, "src_", "old keystore, source")
 	m.dst.RegisterRedisWithPrefix(m.flagSet, "dst_", "new keystore, destination")
+	m.src.RegisterKMSWithPrefix(m.flagSet, "src_", "old keystore, source")
+	m.dst.RegisterKMSWithPrefix(m.flagSet, "dst_", "new keystore, destination")
+	m.src.RegisterVaultWithPrefix(m.flagSet, "src_", "old keystore, source")
+	m.dst.RegisterVaultWithPrefix(m.flagSet, "dst_", "new keystore, destination")
 	m.src.RegisterKeyLoaderCLItWithPrefix(m.flagSet, "src_", "old keystore, source ACRA_MASTER_KEY")
 	m.dst.RegisterKeyLoaderCLItWithPrefix(m.flagSet, "dst_", "new keystore, destination ACRA_MASTER_KEY")
 
