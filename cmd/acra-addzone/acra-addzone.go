@@ -30,7 +30,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	baseKMS "github.com/cossacklabs/acra/keystore/kms/base"
 	"os"
 
 	"github.com/cossacklabs/acra/cmd"
@@ -39,6 +38,7 @@ import (
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
 	"github.com/cossacklabs/acra/keystore/keyloader/kms"
+	baseKMS "github.com/cossacklabs/acra/keystore/kms/base"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"

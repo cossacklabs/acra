@@ -1,4 +1,4 @@
-package env_loader
+package keyloader
 
 import (
 	"github.com/cossacklabs/acra/keystore"
