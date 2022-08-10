@@ -90,7 +90,6 @@ func (p *DestroyKeySubcommand) Parse(arguments []string) error {
 	default:
 		return ErrUnknownKeyKind
 	}
-	return nil
 }
 
 // Execute this subcommand.

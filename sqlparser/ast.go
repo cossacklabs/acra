@@ -22,13 +22,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/cossacklabs/acra/sqlparser/dependency/querypb"
 	"github.com/cossacklabs/acra/sqlparser/dependency/sqltypes"
 	"github.com/cossacklabs/acra/sqlparser/dialect"
 	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
 	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
-	"strconv"
-	"strings"
 )
 
 //go:generate goyacc -o sql.go sql.y
@@ -794,7 +795,6 @@ func NewPreparedQueryFromString(query string) (PreparedQuery, error) {
 	default:
 		return nil, nil
 	}
-	return nil, nil
 }
 
 // UsingInExecuteList is a set of case sensitive SQL identifiers
