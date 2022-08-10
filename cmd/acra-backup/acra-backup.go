@@ -84,24 +84,13 @@ func main() {
 		storage = &filesystem.DummyStorage{}
 	}
 
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(keyloader.GetCLIParameters().KeystoreEncryptorType)
 	if err != nil {
-		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
+		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		os.Exit(1)
 	}
 
-	symmetricKey, err := keyLoader.LoadMasterKey()
-	if err != nil {
-		log.WithError(err).Errorln("Cannot load master key")
-		os.Exit(1)
-	}
-	scellEncryptor, err := keystore.NewSCellKeyEncryptor(symmetricKey)
-	if err != nil {
-		log.WithError(err).Errorln("Can't init scell encryptor")
-		os.Exit(1)
-	}
-
-	backuper, err := filesystem.NewKeyBackuper(*outputDir, *outputPublicKey, storage, scellEncryptor)
+	backuper, err := filesystem.NewKeyBackuper(*outputDir, *outputPublicKey, storage, keyStoreEncryptor)
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize backuper")
 		os.Exit(1)

@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
 	"io"
 	"io/ioutil"
 	"os"
@@ -32,7 +33,7 @@ import (
 
 func TestRotateSymmetricZoneKey(t *testing.T) {
 	zoneID := "DDDDDDDDHCzqZAZNbBvybWLR"
-	keyloader.RegisterKeyLoaderCreator(keyloader.KeystoreStrategyEnvMasterKey, keyloader.NewEnvLoaderCreator(keystore.AcraMasterKeyVarName))
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
 
 	masterKey, err := keystore.GenerateSymmetricKey()
 	if err != nil {

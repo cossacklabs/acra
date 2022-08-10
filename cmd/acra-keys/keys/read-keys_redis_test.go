@@ -21,6 +21,7 @@ package keys
 
 import (
 	"encoding/base64"
+	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -42,7 +43,7 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 
 	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
 	clientID := []byte("testclientid")
-	keyloader.RegisterKeyLoaderCreator(keyloader.KeystoreStrategyEnvMasterKey, keyloader.NewEnvLoaderCreator(keystore.AcraMasterKeyVarName))
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
 
 	masterKey, err := keystoreV2.NewSerializedMasterKeys()
 	if err != nil {
@@ -142,7 +143,7 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 
 	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
 	clientID := []byte("testclientid")
-	keyloader.RegisterKeyLoaderCreator(keyloader.KeystoreStrategyEnvMasterKey, keyloader.NewEnvLoaderCreator(keystore.AcraMasterKeyVarName))
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
 
 	masterKey, err := keystore.GenerateSymmetricKey()
 	if err != nil {

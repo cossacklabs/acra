@@ -3,9 +3,8 @@ package aws
 import (
 	"context"
 	"errors"
+	baseKMS "github.com/cossacklabs/acra/keystore/kms/base"
 	"strings"
-
-	baseKMS "github.com/cossacklabs/acra/keystore/kms"
 )
 
 // KeyManager is AWS implementation of kms.KeyManager

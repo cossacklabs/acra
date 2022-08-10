@@ -45,3 +45,14 @@ func NewSCellSuite(encryptionKey, signatureKey []byte) (*KeyStoreSuite, error) {
 	}
 	return &KeyStoreSuite{encryptor, []signature.Algorithm{sha256}}, nil
 }
+
+// NewSCellSuiteWithEncryptor creates default cryptography suite for KeyStore:
+// - keys are encrypted by KeyEncryptor
+// - keystore is signed with HMAC-SHA-256
+func NewSCellSuiteWithEncryptor(encryptor KeyEncryptor, signatureKey []byte) (*KeyStoreSuite, error) {
+	sha256, err := NewSignSha256(signatureKey)
+	if err != nil {
+		return nil, err
+	}
+	return &KeyStoreSuite{encryptor, []signature.Algorithm{sha256}}, nil
+}

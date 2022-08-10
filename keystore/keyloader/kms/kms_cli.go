@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cossacklabs/acra/keystore/kms"
+	"github.com/cossacklabs/acra/keystore/kms/base"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -62,20 +62,9 @@ func (options *CLIOptions) RegisterCLIParameters(flags *flag.FlagSet, prefix str
 	}
 }
 
-// NewMasterKeyLoader create MasterKeyLoader from kms.CLIOptions
-func NewMasterKeyLoader(options *CLIOptions) (*Loader, error) {
-	keyManager, err := options.NewKeyManager()
-	if err != nil {
-		return nil, err
-	}
-
-	log.Infoln("Using KMS for ACRA_MASTER_KEY loading...")
-	return NewLoader(keyManager), nil
-}
-
 // NewKeyManager create kms.KeyManager from kms.CLIOptions
-func (options *CLIOptions) NewKeyManager() (kms.KeyManager, error) {
-	createKeyManager, ok := kms.GetKeyManagerCreator(options.KMSType)
+func NewKeyManager(options *CLIOptions) (base.KeyManager, error) {
+	createKeyManager, ok := base.GetKeyManagerCreator(options.KMSType)
 	if !ok {
 		log.Errorf("Unknown KMS type provided %s", options.KMSType)
 		return nil, ErrUnknownKMSType

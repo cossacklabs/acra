@@ -18,6 +18,7 @@ package keys
 
 import (
 	"encoding/base64"
+	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -37,7 +38,7 @@ func TestReadCMD_FS_V2(t *testing.T) {
 	clientID := []byte("testclientid")
 	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
 
-	keyloader.RegisterKeyLoaderCreator(keyloader.KeystoreStrategyEnvMasterKey, keyloader.NewEnvLoaderCreator(keystore.AcraMasterKeyVarName))
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
 	masterKey, err := keystoreV2.NewSerializedMasterKeys()
 	if err != nil {
 		t.Fatal(err)
@@ -124,7 +125,7 @@ func TestReadCMD_FS_V2(t *testing.T) {
 func TestReadCMD_FS_V1(t *testing.T) {
 	clientID := []byte("testclientid")
 	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
-	keyloader.RegisterKeyLoaderCreator(keyloader.KeystoreStrategyEnvMasterKey, keyloader.NewEnvLoaderCreator(keystore.AcraMasterKeyVarName))
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
 
 	masterKey, err := keystore.GenerateSymmetricKey()
 	if err != nil {

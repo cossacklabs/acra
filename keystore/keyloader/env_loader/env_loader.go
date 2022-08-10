@@ -1,4 +1,4 @@
-package keyloader
+package env_loader
 
 import (
 	"github.com/cossacklabs/acra/keystore"
@@ -19,13 +19,6 @@ func NewEnvLoader(env string) EnvLoader {
 	}
 }
 
-// NewEnvLoaderCreator create new MasterKeyLoaderCreator from EnvLoader
-func NewEnvLoaderCreator(env string) MasterKeyLoaderCreator {
-	return func() (MasterKeyLoader, error) {
-		return NewEnvLoader(env), nil
-	}
-}
-
 // LoadMasterKey retrieve ACRA_MASTER_KEY from env variable and validate it
 func (e EnvLoader) LoadMasterKey() (key []byte, err error) {
 	return keystore.GetMasterKeyFromEnvironmentVariable(e.MasterKeyEnv)
@@ -34,8 +27,4 @@ func (e EnvLoader) LoadMasterKey() (key []byte, err error) {
 // LoadMasterKeys retrieve ACRA_MASTER_KEY from env variable, deserialize and validate it
 func (e EnvLoader) LoadMasterKeys() ([]byte, []byte, error) {
 	return keystoreV2.GetMasterKeysFromEnvironmentVariable(e.MasterKeyEnv)
-}
-
-func init() {
-	RegisterKeyLoaderCreator(KeystoreStrategyEnvMasterKey, NewEnvLoaderCreator(keystore.AcraMasterKeyVarName))
 }

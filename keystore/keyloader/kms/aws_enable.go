@@ -4,10 +4,10 @@
 package kms
 
 import (
-	"github.com/cossacklabs/acra/keystore/kms"
 	"github.com/cossacklabs/acra/keystore/kms/aws"
+	"github.com/cossacklabs/acra/keystore/kms/base"
 )
 
 func init() {
-	kms.RegisterKeyManagerCreator(TypeAWS, aws.NewKeyManager)
+	base.RegisterKeyManagerCreator(TypeAWS, aws.NewKeyManager)
 }

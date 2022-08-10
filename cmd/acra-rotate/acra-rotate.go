@@ -30,7 +30,6 @@ import (
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
 	"github.com/cossacklabs/acra/keystore/keyloader/kms"
-	baseKMS "github.com/cossacklabs/acra/keystore/kms"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
@@ -126,34 +125,10 @@ func main() {
 }
 
 func openKeyStoreV1(dirPath string) keystore.ServerKeyStore {
-	var keyStoreEncryptor keystore.KeyEncryptor
-	var keyLoaderParams = keyloader.GetCLIParameters()
-
-	if keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
-		keyManager, err := kms.GetCLIParameters().NewKeyManager()
-		if err != nil {
-			log.WithError(err).Errorln("Failed to initializer kms KeyManager")
-			os.Exit(1)
-		}
-
-		keyStoreEncryptor = baseKMS.NewKeyEncryptor(keyManager)
-	} else {
-		loader, err := keyloader.GetInitializedMasterKeyLoader(keyloader.GetCLIParameters().KeystoreEncryptorType)
-		if err != nil {
-			log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
-			os.Exit(1)
-		}
-
-		masterKey, err := loader.LoadMasterKey()
-		if err != nil {
-			log.WithError(err).Errorln("Cannot load master key")
-			os.Exit(1)
-		}
-		keyStoreEncryptor, err = keystore.NewSCellKeyEncryptor(masterKey)
-		if err != nil {
-			log.WithError(err).Errorln("Can't init scell encryptor")
-			os.Exit(1)
-		}
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	if err != nil {
+		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
+		os.Exit(1)
 	}
 
 	keyStore := filesystem.NewCustomFilesystemKeyStore()
@@ -178,20 +153,9 @@ func openKeyStoreV1(dirPath string) keystore.ServerKeyStore {
 }
 
 func openKeyStoreV2(keyDirPath string) keystore.ServerKeyStore {
-	loader, err := keyloader.GetInitializedMasterKeyLoader(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(keyloader.GetCLIParameters().KeystoreEncryptorType)
 	if err != nil {
-		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
-		os.Exit(1)
-	}
-
-	encryption, signature, err := loader.LoadMasterKeys()
-	if err != nil {
-		log.WithError(err).Errorln("Cannot load master key")
-		os.Exit(1)
-	}
-	suite, err := keystoreV2.NewSCellSuite(encryption, signature)
-	if err != nil {
-		log.WithError(err).Error("failed to initialize Secure Cell crypto suite")
+		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")
 		os.Exit(1)
 	}
 	var backend filesystemBackendV2.Backend
@@ -213,7 +177,7 @@ func openKeyStoreV2(keyDirPath string) keystore.ServerKeyStore {
 			os.Exit(1)
 		}
 	}
-	keyDirectory, err := filesystemV2.CustomKeyStore(backend, suite)
+	keyDirectory, err := filesystemV2.CustomKeyStore(backend, keyStoreSuite)
 	if err != nil {
 		log.WithError(err).Error("Failed to initialize key directory")
 		os.Exit(1)
