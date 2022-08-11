@@ -8,5 +8,5 @@ import (
 )
 
 func init() {
-	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyKMSMasterKey, PerClientKeyEncryptorFabric{})
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyKMSPerClient, PerClientKeyEncryptorFabric{})
 }
