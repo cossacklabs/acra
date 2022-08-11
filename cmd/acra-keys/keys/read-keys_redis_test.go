@@ -25,11 +25,10 @@ import (
 	"os"
 	"testing"
 
-	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
-
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/keyloader"
+	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/pseudonymization/storage"
 )
 
@@ -42,7 +41,7 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 
 	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
 	clientID := []byte("testclientid")
-	keyLoader := keyloader.NewEnvLoader(keystore.AcraMasterKeyVarName)
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, keyloader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
 
 	masterKey, err := keystoreV2.NewSerializedMasterKeys()
 	if err != nil {
@@ -54,6 +53,9 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 	t.Run("read storage-public key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
+				keyLoaderOptions: keyloader.CLIOptions{
+					KeystoreEncryptorType: keyloader.KeystoreStrategyEnvMasterKey,
+				},
 				redisOptions: cmd.RedisOptions{
 					HostPort: "127.0.0.1:6379",
 				},
@@ -62,7 +64,7 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 			readKeyKind: KeyStoragePublic,
 		}
 
-		store, err := openKeyStoreV2(readCmd, keyLoader)
+		store, err := openKeyStoreV2(readCmd)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -78,6 +80,9 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 	t.Run("read symmetric-key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
+				keyLoaderOptions: keyloader.CLIOptions{
+					KeystoreEncryptorType: keyloader.KeystoreStrategyEnvMasterKey,
+				},
 				redisOptions: cmd.RedisOptions{
 					HostPort: "127.0.0.1:6379",
 				},
@@ -86,7 +91,7 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 			readKeyKind: KeySymmetric,
 		}
 
-		store, err := openKeyStoreV2(readCmd, keyLoader)
+		store, err := openKeyStoreV2(readCmd)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -102,6 +107,9 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 	t.Run("read symmetric-zone-key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
+				keyLoaderOptions: keyloader.CLIOptions{
+					KeystoreEncryptorType: keyloader.KeystoreStrategyEnvMasterKey,
+				},
 				redisOptions: cmd.RedisOptions{
 					HostPort: "127.0.0.1:6379",
 				},
@@ -110,7 +118,7 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 			readKeyKind: KeyZoneSymmetric,
 		}
 
-		store, err := openKeyStoreV2(readCmd, keyLoader)
+		store, err := openKeyStoreV2(readCmd)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -133,7 +141,7 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 
 	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
 	clientID := []byte("testclientid")
-	keyLoader := keyloader.NewEnvLoader(keystore.AcraMasterKeyVarName)
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, keyloader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
 
 	masterKey, err := keystore.GenerateSymmetricKey()
 	if err != nil {
@@ -151,6 +159,9 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 	t.Run("read storage-public key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
+				keyLoaderOptions: keyloader.CLIOptions{
+					KeystoreEncryptorType: keyloader.KeystoreStrategyEnvMasterKey,
+				},
 				redisOptions: cmd.RedisOptions{
 					HostPort: "127.0.0.1:6379",
 				},
@@ -160,7 +171,7 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 			readKeyKind: KeyStoragePublic,
 		}
 
-		store, err := openKeyStoreV1(readCmd, keyLoader)
+		store, err := openKeyStoreV1(readCmd)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -176,6 +187,9 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 	t.Run("read symmetric-key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
+				keyLoaderOptions: keyloader.CLIOptions{
+					KeystoreEncryptorType: keyloader.KeystoreStrategyEnvMasterKey,
+				},
 				redisOptions: cmd.RedisOptions{
 					HostPort: "127.0.0.1:6379",
 				},
@@ -185,7 +199,7 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 			readKeyKind: KeySymmetric,
 		}
 
-		store, err := openKeyStoreV1(readCmd, keyLoader)
+		store, err := openKeyStoreV1(readCmd)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -201,6 +215,9 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 	t.Run("read symmetric-zone-key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
+				keyLoaderOptions: keyloader.CLIOptions{
+					KeystoreEncryptorType: keyloader.KeystoreStrategyEnvMasterKey,
+				},
 				redisOptions: cmd.RedisOptions{
 					HostPort: "127.0.0.1:6379",
 				},
@@ -210,7 +227,7 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 			readKeyKind: KeyZoneSymmetric,
 		}
 
-		store, err := openKeyStoreV1(readCmd, keyLoader)
+		store, err := openKeyStoreV1(readCmd)
 		if err != nil {
 			t.Fatal(err)
 		}

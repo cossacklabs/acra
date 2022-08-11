@@ -35,8 +35,9 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
+	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
 	"github.com/cossacklabs/acra/keystore/keyloader/kms"
-	baseKMS "github.com/cossacklabs/acra/keystore/kms"
+	"github.com/cossacklabs/acra/keystore/kms/base"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
@@ -71,6 +72,8 @@ func main() {
 	tlsClientCert := flag.String("tls_cert", "", "Path to TLS certificate to use as client_id identifier")
 	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
 
+	hashicorp.RegisterVaultCLIParameters()
+	kms.RegisterCLIParameters()
 	keyloader.RegisterCLIParameters()
 	logging.SetLogLevel(logging.LogVerbose)
 
@@ -149,8 +152,8 @@ func main() {
 			os.Exit(1)
 		}
 
-		if kmsOptions := keyloader.GetCLIParameters().GetKMSParameters(); kmsOptions.KMSType != "" {
-			keyManager, err := kmsOptions.NewKeyManager()
+		if keystoreStrategy := keyloader.GetCLIParameters().KeystoreEncryptorType; keystoreStrategy == keyloader.KeystoreStrategyKMSMasterKey {
+			keyManager, err := kms.NewKeyManager(kms.GetCLIParameters())
 			if err != nil {
 				log.WithError(err).WithField("path", *masterKey).Errorln("Failed to initializer kms KeyManager")
 				os.Exit(1)
@@ -187,17 +190,11 @@ func main() {
 		}
 	}
 
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(keyloader.GetCLIParameters().KeystoreEncryptorType)
-	if err != nil {
-		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
-		os.Exit(1)
-	}
-
 	switch *keystoreVersion {
 	case "v1":
-		store = openKeyStoreV1(*outputDir, *outputPublicKey, keyLoader)
+		store = openKeyStoreV1(*outputDir, *outputPublicKey)
 	case "v2":
-		store = openKeyStoreV2(*outputDir, keyLoader)
+		store = openKeyStoreV2(*outputDir)
 	case "":
 		log.Errorf("Keystore version is required: --keystore={v1|v2}")
 		os.Exit(1)
@@ -284,29 +281,14 @@ func main() {
 	}
 }
 
-func openKeyStoreV1(output, outputPublic string, loader keyloader.MasterKeyLoader) keystore.KeyMaking {
+func openKeyStoreV1(output, outputPublic string) keystore.KeyMaking {
 	var keyStoreEncryptor keystore.KeyEncryptor
 
 	var keyLoaderParams = keyloader.GetCLIParameters()
-	if keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
-		keyManager, err := keyLoaderParams.GetKMSParameters().NewKeyManager()
-		if err != nil {
-			log.WithError(err).Errorln("Failed to initializer kms KeyManager")
-			os.Exit(1)
-		}
-
-		keyStoreEncryptor = baseKMS.NewKeyEncryptor(keyManager)
-	} else {
-		masterKey, err := loader.LoadMasterKey()
-		if err != nil {
-			log.WithError(err).Errorln("Cannot load master key")
-			os.Exit(1)
-		}
-		keyStoreEncryptor, err = keystore.NewSCellKeyEncryptor(masterKey)
-		if err != nil {
-			log.WithError(err).Errorln("Can't init scell encryptor")
-			os.Exit(1)
-		}
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	if err != nil {
+		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
+		os.Exit(1)
 	}
 
 	keyStoreBuilder := filesystem.NewCustomFilesystemKeyStore()
@@ -333,21 +315,16 @@ func openKeyStoreV1(output, outputPublic string, loader keyloader.MasterKeyLoade
 	}
 
 	if keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
-		keyManager, _ := keyLoaderParams.GetKMSParameters().NewKeyManager()
-		return baseKMS.NewKeyMakingWrapper(keyStore, keyManager)
+		keyManager, _ := kms.NewKeyManager(kms.GetCLIParameters())
+		return base.NewKeyMakingWrapper(keyStore, keyManager)
 	}
 	return keyStore
 }
 
-func openKeyStoreV2(keyDirPath string, loader keyloader.MasterKeyLoader) keystore.KeyMaking {
-	encryption, signature, err := loader.LoadMasterKeys()
+func openKeyStoreV2(keyDirPath string) keystore.KeyMaking {
+	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(keyloader.GetCLIParameters().KeystoreEncryptorType)
 	if err != nil {
-		log.WithError(err).Errorln("Cannot load master key")
-		os.Exit(1)
-	}
-	suite, err := keystoreV2.NewSCellSuite(encryption, signature)
-	if err != nil {
-		log.WithError(err).Error("Failed to initialize Secure Cell crypto suite")
+		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")
 		os.Exit(1)
 	}
 	var backend filesystemBackendV2.Backend
@@ -369,7 +346,7 @@ func openKeyStoreV2(keyDirPath string, loader keyloader.MasterKeyLoader) keystor
 			os.Exit(1)
 		}
 	}
-	keyDirectory, err := filesystemV2.CustomKeyStore(backend, suite)
+	keyDirectory, err := filesystemV2.CustomKeyStore(backend, keyStoreSuite)
 	if err != nil {
 		log.WithError(err).Error("Failed to initialize key directory")
 		os.Exit(1)
@@ -377,7 +354,7 @@ func openKeyStoreV2(keyDirPath string, loader keyloader.MasterKeyLoader) keystor
 	return keystoreV2.NewServerKeyStore(keyDirectory)
 }
 
-func newMasterKeyWithKMSCreate(keyManager baseKMS.KeyManager, key []byte) ([]byte, error) {
+func newMasterKeyWithKMSCreate(keyManager base.KeyManager, key []byte) ([]byte, error) {
 	ctx, _ := context.WithTimeout(context.Background(), network.DefaultNetworkTimeout)
 
 	ok, err := keyManager.IsKeyExist(ctx, kms.AcraMasterKeyKEKID)
@@ -390,7 +367,7 @@ func newMasterKeyWithKMSCreate(keyManager baseKMS.KeyManager, key []byte) ([]byt
 		return nil, err
 	}
 
-	keyMetaData, err := keyManager.CreateKey(ctx, baseKMS.CreateKeyMetadata{
+	keyMetaData, err := keyManager.CreateKey(ctx, base.CreateKeyMetadata{
 		KeyName: kms.AcraMasterKeyKEKID,
 	})
 	if err != nil {

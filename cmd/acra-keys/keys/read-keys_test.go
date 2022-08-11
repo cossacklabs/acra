@@ -36,8 +36,8 @@ func TestReadCMD_FS_V2(t *testing.T) {
 
 	clientID := []byte("testclientid")
 	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
-	keyLoader := keyloader.NewEnvLoader(keystore.AcraMasterKeyVarName)
 
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, keyloader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
 	masterKey, err := keystoreV2.NewSerializedMasterKeys()
 	if err != nil {
 		t.Fatal(err)
@@ -49,12 +49,15 @@ func TestReadCMD_FS_V2(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
 				keyDir: dirName,
+				keyLoaderOptions: keyloader.CLIOptions{
+					KeystoreEncryptorType: keyloader.KeystoreStrategyEnvMasterKey,
+				},
 			},
 			contextID:   clientID,
 			readKeyKind: KeyStoragePublic,
 		}
 
-		store, err := openKeyStoreV2(readCmd, keyLoader)
+		store, err := openKeyStoreV2(readCmd)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -71,12 +74,15 @@ func TestReadCMD_FS_V2(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
 				keyDir: dirName,
+				keyLoaderOptions: keyloader.CLIOptions{
+					KeystoreEncryptorType: keyloader.KeystoreStrategyEnvMasterKey,
+				},
 			},
 			contextID:   clientID,
 			readKeyKind: KeySymmetric,
 		}
 
-		store, err := openKeyStoreV2(readCmd, keyLoader)
+		store, err := openKeyStoreV2(readCmd)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -93,12 +99,15 @@ func TestReadCMD_FS_V2(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
 				keyDir: dirName,
+				keyLoaderOptions: keyloader.CLIOptions{
+					KeystoreEncryptorType: keyloader.KeystoreStrategyEnvMasterKey,
+				},
 			},
 			contextID:   zoneID,
 			readKeyKind: KeyZoneSymmetric,
 		}
 
-		store, err := openKeyStoreV2(readCmd, keyLoader)
+		store, err := openKeyStoreV2(readCmd)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -115,7 +124,7 @@ func TestReadCMD_FS_V2(t *testing.T) {
 func TestReadCMD_FS_V1(t *testing.T) {
 	clientID := []byte("testclientid")
 	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
-	keyLoader := keyloader.NewEnvLoader(keystore.AcraMasterKeyVarName)
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, keyloader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
 
 	masterKey, err := keystore.GenerateSymmetricKey()
 	if err != nil {
@@ -134,12 +143,15 @@ func TestReadCMD_FS_V1(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
 				keyDir: dirName,
+				keyLoaderOptions: keyloader.CLIOptions{
+					KeystoreEncryptorType: keyloader.KeystoreStrategyEnvMasterKey,
+				},
 			},
 			contextID:   clientID,
 			readKeyKind: KeyStoragePublic,
 		}
 
-		store, err := openKeyStoreV1(readCmd, keyLoader)
+		store, err := openKeyStoreV1(readCmd)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -156,12 +168,15 @@ func TestReadCMD_FS_V1(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
 				keyDir: dirName,
+				keyLoaderOptions: keyloader.CLIOptions{
+					KeystoreEncryptorType: keyloader.KeystoreStrategyEnvMasterKey,
+				},
 			},
 			contextID:   clientID,
 			readKeyKind: KeySymmetric,
 		}
 
-		store, err := openKeyStoreV1(readCmd, keyLoader)
+		store, err := openKeyStoreV1(readCmd)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -178,12 +193,15 @@ func TestReadCMD_FS_V1(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
 				keyDir: dirName,
+				keyLoaderOptions: keyloader.CLIOptions{
+					KeystoreEncryptorType: keyloader.KeystoreStrategyEnvMasterKey,
+				},
 			},
 			contextID:   zoneID,
 			readKeyKind: KeyZoneSymmetric,
 		}
 
-		store, err := openKeyStoreV1(readCmd, keyLoader)
+		store, err := openKeyStoreV1(readCmd)
 		if err != nil {
 			t.Fatal(err)
 		}

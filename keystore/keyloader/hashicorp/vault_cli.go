@@ -59,7 +59,7 @@ func (options *VaultCLIOptions) TLSConfig() *api.TLSConfig {
 }
 
 // NewMasterKeyLoader create MasterKeyLoader from VaultCLIOptions
-func (options *VaultCLIOptions) NewMasterKeyLoader() (*VaultLoader, error) {
+func NewMasterKeyLoader(options *VaultCLIOptions) (*VaultLoader, error) {
 	if options.Address == "" {
 		return nil, ErrEmptyConnectionURL
 	}

@@ -3,9 +3,10 @@ package kms
 import (
 	"context"
 	"crypto/subtle"
+
 	"github.com/cossacklabs/acra/keystore"
 	keystoreCE "github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/keystore/kms"
+	"github.com/cossacklabs/acra/keystore/kms/base"
 	keystoreV2CE "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/network"
 	log "github.com/sirupsen/logrus"
@@ -13,11 +14,11 @@ import (
 
 // Loader is implementation of MasterKeyLoader for kms
 type Loader struct {
-	encryptor kms.Encryptor
+	encryptor base.Encryptor
 }
 
 // NewLoader create new kms MasterKeyLoader
-func NewLoader(encryptor kms.Encryptor) *Loader {
+func NewLoader(encryptor base.Encryptor) *Loader {
 	return &Loader{
 		encryptor: encryptor,
 	}
@@ -36,6 +37,7 @@ func (loader *Loader) LoadMasterKey() ([]byte, error) {
 		return nil, err
 	}
 
+	log.Infoln("Using KMS for ACRA_MASTER_KEY loading...")
 	return rawKey, nil
 }
 
