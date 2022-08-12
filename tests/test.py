@@ -6373,6 +6373,8 @@ class TestDirectTLSAuthenticationFailures(TLSAuthenticationBySerialNumberMixin, 
             self.fork_acra(
                 tls_key=abs_path(TEST_TLS_SERVER_KEY),
                 tls_cert=abs_path(TEST_TLS_SERVER_CERT),
+                # specify explicitly that it is not specified to override default value
+                tls_client_auth=-1,
                 tls_ca=TEST_TLS_CA,
                 tls_auth=0,
                 keys_dir=KEYS_FOLDER.name,
