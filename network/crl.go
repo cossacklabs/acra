@@ -21,6 +21,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
+	"flag"
 	"io/ioutil"
 	"net/http"
 	url_ "net/url"
@@ -125,6 +126,66 @@ func (e CRLError) Error() string {
 // Unwrap wrapped error
 func (e CRLError) Unwrap() error {
 	return e.err
+}
+
+// NewCRLConfigByName return initialized CRLConfig config using flags registered with RegisterCertVerifierArgsForService
+func NewCRLConfigByName(flags *flag.FlagSet, name string, namerFunc NamerFunc) (*CRLConfig, error) {
+	var crlURL, crlFromCert string
+	var crlCheckOnlyLeafCertificate bool
+	var crlCacheSize, crlCacheTime uint
+	if f := flags.Lookup(namerFunc(name, "crl_url")); f != nil {
+		crlURL = f.Value.String()
+		if crlURL == "" {
+			crlURL = tlsCrlURL
+		}
+	}
+	if f := flags.Lookup(namerFunc(name, "crl_from_cert")); f != nil {
+		crlFromCert = f.Value.String()
+		if crlFromCert == "" {
+			crlFromCert = tlsCrlFromCert
+		}
+	}
+	if f := flags.Lookup(namerFunc(name, "crl_check_only_leaf_certificate")); f != nil {
+		getter, ok := f.Value.(flag.Getter)
+		if !ok {
+			log.Fatal("Can't cast flag's Value to Getter")
+		}
+		val, ok := getter.Get().(*bool)
+		if val == nil {
+			crlCheckOnlyLeafCertificate = tlsCrlCheckOnlyLeafCertificate
+		} else {
+			if !ok {
+				log.WithField("value", getter.Get()).Fatalf("Can't cast %s to boolean value",
+					namerFunc(name, "crl_check_only_leaf_certificate"))
+			}
+			crlCheckOnlyLeafCertificate = *val
+		}
+	}
+	if f := flags.Lookup(namerFunc(name, "crl_cache_size")); f != nil {
+		getter, ok := f.Value.(flag.Getter)
+		if !ok {
+			log.Fatal("Can't cast flag's Value to Getter")
+		}
+		val, ok := getter.Get().(uint)
+		if !ok {
+			log.WithField("value", getter.Get()).Fatalf("Can't cast %s to integer value",
+				namerFunc(name, "crl_cache_size"))
+		}
+		crlCacheSize = val
+	}
+	if f := flags.Lookup(namerFunc(name, "crl_cache_time")); f != nil {
+		getter, ok := f.Value.(flag.Getter)
+		if !ok {
+			log.Fatal("Can't cast flag's Value to Getter")
+		}
+		val, ok := getter.Get().(uint)
+		if !ok {
+			log.WithField("value", getter.Get()).Fatalf("Can't cast %s to integer value",
+				namerFunc(name, "crl_cache_time"))
+		}
+		crlCacheSize = val
+	}
+	return NewCRLConfig(crlURL, crlFromCert, crlCheckOnlyLeafCertificate, crlCacheSize, crlCacheTime)
 }
 
 // NewCRLConfig creates new CRLConfig

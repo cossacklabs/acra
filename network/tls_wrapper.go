@@ -62,6 +62,29 @@ var (
 	tlsServerName string
 )
 
+// NamerFunc func compile final parameter name for specified service name
+type NamerFunc func(serviceName, parameterName string) string
+
+// ClientNamer returns NamerFunc with "_client_" suffix before parameter name
+func ClientNamer() NamerFunc {
+	return func(serviceName, parameterName string) string {
+		// serviceName = "vault
+		// parameterName = "key"
+		// result = "vault_tls_client_key
+		return serviceName + "_tls_" + "client_" + parameterName
+	}
+}
+
+// DatabaseNamer returns NamerFunc with "_database_" suffix before parameter name
+func DatabaseNamer() NamerFunc {
+	return func(serviceName, parameterName string) string {
+		// serviceName = "vault
+		// parameterName = "key"
+		// result = "vault_tls_database_key
+		return serviceName + "_tls_" + "database_" + parameterName
+	}
+}
+
 // RegisterTLSBaseArgs register CLI args tls_ca|tls_key|tls_cert|tls_auth which allow to get tls.Config by NewTLSConfigFromBaseArgs function
 func RegisterTLSBaseArgs() {
 	flag.StringVar(&tlsCA, "tls_ca", "", "Path to root certificate which will be used with system root certificates to validate peer's certificate")
@@ -71,9 +94,68 @@ func RegisterTLSBaseArgs() {
 	RegisterCertVerifierArgs()
 }
 
-// RegisterTLSClientArgs register CLI args tls_server_sni used by TLS client's connection
-func RegisterTLSClientArgs() {
-	flag.StringVar(&tlsServerName, "tls_server_sni", "", "Server name used as sni value")
+// RegisterTLSArgsForService register CLI args tls_ca|tls_key|tls_cert|tls_auth and flags for certificate verifier
+// which allow to get tls.Config by NewTLSConfigByName function
+func RegisterTLSArgsForService(flags *flag.FlagSet, name string, namerFunc NamerFunc) {
+	flags.String(namerFunc(name, "ca"), "", "Path to root certificate which will be used with system root certificates to validate peer's certificate")
+	flags.String(namerFunc(name, "key"), "", "Path to private key that will be used for TLS connections")
+	flags.String(namerFunc(name, "cert"), "", "Path to certificate")
+	flags.Int(namerFunc(name, "auth"), int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
+	RegisterCertVerifierArgsForService(flags, name, namerFunc)
+}
+
+// NewTLSConfigByName returns config related to flags registered via RegisterTLSArgsForService. `host` will be used as
+// ServerName in tls.Config for connection as client to verify server's certificate.
+// If <name>_tls_sni flag specified, then will be used SNI value.
+func NewTLSConfigByName(flags *flag.FlagSet, name, host string, namerFunc NamerFunc) (*tls.Config, error) {
+	var ca, cert, key, sni string
+	var auth tls.ClientAuthType
+	if f := flags.Lookup(namerFunc(name, "ca")); f != nil {
+		ca = f.Value.String()
+		if ca == "" {
+			ca = tlsCA
+		}
+	}
+	if f := flags.Lookup(namerFunc(name, "sni")); f != nil {
+		sni = f.Value.String()
+	}
+	if f := flags.Lookup(namerFunc(name, "cert")); f != nil {
+		cert = f.Value.String()
+		if cert == "" {
+			cert = tlsCert
+		}
+	}
+	if f := flags.Lookup(namerFunc(name, "key")); f != nil {
+		key = f.Value.String()
+		if key == "" {
+			key = tlsKey
+		}
+	}
+	if f := flags.Lookup(namerFunc(name, "auth")); f != nil {
+		getter, ok := f.Value.(flag.Getter)
+		if !ok {
+			log.Fatal("Can't cast flag's Value to Getter")
+		}
+		val, ok := getter.Get().(int)
+		if !ok {
+			log.WithField("value", getter.Get()).Fatalf("Can't cast %s to integer value",
+				namerFunc(name, "auth"))
+		}
+		auth = tls.ClientAuthType(val)
+	}
+	ocspConfig, err := NewOCSPConfigByName(flags, name, namerFunc)
+	if err != nil {
+		return nil, err
+	}
+	crlConfig, err := NewCRLConfigByName(flags, name, namerFunc)
+	if err != nil {
+		return nil, err
+	}
+	verifier, err := NewCertVerifierFromConfigs(ocspConfig, crlConfig)
+	if err != nil {
+		return nil, err
+	}
+	return NewTLSConfig(SNIOrHostname(sni, host), ca, key, cert, auth, verifier)
 }
 
 // NewTLSConfigFromBaseArgs return new tls clientConfig with params passed by cli params

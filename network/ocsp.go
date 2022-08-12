@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"flag"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ocsp"
 	"io/ioutil"
@@ -124,6 +125,47 @@ const (
 	OcspHTTPClientDefaultTimeout = time.Second * time.Duration(15)
 )
 
+// NewOCSPConfigByName return initialized OCSPConfig config using flags registered with RegisterCertVerifierArgsForService
+func NewOCSPConfigByName(flags *flag.FlagSet, name string, namerFunc NamerFunc) (*OCSPConfig, error) {
+	var url, required, fromCert string
+	var checkOnlyLeafCert bool
+	if f := flags.Lookup(namerFunc(name, "ocsp_url")); f != nil {
+		url = f.Value.String()
+		if url == "" {
+			url = tlsOcspURL
+		}
+	}
+	if f := flags.Lookup(namerFunc(name, "ocsp_required")); f != nil {
+		required = f.Value.String()
+		if required == "" {
+			required = tlsOcspRequired
+		}
+	}
+	if f := flags.Lookup(namerFunc(name, "ocsp_from_cert")); f != nil {
+		fromCert = f.Value.String()
+		if fromCert == "" {
+			fromCert = tlsOcspFromCert
+		}
+	}
+	if f := flags.Lookup(namerFunc(name, "ocsp_check_only_leaf_certificate")); f != nil {
+		getter, ok := f.Value.(flag.Getter)
+		if !ok {
+			log.Fatal("Can't cast flag's Value to Getter")
+		}
+		val, ok := getter.Get().(*bool)
+		if val == nil {
+			checkOnlyLeafCert = false
+		} else {
+			if !ok {
+				log.WithField("value", getter.Get()).Fatalf("Can't cast %s to boolean value",
+					namerFunc(name, "ocsp_check_only_leaf_certificate"))
+			}
+			checkOnlyLeafCert = *val
+		}
+	}
+	return NewOCSPConfig(url, required, fromCert, checkOnlyLeafCert)
+}
+
 // NewOCSPConfig creates new OCSPConfig
 func NewOCSPConfig(url, required, fromCert string, checkOnlyLeafCertificate bool) (*OCSPConfig, error) {
 	requiredVal, ok := ocspRequiredValValues[required]
@@ -176,10 +218,11 @@ func NewOCSPConfig(url, required, fromCert string, checkOnlyLeafCertificate bool
 	}
 
 	return &OCSPConfig{
-		url:            url,
-		required:       requiredVal,
-		fromCert:       fromCertVal,
-		ClientAuthType: tls.RequireAndVerifyClientCert,
+		url:                      url,
+		required:                 requiredVal,
+		fromCert:                 fromCertVal,
+		ClientAuthType:           tls.RequireAndVerifyClientCert,
+		checkOnlyLeafCertificate: checkOnlyLeafCertificate,
 	}, nil
 }
 
