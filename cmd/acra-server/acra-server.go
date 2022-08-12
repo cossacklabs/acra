@@ -148,23 +148,13 @@ func realMain() error {
 	enableHTTPAPI := flag.Bool("http_api_enable", false, "Enable HTTP API. Use together with --http_api_tls_transport_enable whenever possible.")
 	httpAPIUseTLS := flag.Bool("http_api_tls_transport_enable", false, "Enable HTTPS support for the API. Use together with the --http_api_enable. TLS configuration is the same as in the Acra Proxy.")
 
-	tlsKey := flag.String("tls_key", "", "Path to tls private key")
-	tlsCert := flag.String("tls_cert", "", "Path to tls certificate")
-	tlsCA := flag.String("tls_ca", "", "Path to additional CA certificate for application and database certificate validation")
-	tlsAuthType := flag.Int("tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection with application and database. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
-	tlsClientAuthType := flag.Int("tls_client_auth", tlsAuthNotSet, "Set authentication mode that will be used in TLS connection with application Overrides the \"tls_auth\" setting.")
-	tlsClientCA := flag.String("tls_client_ca", "", "Path to additional CA certificate for application's certificate validation (setup if application certificate CA is different from database certificate CA)")
-	tlsClientCert := flag.String("tls_client_cert", "", "Path to server TLS certificate presented to applications (overrides \"tls_cert\")")
-	tlsClientKey := flag.String("tls_client_key", "", "Path to private key of the TLS certificate presented to applications (see \"tls_client_cert\")")
-	tlsDbAuthType := flag.Int("tls_database_auth", tlsAuthNotSet, "Set authentication mode that will be used in TLS connection with database. Overrides the \"tls_auth\" setting.")
-	tlsDbCA := flag.String("tls_database_ca", "", "Path to additional CA certificate for database certificate validation (setup if database certificate CA is different from application certificate CA)")
+	network.RegisterTLSBaseArgs()
+	network.RegisterTLSArgsForService(flag.CommandLine, "", network.ClientNamer())
 	tlsDbSNI := flag.String("tls_database_sni", "", "Expected Server Name (SNI) from database")
 	tlsDbSNIOld := flag.String("tls_db_sni", "", "Expected Server Name (SNI) from database (deprecated, use \"tls_database_sni\" instead)")
-	tlsDbCert := flag.String("tls_database_cert", "", "Path to client TLS certificate shown to database during TLS handshake (overrides \"tls_cert\")")
-	tlsDbKey := flag.String("tls_database_key", "", "Path to private key of the TLS certificate used to connect to database (see \"tls_database_cert\")")
+	network.RegisterTLSArgsForService(flag.CommandLine, "", network.DatabaseNamer())
 	tlsUseClientIDFromCertificate := flag.Bool("tls_client_id_from_cert", true, "Extract clientID from TLS certificate from application connection. Can't be used with --tls_client_auth=0 or --tls_auth=0")
 	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
-	network.RegisterCertVerifierArgsWithSeparateClientAndDatabase()
 	clientID := flag.String("client_id", "", "Static ClientID used by AcraServer for data protection operations")
 	acraConnectionString := flag.String("incoming_connection_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerPort, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraAPIConnectionString := flag.String("incoming_connection_api_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerAPIPort, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
@@ -178,7 +168,6 @@ func realMain() error {
 	encryptorConfig := flag.String("encryptor_config_file", "", "Path to Encryptor configuration file")
 
 	enableAuditLog := flag.Bool("audit_log_enable", false, "Enable audit log functionality")
-
 	keyloader.RegisterCLIParameters()
 	cmd.RegisterTracingCmdParameters()
 	cmd.RegisterJaegerCmdParameters()
@@ -353,28 +342,7 @@ func realMain() error {
 
 	log.Infof("Configuring transport...")
 
-	// Use common TLS settings, unless the user requests specific ones
-	if *tlsClientCA == "" {
-		*tlsClientCA = *tlsCA
-	}
-	if *tlsClientAuthType == tlsAuthNotSet {
-		*tlsClientAuthType = *tlsAuthType
-	}
-	if *tlsClientCert == "" {
-		*tlsClientCert = *tlsCert
-	}
-	if *tlsClientKey == "" {
-		*tlsClientKey = *tlsKey
-	}
-
-	clientCertVerifier, err := network.NewClientCertVerifier(*tlsAuthType)
-	if err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-			Errorln("Cannot create client certificate verifier")
-		os.Exit(1)
-	}
-
-	appSideTLSConfig, err := network.NewTLSConfig("", *tlsClientCA, *tlsClientKey, *tlsClientCert, tls.ClientAuthType(*tlsClientAuthType), clientCertVerifier)
+	appSideTLSConfig, err := network.NewTLSConfigByName(flag.CommandLine, "", "", network.ClientNamer())
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 			Errorln("Configuration error: can't create application TLS config")
@@ -382,36 +350,18 @@ func realMain() error {
 	}
 	// Use common TLS settings, unless the user requests specific ones.
 	// Also handle deprecated options.
-	if *tlsDbCA == "" {
-		*tlsDbCA = *tlsCA
-	}
-	if *tlsDbAuthType == tlsAuthNotSet {
-		*tlsDbAuthType = *tlsAuthType
-	}
+
 	if *tlsDbSNI == "" && *tlsDbSNIOld != "" {
 		*tlsDbSNI = *tlsDbSNIOld
 	}
-	if *tlsDbCert == "" {
-		*tlsDbCert = *tlsCert
-	}
-	if *tlsDbKey == "" {
-		*tlsDbKey = *tlsKey
-	}
 
-	dbCertVerifier, err := network.NewDatabaseCertVerifier()
-	if err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-			Errorln("Cannot create database certificate verifier")
-		os.Exit(1)
-	}
-
-	dbTLSConfig, err := network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsDbCA, *tlsDbKey, *tlsDbCert, tls.ClientAuthType(*tlsDbAuthType), dbCertVerifier)
+	dbTLSConfig, err := network.NewTLSConfigByName(flag.CommandLine, "", *dbHost, network.DatabaseNamer())
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 			Errorln("Configuration error: can't create database TLS config")
 		os.Exit(1)
 	}
-	if *tlsUseClientIDFromCertificate && tls.ClientAuthType(*tlsClientAuthType) == tls.NoClientCert {
+	if *tlsUseClientIDFromCertificate && appSideTLSConfig.ClientAuth == tls.NoClientCert {
 		log.Errorln("Cannot be used --tls_client_id_from_cert together with " +
 			"--tls_auth=0 or --tls_client_auth=0 due to unnecessary of client's certificate in TLS handshake")
 		os.Exit(1)
