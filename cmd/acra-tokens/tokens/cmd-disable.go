@@ -51,7 +51,7 @@ func (s *DisableSubcommand) RegisterFlags() {
 	s.flagSet = flag.NewFlagSet(CmdTokenDisable, flag.ContinueOnError)
 	s.storage.Register(s.flagSet)
 	s.limits.Register(s.flagSet)
-	cmd.RegisterRedisKeystoreParametersWithPrefix(s.flagSet, "", "")
+	cmd.RegisterRedisTokenStoreParametersWithPrefix(s.flagSet, "", "")
 	s.flagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": disable tokens, preventing their use\n", CmdTokenDisable)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...]\n", os.Args[0], CmdTokenDisable)

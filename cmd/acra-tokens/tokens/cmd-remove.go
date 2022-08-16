@@ -64,7 +64,7 @@ func (s *RemoveSubcommand) RegisterFlags() {
 	s.flagSet.BoolVar(&s.dryRun, "dry_run", false, "do not actually remove tokens, only output status")
 	s.flagSet.BoolVar(&s.removeAll, "all", false, "remove all requested tokens within specified date range, regardless of their state (enabled and disabled)")
 	s.flagSet.BoolVar(&s.removeAll, "only_disabled", false, "remove only disabled tokens within specified date range")
-	cmd.RegisterRedisKeystoreParametersWithPrefix(s.flagSet, "", "")
+	cmd.RegisterRedisTokenStoreParametersWithPrefix(s.flagSet, "", "")
 	s.flagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": remove tokens from the storage\n", CmdTokenRemove)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...]\n", os.Args[0], CmdTokenRemove)

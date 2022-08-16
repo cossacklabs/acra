@@ -51,7 +51,7 @@ func (s *StatusSubcommand) RegisterFlags() {
 	s.flagSet = flag.NewFlagSet(CmdTokenStatus, flag.ContinueOnError)
 	s.storage.Register(s.flagSet)
 	s.limits.Register(s.flagSet)
-	cmd.RegisterRedisKeystoreParametersWithPrefix(s.flagSet, "", "")
+	cmd.RegisterRedisTokenStoreParametersWithPrefix(s.flagSet, "", "")
 	s.flagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": output token storage statistics\n", CmdTokenStatus)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...]\n", os.Args[0], CmdTokenStatus)
