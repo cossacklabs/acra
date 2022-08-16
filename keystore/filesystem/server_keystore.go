@@ -28,6 +28,7 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -195,7 +196,7 @@ func IsKeyDirectory(keyDirectory string) bool {
 }
 
 func openKeyStorage() (Storage, error) {
-	redis := cmd.GetRedisParameters()
+	redis := cmd.ParseRedisCLIParametersFromFlags(flag.CommandLine, "")
 	if redis.KeysConfigured() {
 		return NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
 	}

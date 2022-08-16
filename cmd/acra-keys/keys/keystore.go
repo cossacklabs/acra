@@ -19,12 +19,11 @@ package keys
 import (
 	"errors"
 	"flag"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
-	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
-	"github.com/cossacklabs/acra/keystore/keyloader/kms"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
@@ -41,25 +40,18 @@ var (
 
 // KeyStoreParameters are parameters for DefaultKeyStoreFactory.
 type KeyStoreParameters interface {
+	GetFlagSet() *flag.FlagSet
+
 	KeyDir() string
 	KeyDirPublic() string
-
-	RedisConfigured() bool
-	RedisOptions() *redis.Options
-	VaultCLIOptions() hashicorp.VaultCLIOptions
-	KMSCLIOptions() *kms.CLIOptions
-	KeyLoaderCLIOptions() keyloader.CLIOptions
 }
 
 // CommonKeyStoreParameters is a mix-in of command line parameters for keystore construction.
 type CommonKeyStoreParameters struct {
+	flagSet *flag.FlagSet
+
 	keyDir       string
 	keyDirPublic string
-
-	redisOptions     cmd.RedisOptions
-	vaultOptions     hashicorp.VaultCLIOptions
-	kmsOptions       kms.CLIOptions
-	keyLoaderOptions keyloader.CLIOptions
 }
 
 // KeyDir returns path to key directory.
@@ -75,58 +67,16 @@ func (p *CommonKeyStoreParameters) KeyDirPublic() string {
 	return p.keyDirPublic
 }
 
-// RedisConfigured returns true is Redis keystore has been configured.
-func (p *CommonKeyStoreParameters) RedisConfigured() bool {
-	return p.redisOptions.KeysConfigured()
-}
-
-// RedisOptions returns Redis configuration options for keystore.
-func (p *CommonKeyStoreParameters) RedisOptions() *redis.Options {
-	return p.redisOptions.KeysOptions()
-}
-
-// KeyLoaderCLIOptions returns common keyloader CLI configuration options for ACRA_MASTER_KEY loading.
-func (p *CommonKeyStoreParameters) KeyLoaderCLIOptions() keyloader.CLIOptions {
-	return p.keyLoaderOptions
-}
-
-// VaultCLIOptions returns Hashicorp Vault configuration options for ACRA_MASTER_KEY loading.
-func (p *CommonKeyStoreParameters) VaultCLIOptions() hashicorp.VaultCLIOptions {
-	return p.vaultOptions
-}
-
-// KMSCLIOptions returns KMS configuration options for ACRA_MASTER_KEY loading.
-func (p *CommonKeyStoreParameters) KMSCLIOptions() *kms.CLIOptions {
-	return &p.kmsOptions
-}
-
-// RegisterRedisWithPrefix registers redis options in given flag set, using additional prefix.
-func (p *CommonKeyStoreParameters) RegisterRedisWithPrefix(flags *flag.FlagSet, prefix, description string) {
-	p.redisOptions.RegisterKeyStoreParameters(flags, prefix, description)
-}
-
-// RegisterVaultWithPrefix registers HashiCorp vault options in given flag set, using additional prefix.
-func (p *CommonKeyStoreParameters) RegisterVaultWithPrefix(flags *flag.FlagSet, prefix, description string) {
-	p.vaultOptions.RegisterCLIParameters(flags, prefix, description)
-}
-
-// RegisterKMSWithPrefix registers KMS options in given flag set, using additional prefix.
-func (p *CommonKeyStoreParameters) RegisterKMSWithPrefix(flags *flag.FlagSet, prefix, description string) {
-	p.kmsOptions.RegisterCLIParameters(flags, prefix, description)
-}
-
-// RegisterKeyLoaderCLItWithPrefix registers keyloader CLI options in given flag set, using additional prefix.
-func (p *CommonKeyStoreParameters) RegisterKeyLoaderCLItWithPrefix(flags *flag.FlagSet, prefix, description string) {
-	p.keyLoaderOptions.RegisterCLIParameters(flags, prefix, description)
+// GetFlagSet return subcommand FlagSet
+func (p *CommonKeyStoreParameters) GetFlagSet() *flag.FlagSet {
+	return p.flagSet
 }
 
 // Register registers keystore flags with the given flag set.
 func (p *CommonKeyStoreParameters) Register(flags *flag.FlagSet) {
 	p.RegisterPrefixed(flags, DefaultKeyDirectory, "", "")
-	p.redisOptions.RegisterKeyStoreParameters(flags, "", "")
-	p.keyLoaderOptions.RegisterCLIParameters(flags, "", "")
-	p.vaultOptions.RegisterCLIParameters(flags, "", "")
-	p.kmsOptions.RegisterCLIParameters(flags, "", "")
+	cmd.RegisterRedisKeystoreParametersWithPrefix(flags, "", "")
+	keyloader.RegisterKeyStoreStrategyParametersWithFlags(flags, "", "")
 }
 
 // RegisterPrefixed registers keystore flags with the given flag set, using given prefix and description.
@@ -136,6 +86,7 @@ func (p *CommonKeyStoreParameters) RegisterPrefixed(flags *flag.FlagSet, default
 	}
 	flags.StringVar(&p.keyDir, flagPrefix+"keys_dir", defaultKeysDir, "path to key directory"+descriptionSuffix)
 	flags.StringVar(&p.keyDirPublic, flagPrefix+"keys_dir_public", "", "path to key directory for public keys"+descriptionSuffix)
+	p.flagSet = flags
 }
 
 // OpenKeyStoreForReading opens a keystore suitable for reading keys.
@@ -173,7 +124,7 @@ func OpenKeyStoreForImport(params KeyStoreParameters) (api.MutableKeyStore, erro
 }
 
 func openKeyStoreV1(params KeyStoreParameters) (*filesystem.KeyStore, error) {
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(params.KeyLoaderCLIOptions().KeystoreEncryptorType)
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(params.GetFlagSet(), "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		return nil, err
@@ -190,9 +141,8 @@ func openKeyStoreV1(params KeyStoreParameters) (*filesystem.KeyStore, error) {
 		keyStore.KeyDirectory(keyDir)
 	}
 
-	if params.RedisConfigured() {
-		redis := params.RedisOptions()
-		keyStorage, err := filesystem.NewRedisStorage(redis.Addr, redis.Password, redis.DB, nil)
+	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetFlagSet(), ""); redisOptions.KeysConfigured() {
+		keyStorage, err := filesystem.NewRedisStorage(redisOptions.HostPort, redisOptions.Password, redisOptions.DBKeys, nil)
 		if err != nil {
 			log.WithError(err).Errorln("Failed to initialise Redis storage")
 			return nil, err
@@ -209,17 +159,18 @@ func openKeyStoreV1(params KeyStoreParameters) (*filesystem.KeyStore, error) {
 }
 
 func openKeyStoreV2(params KeyStoreParameters) (*keystoreV2.ServerKeyStore, error) {
-	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(params.KeyLoaderCLIOptions().KeystoreEncryptorType)
+	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(params.GetFlagSet(), "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")
 		return nil, err
 	}
 
 	var backend filesystemBackendV2.Backend
-	if params.RedisConfigured() {
+
+	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetFlagSet(), ""); redisOptions.KeysConfigured() {
 		config := &filesystemBackendV2.RedisConfig{
 			RootDir: params.KeyDir(),
-			Options: params.RedisOptions(),
+			Options: redisOptions.KeysOptions(),
 		}
 		backend, err = filesystemBackendV2.CreateRedisBackend(config)
 		if err != nil {
@@ -244,14 +195,13 @@ func openKeyStoreV2(params KeyStoreParameters) (*keystoreV2.ServerKeyStore, erro
 
 // IsKeyStoreV2 checks if the directory contains a keystore version 2 from KeyStoreParameters
 func IsKeyStoreV2(params KeyStoreParameters) bool {
-	if params.RedisConfigured() {
-		redisOption := params.RedisOptions()
+	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetFlagSet(), ""); redisOptions.KeysConfigured() {
 		redisClient, err := filesystemBackendV2.OpenRedisBackend(&filesystemBackendV2.RedisConfig{
 			RootDir: params.KeyDir(),
 			Options: &redis.Options{
-				Addr:     redisOption.Addr,
-				Password: redisOption.Password,
-				DB:       redisOption.DB,
+				Addr:     redisOptions.HostPort,
+				Password: redisOptions.Password,
+				DB:       redisOptions.DBKeys,
 			},
 		})
 		if err != nil {
@@ -269,9 +219,8 @@ func IsKeyStoreV2(params KeyStoreParameters) bool {
 // IsKeyStoreV1 checks if the directory contains a keystore version 1 from KeyStoreParameters
 func IsKeyStoreV1(params KeyStoreParameters) bool {
 	var fsStorage filesystem.Storage = &filesystem.DummyStorage{}
-	if params.RedisConfigured() {
-		redisOption := params.RedisOptions()
-		redisStorage, err := filesystem.NewRedisStorage(redisOption.Addr, redisOption.Password, redisOption.DB, nil)
+	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetFlagSet(), ""); redisOptions.KeysConfigured() {
+		redisStorage, err := filesystem.NewRedisStorage(redisOptions.HostPort, redisOptions.Password, redisOptions.DBKeys, nil)
 		if err != nil {
 			log.WithError(err).Debug("Failed to open redis storage for version check")
 			return false

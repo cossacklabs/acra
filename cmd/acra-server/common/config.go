@@ -58,6 +58,8 @@ type Config struct {
 	traceOptions             []trace.StartOption
 	serviceName              string
 	configPath               string
+	clientIDSQLVariable      string
+	clientIDSQLDefaultValue  string
 }
 
 // NewConfig returns new Config object

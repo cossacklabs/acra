@@ -20,8 +20,8 @@ created_after:
 # limit action to tokens created before specified date
 created_before: 
 
-# Number of Redis database for tokens
-redis_db_tokens: 0
+# Number of Redis database for keys
+redis_db_keys: 0
 
 # <host>:<port> used to connect to Redis
 redis_host_port: 

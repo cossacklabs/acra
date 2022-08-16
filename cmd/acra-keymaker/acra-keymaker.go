@@ -35,7 +35,6 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
-	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
 	"github.com/cossacklabs/acra/keystore/keyloader/kms"
 	"github.com/cossacklabs/acra/keystore/kms/base"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
@@ -65,16 +64,14 @@ func main() {
 	symStorageKey := flag.Bool("generate_symmetric_storage_key", false, "Generate symmetric key for data encryption/decryption with AcraBlock")
 	masterKey := flag.String("generate_master_key", "", "Generate new random master key and save to file")
 	poisonRecord := flag.Bool("generate_poisonrecord_keys", false, "Generate keypair and symmetric key for poison records")
-	cmd.RegisterRedisKeyStoreParameters()
 	keystoreVersion := flag.String("keystore", "", "set keystore format: v1 (current), v2 (new)")
 	kmsKeyPolicy := flag.String("kms_key_policy", kms.KeyPolicyCreate, fmt.Sprintf("KMS usage key policy: <%s>", strings.Join(kms.SupportedPolicies, "|")))
 
 	tlsClientCert := flag.String("tls_cert", "", "Path to TLS certificate to use as client_id identifier")
 	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
 
-	hashicorp.RegisterVaultCLIParameters()
-	kms.RegisterCLIParameters()
-	keyloader.RegisterCLIParameters()
+	cmd.RegisterRedisKeystoreParameters()
+	keyloader.RegisterKeyStoreStrategyParameters()
 	logging.SetLogLevel(logging.LogVerbose)
 
 	err := cmd.Parse(DefaultConfigPath, ServiceName)
@@ -152,8 +149,8 @@ func main() {
 			os.Exit(1)
 		}
 
-		if keystoreStrategy := keyloader.GetCLIParameters().KeystoreEncryptorType; keystoreStrategy == keyloader.KeystoreStrategyKMSMasterKey {
-			keyManager, err := kms.NewKeyManager(kms.GetCLIParameters())
+		if keystoreOptions := keyloader.ParseCLIOptions(); keystoreOptions.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSMasterKey {
+			keyManager, err := kms.NewKeyManager(kms.ParseCLIParameters())
 			if err != nil {
 				log.WithError(err).WithField("path", *masterKey).Errorln("Failed to initializer kms KeyManager")
 				os.Exit(1)
@@ -284,8 +281,7 @@ func main() {
 func openKeyStoreV1(output, outputPublic string) keystore.KeyMaking {
 	var keyStoreEncryptor keystore.KeyEncryptor
 
-	var keyLoaderParams = keyloader.GetCLIParameters()
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(flag.CommandLine, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		os.Exit(1)
@@ -298,8 +294,8 @@ func openKeyStoreV1(output, outputPublic string) keystore.KeyMaking {
 		keyStoreBuilder.KeyDirectory(output)
 	}
 	keyStoreBuilder.Encryptor(keyStoreEncryptor)
-	redis := cmd.GetRedisParameters()
-	if redis.KeysConfigured() {
+
+	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
 		keyStorage, err := filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
@@ -314,22 +310,21 @@ func openKeyStoreV1(output, outputPublic string) keystore.KeyMaking {
 		os.Exit(1)
 	}
 
-	if keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
-		keyManager, _ := kms.NewKeyManager(kms.GetCLIParameters())
+	if keyLoaderParams := keyloader.ParseCLIOptions(); keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
+		keyManager, _ := kms.NewKeyManager(kms.ParseCLIParameters())
 		return base.NewKeyMakingWrapper(keyStore, keyManager)
 	}
 	return keyStore
 }
 
 func openKeyStoreV2(keyDirPath string) keystore.KeyMaking {
-	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(flag.CommandLine, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")
 		os.Exit(1)
 	}
 	var backend filesystemBackendV2.Backend
-	redis := cmd.GetRedisParameters()
-	if redis.KeysConfigured() {
+	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
 		config := &filesystemBackendV2.RedisConfig{
 			RootDir: keyDirPath,
 			Options: redis.KeysOptions(),

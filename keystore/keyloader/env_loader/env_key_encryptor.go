@@ -1,6 +1,7 @@
-package keyloader
+package env_loader
 
 import (
+	"flag"
 	"github.com/cossacklabs/acra/keystore"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
@@ -13,14 +14,14 @@ type EnvKeyEncryptorFabric struct {
 }
 
 // NewEnvKeyEncryptorFabric create new KeyEncryptorFabric
-func NewEnvKeyEncryptorFabric(envName string) KeyEncryptorFabric {
+func NewEnvKeyEncryptorFabric(envName string) EnvKeyEncryptorFabric {
 	return EnvKeyEncryptorFabric{
 		envName,
 	}
 }
 
 // NewKeyEncryptor fabric of keystore.KeyEncryptor for `env_master_key` strategy
-func (k EnvKeyEncryptorFabric) NewKeyEncryptor() (keystore.KeyEncryptor, error) {
+func (k EnvKeyEncryptorFabric) NewKeyEncryptor(flags *flag.FlagSet, prefix string) (keystore.KeyEncryptor, error) {
 	loader := NewEnvLoader(k.envName)
 
 	key, err := loader.LoadMasterKey()
@@ -31,7 +32,7 @@ func (k EnvKeyEncryptorFabric) NewKeyEncryptor() (keystore.KeyEncryptor, error) 
 }
 
 // NewKeyEncryptorSuite fabric of crypto.KeyStoreSuite for `env_master_key` strategy
-func (k EnvKeyEncryptorFabric) NewKeyEncryptorSuite() (*crypto.KeyStoreSuite, error) {
+func (k EnvKeyEncryptorFabric) NewKeyEncryptorSuite(flags *flag.FlagSet, prefix string) (*crypto.KeyStoreSuite, error) {
 	loader := NewEnvLoader(k.envName)
 
 	encryption, signature, err := loader.LoadMasterKeys()
@@ -40,4 +41,9 @@ func (k EnvKeyEncryptorFabric) NewKeyEncryptorSuite() (*crypto.KeyStoreSuite, er
 		return nil, err
 	}
 	return keystoreV2.NewSCellSuite(encryption, signature)
+}
+
+// RegisterCLIParameters empty implementation of KeyEncryptorFabric interface
+func (k EnvKeyEncryptorFabric) RegisterCLIParameters(flags *flag.FlagSet, prefix, description string) {
+	// no flag registration for EnvKeyEncryptorFabric
 }

@@ -55,8 +55,6 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
-	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
-	"github.com/cossacklabs/acra/keystore/keyloader/kms"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
@@ -129,9 +127,6 @@ func realMain() error {
 	cacheKeystoreOnStart := flag.Bool("keystore_cache_on_start_enable", true, "Load all keys to cache on start")
 	keysCacheSize := flag.Int("keystore_cache_size", keystore.DefaultCacheSize, fmt.Sprintf("Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache. Default is %d", keystore.DefaultCacheSize))
 
-	cmd.RegisterRedisKeyStoreParameters()
-	cmd.RegisterRedisTokenStoreParameters()
-
 	_ = flag.Bool("pgsql_hex_bytea", false, "Hex format for Postgresql bytea data (deprecated, ignored)")
 	flag.Bool("pgsql_escape_bytea", false, "Escape format for Postgresql bytea data (deprecated, ignored)")
 
@@ -180,9 +175,9 @@ func realMain() error {
 
 	enableAuditLog := flag.Bool("audit_log_enable", false, "Enable audit log functionality")
 
-	hashicorp.RegisterVaultCLIParameters()
-	kms.RegisterCLIParameters()
-	keyloader.RegisterCLIParameters()
+	cmd.RegisterRedisKeystoreParameters()
+	cmd.RegisterRedisTokenStoreParameters()
+	keyloader.RegisterKeyStoreStrategyParameters()
 	cmd.RegisterTracingCmdParameters()
 	cmd.RegisterJaegerCmdParameters()
 	logging.RegisterCLIArgs()
@@ -241,7 +236,6 @@ func realMain() error {
 	cmd.SetupTracing(ServiceName)
 
 	log.Infof("Validating service configuration...")
-	cmd.ValidateRedisCLIOptions()
 
 	serverConfig.SetAcraConnectionString(*acraConnectionString)
 	if *host != cmd.DefaultAcraServerHost || *port != cmd.DefaultAcraServerPort {
@@ -539,7 +533,7 @@ func realMain() error {
 	}
 
 	var tokenStorage pseudonymizationCommon.TokenStorage
-	redis := cmd.GetRedisParameters()
+	redis := cmd.ParseRedisCLIParametersFromFlags(flag.CommandLine, "")
 	if *boltTokebDB != "" {
 		log.Infoln("Initialize bolt db storage for tokens")
 		db, err := bolt.Open(*boltTokebDB, 0600, nil)
@@ -873,7 +867,7 @@ func waitReadPipe(timeoutDuration time.Duration) error {
 func openKeyStoreV1(output string, cacheSize int) (keystore.ServerKeyStore, error) {
 	var keyStoreEncryptor keystore.KeyEncryptor
 
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(flag.CommandLine, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		return nil, err
@@ -884,7 +878,9 @@ func openKeyStoreV1(output string, cacheSize int) (keystore.ServerKeyStore, erro
 	keyStore.CacheSize(cacheSize)
 	keyStore.Encryptor(keyStoreEncryptor)
 
-	redis := cmd.GetRedisParameters()
+	redis := cmd.ParseRedisCLIParameters()
+	cmd.ValidateRedisCLIOptions(redis)
+
 	if redis.KeysConfigured() {
 		keyStorage, err := filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
 		if err != nil {
@@ -907,14 +903,17 @@ func openKeyStoreV2(keyDirPath string, cacheSize int) (keystore.ServerKeyStore, 
 		return nil, keystore.ErrCacheIsNotSupportedV2
 	}
 
-	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(flag.CommandLine, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")
 		return nil, err
 	}
 
 	var backend filesystemBackendV2.Backend
-	redis := cmd.GetRedisParameters()
+
+	redis := cmd.ParseRedisCLIParameters()
+	cmd.ValidateRedisCLIOptions(redis)
+
 	if redis.KeysConfigured() {
 		config := &filesystemBackendV2.RedisConfig{
 			RootDir: keyDirPath,

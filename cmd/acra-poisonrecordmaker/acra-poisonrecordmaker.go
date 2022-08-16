@@ -34,7 +34,6 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
-	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
 	"github.com/cossacklabs/acra/keystore/keyloader/kms"
 	"github.com/cossacklabs/acra/keystore/kms/base"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
@@ -65,10 +64,7 @@ func main() {
 	dataLength := flag.Int("data_length", poison.UseDefaultDataLength, fmt.Sprintf("Length of random data for data block in acrastruct. -1 is random in range 1..%v", poison.DefaultDataLength))
 	recordType := flag.String("type", RecordTypeAcraStruct, fmt.Sprintf("Type of poison record: \"%s\" | \"%s\"\n", RecordTypeAcraStruct, RecordTypeAcraBlock))
 
-	hashicorp.RegisterVaultCLIParameters()
-	kms.RegisterCLIParameters()
-	keyloader.RegisterCLIParameters()
-
+	keyloader.RegisterKeyStoreStrategyParameters()
 	logging.SetLogLevel(logging.LogDiscard)
 
 	err := cmd.Parse(defaultConfigPath, serviceName)
@@ -104,8 +100,7 @@ func main() {
 func openKeyStoreV1(output string) keystore.PoisonKeyStorageAndGenerator {
 	var keyStoreEncryptor keystore.KeyEncryptor
 
-	var keyLoaderParams = keyloader.GetCLIParameters()
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(flag.CommandLine, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		os.Exit(1)
@@ -114,8 +109,7 @@ func openKeyStoreV1(output string) keystore.PoisonKeyStorageAndGenerator {
 	keyStoreBuilder := filesystem.NewCustomFilesystemKeyStore()
 	keyStoreBuilder.KeyDirectory(output)
 	keyStoreBuilder.Encryptor(keyStoreEncryptor)
-	redis := cmd.GetRedisParameters()
-	if redis.KeysConfigured() {
+	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
 		keyStorage, err := filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
@@ -130,22 +124,21 @@ func openKeyStoreV1(output string) keystore.PoisonKeyStorageAndGenerator {
 		os.Exit(1)
 	}
 
-	if keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
-		keyManager, _ := kms.NewKeyManager(kms.GetCLIParameters())
+	if keyLoaderParams := keyloader.ParseCLIOptions(); keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
+		keyManager, _ := kms.NewKeyManager(kms.ParseCLIParameters())
 		return base.NewKeyMakingWrapper(keyStoreV1, keyManager)
 	}
 	return keyStoreV1
 }
 
 func openKeyStoreV2(keyDirPath string) keystore.PoisonKeyStorageAndGenerator {
-	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(flag.CommandLine, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")
 		os.Exit(1)
 	}
 	var backend filesystemBackendV2.Backend
-	redis := cmd.GetRedisParameters()
-	if redis.KeysConfigured() {
+	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
 		config := &filesystemBackendV2.RedisConfig{
 			RootDir: keyDirPath,
 			Options: redis.KeysOptions(),

@@ -37,8 +37,6 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
-	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
-	"github.com/cossacklabs/acra/keystore/keyloader/kms"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
@@ -171,9 +169,7 @@ func main() {
 	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
 	usePostgresql := flag.Bool("postgresql_enable", false, "Handle Postgresql connections")
 
-	hashicorp.RegisterVaultCLIParameters()
-	kms.RegisterCLIParameters()
-	keyloader.RegisterCLIParameters()
+	keyloader.RegisterKeyStoreStrategyParameters()
 	logging.SetLogLevel(logging.LogVerbose)
 
 	err := cmd.Parse(defaultConfigPath, serviceName)
@@ -310,7 +306,7 @@ func main() {
 
 func openKeyStoreV1(keysDir string) keystore.DecryptionKeyStore {
 	var keyStoreEncryptor keystore.KeyEncryptor
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(flag.CommandLine, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		os.Exit(1)
@@ -325,7 +321,7 @@ func openKeyStoreV1(keysDir string) keystore.DecryptionKeyStore {
 }
 
 func openKeyStoreV2(keyDirPath string) keystore.DecryptionKeyStore {
-	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(flag.CommandLine, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")
 		os.Exit(1)

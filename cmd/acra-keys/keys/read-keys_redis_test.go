@@ -21,6 +21,7 @@ package keys
 
 import (
 	"encoding/base64"
+	"flag"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -28,12 +29,13 @@ import (
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/keyloader"
+	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/pseudonymization/storage"
 )
 
 func TestReadCMD_Redis_V2(t *testing.T) {
-	client, err := storage.NewRedisClient("127.0.0.1:6379", "", 0, nil)
+	client, err := storage.NewRedisClient("127.0.0.1:6379", "", 1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,27 +43,37 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 
 	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
 	clientID := []byte("testclientid")
-	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, keyloader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
 
 	masterKey, err := keystoreV2.NewSerializedMasterKeys()
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	flagSet := flag.NewFlagSet(CmdMigrateKeys, flag.ContinueOnError)
+	keyloader.RegisterCLIParametersWithFlagSet(flagSet, "", "")
+	cmd.RegisterRedisKeystoreParametersWithPrefix(flagSet, "", "")
+
+	setFlags := map[string]string{
+		"keystore_encryption_type": keyloader.KeystoreStrategyEnvMasterKey,
+		"redis_host_port":          "127.0.0.1:6379",
+		"redis_db_keys":            "1",
+	}
+
+	for flag, value := range setFlags {
+		err = flagSet.Set(flag, value)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	os.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
 	t.Run("read storage-public key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
-			CommonKeyStoreParameters: CommonKeyStoreParameters{
-				keyLoaderOptions: keyloader.CLIOptions{
-					KeystoreEncryptorType: keyloader.KeystoreStrategyEnvMasterKey,
-				},
-				redisOptions: cmd.RedisOptions{
-					HostPort: "127.0.0.1:6379",
-				},
-			},
 			contextID:   clientID,
 			readKeyKind: KeyStoragePublic,
+			FlagSet:     flagSet,
 		}
 
 		store, err := openKeyStoreV2(readCmd)
@@ -79,14 +91,7 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 
 	t.Run("read symmetric-key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
-			CommonKeyStoreParameters: CommonKeyStoreParameters{
-				keyLoaderOptions: keyloader.CLIOptions{
-					KeystoreEncryptorType: keyloader.KeystoreStrategyEnvMasterKey,
-				},
-				redisOptions: cmd.RedisOptions{
-					HostPort: "127.0.0.1:6379",
-				},
-			},
+			FlagSet:     flagSet,
 			contextID:   clientID,
 			readKeyKind: KeySymmetric,
 		}
@@ -106,14 +111,7 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 
 	t.Run("read symmetric-zone-key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
-			CommonKeyStoreParameters: CommonKeyStoreParameters{
-				keyLoaderOptions: keyloader.CLIOptions{
-					KeystoreEncryptorType: keyloader.KeystoreStrategyEnvMasterKey,
-				},
-				redisOptions: cmd.RedisOptions{
-					HostPort: "127.0.0.1:6379",
-				},
-			},
+			FlagSet:     flagSet,
 			contextID:   zoneID,
 			readKeyKind: KeyZoneSymmetric,
 		}
@@ -133,7 +131,7 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 }
 
 func TestReadCMD_Redis_V1(t *testing.T) {
-	client, err := storage.NewRedisClient("127.0.0.1:6379", "", 0, nil)
+	client, err := storage.NewRedisClient("127.0.0.1:6379", "", 1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,11 +139,29 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 
 	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
 	clientID := []byte("testclientid")
-	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, keyloader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
 
 	masterKey, err := keystore.GenerateSymmetricKey()
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	flagSet := flag.NewFlagSet(CmdMigrateKeys, flag.ContinueOnError)
+	keyloader.RegisterCLIParametersWithFlagSet(flagSet, "", "")
+
+	cmd.RegisterRedisKeystoreParametersWithPrefix(flagSet, "", "")
+
+	setFlags := map[string]string{
+		"keystore_encryption_type": keyloader.KeystoreStrategyEnvMasterKey,
+		"redis_host_port":          "127.0.0.1:6379",
+		"redis_db_keys":            "1",
+	}
+
+	for flag, value := range setFlags {
+		err = flagSet.Set(flag, value)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	os.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
@@ -159,14 +175,9 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 	t.Run("read storage-public key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
-				keyLoaderOptions: keyloader.CLIOptions{
-					KeystoreEncryptorType: keyloader.KeystoreStrategyEnvMasterKey,
-				},
-				redisOptions: cmd.RedisOptions{
-					HostPort: "127.0.0.1:6379",
-				},
 				keyDir: dirName,
 			},
+			FlagSet:     flagSet,
 			contextID:   clientID,
 			readKeyKind: KeyStoragePublic,
 		}
@@ -187,14 +198,9 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 	t.Run("read symmetric-key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
-				keyLoaderOptions: keyloader.CLIOptions{
-					KeystoreEncryptorType: keyloader.KeystoreStrategyEnvMasterKey,
-				},
-				redisOptions: cmd.RedisOptions{
-					HostPort: "127.0.0.1:6379",
-				},
 				keyDir: dirName,
 			},
+			FlagSet:     flagSet,
 			contextID:   clientID,
 			readKeyKind: KeySymmetric,
 		}
@@ -215,14 +221,9 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 	t.Run("read symmetric-zone-key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
-				keyLoaderOptions: keyloader.CLIOptions{
-					KeystoreEncryptorType: keyloader.KeystoreStrategyEnvMasterKey,
-				},
-				redisOptions: cmd.RedisOptions{
-					HostPort: "127.0.0.1:6379",
-				},
 				keyDir: dirName,
 			},
+			FlagSet:     flagSet,
 			contextID:   zoneID,
 			readKeyKind: KeyZoneSymmetric,
 		}
