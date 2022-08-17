@@ -64,32 +64,42 @@ var (
 	tlsServerName string
 )
 
+// correct -tls_ocsp_database_url:
+// incorrect -tls_database_ocsp_url:
+
 // NamerFunc func compile final parameter name for specified service name
-type NamerFunc func(serviceName, parameterName string) string
+type NamerFunc func(serviceName, parameterName, groupName string) string
 
 // ClientNamer returns NamerFunc with "_client_" suffix before parameter name
 func ClientNamer() NamerFunc {
-	return func(serviceName, parameterName string) string {
+	return func(serviceName, parameterName, groupName string) string {
 		// serviceName = "vault
 		// parameterName = "key"
 		// result = "vault_tls_client_key
-		if serviceName == "" {
-			return "tls_client_" + parameterName
+		if groupName != "" {
+			groupName = groupName + "_"
 		}
-		return serviceName + "_tls_client_" + parameterName
+		if serviceName == "" {
+			return "tls_" + groupName + "client_" + parameterName
+		}
+		return serviceName + "_tls_" + groupName + "client_" + parameterName
 	}
 }
 
 // DatabaseNamer returns NamerFunc with "_database_" suffix before parameter name
 func DatabaseNamer() NamerFunc {
-	return func(serviceName, parameterName string) string {
+	return func(serviceName, parameterName, groupName string) string {
 		// serviceName = "vault
 		// parameterName = "key"
-		// result = "vault_tls_database_key
-		if serviceName == "" {
-			return "tls_database_" + parameterName
+		// groupName = "ocsp"
+		// result = "vault_tls_ocsp_database_key
+		if groupName != "" {
+			groupName = groupName + "_"
 		}
-		return serviceName + "_tls_database_" + parameterName
+		if serviceName == "" {
+			return "tls_" + groupName + "database_" + parameterName
+		}
+		return serviceName + "_tls_" + groupName + "database_" + parameterName
 	}
 }
 
@@ -104,11 +114,16 @@ func RegisterTLSBaseArgs() {
 
 // RegisterTLSArgsForService register CLI args tls_ca|tls_key|tls_cert|tls_auth and flags for certificate verifier
 // which allow to get tls.Config by NewTLSConfigByName function
-func RegisterTLSArgsForService(flags *flag.FlagSet, name string, namerFunc NamerFunc) {
-	flags.String(namerFunc(name, "ca"), "", "Path to root certificate which will be used with system root certificates to validate peer's certificate")
-	flags.String(namerFunc(name, "key"), "", "Path to private key that will be used for TLS connections")
-	flags.String(namerFunc(name, "cert"), "", "Path to certificate")
-	flags.Int(namerFunc(name, "auth"), int(tlsAuthNotSet), "Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
+func RegisterTLSArgsForService(flags *flag.FlagSet, isClient bool, name string, namerFunc NamerFunc) {
+	flags.String(namerFunc(name, "ca", ""), "", "Path to root certificate which will be used with system root certificates to validate peer's certificate. Uses --tls_ca value if not specified.")
+	flags.String(namerFunc(name, "key", ""), "", "Path to private key that will be used for TLS connections. Uses --tls_key value if not specified.")
+	flags.String(namerFunc(name, "cert", ""), "", "Path to certificate. Uses --tls_cert value if not specified.")
+	flags.Int(namerFunc(name, "auth", ""), int(tlsAuthNotSet), "Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is -1 which means NotSpecified and will be used value from tls_auth.")
+	// if Acra's component is client for TLS handshake, it can specify expected SNI from the server's side
+	// otherwise skip it for server's role of Acra
+	if isClient {
+		flags.String(namerFunc(name, "sni", ""), "", "Expected Server Name (SNI) from the service's side.")
+	}
 	RegisterCertVerifierArgsForService(flags, name, namerFunc)
 }
 
@@ -118,28 +133,28 @@ func RegisterTLSArgsForService(flags *flag.FlagSet, name string, namerFunc Namer
 func NewTLSConfigByName(flags *flag.FlagSet, name, host string, namerFunc NamerFunc) (*tls.Config, error) {
 	var ca, cert, key, sni string
 	var auth tls.ClientAuthType
-	if f := flags.Lookup(namerFunc(name, "ca")); f != nil {
+	if f := flags.Lookup(namerFunc(name, "ca", "")); f != nil {
 		ca = f.Value.String()
 		if ca == "" {
 			ca = tlsCA
 		}
 	}
-	if f := flags.Lookup(namerFunc(name, "sni")); f != nil {
+	if f := flags.Lookup(namerFunc(name, "sni", "")); f != nil {
 		sni = f.Value.String()
 	}
-	if f := flags.Lookup(namerFunc(name, "cert")); f != nil {
+	if f := flags.Lookup(namerFunc(name, "cert", "")); f != nil {
 		cert = f.Value.String()
 		if cert == "" {
 			cert = tlsCert
 		}
 	}
-	if f := flags.Lookup(namerFunc(name, "key")); f != nil {
+	if f := flags.Lookup(namerFunc(name, "key", "")); f != nil {
 		key = f.Value.String()
 		if key == "" {
 			key = tlsKey
 		}
 	}
-	if f := flags.Lookup(namerFunc(name, "auth")); f != nil {
+	if f := flags.Lookup(namerFunc(name, "auth", "")); f != nil {
 		getter, ok := f.Value.(flag.Getter)
 		if !ok {
 			log.Fatal("Can't cast flag's Value to Getter")
@@ -147,7 +162,7 @@ func NewTLSConfigByName(flags *flag.FlagSet, name, host string, namerFunc NamerF
 		val, ok := getter.Get().(int)
 		if !ok {
 			log.WithField("value", getter.Get()).Fatalf("Can't cast %s to integer value",
-				namerFunc(name, "auth"))
+				namerFunc(name, "auth", ""))
 		}
 		if val == tlsAuthNotSet {
 			val = tlsAuthType
