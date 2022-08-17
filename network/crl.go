@@ -522,7 +522,7 @@ func checkCertWithCRL(cert *x509.Certificate, cacheItem *CRLCacheItem) error {
 		}
 	}
 
-	log.WithField("serial", cert.SerialNumber).WithField("revoked_at", revokedCertificate.RevocationTime).Warnln("CRL: Certificate was revoked")
+	log.WithField("serial", cert.SerialNumber.Text(16)).WithField("revoked_at", revokedCertificate.RevocationTime).Warnln("CRL: Certificate was revoked")
 	return ErrCertWasRevoked
 }
 

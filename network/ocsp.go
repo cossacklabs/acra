@@ -372,12 +372,12 @@ func (v DefaultOCSPVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate
 			}
 		case ocsp.Revoked:
 			// If any OCSP server replies with "certificate was revoked", return error immediately
-			log.WithField("serial", cert.SerialNumber).WithField("revoked_at", response.RevokedAt).Warnln("OCSP: Certificate was revoked")
+			log.WithField("serial", cert.SerialNumber.Text(16)).WithField("revoked_at", response.RevokedAt).Warnln("OCSP: Certificate was revoked")
 			return ErrCertWasRevoked
 		case ocsp.Unknown:
 			// Treat "Unknown" response as error if tls_ocsp_required is "yes" or "all"
 			if v.Config.required != ocspRequiredAllowUnknown {
-				log.WithField("url", serverToCheck.url).WithField("serial", cert.SerialNumber).Warnln("OCSP server doesn't know about certificate")
+				log.WithField("url", serverToCheck.url).WithField("serial", cert.SerialNumber.Text(16)).Warnln("OCSP server doesn't know about certificate")
 				return ErrOCSPUnknownCertificate
 			}
 		}
