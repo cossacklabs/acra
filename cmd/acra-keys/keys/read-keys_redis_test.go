@@ -35,7 +35,7 @@ import (
 )
 
 func TestReadCMD_Redis_V2(t *testing.T) {
-	client, err := storage.NewRedisClient("127.0.0.1:6379", "", 1, nil)
+	client, err := storage.NewRedisClient("127.0.0.1:6379", "", 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,6 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 	setFlags := map[string]string{
 		"keystore_encryption_type": keyloader.KeystoreStrategyEnvMasterKey,
 		"redis_host_port":          "127.0.0.1:6379",
-		"redis_db_keys":            "1",
 	}
 
 	for flag, value := range setFlags {
@@ -131,7 +130,7 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 }
 
 func TestReadCMD_Redis_V1(t *testing.T) {
-	client, err := storage.NewRedisClient("127.0.0.1:6379", "", 1, nil)
+	client, err := storage.NewRedisClient("127.0.0.1:6379", "", 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +153,6 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 	setFlags := map[string]string{
 		"keystore_encryption_type": keyloader.KeystoreStrategyEnvMasterKey,
 		"redis_host_port":          "127.0.0.1:6379",
-		"redis_db_keys":            "1",
 	}
 
 	for flag, value := range setFlags {
