@@ -1,5 +1,5 @@
-//go:build integration && redis && !tls
-// +build integration,redis,!tls
+//go:build integration && redis && tls
+// +build integration,redis,tls
 
 /*
 Copyright 2020, Cossack Labs Limited
@@ -20,10 +20,16 @@ limitations under the License.
 package keys
 
 import (
+	"crypto/tls"
 	"encoding/base64"
-	storage2 "github.com/cossacklabs/acra/pseudonymization/storage"
+	"flag"
+	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/pseudonymization/storage"
+	"github.com/cossacklabs/acra/utils/tests"
 	"io/ioutil"
 	"os"
+	"path/filepath"
+	"strconv"
 	"testing"
 
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
@@ -33,13 +39,59 @@ import (
 	"github.com/cossacklabs/acra/keystore/keyloader"
 )
 
-func TestReadCMD_Redis_V2(t *testing.T) {
-	testOptions := cmd.GetTestRedisOptions(t)
-	client, err := storage2.NewRedisClient(testOptions.HostPort, testOptions.Password, testOptions.DBKeys, nil)
+func newClientTLSConfig(t *testing.T) *tls.Config {
+	verifier := network.NewCertVerifierAll()
+	workingDirectory := tests.GetSourceRootDirectory(t)
+	clientConfig, err := network.NewTLSConfig("localhost", filepath.Join(workingDirectory, "tests/ssl/ca/ca.crt"), filepath.Join(workingDirectory, "tests/ssl/acra-writer/acra-writer.key"), filepath.Join(workingDirectory, "tests/ssl/acra-writer/acra-writer.crt"), 4, verifier)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer client.FlushAll()
+	return clientConfig
+}
+
+func prepareTLSRedisConfig(t *testing.T) (cmd.RedisOptions, *flag.FlagSet) {
+	flagset := flag.FlagSet{}
+	options := cmd.RedisOptions{}
+	options.RegisterKeyStoreParameters(&flagset, "", "")
+	// registering flags overrides values with default
+	// here we load values from env variables and use them for tests
+	tempOptions := cmd.GetTestRedisOptions(t)
+	options.DBKeys = tempOptions.DBKeys
+	options.Password = tempOptions.Password
+	options.HostPort = tempOptions.HostPort
+	workingDirectory := tests.GetSourceRootDirectory(t)
+	if err := flagset.Lookup("redis_tls_client_ca").Value.Set(filepath.Join(workingDirectory, "tests/ssl/ca/ca.crt")); err != nil {
+		t.Fatal(err)
+	}
+	if err := flagset.Lookup("redis_tls_client_cert").Value.Set(filepath.Join(workingDirectory, "tests/ssl/acra-client/acra-client.crt")); err != nil {
+		t.Fatal(err)
+	}
+	if err := flagset.Lookup("redis_tls_client_key").Value.Set(filepath.Join(workingDirectory, "tests/ssl/acra-client/acra-client.key")); err != nil {
+		t.Fatal(err)
+	}
+	if err := flagset.Lookup("redis_tls_client_auth").Value.Set(strconv.FormatUint(uint64(tls.RequireAndVerifyClientCert), 10)); err != nil {
+		t.Fatal(err)
+	}
+	if err := flagset.Lookup("redis_tls_client_ocsp_from_cert").Value.Set("ignore"); err != nil {
+		t.Fatal(err)
+	}
+	if err := flagset.Lookup("redis_tls_client_crl_from_cert").Value.Set("ignore"); err != nil {
+		t.Fatal(err)
+	}
+	if err := flagset.Lookup("redis_tls_enable").Value.Set("true"); err != nil {
+		t.Fatal(err)
+	}
+	return options, &flagset
+}
+
+func TestReadCMD_TLSRedis_V2(t *testing.T) {
+	options, flagset := prepareTLSRedisConfig(t)
+	// remove all generated keys at the end
+	client, err := storage.NewRedisClient(options.HostPort, options.Password, options.DBKeys, newClientTLSConfig(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.FlushAll()
 
 	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
 	clientID := []byte("testclientid")
@@ -55,7 +107,8 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 	t.Run("read storage-public key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
-				redisOptions: testOptions,
+				redisOptions: options,
+				flagset:      flagset,
 			},
 			contextID:   clientID,
 			readKeyKind: KeyStoragePublic,
@@ -77,7 +130,8 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 	t.Run("read symmetric-key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
-				redisOptions: testOptions,
+				redisOptions: options,
+				flagset:      flagset,
 			},
 			contextID:   clientID,
 			readKeyKind: KeySymmetric,
@@ -99,7 +153,8 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 	t.Run("read symmetric-zone-key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
-				redisOptions: testOptions,
+				redisOptions: options,
+				flagset:      flagset,
 			},
 			contextID:   zoneID,
 			readKeyKind: KeyZoneSymmetric,
@@ -119,14 +174,14 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 	})
 }
 
-func TestReadCMD_Redis_V1(t *testing.T) {
-	testOptions := cmd.GetTestRedisOptions(t)
-	client, err := storage2.NewRedisClient(testOptions.HostPort, testOptions.Password, testOptions.DBKeys, nil)
+func TestReadCMD_TLSRedis_V1(t *testing.T) {
+	options, flagset := prepareTLSRedisConfig(t)
+	// remove all generated keys at the end
+	client, err := storage.NewRedisClient(options.HostPort, options.Password, options.DBKeys, newClientTLSConfig(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer client.FlushAll()
-
+	client.FlushAll()
 	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
 	clientID := []byte("testclientid")
 	keyLoader := keyloader.NewEnvLoader(keystore.AcraMasterKeyVarName)
@@ -147,7 +202,8 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 	t.Run("read storage-public key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
-				redisOptions: testOptions,
+				redisOptions: options,
+				flagset:      flagset,
 				keyDir:       dirName,
 			},
 			contextID:   clientID,
@@ -170,7 +226,8 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 	t.Run("read symmetric-key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
-				redisOptions: testOptions,
+				redisOptions: cmd.GetRedisParameters(),
+				flagset:      flagset,
 				keyDir:       dirName,
 			},
 			contextID:   clientID,
@@ -193,7 +250,8 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 	t.Run("read symmetric-zone-key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
-				redisOptions: testOptions,
+				redisOptions: cmd.GetRedisParameters(),
+				flagset:      flagset,
 				keyDir:       dirName,
 			},
 			contextID:   zoneID,
