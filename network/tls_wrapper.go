@@ -40,6 +40,8 @@ var allowedCipherSuits = []uint16{
 	tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
 }
 
+const tlsAuthNotSet = -1
+
 // TLSConnectionWrapper for wrapping connection into TLS encryption
 type TLSConnectionWrapper struct {
 	credentials.TransportCredentials
@@ -106,7 +108,7 @@ func RegisterTLSArgsForService(flags *flag.FlagSet, name string, namerFunc Namer
 	flags.String(namerFunc(name, "ca"), "", "Path to root certificate which will be used with system root certificates to validate peer's certificate")
 	flags.String(namerFunc(name, "key"), "", "Path to private key that will be used for TLS connections")
 	flags.String(namerFunc(name, "cert"), "", "Path to certificate")
-	flags.Int(namerFunc(name, "auth"), int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
+	flags.Int(namerFunc(name, "auth"), int(tlsAuthNotSet), "Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
 	RegisterCertVerifierArgsForService(flags, name, namerFunc)
 }
 
@@ -146,6 +148,9 @@ func NewTLSConfigByName(flags *flag.FlagSet, name, host string, namerFunc NamerF
 		if !ok {
 			log.WithField("value", getter.Get()).Fatalf("Can't cast %s to integer value",
 				namerFunc(name, "auth"))
+		}
+		if val == tlsAuthNotSet {
+			val = tlsAuthType
 		}
 		auth = tls.ClientAuthType(val)
 	}
