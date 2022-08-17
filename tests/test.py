@@ -3251,11 +3251,11 @@ class HashiCorpVaultMasterKeyLoaderMixin:
         return super().fork_translator(translator_kwargs, popen_kwargs)
 
     def read_rotation_public_key(self,  extra_kwargs: dict = None):
-        args = self.vault_client.get_vault_cli_args(self.DEFAULT_MOUNT_PATH, self.secret_path, keystore_encryption_type='master_key')
+        args = self.vault_client.get_vault_cli_args(self.DEFAULT_MOUNT_PATH, self.secret_path, keystore_encryption_type='env_master_key')
         return super().read_rotation_public_key(extra_kwargs=args)
 
     def create_keypair(self, extra_kwargs: dict = None):
-        args = self.vault_client.get_vault_cli_args(self.DEFAULT_MOUNT_PATH, self.secret_path, keystore_encryption_type='master_key')
+        args = self.vault_client.get_vault_cli_args(self.DEFAULT_MOUNT_PATH, self.secret_path, keystore_encryption_type='env_master_key')
         return super().create_keypair(extra_kwargs=args)
 
     def tearDown(self):
