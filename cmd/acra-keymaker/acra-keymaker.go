@@ -23,6 +23,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"flag"
@@ -318,7 +319,17 @@ func openKeyStoreV1(output, outputPublic string, loader keyloader.MasterKeyLoade
 	keyStoreBuilder.Encryptor(keyStoreEncryptor)
 	redis := cmd.GetRedisParameters()
 	if redis.KeysConfigured() {
-		keyStorage, err := filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
+		// if redisTLS = nil then will not be used TLS for Redis
+		var redisTLS *tls.Config
+		var err error
+		if redis.TLSEnable {
+			redisTLS, err = network.NewTLSConfigByName(flag.CommandLine, "redis", redis.HostPort, network.ClientNamer())
+			if err != nil {
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
+					Errorln("Can't initialize TLS config for Redis client")
+			}
+		}
+		keyStorage, err := filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, redisTLS)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 				Errorln("Can't initialize Redis client")
@@ -353,9 +364,14 @@ func openKeyStoreV2(keyDirPath string, loader keyloader.MasterKeyLoader) keystor
 	var backend filesystemBackendV2.Backend
 	redis := cmd.GetRedisParameters()
 	if redis.KeysConfigured() {
+		redisOptions, err := redis.KeysOptions(flag.CommandLine)
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize Redis options")
+			os.Exit(1)
+		}
 		config := &filesystemBackendV2.RedisConfig{
 			RootDir: keyDirPath,
-			Options: redis.KeysOptions(),
+			Options: redisOptions,
 		}
 		backend, err = filesystemBackendV2.CreateRedisBackend(config)
 		if err != nil {

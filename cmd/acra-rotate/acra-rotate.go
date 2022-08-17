@@ -107,9 +107,14 @@ func openKeyStoreV2(keyDirPath string, loader keyloader.MasterKeyLoader) keystor
 	var backend filesystemBackendV2.Backend
 	redis := cmd.GetRedisParameters()
 	if redis.KeysConfigured() {
+		redisOptions, err := redis.KeysOptions(flag.CommandLine)
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize Redis options")
+			os.Exit(1)
+		}
 		config := &filesystemBackendV2.RedisConfig{
 			RootDir: keyDirPath,
-			Options: redis.KeysOptions(),
+			Options: redisOptions,
 		}
 		backend, err = filesystemBackendV2.OpenRedisBackend(config)
 		if err != nil {

@@ -46,8 +46,9 @@ type KeyStoreParameters interface {
 	KeyDirPublic() string
 
 	RedisConfigured() bool
-	RedisOptions() *redis.Options
+	RedisOptions() (*redis.Options, error)
 	KeyLoaderCLIOptions() keyloader.CLIOptions
+	UsedFlagSet() *flag.FlagSet
 }
 
 // CommonKeyStoreParameters is a mix-in of command line parameters for keystore construction.
@@ -57,6 +58,12 @@ type CommonKeyStoreParameters struct {
 
 	redisOptions     cmd.RedisOptions
 	keyLoaderOptions keyloader.CLIOptions
+	flagset          *flag.FlagSet
+}
+
+// UsedFlagSet returns the FlagSet used to register flags
+func (p *CommonKeyStoreParameters) UsedFlagSet() *flag.FlagSet {
+	return p.flagset
 }
 
 // KeyDir returns path to key directory.
@@ -78,8 +85,8 @@ func (p *CommonKeyStoreParameters) RedisConfigured() bool {
 }
 
 // RedisOptions returns Redis configuration options for keystore.
-func (p *CommonKeyStoreParameters) RedisOptions() *redis.Options {
-	return p.redisOptions.KeysOptions()
+func (p *CommonKeyStoreParameters) RedisOptions() (*redis.Options, error) {
+	return p.redisOptions.KeysOptions(p.flagset)
 }
 
 // KeyLoaderCLIOptions returns common keyloader CLI configuration options for ACRA_MASTER_KEY loading.
@@ -94,11 +101,13 @@ func (p *CommonKeyStoreParameters) RegisterRedisWithPrefix(flags *flag.FlagSet, 
 
 // RegisterKeyLoaderCLItWithPrefix registers keyloader CLI options in given flag set, using additional prefix.
 func (p *CommonKeyStoreParameters) RegisterKeyLoaderCLItWithPrefix(flags *flag.FlagSet, prefix, description string) {
+	p.flagset = flags
 	p.keyLoaderOptions.RegisterCLIParameters(flags, prefix, description)
 }
 
 // Register registers keystore flags with the given flag set.
 func (p *CommonKeyStoreParameters) Register(flags *flag.FlagSet) {
+	p.flagset = flags
 	p.RegisterPrefixed(flags, DefaultKeyDirectory, "", "")
 	p.redisOptions.RegisterKeyStoreParameters(flags, "", "")
 	p.keyLoaderOptions.RegisterCLIParameters(flags, "", "")
@@ -106,6 +115,7 @@ func (p *CommonKeyStoreParameters) Register(flags *flag.FlagSet) {
 
 // RegisterPrefixed registers keystore flags with the given flag set, using given prefix and description.
 func (p *CommonKeyStoreParameters) RegisterPrefixed(flags *flag.FlagSet, defaultKeysDir, flagPrefix, descriptionSuffix string) {
+	p.flagset = flags
 	if descriptionSuffix != "" {
 		descriptionSuffix = " " + descriptionSuffix
 	}
@@ -119,7 +129,6 @@ func OpenKeyStoreForReading(params KeyStoreParameters) (keystore.ServerKeyStore,
 	if err != nil {
 		return nil, err
 	}
-
 	if IsKeyStoreV2(params) {
 		return openKeyStoreV2(params, keyLoader)
 	}
@@ -204,8 +213,13 @@ func openKeyStoreV1(params KeyStoreParameters, loader keyloader.MasterKeyLoader)
 	}
 
 	if params.RedisConfigured() {
-		redis := params.RedisOptions()
-		keyStorage, err := filesystem.NewRedisStorage(redis.Addr, redis.Password, redis.DB, nil)
+		redisOptions, err := params.RedisOptions()
+		if err != nil {
+			log.WithError(err).Errorln("Can't get Redis options")
+			return nil, err
+		}
+		keyStorage, err := filesystem.NewRedisStorage(redisOptions.Addr, redisOptions.Password, redisOptions.DB,
+			redisOptions.TLSConfig)
 		if err != nil {
 			log.WithError(err).Errorln("Failed to initialise Redis storage")
 			return nil, err
@@ -235,9 +249,14 @@ func openKeyStoreV2(params KeyStoreParameters, loader keyloader.MasterKeyLoader)
 
 	var backend filesystemBackendV2.Backend
 	if params.RedisConfigured() {
+		redisOptions, err := params.RedisOptions()
+		if err != nil {
+			log.WithError(err).Errorln("Can't get Redis options")
+			return nil, err
+		}
 		config := &filesystemBackendV2.RedisConfig{
 			RootDir: params.KeyDir(),
-			Options: params.RedisOptions(),
+			Options: redisOptions,
 		}
 		backend, err = filesystemBackendV2.CreateRedisBackend(config)
 		if err != nil {
@@ -263,14 +282,14 @@ func openKeyStoreV2(params KeyStoreParameters, loader keyloader.MasterKeyLoader)
 // IsKeyStoreV2 checks if the directory contains a keystore version 2 from KeyStoreParameters
 func IsKeyStoreV2(params KeyStoreParameters) bool {
 	if params.RedisConfigured() {
-		redisOption := params.RedisOptions()
+		redisOption, err := params.RedisOptions()
+		if err != nil {
+			log.WithError(err).Errorln("Can't get Redis options")
+			return false
+		}
 		redisClient, err := filesystemBackendV2.OpenRedisBackend(&filesystemBackendV2.RedisConfig{
 			RootDir: params.KeyDir(),
-			Options: &redis.Options{
-				Addr:     redisOption.Addr,
-				Password: redisOption.Password,
-				DB:       redisOption.DB,
-			},
+			Options: redisOption,
 		})
 		if err != nil {
 			log.WithError(err).Debugln("Failed to find keystore v2 in Redis")
@@ -288,7 +307,12 @@ func IsKeyStoreV2(params KeyStoreParameters) bool {
 func IsKeyStoreV1(params KeyStoreParameters) bool {
 	var fsStorage filesystem.Storage = &filesystem.DummyStorage{}
 	if params.RedisConfigured() {
-		redisOption := params.RedisOptions()
+		redisOption, err := params.RedisOptions()
+		if err != nil {
+			log.WithError(err).Errorln("Can't get Redis options")
+			return false
+		}
+
 		redisStorage, err := filesystem.NewRedisStorage(redisOption.Addr, redisOption.Password, redisOption.DB, nil)
 		if err != nil {
 			log.WithError(err).Debug("Failed to open redis storage for version check")

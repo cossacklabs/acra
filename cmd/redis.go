@@ -17,9 +17,11 @@
 package cmd
 
 import (
+	"crypto/tls"
 	"errors"
 	"flag"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/network"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"strconv"
@@ -29,10 +31,11 @@ import (
 
 // RedisOptions keep command-line options related to Redis database configuration.
 type RedisOptions struct {
-	HostPort string
-	Password string
-	DBKeys   int
-	DBTokens int
+	HostPort  string
+	Password  string
+	DBKeys    int
+	DBTokens  int
+	TLSEnable bool
 }
 
 // Note that currently "keystore" and "token store" are expected to be located
@@ -77,6 +80,10 @@ func (redis *RedisOptions) RegisterKeyStoreParameters(flags *flag.FlagSet, prefi
 	if flags.Lookup(prefix+"redis_host_port") == nil {
 		flags.StringVar(&redis.HostPort, prefix+"redis_host_port", "", "<host>:<port> used to connect to Redis"+description)
 		flags.StringVar(&redis.Password, prefix+"redis_password", "", "Password to Redis database"+description)
+		flags.BoolVar(&redis.TLSEnable, prefix+"redis_tls_enable", false, "Use TLS to connect to Redis"+description)
+	}
+	if flags.Lookup(prefix+network.ClientNamer()("redis", "cert")) == nil {
+		network.RegisterTLSArgsForService(flags, prefix+"redis", network.ClientNamer())
 	}
 	flags.IntVar(&redis.DBKeys, prefix+"redis_db_keys", redisDefaultDB, "Number of Redis database for keys"+description)
 	redis.checkBothKeyAndToken(prefix, flags)
@@ -96,6 +103,9 @@ func (redis *RedisOptions) RegisterTokenStoreParametersWithPrefix(flags *flag.Fl
 	if flags.Lookup(prefix+"redis_host_port") == nil {
 		flags.StringVar(&redis.HostPort, prefix+"redis_host_port", "", "<host>:<port> used to connect to Redis"+description)
 		flags.StringVar(&redis.Password, prefix+"redis_password", "", "Password to Redis database"+description)
+	}
+	if flags.Lookup(prefix+network.ClientNamer()("redis", "cert")) == nil {
+		network.RegisterTLSArgsForService(flags, "redis", network.ClientNamer())
 	}
 	flags.IntVar(&redis.DBTokens, prefix+"redis_db_tokens", redisDefaultDB, "Number of Redis database for tokens"+description)
 	redis.checkBothKeyAndToken(prefix, flags)
@@ -141,10 +151,19 @@ func (redis *RedisOptions) TokensConfigured() bool {
 }
 
 // KeysOptions returns Redis connection configuration for key storage.
-func (redis *RedisOptions) KeysOptions() *goRedis.Options {
-	return &goRedis.Options{
-		Addr:     redis.HostPort,
-		Password: redis.Password,
-		DB:       redis.DBKeys,
+func (redis *RedisOptions) KeysOptions(flags *flag.FlagSet) (*goRedis.Options, error) {
+	var tlsConfig *tls.Config
+	var err error
+	if redis.TLSEnable {
+		tlsConfig, err = network.NewTLSConfigByName(flags, "redis", redis.HostPort, network.ClientNamer())
+		if err != nil {
+			return nil, err
+		}
 	}
+	return &goRedis.Options{
+		Addr:      redis.HostPort,
+		Password:  redis.Password,
+		DB:        redis.DBKeys,
+		TLSConfig: tlsConfig,
+	}, nil
 }

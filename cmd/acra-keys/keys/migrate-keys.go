@@ -267,7 +267,11 @@ func (m *MigrateKeysSubcommand) openKeyStoreV1(params KeyStoreParameters, loader
 	}
 
 	if params.RedisConfigured() {
-		redis := params.RedisOptions()
+		redis, err := params.RedisOptions()
+		if err != nil {
+			log.WithError(err).Errorln("Can't get Redis options")
+			return nil, err
+		}
 		keyStorage, err := filesystem.NewRedisStorage(redis.Addr, redis.Password, redis.DB, nil)
 		if err != nil {
 			log.WithError(err).Errorln("Failed to initialise Redis storage")
@@ -306,9 +310,14 @@ func (m *MigrateKeysSubcommand) openKeyStoreV2(params KeyStoreParameters, loader
 	if m.DryRun() {
 		backend = filesystemBackendV2.NewInMemory()
 	} else if params.RedisConfigured() {
+		redisOptions, err := params.RedisOptions()
+		if err != nil {
+			log.WithError(err).Errorln("Can't get Redis options")
+			return nil, err
+		}
 		config := &filesystemBackendV2.RedisConfig{
 			RootDir: params.KeyDir(),
-			Options: params.RedisOptions(),
+			Options: redisOptions,
 		}
 		backend, err = filesystemBackendV2.CreateRedisBackend(config)
 		if err != nil {
