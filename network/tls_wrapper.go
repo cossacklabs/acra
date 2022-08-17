@@ -71,7 +71,10 @@ func ClientNamer() NamerFunc {
 		// serviceName = "vault
 		// parameterName = "key"
 		// result = "vault_tls_client_key
-		return serviceName + "_tls_" + "client_" + parameterName
+		if serviceName == "" {
+			return "tls_client_" + parameterName
+		}
+		return serviceName + "_tls_client_" + parameterName
 	}
 }
 
@@ -81,7 +84,10 @@ func DatabaseNamer() NamerFunc {
 		// serviceName = "vault
 		// parameterName = "key"
 		// result = "vault_tls_database_key
-		return serviceName + "_tls_" + "database_" + parameterName
+		if serviceName == "" {
+			return "tls_database_" + parameterName
+		}
+		return serviceName + "_tls_database_" + parameterName
 	}
 }
 
