@@ -2,7 +2,6 @@ package postgresql
 
 import (
 	"context"
-	"github.com/cossacklabs/acra/sqlparser"
 	"io"
 	"net"
 	"testing"
@@ -10,6 +9,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/sirupsen/logrus"

@@ -26,6 +26,7 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
+	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
@@ -114,14 +115,10 @@ func (m *MigrateKeysSubcommand) RegisterFlags() {
 	m.flagSet.StringVar(&m.dstVersion, "dst_keystore", "", "keystore format to use: v1 (current), v2 (new)")
 	m.flagSet.BoolVar(&m.dryRun, "dry_run", false, "try migration without writing to the output keystore")
 	m.flagSet.BoolVar(&m.force, "force", false, "write to output keystore even if it exists")
-	m.src.RegisterRedisWithPrefix(m.flagSet, "src_", "old keystore, source")
-	m.dst.RegisterRedisWithPrefix(m.flagSet, "dst_", "new keystore, destination")
-	m.src.RegisterKMSWithPrefix(m.flagSet, "src_", "old keystore, source")
-	m.dst.RegisterKMSWithPrefix(m.flagSet, "dst_", "new keystore, destination")
-	m.src.RegisterVaultWithPrefix(m.flagSet, "src_", "old keystore, source")
-	m.dst.RegisterVaultWithPrefix(m.flagSet, "dst_", "new keystore, destination")
-	m.src.RegisterKeyLoaderCLItWithPrefix(m.flagSet, "src_", "old keystore, source ACRA_MASTER_KEY")
-	m.dst.RegisterKeyLoaderCLItWithPrefix(m.flagSet, "dst_", "new keystore, destination ACRA_MASTER_KEY")
+	cmd.RegisterRedisKeystoreParametersWithPrefix(m.flagSet, "src_", "old keystore, source")
+	cmd.RegisterRedisKeystoreParametersWithPrefix(m.flagSet, "dst_", "new keystore, destination")
+	keyloader.RegisterKeyStoreStrategyParametersWithFlags(m.flagSet, "src_", "old keystore, source")
+	keyloader.RegisterKeyStoreStrategyParametersWithFlags(m.flagSet, "dst_", "new keystore, destination")
 
 	m.flagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": migrate keystore to a different format\n", CmdMigrateKeys)
@@ -238,9 +235,9 @@ func MigrateV1toV2(srcV1 filesystem.KeyExport, dstV2 keystoreV2.KeyFileImportV1)
 }
 
 func (m *MigrateKeysSubcommand) openKeyStoreV1(params KeyStoreParameters) (*filesystem.KeyStore, error) {
-	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, keyloader.NewEnvKeyEncryptorFabric(SrcMasterKeyVarName))
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(SrcMasterKeyVarName))
 
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(params.KeyLoaderCLIOptions().KeystoreEncryptorType)
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(m.flagSet, "src_")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		return nil, err
@@ -257,9 +254,8 @@ func (m *MigrateKeysSubcommand) openKeyStoreV1(params KeyStoreParameters) (*file
 		keyStore.KeyDirectory(keyDir)
 	}
 
-	if params.RedisConfigured() {
-		redis := params.RedisOptions()
-		keyStorage, err := filesystem.NewRedisStorage(redis.Addr, redis.Password, redis.DB, nil)
+	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetFlagSet(), ""); redisOptions.KeysConfigured() {
+		keyStorage, err := filesystem.NewRedisStorage(redisOptions.HostPort, redisOptions.Password, redisOptions.DBKeys, nil)
 		if err != nil {
 			log.WithError(err).Errorln("Failed to initialise Redis storage")
 			return nil, err
@@ -276,9 +272,9 @@ func (m *MigrateKeysSubcommand) openKeyStoreV1(params KeyStoreParameters) (*file
 }
 
 func (m *MigrateKeysSubcommand) openKeyStoreV2(params KeyStoreParameters) (*keystoreV2.ServerKeyStore, error) {
-	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, keyloader.NewEnvKeyEncryptorFabric(DstMasterKeyVarName))
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(DstMasterKeyVarName))
 
-	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(params.KeyLoaderCLIOptions().KeystoreEncryptorType)
+	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(m.flagSet, "dst_")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")
 		return nil, err
@@ -293,10 +289,10 @@ func (m *MigrateKeysSubcommand) openKeyStoreV2(params KeyStoreParameters) (*keys
 	var backend filesystemBackendV2.Backend
 	if m.DryRun() {
 		backend = filesystemBackendV2.NewInMemory()
-	} else if params.RedisConfigured() {
+	} else if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetFlagSet(), ""); redisOptions.KeysConfigured() {
 		config := &filesystemBackendV2.RedisConfig{
 			RootDir: params.KeyDir(),
-			Options: params.RedisOptions(),
+			Options: redisOptions.KeysOptions(),
 		}
 		backend, err = filesystemBackendV2.CreateRedisBackend(config)
 		if err != nil {

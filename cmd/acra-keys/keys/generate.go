@@ -25,6 +25,7 @@ import (
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/keystore/keyloader"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -185,6 +186,8 @@ func (g *GenerateKeySubcommand) RegisterFlags() {
 	g.flagSet.BoolVar(&g.auditLog, "audit_log_symmetric_key", false, "Generate symmetric key for log integrity checks")
 	g.flagSet.BoolVar(&g.searchHMAC, "search_hmac_symmetric_key", false, "Generate symmetric key for searchable encryption HMAC")
 	g.flagSet.BoolVar(&g.poisonRecord, "poison_record_keys", false, "Generate keypair and symmetric key for poison records")
+	keyloader.RegisterKeyStoreStrategyParametersWithFlags(g.flagSet, "", "")
+
 	g.flagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": generate new keys\n", CmdGenerate)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...]\n", os.Args[0], CmdGenerate)

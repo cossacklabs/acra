@@ -1,6 +1,7 @@
 package kms
 
 import (
+	"flag"
 	"github.com/cossacklabs/acra/keystore"
 	baseKMS "github.com/cossacklabs/acra/keystore/kms/base"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
@@ -16,8 +17,10 @@ type (
 )
 
 // NewKeyEncryptor fabric of keystore.KeyEncryptor for `kms_encrypted_master_key` strategy
-func (k KeyEncryptorFabric) NewKeyEncryptor() (keystore.KeyEncryptor, error) {
-	keyManager, err := NewKeyManager(&kmsOptions)
+func (k KeyEncryptorFabric) NewKeyEncryptor(flags *flag.FlagSet, prefix string) (keystore.KeyEncryptor, error) {
+	kmsOptions := ParseCLIParametersFromFlags(flags, prefix)
+
+	keyManager, err := NewKeyManager(kmsOptions)
 	if err != nil {
 		log.WithError(err).Errorln("Cannot initialize kms KeyManager")
 		return nil, err
@@ -34,8 +37,10 @@ func (k KeyEncryptorFabric) NewKeyEncryptor() (keystore.KeyEncryptor, error) {
 }
 
 // NewKeyEncryptorSuite fabric of crypto.KeyStoreSuite for `kms_encrypted_master_key` strategy
-func (k KeyEncryptorFabric) NewKeyEncryptorSuite() (*crypto.KeyStoreSuite, error) {
-	keyManager, err := NewKeyManager(&kmsOptions)
+func (k KeyEncryptorFabric) NewKeyEncryptorSuite(flags *flag.FlagSet, prefix string) (*crypto.KeyStoreSuite, error) {
+	kmsOptions := ParseCLIParametersFromFlags(flags, prefix)
+
+	keyManager, err := NewKeyManager(kmsOptions)
 	if err != nil {
 		log.WithError(err).Errorln("Cannot initialize kms KeyManager")
 		return nil, err
@@ -51,9 +56,16 @@ func (k KeyEncryptorFabric) NewKeyEncryptorSuite() (*crypto.KeyStoreSuite, error
 	return keystoreV2.NewSCellSuite(encryption, signature)
 }
 
+// RegisterCLIParameters empty implementation of KeyEncryptorFabric interface
+func (k KeyEncryptorFabric) RegisterCLIParameters(flags *flag.FlagSet, prefix, description string) {
+	RegisterCLIParametersWithFlags(flags, prefix, description)
+}
+
 // NewKeyEncryptor fabric of keystore.KeyEncryptor for `kms_per_client` strategy
-func (k PerClientKeyEncryptorFabric) NewKeyEncryptor() (keystore.KeyEncryptor, error) {
-	keyManager, err := NewKeyManager(&kmsOptions)
+func (k PerClientKeyEncryptorFabric) NewKeyEncryptor(flags *flag.FlagSet, prefix string) (keystore.KeyEncryptor, error) {
+	kmsOptions := ParseCLIParametersFromFlags(flags, prefix)
+
+	keyManager, err := NewKeyManager(kmsOptions)
 	if err != nil {
 		log.WithError(err).Errorln("Cannot initialize kms KeyManager")
 		return nil, err
@@ -62,8 +74,10 @@ func (k PerClientKeyEncryptorFabric) NewKeyEncryptor() (keystore.KeyEncryptor, e
 }
 
 // NewKeyEncryptorSuite fabric of crypto.KeyStoreSuite for `kms_per_client` strategy
-func (k PerClientKeyEncryptorFabric) NewKeyEncryptorSuite() (*crypto.KeyStoreSuite, error) {
-	keyManager, err := NewKeyManager(&kmsOptions)
+func (k PerClientKeyEncryptorFabric) NewKeyEncryptorSuite(flags *flag.FlagSet, prefix string) (*crypto.KeyStoreSuite, error) {
+	kmsOptions := ParseCLIParametersFromFlags(flags, prefix)
+
+	keyManager, err := NewKeyManager(kmsOptions)
 	if err != nil {
 		log.WithError(err).Errorln("Cannot initialize kms KeyManager")
 		return nil, err
@@ -77,4 +91,9 @@ func (k PerClientKeyEncryptorFabric) NewKeyEncryptorSuite() (*crypto.KeyStoreSui
 		return nil, err
 	}
 	return crypto.NewSCellSuiteWithEncryptor(baseKMS.NewKeyEncryptor(keyManager), signature)
+}
+
+// RegisterCLIParameters empty implementation of KeyEncryptorFabric interface
+func (k PerClientKeyEncryptorFabric) RegisterCLIParameters(flags *flag.FlagSet, prefix, description string) {
+	RegisterCLIParametersWithFlags(flags, prefix, description)
 }

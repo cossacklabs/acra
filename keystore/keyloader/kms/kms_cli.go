@@ -38,28 +38,33 @@ type CLIOptions struct {
 	CredentialsPath string
 }
 
-var kmsOptions CLIOptions
-
-// RegisterCLIParameters registers CLI parameters for reading ACRA_MASTER_KEY from KMS.
-func RegisterCLIParameters() {
-	kmsOptions.RegisterCLIParameters(flag.CommandLine, "", "")
-}
-
-// GetCLIParameters returns a copy of CLIOptions parsed from the command line.
-func GetCLIParameters() *CLIOptions {
-	return &kmsOptions
-}
-
-// RegisterCLIParameters look up for vault_connection_api_string, if none exists, vault_connection_api_string and vault_secrets_path
-// will be added to provided flags.
-func (options *CLIOptions) RegisterCLIParameters(flags *flag.FlagSet, prefix string, description string) {
+// RegisterCLIParametersWithFlags register kms related flags
+func RegisterCLIParametersWithFlags(flags *flag.FlagSet, prefix string, description string) {
 	if description != "" {
 		description = " (" + description + ")"
 	}
 	if flags.Lookup(prefix+"kms_type") == nil {
-		flags.StringVar(&options.KMSType, prefix+"kms_type", "", fmt.Sprintf("KMS type for using: <%s>", strings.Join(supportedTypes, "|")+description))
-		flags.StringVar(&options.CredentialsPath, prefix+"kms_credentials_path", "", "KMS credentials JSON file path"+description)
+		flags.String(prefix+"kms_type", "", fmt.Sprintf("KMS type for using: <%s>", strings.Join(supportedTypes, "|")+description))
+		flags.String(prefix+"kms_credentials_path", "", "KMS credentials JSON file path"+description)
 	}
+}
+
+// ParseCLIParameters parse CLIOptions from CommandLine flags
+func ParseCLIParameters() *CLIOptions {
+	return ParseCLIParametersFromFlags(flag.CommandLine, "")
+}
+
+// ParseCLIParametersFromFlags parse CLIOptions from provided FlagSet
+func ParseCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *CLIOptions {
+	options := CLIOptions{}
+
+	if f := flags.Lookup(prefix + "kms_type"); f != nil {
+		options.KMSType = f.Value.String()
+	}
+	if f := flags.Lookup(prefix + "kms_credentials_path"); f != nil {
+		options.CredentialsPath = f.Value.String()
+	}
+	return &options
 }
 
 // NewKeyManager create kms.KeyManager from kms.CLIOptions

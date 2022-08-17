@@ -51,6 +51,7 @@ func (s *EnableSubcommand) RegisterFlags() {
 	s.flagSet = flag.NewFlagSet(CmdTokenEnable, flag.ContinueOnError)
 	s.storage.Register(s.flagSet)
 	s.limits.Register(s.flagSet)
+	cmd.RegisterRedisTokenStoreParametersWithPrefix(s.flagSet, "", "")
 	s.flagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": enable back once disabled tokens, allowing their use\n", CmdTokenEnable)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...]\n", os.Args[0], CmdTokenEnable)
@@ -65,7 +66,7 @@ func (s *EnableSubcommand) Parse(arguments []string) error {
 	if err != nil {
 		return err
 	}
-	err = s.storage.Validate()
+	err = s.storage.Validate(s.flagSet)
 	if err != nil {
 		return err
 	}
@@ -78,7 +79,7 @@ func (s *EnableSubcommand) Parse(arguments []string) error {
 
 // Execute this subcommand.
 func (s *EnableSubcommand) Execute() {
-	tokens, err := s.storage.Open()
+	tokens, err := s.storage.Open(s.flagSet)
 	if err != nil {
 		log.WithError(err).Fatal("Cannot open token storage")
 	}

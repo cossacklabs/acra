@@ -19,6 +19,7 @@ package filesystem
 import (
 	"context"
 	"errors"
+	"flag"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/go-redis/redis/v7"
 	"runtime"
@@ -77,7 +78,7 @@ func OpenDirectoryRW(rootDir string, cryptosuite *crypto.KeyStoreSuite) (api.Mut
 // However, false value means that the directory is definitely not a valid keystore.
 // In particular, false is returned if the directory does not exists or cannot be opened.
 func IsKeyDirectory(keyDirPath string) bool {
-	redisParams := cmd.GetRedisParameters()
+	redisParams := cmd.ParseRedisCLIParametersFromFlags(flag.CommandLine, "")
 	if redisParams.KeysConfigured() {
 		redisClient, err := backend.OpenRedisBackend(&backend.RedisConfig{
 			RootDir: keyDirPath,

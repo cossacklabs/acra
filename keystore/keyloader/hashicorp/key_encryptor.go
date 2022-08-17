@@ -1,6 +1,8 @@
 package hashicorp
 
 import (
+	"flag"
+
 	"github.com/cossacklabs/acra/keystore"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
@@ -11,8 +13,10 @@ import (
 type KeyEncryptorFabric struct{}
 
 // NewKeyEncryptor fabric of keystore.KeyEncryptor for for `vault_master_key` strategy
-func (k KeyEncryptorFabric) NewKeyEncryptor() (keystore.KeyEncryptor, error) {
-	loader, err := NewMasterKeyLoader(&vaultOptions)
+func (k KeyEncryptorFabric) NewKeyEncryptor(flags *flag.FlagSet, prefix string) (keystore.KeyEncryptor, error) {
+	vaultOptions := ParseCLIParametersFromFlags(flags, prefix)
+
+	loader, err := NewMasterKeyLoader(vaultOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -25,8 +29,10 @@ func (k KeyEncryptorFabric) NewKeyEncryptor() (keystore.KeyEncryptor, error) {
 }
 
 // NewKeyEncryptorSuite fabric of crypto.KeyStoreSuite for `vault_master_key` strategy
-func (k KeyEncryptorFabric) NewKeyEncryptorSuite() (*crypto.KeyStoreSuite, error) {
-	loader, err := NewMasterKeyLoader(&vaultOptions)
+func (k KeyEncryptorFabric) NewKeyEncryptorSuite(flags *flag.FlagSet, prefix string) (*crypto.KeyStoreSuite, error) {
+	vaultOptions := ParseCLIParametersFromFlags(flags, prefix)
+
+	loader, err := NewMasterKeyLoader(vaultOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -37,4 +43,9 @@ func (k KeyEncryptorFabric) NewKeyEncryptorSuite() (*crypto.KeyStoreSuite, error
 		return nil, err
 	}
 	return keystoreV2.NewSCellSuite(encryption, signature)
+}
+
+// RegisterCLIParameters empty implementation of KeyEncryptorFabric interface
+func (k KeyEncryptorFabric) RegisterCLIParameters(flags *flag.FlagSet, prefix, description string) {
+	RegisterCLIParametersWithFlagSet(flags, prefix, description)
 }
