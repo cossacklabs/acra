@@ -130,7 +130,7 @@ func (e CRLError) Unwrap() error {
 }
 
 // NewCRLConfigByName return initialized CRLConfig config using flags registered with RegisterCertVerifierArgsForService
-func NewCRLConfigByName(flags *flag.FlagSet, name string, namerFunc NamerFunc) (*CRLConfig, error) {
+func NewCRLConfigByName(flags *flag.FlagSet, name string, namerFunc CLIParamNameConstructorFunc) (*CRLConfig, error) {
 	var crlURL, crlFromCert string
 	var crlCheckOnlyLeafCertificate bool
 	var crlCacheSize, crlCacheTime uint

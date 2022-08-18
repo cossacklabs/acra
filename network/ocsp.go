@@ -127,7 +127,7 @@ const (
 )
 
 // NewOCSPConfigByName return initialized OCSPConfig config using flags registered with RegisterCertVerifierArgsForService
-func NewOCSPConfigByName(flags *flag.FlagSet, name string, namerFunc NamerFunc) (*OCSPConfig, error) {
+func NewOCSPConfigByName(flags *flag.FlagSet, name string, namerFunc CLIParamNameConstructorFunc) (*OCSPConfig, error) {
 	var url, required, fromCert string
 	var checkOnlyLeafCert bool
 	if f := flags.Lookup(namerFunc(name, "url", "ocsp")); f != nil {
