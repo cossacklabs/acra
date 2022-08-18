@@ -36,7 +36,8 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
-	baseKMS "github.com/cossacklabs/acra/keystore/kms"
+	"github.com/cossacklabs/acra/keystore/keyloader/kms"
+	baseKMS "github.com/cossacklabs/acra/keystore/kms/base"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
@@ -59,8 +60,8 @@ func main() {
 	outputDir := flag.String("keys_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved generated zone keys")
 	flag.Bool("fs_keystore_enable", true, "Use filesystem keystore (deprecated, ignored)")
 
-	keyloader.RegisterCLIParameters()
-	cmd.RegisterRedisKeyStoreParameters()
+	cmd.RegisterRedisKeystoreParameters()
+	keyloader.RegisterKeyStoreStrategyParameters()
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 
 	err := cmd.Parse(defaultConfigPath, serviceName)
@@ -77,17 +78,11 @@ func main() {
 		logging.SetLogLevel(logging.LogVerbose)
 	}
 
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(keyloader.GetCLIParameters().KeystoreEncryptorType)
-	if err != nil {
-		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
-		os.Exit(1)
-	}
-
 	var keyStore keystore.KeyMaking
 	if filesystemV2.IsKeyDirectory(*outputDir) {
-		keyStore = openKeyStoreV2(*outputDir, keyLoader)
+		keyStore = openKeyStoreV2(*outputDir)
 	} else {
-		keyStore = openKeyStoreV1(*outputDir, keyLoader)
+		keyStore = openKeyStoreV1(*outputDir)
 	}
 
 	id, publicKey, err := keyStore.GenerateZoneKey()
@@ -109,36 +104,20 @@ func main() {
 	fmt.Println(string(json))
 }
 
-func openKeyStoreV1(output string, loader keyloader.MasterKeyLoader) keystore.KeyMaking {
+func openKeyStoreV1(output string) keystore.KeyMaking {
 	var keyStoreEncryptor keystore.KeyEncryptor
 
-	var keyLoaderParams = keyloader.GetCLIParameters()
-	if keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
-		keyManager, err := keyLoaderParams.GetKMSParameters().NewKeyManager()
-		if err != nil {
-			log.WithError(err).Errorln("Failed to initializer kms KeyManager")
-			os.Exit(1)
-		}
-
-		keyStoreEncryptor = baseKMS.NewKeyEncryptor(keyManager)
-	} else {
-		masterKey, err := loader.LoadMasterKey()
-		if err != nil {
-			log.WithError(err).Errorln("Cannot load master key")
-			os.Exit(1)
-		}
-		keyStoreEncryptor, err = keystore.NewSCellKeyEncryptor(masterKey)
-		if err != nil {
-			log.WithError(err).Errorln("Can't init scell encryptor")
-			os.Exit(1)
-		}
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(flag.CommandLine, "")
+	if err != nil {
+		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
+		os.Exit(1)
 	}
 
 	keyStoreBuilder := filesystem.NewCustomFilesystemKeyStore()
 	keyStoreBuilder.KeyDirectory(output)
 	keyStoreBuilder.Encryptor(keyStoreEncryptor)
-	redis := cmd.GetRedisParameters()
-	if redis.KeysConfigured() {
+
+	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
 		keyStorage, err := filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
@@ -153,28 +132,23 @@ func openKeyStoreV1(output string, loader keyloader.MasterKeyLoader) keystore.Ke
 		os.Exit(1)
 	}
 
-	if keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
-		keyManager, _ := keyLoaderParams.GetKMSParameters().NewKeyManager()
+	if keyLoaderParams := keyloader.ParseCLIOptions(); keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
+		keyManager, _ := kms.NewKeyManager(kms.ParseCLIParameters())
 		return baseKMS.NewKeyMakingWrapper(keyStore, keyManager)
 	}
 
 	return keyStore
 }
 
-func openKeyStoreV2(keyDirPath string, loader keyloader.MasterKeyLoader) keystore.KeyMaking {
-	encryption, signature, err := loader.LoadMasterKeys()
+func openKeyStoreV2(keyDirPath string) keystore.KeyMaking {
+	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(flag.CommandLine, "")
 	if err != nil {
-		log.WithError(err).Errorln("Cannot load master key")
-		os.Exit(1)
-	}
-	suite, err := keystoreV2.NewSCellSuite(encryption, signature)
-	if err != nil {
-		log.WithError(err).Error("Failed to initialize Secure Cell crypto suite")
+		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")
 		os.Exit(1)
 	}
 	var backend filesystemBackendV2.Backend
-	redis := cmd.GetRedisParameters()
-	if redis.KeysConfigured() {
+
+	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
 		config := &filesystemBackendV2.RedisConfig{
 			RootDir: keyDirPath,
 			Options: redis.KeysOptions(),
@@ -191,7 +165,7 @@ func openKeyStoreV2(keyDirPath string, loader keyloader.MasterKeyLoader) keystor
 			os.Exit(1)
 		}
 	}
-	keyDirectory, err := filesystemV2.CustomKeyStore(backend, suite)
+	keyDirectory, err := filesystemV2.CustomKeyStore(backend, keyStoreSuite)
 	if err != nil {
 		log.WithError(err).Error("Failed to initialize key directory")
 		os.Exit(1)

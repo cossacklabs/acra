@@ -129,25 +129,25 @@ const (
 func NewOCSPConfigByName(flags *flag.FlagSet, name string, namerFunc NamerFunc) (*OCSPConfig, error) {
 	var url, required, fromCert string
 	var checkOnlyLeafCert bool
-	if f := flags.Lookup(namerFunc(name, "ocsp_url")); f != nil {
+	if f := flags.Lookup(namerFunc(name, "url", "ocsp")); f != nil {
 		url = f.Value.String()
 		if url == "" {
 			url = tlsOcspURL
 		}
 	}
-	if f := flags.Lookup(namerFunc(name, "ocsp_required")); f != nil {
+	if f := flags.Lookup(namerFunc(name, "required", "ocsp")); f != nil {
 		required = f.Value.String()
 		if required == "" {
 			required = tlsOcspRequired
 		}
 	}
-	if f := flags.Lookup(namerFunc(name, "ocsp_from_cert")); f != nil {
+	if f := flags.Lookup(namerFunc(name, "from_cert", "ocsp")); f != nil {
 		fromCert = f.Value.String()
 		if fromCert == "" {
 			fromCert = tlsOcspFromCert
 		}
 	}
-	if f := flags.Lookup(namerFunc(name, "ocsp_check_only_leaf_certificate")); f != nil {
+	if f := flags.Lookup(namerFunc(name, "check_only_leaf_certificate", "ocsp")); f != nil {
 		getter, ok := f.Value.(flag.Getter)
 		if !ok {
 			log.Fatal("Can't cast flag's Value to Getter")
@@ -158,7 +158,7 @@ func NewOCSPConfigByName(flags *flag.FlagSet, name string, namerFunc NamerFunc) 
 		} else {
 			if !ok {
 				log.WithField("value", getter.Get()).Fatalf("Can't cast %s to boolean value",
-					namerFunc(name, "ocsp_check_only_leaf_certificate"))
+					namerFunc(name, "check_only_leaf_certificate", "ocsp"))
 			}
 			checkOnlyLeafCert = *val
 		}

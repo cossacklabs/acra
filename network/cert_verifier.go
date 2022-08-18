@@ -50,20 +50,20 @@ var (
 // RegisterCertVerifierArgsForService register CLI args which allow to get CertVerifier by NewCertVerifier() for
 // specified service
 func RegisterCertVerifierArgsForService(flags *flag.FlagSet, serviceName string, namerFunc NamerFunc) {
-	flags.String(namerFunc(serviceName, "ocsp_url"), "", "OCSP service URL")
-	flags.String(namerFunc(serviceName, "ocsp_required"), OcspRequiredDenyUnknownStr,
+	flags.String(namerFunc(serviceName, "url", "ocsp"), "", "OCSP service URL")
+	flags.String(namerFunc(serviceName, "required", "ocsp"), OcspRequiredDenyUnknownStr,
 		fmt.Sprintf("How to treat certificates unknown to OCSP: <%s>", strings.Join(OcspRequiredValuesList, "|")))
-	flags.String(namerFunc(serviceName, "ocsp_from_cert"), OcspFromCertPreferStr,
+	flags.String(namerFunc(serviceName, "from_cert", "ocsp"), OcspFromCertPreferStr,
 		fmt.Sprintf("How to treat OCSP server described in certificate itself: <%s>", strings.Join(OcspFromCertValuesList, "|")))
-	flags.Bool(namerFunc(serviceName, "ocsp_check_only_leaf_certificate"), false,
+	flags.Bool(namerFunc(serviceName, "check_only_leaf_certificate", "ocsp"), false,
 		"Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using OCSP")
-	flags.String(namerFunc(serviceName, "crl_url"), "", "URL of the Certificate Revocation List (CRL) to use")
-	flags.String(namerFunc(serviceName, "crl_from_cert"), CrlFromCertPreferStr,
+	flags.String(namerFunc(serviceName, "url", "crl"), "", "URL of the Certificate Revocation List (CRL) to use")
+	flags.String(namerFunc(serviceName, "from_cert", "crl"), CrlFromCertPreferStr,
 		fmt.Sprintf("How to treat CRL URL described in certificate itself: <%s>", strings.Join(CrlFromCertValuesList, "|")))
-	flags.Bool(namerFunc(serviceName, "crl_check_only_leaf_certificate"), false,
+	flags.Bool(namerFunc(serviceName, "check_only_leaf_certificate", "crl"), false,
 		"Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using CRL")
-	flags.Uint(namerFunc(serviceName, "crl_cache_size"), CrlDefaultCacheSize, "How many CRLs to cache in memory (use 0 to disable caching)")
-	flags.Uint(namerFunc(serviceName, "crl_cache_time"), CrlDisableCacheTime,
+	flags.Uint(namerFunc(serviceName, "cache_size", "crl"), CrlDefaultCacheSize, "How many CRLs to cache in memory (use 0 to disable caching)")
+	flags.Uint(namerFunc(serviceName, "cache_time", "crl"), CrlDisableCacheTime,
 		fmt.Sprintf("How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: %d s)", CrlCacheTimeMax))
 }
 

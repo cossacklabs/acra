@@ -19,6 +19,7 @@ package keys
 import (
 	"bytes"
 	"encoding/base64"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -27,12 +28,13 @@ import (
 
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/keyloader"
+	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
 	log "github.com/sirupsen/logrus"
 )
 
 func TestRotateSymmetricZoneKey(t *testing.T) {
 	zoneID := "DDDDDDDDHCzqZAZNbBvybWLR"
-	keyLoader := keyloader.NewEnvLoader(keystore.AcraMasterKeyVarName)
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
 
 	masterKey, err := keystore.GenerateSymmetricKey()
 	if err != nil {
@@ -49,15 +51,24 @@ func TestRotateSymmetricZoneKey(t *testing.T) {
 
 	var keyStore keystore.KeyMaking
 
+	flagSet := flag.NewFlagSet(CmdMigrateKeys, flag.ContinueOnError)
+	keyloader.RegisterCLIParametersWithFlagSet(flagSet, "", "")
+
+	err = flagSet.Set("keystore_encryption_type", keyloader.KeystoreStrategyEnvMasterKey)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	generateCmd := &GenerateKeySubcommand{
 		CommonKeyStoreParameters: CommonKeyStoreParameters{
 			keyDir: dirName,
 		},
 		zoneID:        zoneID,
 		rotateZoneSym: true,
+		flagSet:       flagSet,
 	}
 
-	keyStore, err = openKeyStoreV1(generateCmd, keyLoader)
+	keyStore, err = openKeyStoreV1(generateCmd)
 	if err != nil {
 		t.Fatal(err)
 	}

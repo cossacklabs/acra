@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
-	baseKMS "github.com/cossacklabs/acra/keystore/kms"
+	baseKMS "github.com/cossacklabs/acra/keystore/kms/base"
 )
 
 // Configuration represent configuration file structure for AWS KMS
