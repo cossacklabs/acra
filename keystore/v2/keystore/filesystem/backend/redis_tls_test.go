@@ -24,7 +24,6 @@ import (
 	"flag"
 	"github.com/cossacklabs/acra/cmd"
 	tests2 "github.com/cossacklabs/acra/utils/tests"
-	"os"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -45,28 +44,12 @@ const (
 	testRootDir = "keystore-v2-test"
 )
 
-func prepareTLSRedisConfig(t *testing.T) (cmd.RedisOptions, *flag.FlagSet) {
-	flagset := flag.FlagSet{}
-	options := cmd.RedisOptions{}
-	options.RegisterKeyStoreParameters(&flagset, "", "")
-	// set after registering due to setting default value during registration
-	hostport := os.Getenv("TEST_REDIS_HOSTPORT")
-	if hostport == "" {
-		hostport = "localhost:6379"
-	}
-	password := os.Getenv("TEST_REDIS_PASSWORD")
-	if password == "" {
-		password = ""
-	}
-	dbNum := os.Getenv("TEST_REDIS_DB")
-	if dbNum == "" {
-		dbNum = "0"
-	}
-	dbInt, err := strconv.ParseInt(dbNum, 10, 64)
-	if err != nil {
-		t.Fatal(err)
-	}
-	options.DBKeys = int(dbInt)
+func prepareTLSRedisConfig(t *testing.T) (*cmd.RedisOptions, *flag.FlagSet) {
+	flagset := &flag.FlagSet{}
+	// registering flags overrides values with default
+	// here we load values from env variables and use them for tests
+	cmd.RegisterRedisKeystoreParametersWithPrefix(flagset, "", "")
+	tempOptions := cmd.GetTestRedisOptions(t)
 	workingDirectory := tests2.GetSourceRootDirectory(t)
 	if err := flagset.Lookup("redis_tls_client_ca").Value.Set(filepath.Join(workingDirectory, "tests/ssl/ca/ca.crt")); err != nil {
 		t.Fatal(err)
@@ -80,25 +63,26 @@ func prepareTLSRedisConfig(t *testing.T) (cmd.RedisOptions, *flag.FlagSet) {
 	if err := flagset.Lookup("redis_tls_client_auth").Value.Set(strconv.FormatUint(uint64(tls.RequireAndVerifyClientCert), 10)); err != nil {
 		t.Fatal(err)
 	}
-	if err := flagset.Lookup("redis_tls_client_ocsp_from_cert").Value.Set("ignore"); err != nil {
+	if err := flagset.Lookup("redis_tls_ocsp_client_from_cert").Value.Set("ignore"); err != nil {
 		t.Fatal(err)
 	}
-	if err := flagset.Lookup("redis_tls_client_crl_from_cert").Value.Set("ignore"); err != nil {
+	if err := flagset.Lookup("redis_tls_crl_client_from_cert").Value.Set("ignore"); err != nil {
 		t.Fatal(err)
 	}
-	if err := flagset.Lookup("redis_host_port").Value.Set(hostport); err != nil {
+	if err := flagset.Lookup("redis_host_port").Value.Set(tempOptions.HostPort); err != nil {
 		t.Fatal(err)
 	}
-	if err := flagset.Lookup("redis_password").Value.Set(password); err != nil {
+	if err := flagset.Lookup("redis_password").Value.Set(tempOptions.Password); err != nil {
 		t.Fatal(err)
 	}
-	if err := flagset.Lookup("redis_db_keys").Value.Set(dbNum); err != nil {
+	if err := flagset.Lookup("redis_db_keys").Value.Set(strconv.FormatUint(uint64(tempOptions.DBKeys), 10)); err != nil {
 		t.Fatal(err)
 	}
 	if err := flagset.Lookup("redis_tls_enable").Value.Set("true"); err != nil {
 		t.Fatal(err)
 	}
-	return options, &flagset
+	options := cmd.ParseRedisCLIParametersFromFlags(flagset, "")
+	return options, flagset
 }
 
 func TestRedis(t *testing.T) {

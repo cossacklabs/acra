@@ -31,7 +31,6 @@ import (
 // CommonTokenStorageParameters is a mix-in of command line parameters for token storage construction.
 type CommonTokenStorageParameters struct {
 	boltDB string
-	redis  cmd.RedisOptions
 }
 
 // default open mode with which to initialize BoltDB storage
@@ -45,7 +44,6 @@ var (
 // Register registers token storage flags with the given flag set.
 func (p *CommonTokenStorageParameters) Register(flags *flag.FlagSet) {
 	flags.StringVar(&p.boltDB, "token_db", "", "path to BoltDB used for token data")
-	p.redis.RegisterTokenStoreParametersWithPrefix(flags, "", "")
 }
 
 // BoltDBConfigured returns true if BoltDB is configured.
@@ -53,18 +51,15 @@ func (p *CommonTokenStorageParameters) BoltDBConfigured() bool {
 	return p.boltDB != ""
 }
 
-// RedisConfigured returns true if Redis is configured.
-func (p *CommonTokenStorageParameters) RedisConfigured() bool {
-	return p.redis.TokensConfigured()
-}
-
 // Validate token storage parameter set.
-func (p *CommonTokenStorageParameters) Validate() error {
-	if p.BoltDBConfigured() && p.RedisConfigured() {
+func (p *CommonTokenStorageParameters) Validate(flagSet *flag.FlagSet) error {
+	redisOptions := cmd.ParseRedisCLIParametersFromFlags(flagSet, "")
+
+	if p.BoltDBConfigured() && redisOptions.TokensConfigured() {
 		log.Warn("Both --redis_host_port and --token_db cannot be used simultaneously")
 		return ErrInvalidTokenStorage
 	}
-	if !p.BoltDBConfigured() && !p.RedisConfigured() {
+	if !p.BoltDBConfigured() && !redisOptions.TokensConfigured() {
 		log.Warn("Either --redis_host_port or --token_db is required")
 		return ErrInvalidTokenStorage
 	}
@@ -72,7 +67,7 @@ func (p *CommonTokenStorageParameters) Validate() error {
 }
 
 // Open a token storage based on the command-line configuration.
-func (p *CommonTokenStorageParameters) Open() (tokenCommon.TokenStorage, error) {
+func (p *CommonTokenStorageParameters) Open(flagSet *flag.FlagSet) (tokenCommon.TokenStorage, error) {
 	if p.BoltDBConfigured() {
 		db, err := bolt.Open(p.boltDB, boltDBOpenMode, nil)
 		if err != nil {
@@ -81,8 +76,8 @@ func (p *CommonTokenStorageParameters) Open() (tokenCommon.TokenStorage, error) 
 		}
 		return tokenStorage.NewBoltDBTokenStorage(db), nil
 	}
-	if p.RedisConfigured() {
-		redisClient, err := tokenStorage.NewRedisClient(p.redis.HostPort, p.redis.Password, p.redis.DBTokens, nil)
+	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(flagSet, ""); redisOptions.KeysConfigured() {
+		redisClient, err := tokenStorage.NewRedisClient(redisOptions.HostPort, redisOptions.Password, redisOptions.DBTokens, nil)
 		if err != nil {
 			log.WithError(err).Warn("Cannot initialize Redis client")
 			return nil, err

@@ -3,7 +3,6 @@ package hashicorp
 import (
 	"errors"
 	"flag"
-
 	"github.com/hashicorp/vault/api"
 	log "github.com/sirupsen/logrus"
 )
@@ -26,27 +25,54 @@ type VaultCLIOptions struct {
 	EnableTLS   bool
 }
 
-var vaultOptions VaultCLIOptions
-
-// RegisterVaultCLIParameters registers CLI parameters for reading ACRA_MASTER_KEY from HashiCorp Vault.
-func RegisterVaultCLIParameters() {
-	vaultOptions.RegisterCLIParameters(flag.CommandLine, "", "")
-}
-
-// RegisterCLIParameters look up for vault_connection_api_string, if none exists, vault_connection_api_string and vault_secrets_path
+// RegisterCLIParametersWithFlagSet look up for vault_connection_api_string, if none exists, vault_connection_api_string and vault_secrets_path
 // will be added to provided flags.
-func (options *VaultCLIOptions) RegisterCLIParameters(flags *flag.FlagSet, prefix string, description string) {
+func RegisterCLIParametersWithFlagSet(flags *flag.FlagSet, prefix, description string) {
 	if description != "" {
 		description = " (" + description + ")"
 	}
 	if flags.Lookup(prefix+vaultConnectionStringFlag) == nil {
-		flags.StringVar(&options.Address, prefix+vaultConnectionStringFlag, "", "Connection string (http://x.x.x.x:yyyy) for loading ACRA_MASTER_KEY from HashiCorp Vault"+description)
-		flags.StringVar(&options.SecretsPath, prefix+"vault_secrets_path", defaultVaultSecretsPath, "KV Secret Path (secret/) for reading ACRA_MASTER_KEY from HashiCorp Vault"+description)
-		flags.StringVar(&options.CAPath, prefix+"vault_tls_ca_path", "", "Path to CA certificate for HashiCorp Vault certificate validation"+description)
-		flags.StringVar(&options.ClientCert, prefix+"vault_tls_client_cert", "", "Path to client TLS certificate for reading ACRA_MASTER_KEY from HashiCorp Vault"+description)
-		flags.StringVar(&options.ClientKey, prefix+"vault_tls_client_key", "", "Path to private key of the client TLS certificate for reading ACRA_MASTER_KEY from HashiCorp Vault"+description)
-		flags.BoolVar(&options.EnableTLS, prefix+"vault_tls_transport_enable", false, "Use TLS to encrypt transport with HashiCorp Vault"+description)
+		flags.String(prefix+vaultConnectionStringFlag, "", "Connection string (http://x.x.x.x:yyyy) for loading ACRA_MASTER_KEY from HashiCorp Vault"+description)
+		flags.String(prefix+"vault_secrets_path", defaultVaultSecretsPath, "KV Secret Path (secret/) for reading ACRA_MASTER_KEY from HashiCorp Vault"+description)
+		flags.String(prefix+"vault_tls_ca_path", "", "Path to CA certificate for HashiCorp Vault certificate validation"+description)
+		flags.String(prefix+"vault_tls_client_cert", "", "Path to client TLS certificate for reading ACRA_MASTER_KEY from HashiCorp Vault"+description)
+		flags.String(prefix+"vault_tls_client_key", "", "Path to private key of the client TLS certificate for reading ACRA_MASTER_KEY from HashiCorp Vault"+description)
+		flags.Bool(prefix+"vault_tls_transport_enable", false, "Use TLS to encrypt transport with HashiCorp Vault"+description)
 	}
+}
+
+// ParseCLIParametersFromFlags VaultCLIOptions from provided FlagSet
+func ParseCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *VaultCLIOptions {
+	options := VaultCLIOptions{}
+
+	if f := flags.Lookup(prefix + vaultConnectionStringFlag); f != nil {
+		options.Address = f.Value.String()
+	}
+	if f := flags.Lookup(prefix + "vault_secrets_path"); f != nil {
+		options.SecretsPath = f.Value.String()
+	}
+	if f := flags.Lookup(prefix + "vault_tls_ca_path"); f != nil {
+		options.CAPath = f.Value.String()
+	}
+	if f := flags.Lookup(prefix + "vault_tls_client_cert"); f != nil {
+		options.ClientCert = f.Value.String()
+	}
+	if f := flags.Lookup(prefix + "vault_tls_client_key"); f != nil {
+		options.ClientKey = f.Value.String()
+	}
+	if f := flags.Lookup(prefix + "vault_tls_transport_enable"); f != nil {
+		getter, ok := f.Value.(flag.Getter)
+		if !ok {
+			log.Fatal("Can't cast flag's Value to Getter")
+		}
+		val, ok := getter.Get().(bool)
+		if !ok {
+			log.WithField("value", getter.Get()).Fatalf("Can't cast %s to bool value", prefix+"vault_tls_transport_enable")
+		}
+		options.EnableTLS = val
+	}
+
+	return &options
 }
 
 // TLSConfig return TLS configuration needed to connect to HashiCorp Vault
@@ -59,7 +85,7 @@ func (options *VaultCLIOptions) TLSConfig() *api.TLSConfig {
 }
 
 // NewMasterKeyLoader create MasterKeyLoader from VaultCLIOptions
-func (options *VaultCLIOptions) NewMasterKeyLoader() (*VaultLoader, error) {
+func NewMasterKeyLoader(options *VaultCLIOptions) (*VaultLoader, error) {
 	if options.Address == "" {
 		return nil, ErrEmptyConnectionURL
 	}

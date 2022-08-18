@@ -20,13 +20,13 @@ import (
 	"crypto/tls"
 	"errors"
 	"flag"
-	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
-	log "github.com/sirupsen/logrus"
 	"os"
 	"strconv"
 
+	"github.com/cossacklabs/acra/logging"
 	goRedis "github.com/go-redis/redis/v7"
+	log "github.com/sirupsen/logrus"
 )
 
 // RedisOptions keep command-line options related to Redis database configuration.
@@ -49,77 +49,122 @@ const (
 // ErrIdenticalRedisDBs redis DBs related error
 var ErrIdenticalRedisDBs = errors.New("redis db params are identical")
 
-var redisOptions RedisOptions
-
-// RegisterRedisKeyStoreParameters registers CLI parameters for Redis (keystore).
-func RegisterRedisKeyStoreParameters() {
-	redisOptions.RegisterKeyStoreParametersWithPrefix("", "")
+// RegisterRedisKeystoreParameters registers Redis keystore parameters with given CommandLine flags and empty prefix
+func RegisterRedisKeystoreParameters() {
+	RegisterRedisKeystoreParametersWithPrefix(flag.CommandLine, "", "")
 }
 
-// ValidateRedisCLIOptions validate Redis CLI options.
-func ValidateRedisCLIOptions() {
-	if err := redisOptions.validateOptions(); err != nil {
-		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongParam).Errorln(
-			"Identical Redis DB parameters, one of redis_db_tokens or redis_db_keys should be provided")
-		os.Exit(1)
-	}
+// ParseRedisCLIParameters parse RedisOptions from CommandLine flags
+func ParseRedisCLIParameters() *RedisOptions {
+	return ParseRedisCLIParametersFromFlags(flag.CommandLine, "")
 }
 
-// RegisterKeyStoreParametersWithPrefix registers Redis keystore parameters with given prefix.
-// Use empty prefix, or something like "src_" or "dst_", for example.
-func (redis *RedisOptions) RegisterKeyStoreParametersWithPrefix(prefix string, description string) {
-	redis.RegisterKeyStoreParameters(flag.CommandLine, prefix, description)
-}
-
-// RegisterKeyStoreParameters registers Redis keystore parameters with given flag set and prefix.
-// Use empty prefix, or something like "src_" or "dst_", for example.
-func (redis *RedisOptions) RegisterKeyStoreParameters(flags *flag.FlagSet, prefix string, description string) {
-	if description != "" {
-		description = " (" + description + ")"
-	}
-	if flags.Lookup(prefix+"redis_host_port") == nil {
-		flags.StringVar(&redis.HostPort, prefix+"redis_host_port", "", "<host>:<port> used to connect to Redis"+description)
-		flags.StringVar(&redis.Password, prefix+"redis_password", "", "Password to Redis database"+description)
-		flags.BoolVar(&redis.TLSEnable, prefix+"redis_tls_enable", false, "Use TLS to connect to Redis"+description)
-	}
-	if flags.Lookup(prefix+network.ClientNamer()("redis", "cert")) == nil {
-		network.RegisterTLSArgsForService(flags, prefix+"redis", network.ClientNamer())
-	}
-	flags.IntVar(&redis.DBKeys, prefix+"redis_db_keys", redisDefaultDB, "Number of Redis database for keys"+description)
-	redis.checkBothKeyAndToken(prefix, flags)
-}
-
-// RegisterRedisTokenStoreParameters registers CLI parameters for Redis (token store).
+// RegisterRedisTokenStoreParameters registers Redis TokenStore parameters with given CommandLine flags and empty prefix
 func RegisterRedisTokenStoreParameters() {
-	redisOptions.RegisterTokenStoreParametersWithPrefix(flag.CommandLine, "", "")
+	RegisterRedisTokenStoreParametersWithPrefix(flag.CommandLine, "", "")
 }
 
-// RegisterTokenStoreParametersWithPrefix registers Redis token store parameters with given prefix.
+// RegisterRedisKeystoreParametersWithPrefix registers Redis keystore parameters with given flag set and prefix.
 // Use empty prefix, or something like "src_" or "dst_", for example.
-func (redis *RedisOptions) RegisterTokenStoreParametersWithPrefix(flags *flag.FlagSet, prefix string, description string) {
+func RegisterRedisKeystoreParametersWithPrefix(flags *flag.FlagSet, prefix string, description string) {
 	if description != "" {
 		description = " (" + description + ")"
 	}
+
 	if flags.Lookup(prefix+"redis_host_port") == nil {
-		flags.StringVar(&redis.HostPort, prefix+"redis_host_port", "", "<host>:<port> used to connect to Redis"+description)
-		flags.StringVar(&redis.Password, prefix+"redis_password", "", "Password to Redis database"+description)
+		flags.String(prefix+"redis_host_port", "", "<host>:<port> used to connect to Redis"+description)
+		flags.String(prefix+"redis_password", "", "Password to Redis database"+description)
+		flags.Bool(prefix+"redis_tls_enable", false, "Use TLS to connect to Redis"+description)
 	}
-	if flags.Lookup(prefix+network.ClientNamer()("redis", "cert")) == nil {
-		network.RegisterTLSArgsForService(flags, "redis", network.ClientNamer())
+	if flags.Lookup(prefix+network.ClientNamer()("redis", "cert", "")) == nil {
+		network.RegisterTLSArgsForService(flags, true, prefix+"redis", network.ClientNamer())
 	}
-	flags.IntVar(&redis.DBTokens, prefix+"redis_db_tokens", redisDefaultDB, "Number of Redis database for tokens"+description)
-	redis.checkBothKeyAndToken(prefix, flags)
+	flags.Int(prefix+"redis_db_keys", redisDefaultDB, "Number of Redis database for keys"+description)
+	checkBothKeyAndToken(flags, prefix)
+}
+
+// RegisterRedisTokenStoreParametersWithPrefix registers Redis keystore parameters with given flag set and prefix.
+// Use empty prefix, or something like "src_" or "dst_", for example.
+func RegisterRedisTokenStoreParametersWithPrefix(flags *flag.FlagSet, prefix string, description string) {
+	if description != "" {
+		description = " (" + description + ")"
+	}
+
+	if flags.Lookup(prefix+"redis_host_port") == nil {
+		flags.String(prefix+"redis_host_port", "", "<host>:<port> used to connect to Redis"+description)
+		flags.String(prefix+"redis_password", "", "Password to Redis database"+description)
+	}
+	if flags.Lookup(prefix+network.ClientNamer()("redis", "cert", "")) == nil {
+		network.RegisterTLSArgsForService(flags, true, "redis", network.ClientNamer())
+	}
+	flags.Int(prefix+"redis_db_tokens", redisDefaultDB, "Number of Redis database for tokens"+description)
+	checkBothKeyAndToken(flags, prefix)
 }
 
 // If a binary can use both key and token DB, have the user specify them explicitly.
-func (redis *RedisOptions) checkBothKeyAndToken(prefix string, flags *flag.FlagSet) {
+func checkBothKeyAndToken(flags *flag.FlagSet, prefix string) {
 	keys := flags.Lookup(prefix + "redis_db_keys")
 	tokens := flags.Lookup(prefix + "redis_db_tokens")
 	if keys != nil && tokens != nil {
 		keys.DefValue = strconv.Itoa(redisUnspecifiedDB)
 		tokens.DefValue = strconv.Itoa(redisUnspecifiedDB)
-		redis.DBKeys = redisUnspecifiedDB
-		redis.DBTokens = redisUnspecifiedDB
+	}
+}
+
+// ParseRedisCLIParametersFromFlags parse CLI args from FlagSet
+func ParseRedisCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *RedisOptions {
+	redisOptions := RedisOptions{}
+
+	if f := flags.Lookup(prefix + "redis_host_port"); f != nil {
+		redisOptions.HostPort = f.Value.String()
+	}
+	if f := flags.Lookup(prefix + "redis_password"); f != nil {
+		redisOptions.Password = f.Value.String()
+	}
+	if f := flags.Lookup(prefix + "redis_db_tokens"); f != nil {
+		getter, ok := f.Value.(flag.Getter)
+		if !ok {
+			log.Fatal("Can't cast flag's Value to Getter")
+		}
+		val, ok := getter.Get().(int)
+		if !ok {
+			log.WithField("value", getter.Get()).Fatalf("Can't cast %s to integer value", prefix+"redis_db_tokens")
+		}
+		redisOptions.DBTokens = val
+	}
+
+	if f := flags.Lookup(prefix + "redis_tls_enable"); f != nil {
+		getter, ok := f.Value.(flag.Getter)
+		if !ok {
+			log.Fatal("Can't cast flag's Value to Getter")
+		}
+		val, ok := getter.Get().(bool)
+		if !ok {
+			log.WithField("value", getter.Get()).Fatalf("Can't cast %s to integer value", prefix+"redis_db_tokens")
+		}
+		redisOptions.TLSEnable = val
+	}
+	if f := flags.Lookup(prefix + "redis_db_keys"); f != nil {
+		getter, ok := f.Value.(flag.Getter)
+		if !ok {
+			log.Fatal("Can't cast flag's Value to Getter")
+		}
+		val, ok := getter.Get().(int)
+		if !ok {
+			log.WithField("value", getter.Get()).Fatalf("Can't cast %s to integer value", prefix+"redis_db_keys")
+		}
+		redisOptions.DBKeys = val
+	}
+
+	return &redisOptions
+}
+
+// ValidateRedisCLIOptions validate Redis CLI options.
+func ValidateRedisCLIOptions(redisOptions *RedisOptions) {
+	if err := redisOptions.validateOptions(); err != nil {
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongParam).Errorln(
+			"Identical Redis DB parameters, one of redis_db_tokens or redis_db_keys should be provided")
+		os.Exit(1)
 	}
 }
 
@@ -133,11 +178,6 @@ func (redis *RedisOptions) validateOptions() error {
 		return ErrIdenticalRedisDBs
 	}
 	return nil
-}
-
-// GetRedisParameters returns a copy of RedisOptions parsed from the command line.
-func GetRedisParameters() RedisOptions {
-	return redisOptions
 }
 
 // KeysConfigured returns true if Redis is configured for key storage.

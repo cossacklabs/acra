@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cossacklabs/acra/keystore/kms"
+	"github.com/cossacklabs/acra/keystore/kms/base"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -38,39 +38,38 @@ type CLIOptions struct {
 	CredentialsPath string
 }
 
-var cliOptions CLIOptions
-
-// RegisterCLIParameters registers CLI parameters for reading ACRA_MASTER_KEY from KMS.
-func RegisterCLIParameters() {
-	cliOptions.RegisterCLIParameters(flag.CommandLine, "", "")
-}
-
-// RegisterCLIParameters look up for vault_connection_api_string, if none exists, vault_connection_api_string and vault_secrets_path
-// will be added to provided flags.
-func (options *CLIOptions) RegisterCLIParameters(flags *flag.FlagSet, prefix string, description string) {
+// RegisterCLIParametersWithFlags register kms related flags
+func RegisterCLIParametersWithFlags(flags *flag.FlagSet, prefix string, description string) {
 	if description != "" {
 		description = " (" + description + ")"
 	}
 	if flags.Lookup(prefix+"kms_type") == nil {
-		flags.StringVar(&options.KMSType, prefix+"kms_type", "", fmt.Sprintf("KMS type for using: <%s>", strings.Join(supportedTypes, "|")+description))
-		flags.StringVar(&options.CredentialsPath, prefix+"kms_credentials_path", "", "KMS credentials JSON file path"+description)
+		flags.String(prefix+"kms_type", "", fmt.Sprintf("KMS type for using: <%s>", strings.Join(supportedTypes, "|")+description))
+		flags.String(prefix+"kms_credentials_path", "", "KMS credentials JSON file path"+description)
 	}
 }
 
-// NewMasterKeyLoader create MasterKeyLoader from kms.CLIOptions
-func (options *CLIOptions) NewMasterKeyLoader() (*Loader, error) {
-	keyManager, err := options.NewKeyManager()
-	if err != nil {
-		return nil, err
-	}
+// ParseCLIParameters parse CLIOptions from CommandLine flags
+func ParseCLIParameters() *CLIOptions {
+	return ParseCLIParametersFromFlags(flag.CommandLine, "")
+}
 
-	log.Infoln("Using KMS for ACRA_MASTER_KEY loading...")
-	return NewLoader(keyManager), nil
+// ParseCLIParametersFromFlags parse CLIOptions from provided FlagSet
+func ParseCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *CLIOptions {
+	options := CLIOptions{}
+
+	if f := flags.Lookup(prefix + "kms_type"); f != nil {
+		options.KMSType = f.Value.String()
+	}
+	if f := flags.Lookup(prefix + "kms_credentials_path"); f != nil {
+		options.CredentialsPath = f.Value.String()
+	}
+	return &options
 }
 
 // NewKeyManager create kms.KeyManager from kms.CLIOptions
-func (options *CLIOptions) NewKeyManager() (kms.KeyManager, error) {
-	createKeyManager, ok := kms.GetKeyManagerCreator(options.KMSType)
+func NewKeyManager(options *CLIOptions) (base.KeyManager, error) {
+	createKeyManager, ok := base.GetKeyManagerCreator(options.KMSType)
 	if !ok {
 		log.Errorf("Unknown KMS type provided %s", options.KMSType)
 		return nil, ErrUnknownKMSType

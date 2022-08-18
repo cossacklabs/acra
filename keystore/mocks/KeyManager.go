@@ -4,8 +4,8 @@ package mocks
 
 import (
 	context "context"
+	kms "github.com/cossacklabs/acra/keystore/kms/base"
 
-	kms "github.com/cossacklabs/acra/keystore/kms"
 	mock "github.com/stretchr/testify/mock"
 )
 

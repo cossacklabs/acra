@@ -27,7 +27,6 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
-	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 
@@ -57,9 +56,7 @@ func main() {
 	action := flag.String("action", "", fmt.Sprintf("%s|%s values are accepted", actionImport, actionExport))
 	file := flag.String("file", "", fmt.Sprintf("path to file which will be used for %s|%s action", actionImport, actionExport))
 
-	keyloader.RegisterCLIParameters()
-	hashicorp.RegisterVaultCLIParameters()
-
+	keyloader.RegisterKeyStoreStrategyParameters()
 	err := cmd.Parse(DefaultConfigPath, ServiceName)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
@@ -72,8 +69,7 @@ func main() {
 
 	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
 	var storage filesystem.Storage
-	redis := cmd.GetRedisParameters()
-	if redis.KeysConfigured() {
+	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
 		storage, err = filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize redis storage")
@@ -83,24 +79,13 @@ func main() {
 		storage = &filesystem.DummyStorage{}
 	}
 
-	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(keyloader.GetCLIParameters().KeystoreEncryptorType)
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(flag.CommandLine, "")
 	if err != nil {
-		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
+		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		os.Exit(1)
 	}
 
-	symmetricKey, err := keyLoader.LoadMasterKey()
-	if err != nil {
-		log.WithError(err).Errorln("Cannot load master key")
-		os.Exit(1)
-	}
-	scellEncryptor, err := keystore.NewSCellKeyEncryptor(symmetricKey)
-	if err != nil {
-		log.WithError(err).Errorln("Can't init scell encryptor")
-		os.Exit(1)
-	}
-
-	backuper, err := filesystem.NewKeyBackuper(*outputDir, *outputPublicKey, storage, scellEncryptor)
+	backuper, err := filesystem.NewKeyBackuper(*outputDir, *outputPublicKey, storage, keyStoreEncryptor)
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize backuper")
 		os.Exit(1)

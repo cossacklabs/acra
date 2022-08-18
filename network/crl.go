@@ -133,19 +133,19 @@ func NewCRLConfigByName(flags *flag.FlagSet, name string, namerFunc NamerFunc) (
 	var crlURL, crlFromCert string
 	var crlCheckOnlyLeafCertificate bool
 	var crlCacheSize, crlCacheTime uint
-	if f := flags.Lookup(namerFunc(name, "crl_url")); f != nil {
+	if f := flags.Lookup(namerFunc(name, "url", "crl")); f != nil {
 		crlURL = f.Value.String()
 		if crlURL == "" {
 			crlURL = tlsCrlURL
 		}
 	}
-	if f := flags.Lookup(namerFunc(name, "crl_from_cert")); f != nil {
+	if f := flags.Lookup(namerFunc(name, "from_cert", "crl")); f != nil {
 		crlFromCert = f.Value.String()
 		if crlFromCert == "" {
 			crlFromCert = tlsCrlFromCert
 		}
 	}
-	if f := flags.Lookup(namerFunc(name, "crl_check_only_leaf_certificate")); f != nil {
+	if f := flags.Lookup(namerFunc(name, "check_only_leaf_certificate", "crl")); f != nil {
 		getter, ok := f.Value.(flag.Getter)
 		if !ok {
 			log.Fatal("Can't cast flag's Value to Getter")
@@ -156,12 +156,12 @@ func NewCRLConfigByName(flags *flag.FlagSet, name string, namerFunc NamerFunc) (
 		} else {
 			if !ok {
 				log.WithField("value", getter.Get()).Fatalf("Can't cast %s to boolean value",
-					namerFunc(name, "crl_check_only_leaf_certificate"))
+					namerFunc(name, "check_only_leaf_certificate", "crl"))
 			}
 			crlCheckOnlyLeafCertificate = *val
 		}
 	}
-	if f := flags.Lookup(namerFunc(name, "crl_cache_size")); f != nil {
+	if f := flags.Lookup(namerFunc(name, "cache_size", "crl")); f != nil {
 		getter, ok := f.Value.(flag.Getter)
 		if !ok {
 			log.Fatal("Can't cast flag's Value to Getter")
@@ -169,11 +169,11 @@ func NewCRLConfigByName(flags *flag.FlagSet, name string, namerFunc NamerFunc) (
 		val, ok := getter.Get().(uint)
 		if !ok {
 			log.WithField("value", getter.Get()).Fatalf("Can't cast %s to integer value",
-				namerFunc(name, "crl_cache_size"))
+				namerFunc(name, "cache_size", "crl"))
 		}
 		crlCacheSize = val
 	}
-	if f := flags.Lookup(namerFunc(name, "crl_cache_time")); f != nil {
+	if f := flags.Lookup(namerFunc(name, "cache_time", "crl")); f != nil {
 		getter, ok := f.Value.(flag.Getter)
 		if !ok {
 			log.Fatal("Can't cast flag's Value to Getter")
@@ -181,7 +181,7 @@ func NewCRLConfigByName(flags *flag.FlagSet, name string, namerFunc NamerFunc) (
 		val, ok := getter.Get().(uint)
 		if !ok {
 			log.WithField("value", getter.Get()).Fatalf("Can't cast %s to integer value",
-				namerFunc(name, "crl_cache_time"))
+				namerFunc(name, "cache_time", "crl"))
 		}
 		crlCacheSize = val
 	}

@@ -23,9 +23,11 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"flag"
+	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/pseudonymization/storage"
 	"github.com/cossacklabs/acra/utils/tests"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -49,16 +51,10 @@ func newClientTLSConfig(t *testing.T) *tls.Config {
 	return clientConfig
 }
 
-func prepareTLSRedisConfig(t *testing.T) (cmd.RedisOptions, *flag.FlagSet) {
-	flagset := flag.FlagSet{}
-	options := cmd.RedisOptions{}
-	options.RegisterKeyStoreParameters(&flagset, "", "")
+func prepareTLSRedisConfigForFlagSet(flagset *flag.FlagSet, t *testing.T) *cmd.RedisOptions {
 	// registering flags overrides values with default
 	// here we load values from env variables and use them for tests
 	tempOptions := cmd.GetTestRedisOptions(t)
-	options.DBKeys = tempOptions.DBKeys
-	options.Password = tempOptions.Password
-	options.HostPort = tempOptions.HostPort
 	workingDirectory := tests.GetSourceRootDirectory(t)
 	if err := flagset.Lookup("redis_tls_client_ca").Value.Set(filepath.Join(workingDirectory, "tests/ssl/ca/ca.crt")); err != nil {
 		t.Fatal(err)
@@ -72,49 +68,72 @@ func prepareTLSRedisConfig(t *testing.T) (cmd.RedisOptions, *flag.FlagSet) {
 	if err := flagset.Lookup("redis_tls_client_auth").Value.Set(strconv.FormatUint(uint64(tls.RequireAndVerifyClientCert), 10)); err != nil {
 		t.Fatal(err)
 	}
-	if err := flagset.Lookup("redis_tls_client_ocsp_from_cert").Value.Set("ignore"); err != nil {
+	if err := flagset.Lookup("redis_tls_ocsp_client_from_cert").Value.Set("ignore"); err != nil {
 		t.Fatal(err)
 	}
-	if err := flagset.Lookup("redis_tls_client_crl_from_cert").Value.Set("ignore"); err != nil {
+	if err := flagset.Lookup("redis_tls_crl_client_from_cert").Value.Set("ignore"); err != nil {
+		t.Fatal(err)
+	}
+	if err := flagset.Lookup("redis_host_port").Value.Set(tempOptions.HostPort); err != nil {
+		t.Fatal(err)
+	}
+	if err := flagset.Lookup("redis_password").Value.Set(tempOptions.Password); err != nil {
+		t.Fatal(err)
+	}
+	if err := flagset.Lookup("redis_db_keys").Value.Set(strconv.FormatUint(uint64(tempOptions.DBKeys), 10)); err != nil {
 		t.Fatal(err)
 	}
 	if err := flagset.Lookup("redis_tls_enable").Value.Set("true"); err != nil {
 		t.Fatal(err)
 	}
-	return options, &flagset
+	options := cmd.ParseRedisCLIParametersFromFlags(flagset, "")
+	return options
 }
 
 func TestReadCMD_TLSRedis_V2(t *testing.T) {
-	options, flagset := prepareTLSRedisConfig(t)
-	// remove all generated keys at the end
-	client, err := storage.NewRedisClient(options.HostPort, options.Password, options.DBKeys, newClientTLSConfig(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	client.FlushAll()
-
 	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
 	clientID := []byte("testclientid")
-	keyLoader := keyloader.NewEnvLoader(keystore.AcraMasterKeyVarName)
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
 
 	masterKey, err := keystoreV2.NewSerializedMasterKeys()
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	flagSet := flag.NewFlagSet(CmdMigrateKeys, flag.ContinueOnError)
+	keyloader.RegisterCLIParametersWithFlagSet(flagSet, "", "")
+	cmd.RegisterRedisKeystoreParametersWithPrefix(flagSet, "", "")
+
+	options := prepareTLSRedisConfigForFlagSet(flagSet, t)
+	// remove all generated keys at the end
+	client, err := storage.NewRedisClient(options.HostPort, options.Password, options.DBKeys, newClientTLSConfig(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.FlushAll()
+
+	setFlags := map[string]string{
+		"keystore_encryption_type": keyloader.KeystoreStrategyEnvMasterKey,
+	}
+
+	for flag, value := range setFlags {
+		err = flagSet.Set(flag, value)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	os.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
 	t.Run("read storage-public key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
-			CommonKeyStoreParameters: CommonKeyStoreParameters{
-				redisOptions: options,
-				flagset:      flagset,
-			},
 			contextID:   clientID,
 			readKeyKind: KeyStoragePublic,
+			FlagSet:     flagSet,
+			outWriter:   io.Discard,
 		}
 
-		store, err := openKeyStoreV2(readCmd, keyLoader)
+		store, err := openKeyStoreV2(readCmd)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -129,15 +148,13 @@ func TestReadCMD_TLSRedis_V2(t *testing.T) {
 
 	t.Run("read symmetric-key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
-			CommonKeyStoreParameters: CommonKeyStoreParameters{
-				redisOptions: options,
-				flagset:      flagset,
-			},
+			FlagSet:     flagSet,
 			contextID:   clientID,
 			readKeyKind: KeySymmetric,
+			outWriter:   io.Discard,
 		}
 
-		store, err := openKeyStoreV2(readCmd, keyLoader)
+		store, err := openKeyStoreV2(readCmd)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -152,15 +169,13 @@ func TestReadCMD_TLSRedis_V2(t *testing.T) {
 
 	t.Run("read symmetric-zone-key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
-			CommonKeyStoreParameters: CommonKeyStoreParameters{
-				redisOptions: options,
-				flagset:      flagset,
-			},
+			FlagSet:     flagSet,
 			contextID:   zoneID,
 			readKeyKind: KeyZoneSymmetric,
+			outWriter:   io.Discard,
 		}
 
-		store, err := openKeyStoreV2(readCmd, keyLoader)
+		store, err := openKeyStoreV2(readCmd)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -175,20 +190,37 @@ func TestReadCMD_TLSRedis_V2(t *testing.T) {
 }
 
 func TestReadCMD_TLSRedis_V1(t *testing.T) {
-	options, flagset := prepareTLSRedisConfig(t)
+	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
+	clientID := []byte("testclientid")
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
+
+	masterKey, err := keystore.GenerateSymmetricKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	flagSet := flag.NewFlagSet(CmdMigrateKeys, flag.ContinueOnError)
+	keyloader.RegisterCLIParametersWithFlagSet(flagSet, "", "")
+
+	cmd.RegisterRedisKeystoreParametersWithPrefix(flagSet, "", "")
+
+	options := prepareTLSRedisConfigForFlagSet(flagSet, t)
 	// remove all generated keys at the end
 	client, err := storage.NewRedisClient(options.HostPort, options.Password, options.DBKeys, newClientTLSConfig(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	client.FlushAll()
-	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
-	clientID := []byte("testclientid")
-	keyLoader := keyloader.NewEnvLoader(keystore.AcraMasterKeyVarName)
+	defer client.FlushAll()
 
-	masterKey, err := keystore.GenerateSymmetricKey()
-	if err != nil {
-		t.Fatal(err)
+	setFlags := map[string]string{
+		"keystore_encryption_type": keyloader.KeystoreStrategyEnvMasterKey,
+	}
+
+	for flag, value := range setFlags {
+		err = flagSet.Set(flag, value)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	os.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
@@ -202,15 +234,15 @@ func TestReadCMD_TLSRedis_V1(t *testing.T) {
 	t.Run("read storage-public key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
-				redisOptions: options,
-				flagset:      flagset,
-				keyDir:       dirName,
+				keyDir: dirName,
 			},
+			FlagSet:     flagSet,
 			contextID:   clientID,
 			readKeyKind: KeyStoragePublic,
+			outWriter:   io.Discard,
 		}
 
-		store, err := openKeyStoreV1(readCmd, keyLoader)
+		store, err := openKeyStoreV1(readCmd)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -226,15 +258,15 @@ func TestReadCMD_TLSRedis_V1(t *testing.T) {
 	t.Run("read symmetric-key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
-				redisOptions: cmd.GetRedisParameters(),
-				flagset:      flagset,
-				keyDir:       dirName,
+				keyDir: dirName,
 			},
+			FlagSet:     flagSet,
 			contextID:   clientID,
 			readKeyKind: KeySymmetric,
+			outWriter:   io.Discard,
 		}
 
-		store, err := openKeyStoreV1(readCmd, keyLoader)
+		store, err := openKeyStoreV1(readCmd)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -250,15 +282,15 @@ func TestReadCMD_TLSRedis_V1(t *testing.T) {
 	t.Run("read symmetric-zone-key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
-				redisOptions: cmd.GetRedisParameters(),
-				flagset:      flagset,
-				keyDir:       dirName,
+				keyDir: dirName,
 			},
+			FlagSet:     flagSet,
 			contextID:   zoneID,
 			readKeyKind: KeyZoneSymmetric,
+			outWriter:   io.Discard,
 		}
 
-		store, err := openKeyStoreV1(readCmd, keyLoader)
+		store, err := openKeyStoreV1(readCmd)
 		if err != nil {
 			t.Fatal(err)
 		}
