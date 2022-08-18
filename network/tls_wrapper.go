@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"io/ioutil"
 	"net"
+	"strconv"
 	"time"
 )
 
@@ -155,19 +156,14 @@ func NewTLSConfigByName(flags *flag.FlagSet, name, host string, namerFunc NamerF
 		}
 	}
 	if f := flags.Lookup(namerFunc(name, "auth", "")); f != nil {
-		getter, ok := f.Value.(flag.Getter)
-		if !ok {
-			log.Fatal("Can't cast flag's Value to Getter")
+		v, err := strconv.ParseInt(f.Value.String(), 10, 64)
+		if err != nil {
+			log.WithField("value", f.Value.String).Fatalf("Can't cast %s to integer value", namerFunc(name, "auth", ""))
 		}
-		val, ok := getter.Get().(int)
-		if !ok {
-			log.WithField("value", getter.Get()).Fatalf("Can't cast %s to integer value",
-				namerFunc(name, "auth", ""))
+		if v == tlsAuthNotSet {
+			v = int64(tlsAuthType)
 		}
-		if val == tlsAuthNotSet {
-			val = tlsAuthType
-		}
-		auth = tls.ClientAuthType(val)
+		auth = tls.ClientAuthType(v)
 	}
 	ocspConfig, err := NewOCSPConfigByName(flags, name, namerFunc)
 	if err != nil {
