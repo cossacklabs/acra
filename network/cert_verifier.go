@@ -49,7 +49,7 @@ var (
 
 // RegisterCertVerifierArgsForService register CLI args which allow to get CertVerifier by NewCertVerifier() for
 // specified service
-func RegisterCertVerifierArgsForService(flags *flag.FlagSet, serviceName string, namerFunc NamerFunc) {
+func RegisterCertVerifierArgsForService(flags *flag.FlagSet, serviceName string, namerFunc CLIParamNameConstructorFunc) {
 	flags.String(namerFunc(serviceName, "url", "ocsp"), "", "OCSP service URL")
 	flags.String(namerFunc(serviceName, "required", "ocsp"), OcspRequiredDenyUnknownStr,
 		fmt.Sprintf("How to treat certificates unknown to OCSP: <%s>", strings.Join(OcspRequiredValuesList, "|")))
