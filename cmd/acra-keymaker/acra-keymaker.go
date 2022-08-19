@@ -301,7 +301,7 @@ func openKeyStoreV1(output, outputPublic string) keystore.KeyMaking {
 		var redisTLS *tls.Config
 		var err error
 		if redis.TLSEnable {
-			redisTLS, err = network.NewTLSConfigByName(flag.CommandLine, "redis", redis.HostPort, network.ClientNamer())
+			redisTLS, err = network.NewTLSConfigByName(flag.CommandLine, "redis", redis.HostPort, network.ClientNameConstructorFunc())
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 					Errorln("Can't initialize TLS config for Redis client")

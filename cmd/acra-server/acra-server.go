@@ -491,7 +491,7 @@ func realMain() error {
 		// if redisTLSConfig = nil then will not be used TLS for Redis
 		var redisTLSConfig *tls.Config
 		if redis.TLSEnable {
-			redisTLSConfig, err = network.NewTLSConfigByName(flag.CommandLine, "redis", redis.HostPort, network.ClientNamer())
+			redisTLSConfig, err = network.NewTLSConfigByName(flag.CommandLine, "redis", redis.HostPort, network.ClientNameConstructorFunc())
 			if err != nil {
 				log.WithError(err).Errorln("Can't initialize tls config for redis client")
 				return err

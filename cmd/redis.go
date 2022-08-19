@@ -76,8 +76,8 @@ func RegisterRedisKeystoreParametersWithPrefix(flags *flag.FlagSet, prefix strin
 		flags.String(prefix+"redis_password", "", "Password to Redis database"+description)
 		flags.Bool(prefix+"redis_tls_enable", false, "Use TLS to connect to Redis"+description)
 	}
-	if flags.Lookup(prefix+network.ClientNamer()("redis", "cert", "")) == nil {
-		network.RegisterTLSArgsForService(flags, true, prefix+"redis", network.ClientNamer())
+	if flags.Lookup(prefix+network.ClientNameConstructorFunc()("redis", "cert", "")) == nil {
+		network.RegisterTLSArgsForService(flags, true, prefix+"redis", network.ClientNameConstructorFunc())
 	}
 	flags.Int(prefix+"redis_db_keys", redisDefaultDB, "Number of Redis database for keys"+description)
 	checkBothKeyAndToken(flags, prefix)
@@ -94,8 +94,8 @@ func RegisterRedisTokenStoreParametersWithPrefix(flags *flag.FlagSet, prefix str
 		flags.String(prefix+"redis_host_port", "", "<host>:<port> used to connect to Redis"+description)
 		flags.String(prefix+"redis_password", "", "Password to Redis database"+description)
 	}
-	if flags.Lookup(prefix+network.ClientNamer()("redis", "cert", "")) == nil {
-		network.RegisterTLSArgsForService(flags, true, "redis", network.ClientNamer())
+	if flags.Lookup(prefix+network.ClientNameConstructorFunc()("redis", "cert", "")) == nil {
+		network.RegisterTLSArgsForService(flags, true, "redis", network.ClientNameConstructorFunc())
 	}
 	flags.Int(prefix+"redis_db_tokens", redisDefaultDB, "Number of Redis database for tokens"+description)
 	checkBothKeyAndToken(flags, prefix)
@@ -195,7 +195,7 @@ func (redis *RedisOptions) KeysOptions(flags *flag.FlagSet) (*goRedis.Options, e
 	var tlsConfig *tls.Config
 	var err error
 	if redis.TLSEnable {
-		tlsConfig, err = network.NewTLSConfigByName(flags, "redis", redis.HostPort, network.ClientNamer())
+		tlsConfig, err = network.NewTLSConfigByName(flags, "redis", redis.HostPort, network.ClientNameConstructorFunc())
 		if err != nil {
 			return nil, err
 		}
