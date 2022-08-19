@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"io/ioutil"
 	"net"
+	"strconv"
 	"time"
 )
 
@@ -64,14 +65,11 @@ var (
 	tlsServerName string
 )
 
-// correct -tls_ocsp_database_url:
-// incorrect -tls_database_ocsp_url:
+// CLIParamNameConstructorFunc func compiles final parameter name for specified service name
+type CLIParamNameConstructorFunc func(serviceName, parameterName, groupName string) string
 
-// NamerFunc func compile final parameter name for specified service name
-type NamerFunc func(serviceName, parameterName, groupName string) string
-
-// ClientNamer returns NamerFunc with "_client_" suffix before parameter name
-func ClientNamer() NamerFunc {
+// ClientNameConstructorFunc returns CLIParamNameConstructorFunc with "_client_" suffix before parameter name
+func ClientNameConstructorFunc() CLIParamNameConstructorFunc {
 	return func(serviceName, parameterName, groupName string) string {
 		// serviceName = "vault
 		// parameterName = "key"
@@ -86,8 +84,8 @@ func ClientNamer() NamerFunc {
 	}
 }
 
-// DatabaseNamer returns NamerFunc with "_database_" suffix before parameter name
-func DatabaseNamer() NamerFunc {
+// DatabaseNameConstructorFunc returns CLIParamNameConstructorFunc with "_database_" suffix before parameter name
+func DatabaseNameConstructorFunc() CLIParamNameConstructorFunc {
 	return func(serviceName, parameterName, groupName string) string {
 		// serviceName = "vault
 		// parameterName = "key"
@@ -114,7 +112,7 @@ func RegisterTLSBaseArgs() {
 
 // RegisterTLSArgsForService register CLI args tls_ca|tls_key|tls_cert|tls_auth and flags for certificate verifier
 // which allow to get tls.Config by NewTLSConfigByName function
-func RegisterTLSArgsForService(flags *flag.FlagSet, isClient bool, name string, namerFunc NamerFunc) {
+func RegisterTLSArgsForService(flags *flag.FlagSet, isClient bool, name string, namerFunc CLIParamNameConstructorFunc) {
 	flags.String(namerFunc(name, "ca", ""), "", "Path to root certificate which will be used with system root certificates to validate peer's certificate. Uses --tls_ca value if not specified.")
 	flags.String(namerFunc(name, "key", ""), "", "Path to private key that will be used for TLS connections. Uses --tls_key value if not specified.")
 	flags.String(namerFunc(name, "cert", ""), "", "Path to certificate. Uses --tls_cert value if not specified.")
@@ -130,7 +128,7 @@ func RegisterTLSArgsForService(flags *flag.FlagSet, isClient bool, name string, 
 // NewTLSConfigByName returns config related to flags registered via RegisterTLSArgsForService. `host` will be used as
 // ServerName in tls.Config for connection as client to verify server's certificate.
 // If <name>_tls_sni flag specified, then will be used SNI value.
-func NewTLSConfigByName(flags *flag.FlagSet, name, host string, namerFunc NamerFunc) (*tls.Config, error) {
+func NewTLSConfigByName(flags *flag.FlagSet, name, host string, namerFunc CLIParamNameConstructorFunc) (*tls.Config, error) {
 	var ca, cert, key, sni string
 	var auth tls.ClientAuthType
 	if f := flags.Lookup(namerFunc(name, "ca", "")); f != nil {
@@ -155,19 +153,14 @@ func NewTLSConfigByName(flags *flag.FlagSet, name, host string, namerFunc NamerF
 		}
 	}
 	if f := flags.Lookup(namerFunc(name, "auth", "")); f != nil {
-		getter, ok := f.Value.(flag.Getter)
-		if !ok {
-			log.Fatal("Can't cast flag's Value to Getter")
+		v, err := strconv.ParseInt(f.Value.String(), 10, 64)
+		if err != nil {
+			log.WithField("value", f.Value.String).Fatalf("Can't cast %s to integer value", namerFunc(name, "auth", ""))
 		}
-		val, ok := getter.Get().(int)
-		if !ok {
-			log.WithField("value", getter.Get()).Fatalf("Can't cast %s to integer value",
-				namerFunc(name, "auth", ""))
+		if v == tlsAuthNotSet {
+			v = int64(tlsAuthType)
 		}
-		if val == tlsAuthNotSet {
-			val = tlsAuthType
-		}
-		auth = tls.ClientAuthType(val)
+		auth = tls.ClientAuthType(v)
 	}
 	ocspConfig, err := NewOCSPConfigByName(flags, name, namerFunc)
 	if err != nil {

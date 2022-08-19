@@ -145,8 +145,8 @@ func realMain() error {
 	httpAPIUseTLS := flag.Bool("http_api_tls_transport_enable", false, "Enable HTTPS support for the API. Use together with the --http_api_enable. TLS configuration is the same as in the Acra Proxy.")
 
 	network.RegisterTLSBaseArgs()
-	network.RegisterTLSArgsForService(flag.CommandLine, false, "", network.ClientNamer())
-	network.RegisterTLSArgsForService(flag.CommandLine, true, "", network.DatabaseNamer())
+	network.RegisterTLSArgsForService(flag.CommandLine, false, "", network.ClientNameConstructorFunc())
+	network.RegisterTLSArgsForService(flag.CommandLine, true, "", network.DatabaseNameConstructorFunc())
 	tlsUseClientIDFromCertificate := flag.Bool("tls_client_id_from_cert", true, "Extract clientID from TLS certificate from application connection. Can't be used with --tls_client_auth=0 or --tls_auth=0")
 	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
 	clientID := flag.String("client_id", "", "Static ClientID used by AcraServer for data protection operations")
@@ -331,14 +331,14 @@ func realMain() error {
 
 	log.Infof("Configuring transport...")
 
-	appSideTLSConfig, err := network.NewTLSConfigByName(flag.CommandLine, "", "", network.ClientNamer())
+	appSideTLSConfig, err := network.NewTLSConfigByName(flag.CommandLine, "", "", network.ClientNameConstructorFunc())
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 			Errorln("Configuration error: can't create application TLS config")
 		os.Exit(1)
 	}
 
-	dbTLSConfig, err := network.NewTLSConfigByName(flag.CommandLine, "", *dbHost, network.DatabaseNamer())
+	dbTLSConfig, err := network.NewTLSConfigByName(flag.CommandLine, "", *dbHost, network.DatabaseNameConstructorFunc())
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 			Errorln("Configuration error: can't create database TLS config")
