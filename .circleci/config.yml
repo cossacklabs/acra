@@ -37,7 +37,9 @@ jobs:
       - image: redis:6.0.16-alpine
       # run one more redis container with tls support on 6380 port
       - image: cossacklabs/redis-ssl:7.0-alpine
-        command: ['--ports 0', '--tls-port 6380']
+        command: ['--tls-cert-file /tmp.ssl/redis.crt', '--tls-key-file /tmp.ssl/redis.key',
+                  '--tls-ca-cert-file /tmp.ssl/ca.crt', '--tls-auth-clients yes',
+                  '--port 0', '--tls-port 6380']
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       GO_VERSIONS: 1.17.3 1.18.5 1.19
