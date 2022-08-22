@@ -87,7 +87,7 @@ jobs:
           environment:
             - GO_VERSIONS: 1.17.3 1.18.5 1.19
             - TEST_REDIS_HOSTPORT: "localhost:6380"
-            - TEST_BUILD_TAGS: "redis,tls"
+            - TEST_BUILD_TAGS: "integration,redis,tls"
       # check python wrapper
       - run: PYTHONPATH=`pwd`/wrappers/python python3 wrappers/python/acrawriter/tests.py
 
