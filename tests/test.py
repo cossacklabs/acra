@@ -3633,13 +3633,23 @@ class RedisMixin:
             self.skipTest("running tests only with TLS")
 
     def setUp(self):
-        self.redis_keys_client = redis.Redis(host='localhost', port=6379, db=self.TEST_REDIS_KEYS_DB)
-        self.redis_tokens_client = redis.Redis(host='localhost', port=6379, db=self.TEST_REDIS_TOKEN_DB)
+        redis_hostport = os.environ.get('TEST_REDIS_HOSTPORT', 'localhost:6379')
+        redis_host, redis_port = redis_hostport.split(':')
+        self.redis_keys_client = redis.Redis(
+            host=redis_host, port=int(redis_port), db=self.TEST_REDIS_KEYS_DB,
+            ssl=TEST_WITH_TLS, ssl_keyfile=TEST_TLS_CLIENT_KEY, ssl_certfile=TEST_TLS_CLIENT_CERT,
+            ssl_ca_certs=TEST_TLS_CA, socket_timeout=SOCKET_CONNECT_TIMEOUT)
+        self.redis_tokens_client = redis.Redis(
+            host=redis_host, port=int(redis_port), db=self.TEST_REDIS_TOKEN_DB,
+            ssl=TEST_WITH_TLS, ssl_keyfile=TEST_TLS_CLIENT_KEY, ssl_certfile=TEST_TLS_CLIENT_CERT,
+            ssl_ca_certs=TEST_TLS_CA, socket_timeout=SOCKET_CONNECT_TIMEOUT)
         super().setUp()
 
     def tearDown(self):
         self.redis_keys_client.flushall()
+        self.redis_keys_client.close()
         self.redis_tokens_client.flushall()
+        self.redis_tokens_client.close()
         super().tearDown()
 
 
@@ -3815,15 +3825,25 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
     def test_read_command_keystore(self):
         master_key = get_master_key()
         client_id = 'keypair1'
+        tls_args = []
+        redis_hostport = os.environ.get('TEST_REDIS_HOSTPORT', 'localhost:6379')
+        if TEST_WITH_TLS:
+            tls_args.extend([
+                '--redis_tls_client_auth=4',
+                '--redis_tls_client_ca='+TEST_TLS_CA,
+                '--redis_tls_client_cert='+TEST_TLS_CLIENT_CERT,
+                '--redis_tls_client_key='+TEST_TLS_CLIENT_KEY,
+                '--redis_tls_enable=true'
+            ])
 
         subprocess.check_call(
             [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
              '--client_id={}'.format(client_id),
              '--generate_acrawriter_keys',
              '--generate_symmetric_storage_key',
-             '--redis_host_port=localhost:6379',
+             '--redis_host_port='+redis_hostport,
              '--keystore={}'.format(KEYSTORE_VERSION)
-             ],
+             ] + tls_args,
             env={ACRA_MASTER_KEY_VAR_NAME: master_key},
             timeout=PROCESS_CALL_TIMEOUT)
 
@@ -3831,18 +3851,16 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
             os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'read',
             '--public',
-            '--redis_host_port=localhost:6379',
-            'client/keypair1/storage'
-        ],
+            '--redis_host_port='+redis_hostport,
+        ] + tls_args + ['client/keypair1/storage'],
             env={ACRA_MASTER_KEY_VAR_NAME: master_key},
             timeout=PROCESS_CALL_TIMEOUT)
 
         subprocess.check_call([
             os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'read',
-            '--redis_host_port=localhost:6379',
-            'client/keypair1/symmetric'
-        ],
+            '--redis_host_port='+redis_hostport,
+        ] + tls_args + ['client/keypair1/symmetric'],
             env={ACRA_MASTER_KEY_VAR_NAME: master_key},
             timeout=PROCESS_CALL_TIMEOUT)
 
@@ -3850,9 +3868,8 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
             os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
             'read',
             '--private',
-            '--redis_host_port=localhost:6379',
-            'client/keypair1/storage'
-        ],
+            '--redis_host_port='+redis_hostport,
+        ] + tls_args + ['client/keypair1/storage'],
             env={ACRA_MASTER_KEY_VAR_NAME: master_key},
             timeout=PROCESS_CALL_TIMEOUT)
 
@@ -7156,9 +7173,17 @@ class BaseTokenizationWithBoltDB(BaseTokenization):
 class BaseTokenizationWithRedis(RedisMixin, BaseTokenization):
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
         acra_kwargs.update(
-            redis_host_port='localhost:6379',
+            redis_host_port=os.environ.get('TEST_REDIS_HOSTPORT', 'localhost:6379'),
             redis_db_tokens=self.TEST_REDIS_TOKEN_DB,
             encryptor_config_file=get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
+        if TEST_WITH_TLS:
+            acra_kwargs.update(
+                redis_tls_client_auth=4,
+                redis_tls_client_ca=TEST_TLS_CA,
+                redis_tls_client_cert=TEST_TLS_CLIENT_CERT,
+                redis_tls_client_key=TEST_TLS_CLIENT_KEY,
+                redis_tls_enable=True,
+            )
         return super(BaseTokenizationWithRedis, self).fork_acra(popen_kwargs, **acra_kwargs)
 
 

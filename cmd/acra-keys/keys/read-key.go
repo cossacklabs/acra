@@ -20,6 +20,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/cossacklabs/acra/cmd"
@@ -66,6 +67,7 @@ type ReadKeySubcommand struct {
 
 	readKeyKind string
 	contextID   []byte
+	outWriter   io.Writer
 }
 
 // Name returns the same of this subcommand.
@@ -173,7 +175,7 @@ func (p *ReadKeySubcommand) Execute() {
 	if err != nil {
 		log.WithError(err).Fatal("Failed to open keystore")
 	}
-	PrintKeyCommand(p, keyStore)
+	p.PrintKeyCommand(p, keyStore)
 }
 
 // ReadKeyKind returns kind of the requested key.

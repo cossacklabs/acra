@@ -19,6 +19,7 @@ package keys
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/cossacklabs/acra/keystore"
@@ -100,14 +101,22 @@ func ImportKeysCommand(params ImportKeysParams, keyStore api.MutableKeyStore) {
 }
 
 // PrintKeyCommand implements the "read" command.
-func PrintKeyCommand(params ReadKeyParams, keyStore keystore.ServerKeyStore) {
+func (p *ReadKeySubcommand) PrintKeyCommand(params ReadKeyParams, keyStore keystore.ServerKeyStore) {
 	keyBytes, err := ReadKeyBytes(params, keyStore)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to read key")
 	}
 	defer utils.ZeroizeSymmetricKey(keyBytes)
-
-	_, err = os.Stdout.Write(keyBytes)
+	// allow to override writer for tests purpose with IDEA support
+	// https://github.com/go-lang-plugin-org/go-lang-idea-plugin/issues/2439
+	// IDEA marks test-cases as terminated if something in tests writes to stdout due to using json format and invalid output
+	// https://github.com/golang/go/issues/23036
+	// but by default it should write to StdOut to be able to pipe out output to next command
+	var writer io.Writer = os.Stdout
+	if p.outWriter != nil {
+		writer = p.outWriter
+	}
+	_, err = writer.Write(keyBytes)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to write key")
 	}

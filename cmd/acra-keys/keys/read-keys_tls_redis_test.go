@@ -1,5 +1,5 @@
-//go:build integration && redis && !tls
-// +build integration,redis,!tls
+//go:build integration && redis && tls
+// +build integration,redis,tls
 
 /*
 Copyright 2020, Cossack Labs Limited
@@ -20,30 +20,77 @@ limitations under the License.
 package keys
 
 import (
+	"crypto/tls"
 	"encoding/base64"
 	"flag"
-	storage2 "github.com/cossacklabs/acra/pseudonymization/storage"
+	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
+	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/pseudonymization/storage"
+	"github.com/cossacklabs/acra/utils/tests"
 	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
+
+	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/keyloader"
-	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
-	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 )
 
-func TestReadCMD_Redis_V2(t *testing.T) {
-	testOptions := cmd.GetTestRedisOptions(t)
-	client, err := storage2.NewRedisClient(testOptions.HostPort, testOptions.Password, testOptions.DBKeys, nil)
+func newClientTLSConfig(t *testing.T) *tls.Config {
+	verifier := network.NewCertVerifierAll()
+	workingDirectory := tests.GetSourceRootDirectory(t)
+	clientConfig, err := network.NewTLSConfig("localhost", filepath.Join(workingDirectory, "tests/ssl/ca/ca.crt"), filepath.Join(workingDirectory, "tests/ssl/acra-writer/acra-writer.key"), filepath.Join(workingDirectory, "tests/ssl/acra-writer/acra-writer.crt"), 4, verifier)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer client.FlushAll()
+	return clientConfig
+}
 
+func prepareTLSRedisConfigForFlagSet(flagset *flag.FlagSet, t *testing.T) *cmd.RedisOptions {
+	// registering flags overrides values with default
+	// here we load values from env variables and use them for tests
+	tempOptions := cmd.GetTestRedisOptions(t)
+	workingDirectory := tests.GetSourceRootDirectory(t)
+	if err := flagset.Lookup("redis_tls_client_ca").Value.Set(filepath.Join(workingDirectory, "tests/ssl/ca/ca.crt")); err != nil {
+		t.Fatal(err)
+	}
+	if err := flagset.Lookup("redis_tls_client_cert").Value.Set(filepath.Join(workingDirectory, "tests/ssl/acra-client/acra-client.crt")); err != nil {
+		t.Fatal(err)
+	}
+	if err := flagset.Lookup("redis_tls_client_key").Value.Set(filepath.Join(workingDirectory, "tests/ssl/acra-client/acra-client.key")); err != nil {
+		t.Fatal(err)
+	}
+	if err := flagset.Lookup("redis_tls_client_auth").Value.Set(strconv.FormatUint(uint64(tls.RequireAndVerifyClientCert), 10)); err != nil {
+		t.Fatal(err)
+	}
+	if err := flagset.Lookup("redis_tls_ocsp_client_from_cert").Value.Set("ignore"); err != nil {
+		t.Fatal(err)
+	}
+	if err := flagset.Lookup("redis_tls_crl_client_from_cert").Value.Set("ignore"); err != nil {
+		t.Fatal(err)
+	}
+	if err := flagset.Lookup("redis_host_port").Value.Set(tempOptions.HostPort); err != nil {
+		t.Fatal(err)
+	}
+	if err := flagset.Lookup("redis_password").Value.Set(tempOptions.Password); err != nil {
+		t.Fatal(err)
+	}
+	if err := flagset.Lookup("redis_db_keys").Value.Set(strconv.FormatUint(uint64(tempOptions.DBKeys), 10)); err != nil {
+		t.Fatal(err)
+	}
+	if err := flagset.Lookup("redis_tls_enable").Value.Set("true"); err != nil {
+		t.Fatal(err)
+	}
+	options := cmd.ParseRedisCLIParametersFromFlags(flagset, "")
+	return options
+}
+
+func TestReadCMD_TLSRedis_V2(t *testing.T) {
 	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
 	clientID := []byte("testclientid")
 	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
@@ -57,11 +104,16 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 	keyloader.RegisterCLIParametersWithFlagSet(flagSet, "", "")
 	cmd.RegisterRedisKeystoreParametersWithPrefix(flagSet, "", "")
 
+	options := prepareTLSRedisConfigForFlagSet(flagSet, t)
+	// remove all generated keys at the end
+	client, err := storage.NewRedisClient(options.HostPort, options.Password, options.DBKeys, newClientTLSConfig(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.FlushAll()
+
 	setFlags := map[string]string{
 		"keystore_encryption_type": keyloader.KeystoreStrategyEnvMasterKey,
-		"redis_host_port":          testOptions.HostPort,
-		"redis_password":           testOptions.Password,
-		"redis_db_keys":            strconv.FormatUint(uint64(testOptions.DBKeys), 10),
 	}
 
 	for flag, value := range setFlags {
@@ -137,14 +189,7 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 	})
 }
 
-func TestReadCMD_Redis_V1(t *testing.T) {
-	testOptions := cmd.GetTestRedisOptions(t)
-	client, err := storage2.NewRedisClient(testOptions.HostPort, testOptions.Password, testOptions.DBKeys, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer client.FlushAll()
-
+func TestReadCMD_TLSRedis_V1(t *testing.T) {
 	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
 	clientID := []byte("testclientid")
 	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
@@ -159,11 +204,16 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 
 	cmd.RegisterRedisKeystoreParametersWithPrefix(flagSet, "", "")
 
+	options := prepareTLSRedisConfigForFlagSet(flagSet, t)
+	// remove all generated keys at the end
+	client, err := storage.NewRedisClient(options.HostPort, options.Password, options.DBKeys, newClientTLSConfig(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.FlushAll()
+
 	setFlags := map[string]string{
 		"keystore_encryption_type": keyloader.KeystoreStrategyEnvMasterKey,
-		"redis_host_port":          testOptions.HostPort,
-		"redis_password":           testOptions.Password,
-		"redis_db_keys":            strconv.FormatUint(uint64(testOptions.DBKeys), 10),
 	}
 
 	for flag, value := range setFlags {

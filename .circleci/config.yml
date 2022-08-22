@@ -35,6 +35,11 @@ jobs:
           VAULT_DEV_ROOT_TOKEN_ID: 'root_token'
           VAULT_TOKEN: 'root_token'
       - image: redis:6.0.16-alpine
+      # run one more redis container with tls support on 6380 port
+      - image: cossacklabs/redis-ssl:7.0-alpine
+        command: ['--tls-cert-file /tmp.ssl/redis.crt', '--tls-key-file /tmp.ssl/redis.key',
+                  '--tls-ca-cert-file /tmp.ssl/ca.crt', '--tls-auth-clients yes',
+                  '--port 0', '--tls-port 6380']
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       GO_VERSIONS: 1.17.3 1.18.5 1.19
@@ -74,8 +79,15 @@ jobs:
       - run:
           command: .circleci/check_gotest.sh
           environment:
-            - GO_VERSIONS: 1.17.3 1.18.5 1.19
+            - GO_VERSIONS: 1.17.3 1.18.5
             - TEST_BUILD_TAGS: "integration,boltdb,redis,vault"
+      # run tests with redis + tls using separate redis' container with tls
+      - run:
+          command: .circleci/check_gotest.sh
+          environment:
+            - GO_VERSIONS: 1.17.3 1.18.5 1.19
+            - TEST_REDIS_HOSTPORT: "localhost:6380"
+            - TEST_BUILD_TAGS: "integration,redis,tls"
       # check python wrapper
       - run: PYTHONPATH=`pwd`/wrappers/python python3 wrappers/python/acrawriter/tests.py
 
@@ -92,7 +104,7 @@ jobs:
           POSTGRES_PASSWORD: test
           POSTGRES_USER: test
           POSTGRES_DB: test
-      - image: redis:6.0.16-alpine
+      - image: cossacklabs/redis-ssl:7.0-alpine
     environment:
       TEST_DB_USER: test
       TEST_DB_USER_PASSWORD: test
@@ -312,7 +324,7 @@ jobs:
           MYSQL_USER: test
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
-      - image: redis:6.0.16-alpine
+      - image: cossacklabs/redis-ssl:7.0-alpine
     environment:
       TEST_DB_USER: test
       TEST_DB_USER_PASSWORD: test
@@ -425,7 +437,7 @@ jobs:
           MYSQL_USER: test
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
-      - image: redis:6.0.16-alpine
+      - image: cossacklabs/redis-ssl:7.0-alpine
     environment:
       TEST_DB_USER: test
       TEST_DB_USER_PASSWORD: test

@@ -488,7 +488,16 @@ func realMain() error {
 		log.Infoln("Initialized bolt db storage for tokens")
 	} else if redis.TokensConfigured() {
 		log.Infoln("Initialize redis db storage for tokens")
-		redisClient, err := storage.NewRedisClient(redis.HostPort, redis.Password, redis.DBTokens, nil)
+		// if redisTLSConfig = nil then will not be used TLS for Redis
+		var redisTLSConfig *tls.Config
+		if redis.TLSEnable {
+			redisTLSConfig, err = network.NewTLSConfigByName(flag.CommandLine, "redis", redis.HostPort, network.ClientNameConstructorFunc())
+			if err != nil {
+				log.WithError(err).Errorln("Can't initialize tls config for redis client")
+				return err
+			}
+		}
+		redisClient, err := storage.NewRedisClient(redis.HostPort, redis.Password, redis.DBTokens, redisTLSConfig)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize redis client")
 			return err
@@ -824,7 +833,13 @@ func openKeyStoreV1(output string, cacheSize int) (keystore.ServerKeyStore, erro
 	cmd.ValidateRedisCLIOptions(redis)
 
 	if redis.KeysConfigured() {
-		keyStorage, err := filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
+		redisOptions, err := redis.KeysOptions(flag.CommandLine)
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
+				Errorln("Can't get Redis options")
+			return nil, err
+		}
+		keyStorage, err := filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, redisOptions.TLSConfig)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 				Errorln("Can't initialize Redis client")
@@ -857,9 +872,14 @@ func openKeyStoreV2(keyDirPath string, cacheSize int) (keystore.ServerKeyStore, 
 	cmd.ValidateRedisCLIOptions(redis)
 
 	if redis.KeysConfigured() {
+		redisOptions, err := redis.KeysOptions(flag.CommandLine)
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize Redis options")
+			os.Exit(1)
+		}
 		config := &filesystemBackendV2.RedisConfig{
 			RootDir: keyDirPath,
-			Options: redis.KeysOptions(),
+			Options: redisOptions,
 		}
 		backend, err = filesystemBackendV2.OpenRedisBackend(config)
 		if err != nil {

@@ -1,5 +1,5 @@
-//go:build integration && redis && !tls
-// +build integration,redis,!tls
+//go:build integration && redis && tls
+// +build integration,redis,tls
 
 /*
 Copyright 2020, Cossack Labs Limited
@@ -20,12 +20,15 @@ limitations under the License.
 package storage
 
 import (
+	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/utils/tests"
 	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 )
 
-func TestRedisStorage(t *testing.T) {
+func TestTLSRedisStorage(t *testing.T) {
 	hostport := os.Getenv("TEST_REDIS_HOSTPORT")
 	if hostport == "" {
 		hostport = "localhost:6379"
@@ -42,7 +45,13 @@ func TestRedisStorage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	redisClient, err := NewRedisClient(hostport, password, int(dbInt), nil)
+	verifier := network.NewCertVerifierAll()
+	workingDirectory := tests.GetSourceRootDirectory(t)
+	clientConfig, err := network.NewTLSConfig("localhost", filepath.Join(workingDirectory, "tests/ssl/ca/ca.crt"), filepath.Join(workingDirectory, "tests/ssl/acra-writer/acra-writer.key"), filepath.Join(workingDirectory, "tests/ssl/acra-writer/acra-writer.crt"), 4, verifier)
+	if err != nil {
+		t.Fatal(err)
+	}
+	redisClient, err := NewRedisClient(hostport, password, int(dbInt), clientConfig)
 	if err != nil {
 		t.Fatal(err)
 	}

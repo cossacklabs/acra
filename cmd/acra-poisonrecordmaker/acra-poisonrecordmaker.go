@@ -110,7 +110,13 @@ func openKeyStoreV1(output string) keystore.PoisonKeyStorageAndGenerator {
 	keyStoreBuilder.KeyDirectory(output)
 	keyStoreBuilder.Encryptor(keyStoreEncryptor)
 	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
-		keyStorage, err := filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
+		redisOptions, err := redis.KeysOptions(flag.CommandLine)
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
+				Errorln("Can't get Redis options")
+			os.Exit(1)
+		}
+		keyStorage, err := filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, redisOptions.TLSConfig)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 				Errorln("Can't initialize Redis client")
@@ -139,9 +145,14 @@ func openKeyStoreV2(keyDirPath string) keystore.PoisonKeyStorageAndGenerator {
 	}
 	var backend filesystemBackendV2.Backend
 	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
+		redisOptions, err := redis.KeysOptions(flag.CommandLine)
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize Redis options")
+			os.Exit(1)
+		}
 		config := &filesystemBackendV2.RedisConfig{
 			RootDir: keyDirPath,
-			Options: redis.KeysOptions(),
+			Options: redisOptions,
 		}
 		backend, err = filesystemBackendV2.OpenRedisBackend(config)
 		if err != nil {
