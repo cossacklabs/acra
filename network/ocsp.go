@@ -22,11 +22,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"flag"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ocsp"
 	"io/ioutil"
 	"net/http"
 	url_ "net/url"
+	"strconv"
 	"time"
 )
 
@@ -124,6 +126,38 @@ const (
 	OcspHTTPClientDefaultTimeout = time.Second * time.Duration(15)
 )
 
+// NewOCSPConfigByName return initialized OCSPConfig config using flags registered with RegisterCertVerifierArgsForService
+func NewOCSPConfigByName(flags *flag.FlagSet, name string, namerFunc CLIParamNameConstructorFunc) (*OCSPConfig, error) {
+	var url, required, fromCert string
+	var checkOnlyLeafCert bool
+	if f := flags.Lookup(namerFunc(name, "url", "ocsp")); f != nil {
+		url = f.Value.String()
+		if url == "" {
+			url = tlsOcspURL
+		}
+	}
+	if f := flags.Lookup(namerFunc(name, "required", "ocsp")); f != nil {
+		required = f.Value.String()
+		if required == "" {
+			required = tlsOcspRequired
+		}
+	}
+	if f := flags.Lookup(namerFunc(name, "from_cert", "ocsp")); f != nil {
+		fromCert = f.Value.String()
+		if fromCert == "" {
+			fromCert = tlsOcspFromCert
+		}
+	}
+	if f := flags.Lookup(namerFunc(name, "check_only_leaf_certificate", "ocsp")); f != nil {
+		v, err := strconv.ParseBool(f.Value.String())
+		if err != nil {
+			log.WithField("value", f.Value.String).Fatalf("Can't cast %s to boolean value", namerFunc(name, "check_only_leaf_certificate", "ocsp"))
+		}
+		checkOnlyLeafCert = v
+	}
+	return NewOCSPConfig(url, required, fromCert, checkOnlyLeafCert)
+}
+
 // NewOCSPConfig creates new OCSPConfig
 func NewOCSPConfig(url, required, fromCert string, checkOnlyLeafCertificate bool) (*OCSPConfig, error) {
 	requiredVal, ok := ocspRequiredValValues[required]
@@ -176,10 +210,11 @@ func NewOCSPConfig(url, required, fromCert string, checkOnlyLeafCertificate bool
 	}
 
 	return &OCSPConfig{
-		url:            url,
-		required:       requiredVal,
-		fromCert:       fromCertVal,
-		ClientAuthType: tls.RequireAndVerifyClientCert,
+		url:                      url,
+		required:                 requiredVal,
+		fromCert:                 fromCertVal,
+		ClientAuthType:           tls.RequireAndVerifyClientCert,
+		checkOnlyLeafCertificate: checkOnlyLeafCertificate,
 	}, nil
 }
 
@@ -329,12 +364,12 @@ func (v DefaultOCSPVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate
 			}
 		case ocsp.Revoked:
 			// If any OCSP server replies with "certificate was revoked", return error immediately
-			log.WithField("serial", cert.SerialNumber).WithField("revoked_at", response.RevokedAt).Warnln("OCSP: Certificate was revoked")
+			log.WithField("serial", cert.SerialNumber.Text(16)).WithField("revoked_at", response.RevokedAt).Warnln("OCSP: Certificate was revoked")
 			return ErrCertWasRevoked
 		case ocsp.Unknown:
 			// Treat "Unknown" response as error if tls_ocsp_required is "yes" or "all"
 			if v.Config.required != ocspRequiredAllowUnknown {
-				log.WithField("url", serverToCheck.url).WithField("serial", cert.SerialNumber).Warnln("OCSP server doesn't know about certificate")
+				log.WithField("url", serverToCheck.url).WithField("serial", cert.SerialNumber.Text(16)).Warnln("OCSP server doesn't know about certificate")
 				return ErrOCSPUnknownCertificate
 			}
 		}
