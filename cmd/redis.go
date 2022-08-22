@@ -134,15 +134,11 @@ func ParseRedisCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *Redis
 	}
 
 	if f := flags.Lookup(prefix + "redis_tls_enable"); f != nil {
-		getter, ok := f.Value.(flag.Getter)
-		if !ok {
-			log.Fatal("Can't cast flag's Value to Getter")
+		v, err := strconv.ParseBool(f.Value.String())
+		if err != nil {
+			log.WithField("value", f.Value.String).Fatalf("Can't cast %s to boolean value", prefix+"redis_tls_enable")
 		}
-		val, ok := getter.Get().(bool)
-		if !ok {
-			log.WithField("value", getter.Get()).Fatalf("Can't cast %s to integer value", prefix+"redis_db_tokens")
-		}
-		redisOptions.TLSEnable = val
+		redisOptions.TLSEnable = v
 	}
 	if f := flags.Lookup(prefix + "redis_db_keys"); f != nil {
 		getter, ok := f.Value.(flag.Getter)
