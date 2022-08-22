@@ -13,10 +13,8 @@ func GetTestRedisOptions(t *testing.T) RedisOptions {
 	if hostport == "" {
 		hostport = "localhost:6379"
 	}
+	// default is empty
 	password := os.Getenv("TEST_REDIS_PASSWORD")
-	if password == "" {
-		password = ""
-	}
 	dbNum := os.Getenv("TEST_REDIS_DB")
 	if dbNum == "" {
 		dbNum = "0"
