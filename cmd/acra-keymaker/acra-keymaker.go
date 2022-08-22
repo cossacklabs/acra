@@ -305,6 +305,7 @@ func openKeyStoreV1(output, outputPublic string) keystore.KeyMaking {
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 					Errorln("Can't initialize TLS config for Redis client")
+				os.Exit(1)
 			}
 		}
 		keyStorage, err := filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, redisTLS)
