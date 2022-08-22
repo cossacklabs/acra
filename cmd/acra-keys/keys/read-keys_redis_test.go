@@ -26,6 +26,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/cossacklabs/acra/cmd"
@@ -58,6 +59,9 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 
 	setFlags := map[string]string{
 		"keystore_encryption_type": keyloader.KeystoreStrategyEnvMasterKey,
+		"redis_host_port":          testOptions.HostPort,
+		"redis_password":           testOptions.Password,
+		"redis_db_keys":            strconv.FormatUint(uint64(testOptions.DBKeys), 10),
 	}
 
 	for flag, value := range setFlags {
@@ -157,6 +161,9 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 
 	setFlags := map[string]string{
 		"keystore_encryption_type": keyloader.KeystoreStrategyEnvMasterKey,
+		"redis_host_port":          testOptions.HostPort,
+		"redis_password":           testOptions.Password,
+		"redis_db_keys":            strconv.FormatUint(uint64(testOptions.DBKeys), 10),
 	}
 
 	for flag, value := range setFlags {
