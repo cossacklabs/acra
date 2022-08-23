@@ -14,11 +14,14 @@ require (
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e
 	github.com/golang/protobuf v1.5.2
+	github.com/hashicorp/consul/api v1.3.0
 	github.com/hashicorp/vault/api v1.3.0
 	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect
 	github.com/jackc/pgx v3.6.2+incompatible
 	github.com/jackc/pgx/v4 v4.14.1
 	github.com/lib/pq v1.10.4
+	github.com/philippgille/gokv v0.6.0
+	github.com/philippgille/gokv/redis v0.6.0
 	github.com/prometheus/client_golang v1.7.1
 	github.com/prometheus/common v0.11.1 // indirect
 	github.com/sirupsen/logrus v1.6.0

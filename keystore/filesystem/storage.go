@@ -63,15 +63,15 @@ type Storage interface {
 }
 
 // DummyStorage keeps key files in filesystem directories.
-type DummyStorage struct{ fileStorage }
+type DummyStorage struct{ FileStorage }
 
-type fileStorage struct{}
+type FileStorage struct{}
 
-func (*fileStorage) Stat(path string) (os.FileInfo, error) {
+func (*FileStorage) Stat(path string) (os.FileInfo, error) {
 	return os.Stat(path)
 }
 
-func (*fileStorage) Exists(path string) (bool, error) {
+func (*FileStorage) Exists(path string) (bool, error) {
 	_, err := os.Stat(path)
 	if err == nil {
 		return true, nil
@@ -82,19 +82,19 @@ func (*fileStorage) Exists(path string) (bool, error) {
 	return false, err
 }
 
-func (*fileStorage) ReadDir(path string) ([]os.FileInfo, error) {
+func (*FileStorage) ReadDir(path string) ([]os.FileInfo, error) {
 	return ioutil.ReadDir(path)
 }
 
-func (*fileStorage) MkdirAll(path string, perm os.FileMode) error {
+func (*FileStorage) MkdirAll(path string, perm os.FileMode) error {
 	return os.MkdirAll(path, perm)
 }
 
-func (*fileStorage) Rename(oldpath, newpath string) error {
+func (*FileStorage) Rename(oldpath, newpath string) error {
 	return os.Rename(oldpath, newpath)
 }
 
-func (*fileStorage) TempFile(pattern string, perm os.FileMode) (string, error) {
+func (*FileStorage) TempFile(pattern string, perm os.FileMode) (string, error) {
 	tmp, err := ioutil.TempFile(filepath.Dir(pattern), filepath.Base(pattern))
 	if err != nil {
 		return "", err
@@ -107,7 +107,7 @@ func (*fileStorage) TempFile(pattern string, perm os.FileMode) (string, error) {
 	return tmp.Name(), nil
 }
 
-func (*fileStorage) TempDir(pattern string, perm os.FileMode) (string, error) {
+func (*FileStorage) TempDir(pattern string, perm os.FileMode) (string, error) {
 	path, err := ioutil.TempDir(filepath.Dir(pattern), filepath.Base(pattern))
 	if err != nil {
 		return "", err
@@ -120,11 +120,11 @@ func (*fileStorage) TempDir(pattern string, perm os.FileMode) (string, error) {
 	return path, nil
 }
 
-func (*fileStorage) Link(oldpath, newpath string) error {
+func (*FileStorage) Link(oldpath, newpath string) error {
 	return os.Link(oldpath, newpath)
 }
 
-func (*fileStorage) Copy(src, dst string) error {
+func (*FileStorage) Copy(src, dst string) error {
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return err
@@ -161,18 +161,18 @@ func (*fileStorage) Copy(src, dst string) error {
 	return err
 }
 
-func (*fileStorage) ReadFile(path string) ([]byte, error) {
+func (*FileStorage) ReadFile(path string) ([]byte, error) {
 	return ioutil.ReadFile(path)
 }
 
-func (*fileStorage) WriteFile(path string, data []byte, perm os.FileMode) error {
+func (*FileStorage) WriteFile(path string, data []byte, perm os.FileMode) error {
 	return ioutil.WriteFile(path, data, perm)
 }
 
-func (*fileStorage) Remove(path string) error {
+func (*FileStorage) Remove(path string) error {
 	return os.Remove(path)
 }
 
-func (*fileStorage) RemoveAll(path string) error {
+func (*FileStorage) RemoveAll(path string) error {
 	return os.RemoveAll(path)
 }

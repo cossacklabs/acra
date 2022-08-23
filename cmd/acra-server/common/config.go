@@ -18,17 +18,19 @@ package common
 
 import (
 	"errors"
-	"github.com/cossacklabs/acra/network"
-	"github.com/cossacklabs/acra/sqlparser/dialect"
-	mysqlDialect "github.com/cossacklabs/acra/sqlparser/dialect/mysql"
-	pgDialect "github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
+	"flag"
 	"io/ioutil"
 
 	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/encryptor"
 	encryptorConfig "github.com/cossacklabs/acra/encryptor/config"
+	"github.com/cossacklabs/acra/encryptor/config_loader"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/sqlparser/dialect"
+	mysqlDialect "github.com/cossacklabs/acra/sqlparser/dialect/mysql"
+	pgDialect "github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
 	log "github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
 )
@@ -80,8 +82,14 @@ func (config *Config) SetDBConnectionSettings(host string, port int) {
 }
 
 // LoadMapTableSchemaConfig load table schemas from config file
-func (config *Config) LoadMapTableSchemaConfig(path string) error {
-	mapConfig, err := ioutil.ReadFile(path)
+func (config *Config) LoadMapTableSchemaConfig(storageType string) error {
+	encryptorConfigLoader, err := config_loader.NewConfigLoader(storageType, flag.CommandLine, "")
+	if err != nil {
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).WithError(err).Errorln("Can't init encryptor config loader")
+		return err
+	}
+
+	mapConfig, err := encryptorConfigLoader.Load()
 	if err != nil {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).WithError(err).Errorln("Can't read config for encryptor")
 		return err

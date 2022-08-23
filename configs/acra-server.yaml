@@ -17,6 +17,12 @@ client_id:
 # path to config
 config_file: 
 
+# Connection string (http://x.x.x.x:yyyy) for loading encryptor config from Consul
+consul_connection_api_string: 
+
+# KV Encryptor Config Path (acra/encryptor_config) for loading encryptor config from Consul
+consul_kv_config_path: acra/encryptor_config
+
 # Log everything to stderr
 d: false
 
@@ -34,6 +40,9 @@ dump_config: false
 
 # Path to Encryptor configuration file
 encryptor_config_file: 
+
+# Encryptor configuration file storage types: <consul|filesystem
+encryptor_config_storage_type: filesystem
 
 # Generate with yaml config markdown text file with descriptions of all args
 generate_markdown_args_table: false
