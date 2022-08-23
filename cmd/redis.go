@@ -17,8 +17,10 @@
 package cmd
 
 import (
+	"crypto/tls"
 	"errors"
 	"flag"
+	"github.com/cossacklabs/acra/network"
 	"os"
 	"strconv"
 
@@ -29,10 +31,11 @@ import (
 
 // RedisOptions keep command-line options related to Redis database configuration.
 type RedisOptions struct {
-	HostPort string
-	Password string
-	DBKeys   int
-	DBTokens int
+	HostPort  string
+	Password  string
+	DBKeys    int
+	DBTokens  int
+	TLSEnable bool
 }
 
 // Note that currently "keystore" and "token store" are expected to be located
@@ -71,6 +74,10 @@ func RegisterRedisKeystoreParametersWithPrefix(flags *flag.FlagSet, prefix strin
 	if flags.Lookup(prefix+"redis_host_port") == nil {
 		flags.String(prefix+"redis_host_port", "", "<host>:<port> used to connect to Redis"+description)
 		flags.String(prefix+"redis_password", "", "Password to Redis database"+description)
+		flags.Bool(prefix+"redis_tls_enable", false, "Use TLS to connect to Redis"+description)
+	}
+	if flags.Lookup(prefix+network.ClientNameConstructorFunc()("redis", "cert", "")) == nil {
+		network.RegisterTLSArgsForService(flags, true, prefix+"redis", network.ClientNameConstructorFunc())
 	}
 	flags.Int(prefix+"redis_db_keys", redisDefaultDB, "Number of Redis database for keys"+description)
 	checkBothKeyAndToken(flags, prefix)
@@ -86,6 +93,9 @@ func RegisterRedisTokenStoreParametersWithPrefix(flags *flag.FlagSet, prefix str
 	if flags.Lookup(prefix+"redis_host_port") == nil {
 		flags.String(prefix+"redis_host_port", "", "<host>:<port> used to connect to Redis"+description)
 		flags.String(prefix+"redis_password", "", "Password to Redis database"+description)
+	}
+	if flags.Lookup(prefix+network.ClientNameConstructorFunc()("redis", "cert", "")) == nil {
+		network.RegisterTLSArgsForService(flags, true, "redis", network.ClientNameConstructorFunc())
 	}
 	flags.Int(prefix+"redis_db_tokens", redisDefaultDB, "Number of Redis database for tokens"+description)
 	checkBothKeyAndToken(flags, prefix)
@@ -121,6 +131,14 @@ func ParseRedisCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *Redis
 			log.WithField("value", getter.Get()).Fatalf("Can't cast %s to integer value", prefix+"redis_db_tokens")
 		}
 		redisOptions.DBTokens = val
+	}
+
+	if f := flags.Lookup(prefix + "redis_tls_enable"); f != nil {
+		v, err := strconv.ParseBool(f.Value.String())
+		if err != nil {
+			log.WithField("value", f.Value.String).Fatalf("Can't cast %s to boolean value", prefix+"redis_tls_enable")
+		}
+		redisOptions.TLSEnable = v
 	}
 	if f := flags.Lookup(prefix + "redis_db_keys"); f != nil {
 		getter, ok := f.Value.(flag.Getter)
@@ -169,10 +187,19 @@ func (redis *RedisOptions) TokensConfigured() bool {
 }
 
 // KeysOptions returns Redis connection configuration for key storage.
-func (redis *RedisOptions) KeysOptions() *goRedis.Options {
-	return &goRedis.Options{
-		Addr:     redis.HostPort,
-		Password: redis.Password,
-		DB:       redis.DBKeys,
+func (redis *RedisOptions) KeysOptions(flags *flag.FlagSet) (*goRedis.Options, error) {
+	var tlsConfig *tls.Config
+	var err error
+	if redis.TLSEnable {
+		tlsConfig, err = network.NewTLSConfigByName(flags, "redis", redis.HostPort, network.ClientNameConstructorFunc())
+		if err != nil {
+			return nil, err
+		}
 	}
+	return &goRedis.Options{
+		Addr:      redis.HostPort,
+		Password:  redis.Password,
+		DB:        redis.DBKeys,
+		TLSConfig: tlsConfig,
+	}, nil
 }

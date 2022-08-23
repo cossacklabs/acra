@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"io/ioutil"
 	"net"
+	"strconv"
 	"time"
 )
 
@@ -39,6 +40,8 @@ var allowedCipherSuits = []uint16{
 	tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 	tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
 }
+
+const tlsAuthNotSet = -1
 
 // TLSConnectionWrapper for wrapping connection into TLS encryption
 type TLSConnectionWrapper struct {
@@ -62,6 +65,42 @@ var (
 	tlsServerName string
 )
 
+// CLIParamNameConstructorFunc func compiles final parameter name for specified service name
+type CLIParamNameConstructorFunc func(serviceName, parameterName, groupName string) string
+
+// ClientNameConstructorFunc returns CLIParamNameConstructorFunc with "_client_" suffix before parameter name
+func ClientNameConstructorFunc() CLIParamNameConstructorFunc {
+	return func(serviceName, parameterName, groupName string) string {
+		// serviceName = "vault
+		// parameterName = "key"
+		// result = "vault_tls_client_key
+		if groupName != "" {
+			groupName = groupName + "_"
+		}
+		if serviceName == "" {
+			return "tls_" + groupName + "client_" + parameterName
+		}
+		return serviceName + "_tls_" + groupName + "client_" + parameterName
+	}
+}
+
+// DatabaseNameConstructorFunc returns CLIParamNameConstructorFunc with "_database_" suffix before parameter name
+func DatabaseNameConstructorFunc() CLIParamNameConstructorFunc {
+	return func(serviceName, parameterName, groupName string) string {
+		// serviceName = "vault
+		// parameterName = "key"
+		// groupName = "ocsp"
+		// result = "vault_tls_ocsp_database_key
+		if groupName != "" {
+			groupName = groupName + "_"
+		}
+		if serviceName == "" {
+			return "tls_" + groupName + "database_" + parameterName
+		}
+		return serviceName + "_tls_" + groupName + "database_" + parameterName
+	}
+}
+
 // RegisterTLSBaseArgs register CLI args tls_ca|tls_key|tls_cert|tls_auth which allow to get tls.Config by NewTLSConfigFromBaseArgs function
 func RegisterTLSBaseArgs() {
 	flag.StringVar(&tlsCA, "tls_ca", "", "Path to root certificate which will be used with system root certificates to validate peer's certificate")
@@ -71,9 +110,71 @@ func RegisterTLSBaseArgs() {
 	RegisterCertVerifierArgs()
 }
 
-// RegisterTLSClientArgs register CLI args tls_server_sni used by TLS client's connection
-func RegisterTLSClientArgs() {
-	flag.StringVar(&tlsServerName, "tls_server_sni", "", "Server name used as sni value")
+// RegisterTLSArgsForService register CLI args tls_ca|tls_key|tls_cert|tls_auth and flags for certificate verifier
+// which allow to get tls.Config by NewTLSConfigByName function
+func RegisterTLSArgsForService(flags *flag.FlagSet, isClient bool, name string, namerFunc CLIParamNameConstructorFunc) {
+	flags.String(namerFunc(name, "ca", ""), "", "Path to root certificate which will be used with system root certificates to validate peer's certificate. Uses --tls_ca value if not specified.")
+	flags.String(namerFunc(name, "key", ""), "", "Path to private key that will be used for TLS connections. Uses --tls_key value if not specified.")
+	flags.String(namerFunc(name, "cert", ""), "", "Path to certificate. Uses --tls_cert value if not specified.")
+	flags.Int(namerFunc(name, "auth", ""), int(tlsAuthNotSet), "Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is -1 which means NotSpecified and will be used value from tls_auth.")
+	// if Acra's component is client for TLS handshake, it can specify expected SNI from the server's side
+	// otherwise skip it for server's role of Acra
+	if isClient {
+		flags.String(namerFunc(name, "sni", ""), "", "Expected Server Name (SNI) from the service's side.")
+	}
+	RegisterCertVerifierArgsForService(flags, name, namerFunc)
+}
+
+// NewTLSConfigByName returns config related to flags registered via RegisterTLSArgsForService. `host` will be used as
+// ServerName in tls.Config for connection as client to verify server's certificate.
+// If <name>_tls_sni flag specified, then will be used SNI value.
+func NewTLSConfigByName(flags *flag.FlagSet, name, host string, namerFunc CLIParamNameConstructorFunc) (*tls.Config, error) {
+	var ca, cert, key, sni string
+	var auth tls.ClientAuthType
+	if f := flags.Lookup(namerFunc(name, "ca", "")); f != nil {
+		ca = f.Value.String()
+		if ca == "" {
+			ca = tlsCA
+		}
+	}
+	if f := flags.Lookup(namerFunc(name, "sni", "")); f != nil {
+		sni = f.Value.String()
+	}
+	if f := flags.Lookup(namerFunc(name, "cert", "")); f != nil {
+		cert = f.Value.String()
+		if cert == "" {
+			cert = tlsCert
+		}
+	}
+	if f := flags.Lookup(namerFunc(name, "key", "")); f != nil {
+		key = f.Value.String()
+		if key == "" {
+			key = tlsKey
+		}
+	}
+	if f := flags.Lookup(namerFunc(name, "auth", "")); f != nil {
+		v, err := strconv.ParseInt(f.Value.String(), 10, 64)
+		if err != nil {
+			log.WithField("value", f.Value.String).Fatalf("Can't cast %s to integer value", namerFunc(name, "auth", ""))
+		}
+		if v == tlsAuthNotSet {
+			v = int64(tlsAuthType)
+		}
+		auth = tls.ClientAuthType(v)
+	}
+	ocspConfig, err := NewOCSPConfigByName(flags, name, namerFunc)
+	if err != nil {
+		return nil, err
+	}
+	crlConfig, err := NewCRLConfigByName(flags, name, namerFunc)
+	if err != nil {
+		return nil, err
+	}
+	verifier, err := NewCertVerifierFromConfigs(ocspConfig, crlConfig)
+	if err != nil {
+		return nil, err
+	}
+	return NewTLSConfig(SNIOrHostname(sni, host), ca, key, cert, auth, verifier)
 }
 
 // NewTLSConfigFromBaseArgs return new tls clientConfig with params passed by cli params

@@ -20,6 +20,7 @@ import (
 	"encoding/base64"
 	"flag"
 	"github.com/cossacklabs/acra/keystore/keyloader"
+	"io"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -62,6 +63,7 @@ func TestReadCMD_FS_V2(t *testing.T) {
 			contextID:   clientID,
 			readKeyKind: KeyStoragePublic,
 			FlagSet:     flagSet,
+			outWriter:   io.Discard,
 		}
 
 		store, err := openKeyStoreV2(readCmd)
@@ -85,6 +87,7 @@ func TestReadCMD_FS_V2(t *testing.T) {
 			contextID:   clientID,
 			readKeyKind: KeySymmetric,
 			FlagSet:     flagSet,
+			outWriter:   io.Discard,
 		}
 
 		store, err := openKeyStoreV2(readCmd)
@@ -108,6 +111,7 @@ func TestReadCMD_FS_V2(t *testing.T) {
 			contextID:   zoneID,
 			readKeyKind: KeyZoneSymmetric,
 			FlagSet:     flagSet,
+			outWriter:   io.Discard,
 		}
 
 		store, err := openKeyStoreV2(readCmd)
@@ -158,6 +162,7 @@ func TestReadCMD_FS_V1(t *testing.T) {
 			contextID:   clientID,
 			readKeyKind: KeyStoragePublic,
 			FlagSet:     flagSet,
+			outWriter:   io.Discard,
 		}
 
 		store, err := openKeyStoreV1(readCmd)
@@ -181,6 +186,7 @@ func TestReadCMD_FS_V1(t *testing.T) {
 			contextID:   clientID,
 			readKeyKind: KeySymmetric,
 			FlagSet:     flagSet,
+			outWriter:   io.Discard,
 		}
 
 		store, err := openKeyStoreV1(readCmd)
@@ -204,6 +210,7 @@ func TestReadCMD_FS_V1(t *testing.T) {
 			contextID:   zoneID,
 			readKeyKind: KeyZoneSymmetric,
 			FlagSet:     flagSet,
+			outWriter:   io.Discard,
 		}
 
 		store, err := openKeyStoreV1(readCmd)

@@ -21,9 +21,11 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
+	"flag"
 	"io/ioutil"
 	"net/http"
 	url_ "net/url"
+	"strconv"
 	"sync"
 	"time"
 
@@ -125,6 +127,47 @@ func (e CRLError) Error() string {
 // Unwrap wrapped error
 func (e CRLError) Unwrap() error {
 	return e.err
+}
+
+// NewCRLConfigByName return initialized CRLConfig config using flags registered with RegisterCertVerifierArgsForService
+func NewCRLConfigByName(flags *flag.FlagSet, name string, namerFunc CLIParamNameConstructorFunc) (*CRLConfig, error) {
+	var crlURL, crlFromCert string
+	var crlCheckOnlyLeafCertificate bool
+	var crlCacheSize, crlCacheTime uint
+	if f := flags.Lookup(namerFunc(name, "url", "crl")); f != nil {
+		crlURL = f.Value.String()
+		if crlURL == "" {
+			crlURL = tlsCrlURL
+		}
+	}
+	if f := flags.Lookup(namerFunc(name, "from_cert", "crl")); f != nil {
+		crlFromCert = f.Value.String()
+		if crlFromCert == "" {
+			crlFromCert = tlsCrlFromCert
+		}
+	}
+	if f := flags.Lookup(namerFunc(name, "check_only_leaf_certificate", "crl")); f != nil {
+		v, err := strconv.ParseBool(f.Value.String())
+		if err != nil {
+			log.WithField("value", f.Value.String).Fatalf("Can't cast %s to boolean value", namerFunc(name, "check_only_leaf_certificate", "crl"))
+		}
+		crlCheckOnlyLeafCertificate = v
+	}
+	if f := flags.Lookup(namerFunc(name, "cache_size", "crl")); f != nil {
+		size, err := strconv.ParseUint(f.Value.String(), 10, 64)
+		if err != nil {
+			log.WithField("value", f.Value.String).Fatalf("Can't cast %s to integer value", namerFunc(name, "cache_size", "crl"))
+		}
+		crlCacheSize = uint(size)
+	}
+	if f := flags.Lookup(namerFunc(name, "cache_time", "crl")); f != nil {
+		cacheTime, err := strconv.ParseUint(f.Value.String(), 10, 64)
+		if err != nil {
+			log.WithField("value", f.Value.String).Fatalf("Can't cast %s to integer value", namerFunc(name, "cache_time", "crl"))
+		}
+		crlCacheTime = uint(cacheTime)
+	}
+	return NewCRLConfig(crlURL, crlFromCert, crlCheckOnlyLeafCertificate, crlCacheSize, crlCacheTime)
 }
 
 // NewCRLConfig creates new CRLConfig
@@ -461,7 +504,7 @@ func checkCertWithCRL(cert *x509.Certificate, cacheItem *CRLCacheItem) error {
 		}
 	}
 
-	log.WithField("serial", cert.SerialNumber).WithField("revoked_at", revokedCertificate.RevocationTime).Warnln("CRL: Certificate was revoked")
+	log.WithField("serial", cert.SerialNumber.Text(16)).WithField("revoked_at", revokedCertificate.RevocationTime).Warnln("CRL: Certificate was revoked")
 	return ErrCertWasRevoked
 }
 

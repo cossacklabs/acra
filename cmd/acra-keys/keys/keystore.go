@@ -19,7 +19,6 @@ package keys
 import (
 	"errors"
 	"flag"
-
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
@@ -28,8 +27,8 @@ import (
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
+	"github.com/cossacklabs/acra/logging"
 
-	"github.com/go-redis/redis/v7"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -142,7 +141,12 @@ func openKeyStoreV1(params KeyStoreParameters) (*filesystem.KeyStore, error) {
 	}
 
 	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetFlagSet(), ""); redisOptions.KeysConfigured() {
-		keyStorage, err := filesystem.NewRedisStorage(redisOptions.HostPort, redisOptions.Password, redisOptions.DBKeys, nil)
+		redisClientOptions, err := redisOptions.KeysOptions(params.GetFlagSet())
+		if err != nil {
+			log.WithError(err).Errorln("Failed to get Redis options")
+			return nil, err
+		}
+		keyStorage, err := filesystem.NewRedisStorage(redisOptions.HostPort, redisOptions.Password, redisOptions.DBKeys, redisClientOptions.TLSConfig)
 		if err != nil {
 			log.WithError(err).Errorln("Failed to initialise Redis storage")
 			return nil, err
@@ -168,9 +172,15 @@ func openKeyStoreV2(params KeyStoreParameters) (*keystoreV2.ServerKeyStore, erro
 	var backend filesystemBackendV2.Backend
 
 	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetFlagSet(), ""); redisOptions.KeysConfigured() {
+		redisKeyOptions, err := redisOptions.KeysOptions(params.GetFlagSet())
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
+				Errorln("Can't get Redis options")
+			return nil, err
+		}
 		config := &filesystemBackendV2.RedisConfig{
 			RootDir: params.KeyDir(),
-			Options: redisOptions.KeysOptions(),
+			Options: redisKeyOptions,
 		}
 		backend, err = filesystemBackendV2.CreateRedisBackend(config)
 		if err != nil {
@@ -196,13 +206,15 @@ func openKeyStoreV2(params KeyStoreParameters) (*keystoreV2.ServerKeyStore, erro
 // IsKeyStoreV2 checks if the directory contains a keystore version 2 from KeyStoreParameters
 func IsKeyStoreV2(params KeyStoreParameters) bool {
 	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetFlagSet(), ""); redisOptions.KeysConfigured() {
+		redisClientOptions, err := redisOptions.KeysOptions(params.GetFlagSet())
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
+				Errorln("Can't get Redis options")
+			return false
+		}
 		redisClient, err := filesystemBackendV2.OpenRedisBackend(&filesystemBackendV2.RedisConfig{
 			RootDir: params.KeyDir(),
-			Options: &redis.Options{
-				Addr:     redisOptions.HostPort,
-				Password: redisOptions.Password,
-				DB:       redisOptions.DBKeys,
-			},
+			Options: redisClientOptions,
 		})
 		if err != nil {
 			log.WithError(err).Debugln("Failed to find keystore v2 in Redis")
@@ -220,7 +232,13 @@ func IsKeyStoreV2(params KeyStoreParameters) bool {
 func IsKeyStoreV1(params KeyStoreParameters) bool {
 	var fsStorage filesystem.Storage = &filesystem.DummyStorage{}
 	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetFlagSet(), ""); redisOptions.KeysConfigured() {
-		redisStorage, err := filesystem.NewRedisStorage(redisOptions.HostPort, redisOptions.Password, redisOptions.DBKeys, nil)
+		redisClientOptions, err := redisOptions.KeysOptions(params.GetFlagSet())
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
+				Errorln("Can't get Redis options")
+			return false
+		}
+		redisStorage, err := filesystem.NewRedisStorage(redisOptions.HostPort, redisOptions.Password, redisOptions.DBKeys, redisClientOptions.TLSConfig)
 		if err != nil {
 			log.WithError(err).Debug("Failed to open redis storage for version check")
 			return false

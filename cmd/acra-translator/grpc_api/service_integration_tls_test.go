@@ -1,5 +1,5 @@
-//go:build integration && redis && !tls
-// +build integration,redis,!tls
+//go:build integration && redis && tls
+// +build integration,redis,tls
 
 /*
 Copyright 2020, Cossack Labs Limited
@@ -20,14 +20,31 @@ limitations under the License.
 package grpc_api
 
 import (
-	"github.com/cossacklabs/acra/cmd"
 	storage2 "github.com/cossacklabs/acra/pseudonymization/storage"
+	"os"
+	"strconv"
 	"testing"
 )
 
-func TestTranslator_serviceRedis(t *testing.T) {
-	redisOptions := cmd.GetTestRedisOptions(t)
-	client, err := storage2.NewRedisClient(redisOptions.HostPort, redisOptions.Password, redisOptions.DBKeys, nil)
+func TestTranslator_serviceTLSRedis(t *testing.T) {
+	redisClientTLS := newClientTLSConfig(t)
+	hostport := os.Getenv("TEST_REDIS_HOSTPORT")
+	if hostport == "" {
+		hostport = "localhost:6379"
+	}
+	password := os.Getenv("TEST_REDIS_PASSWORD")
+	if password == "" {
+		password = ""
+	}
+	dbNum := os.Getenv("TEST_REDIS_DB")
+	if dbNum == "" {
+		dbNum = "0"
+	}
+	dbInt, err := strconv.ParseInt(dbNum, 10, 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := storage2.NewRedisClient(hostport, password, int(dbInt), redisClientTLS)
 	if err != nil {
 		t.Fatal(err)
 	}

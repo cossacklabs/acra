@@ -20,6 +20,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/cossacklabs/acra/logging"
 	"os"
 
 	"github.com/cossacklabs/acra/cmd"
@@ -290,9 +291,15 @@ func (m *MigrateKeysSubcommand) openKeyStoreV2(params KeyStoreParameters) (*keys
 	if m.DryRun() {
 		backend = filesystemBackendV2.NewInMemory()
 	} else if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetFlagSet(), ""); redisOptions.KeysConfigured() {
+		redisKeyOptions, err := redisOptions.KeysOptions(params.GetFlagSet())
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
+				Errorln("Can't get Redis options")
+			return nil, err
+		}
 		config := &filesystemBackendV2.RedisConfig{
 			RootDir: params.KeyDir(),
-			Options: redisOptions.KeysOptions(),
+			Options: redisKeyOptions,
 		}
 		backend, err = filesystemBackendV2.CreateRedisBackend(config)
 		if err != nil {

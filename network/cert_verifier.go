@@ -17,7 +17,6 @@ limitations under the License.
 package network
 
 import (
-	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"flag"
@@ -48,13 +47,29 @@ var (
 	tlsCrlCacheTime                 uint
 )
 
-// registerCertVerifierArgs register CLI args tls_ocsp_url|tls_ocsp_client_url|tls_ocsp_database_url|tls_ocsp_required|tls_ocsp_from_cert|tls_ocsp_check_only_leaf_certificate|tls_crl_url|tls_crl_client_url|tls_crl_database_url|tls_crl_from_cert|tls_crl_check_only_leaf_certificate|tls_crl_cache_size|tls_crl_cache_time which allow to get CertVerifier by NewCertVerifier|NewClientCertVerifier|NewDatabaseCertVerifier functions
-func registerCertVerifierArgs(separateClientDBUrls bool) {
+// RegisterCertVerifierArgsForService register CLI args which allow to get CertVerifier by NewCertVerifier() for
+// specified service
+func RegisterCertVerifierArgsForService(flags *flag.FlagSet, serviceName string, namerFunc CLIParamNameConstructorFunc) {
+	flags.String(namerFunc(serviceName, "url", "ocsp"), "", "OCSP service URL")
+	flags.String(namerFunc(serviceName, "required", "ocsp"), OcspRequiredDenyUnknownStr,
+		fmt.Sprintf("How to treat certificates unknown to OCSP: <%s>", strings.Join(OcspRequiredValuesList, "|")))
+	flags.String(namerFunc(serviceName, "from_cert", "ocsp"), OcspFromCertPreferStr,
+		fmt.Sprintf("How to treat OCSP server described in certificate itself: <%s>", strings.Join(OcspFromCertValuesList, "|")))
+	flags.Bool(namerFunc(serviceName, "check_only_leaf_certificate", "ocsp"), false,
+		"Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using OCSP")
+	flags.String(namerFunc(serviceName, "url", "crl"), "", "URL of the Certificate Revocation List (CRL) to use")
+	flags.String(namerFunc(serviceName, "from_cert", "crl"), CrlFromCertPreferStr,
+		fmt.Sprintf("How to treat CRL URL described in certificate itself: <%s>", strings.Join(CrlFromCertValuesList, "|")))
+	flags.Bool(namerFunc(serviceName, "check_only_leaf_certificate", "crl"), false,
+		"Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using CRL")
+	flags.Uint(namerFunc(serviceName, "cache_size", "crl"), CrlDefaultCacheSize, "How many CRLs to cache in memory (use 0 to disable caching)")
+	flags.Uint(namerFunc(serviceName, "cache_time", "crl"), CrlDisableCacheTime,
+		fmt.Sprintf("How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: %d s)", CrlCacheTimeMax))
+}
+
+// RegisterCertVerifierArgs register CLI args which allow to get CertVerifier by NewCertVerifier()
+func RegisterCertVerifierArgs() {
 	flag.StringVar(&tlsOcspURL, "tls_ocsp_url", "", "OCSP service URL")
-	if separateClientDBUrls {
-		flag.StringVar(&tlsOcspClientURL, "tls_ocsp_client_url", "", "OCSP service URL, for client/connector certificates only")
-		flag.StringVar(&tlsOcspDbURL, "tls_ocsp_database_url", "", "OCSP service URL, for database certificates only")
-	}
 	flag.StringVar(&tlsOcspRequired, "tls_ocsp_required", OcspRequiredDenyUnknownStr,
 		fmt.Sprintf("How to treat certificates unknown to OCSP: <%s>", strings.Join(OcspRequiredValuesList, "|")))
 	flag.StringVar(&tlsOcspFromCert, "tls_ocsp_from_cert", OcspFromCertPreferStr,
@@ -62,10 +77,6 @@ func registerCertVerifierArgs(separateClientDBUrls bool) {
 	flag.BoolVar(&tlsOcspCheckOnlyLeafCertificate, "tls_ocsp_check_only_leaf_certificate", false,
 		"Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using OCSP")
 	flag.StringVar(&tlsCrlURL, "tls_crl_url", "", "URL of the Certificate Revocation List (CRL) to use")
-	if separateClientDBUrls {
-		flag.StringVar(&tlsCrlClientURL, "tls_crl_client_url", "", "URL of the Certificate Revocation List (CRL) to use, for client/connector certificates only")
-		flag.StringVar(&tlsCrlDbURL, "tls_crl_database_url", "", "URL of the Certificate Revocation List (CRL) to use, for database certificates only")
-	}
 	flag.StringVar(&tlsCrlFromCert, "tls_crl_from_cert", CrlFromCertPreferStr,
 		fmt.Sprintf("How to treat CRL URL described in certificate itself: <%s>", strings.Join(CrlFromCertValuesList, "|")))
 	flag.BoolVar(&tlsCrlCheckOnlyLeafCertificate, "tls_crl_check_only_leaf_certificate", false,
@@ -73,16 +84,6 @@ func registerCertVerifierArgs(separateClientDBUrls bool) {
 	flag.UintVar(&tlsCrlCacheSize, "tls_crl_cache_size", CrlDefaultCacheSize, "How many CRLs to cache in memory (use 0 to disable caching)")
 	flag.UintVar(&tlsCrlCacheTime, "tls_crl_cache_time", CrlDisableCacheTime,
 		fmt.Sprintf("How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: %d s)", CrlCacheTimeMax))
-}
-
-// RegisterCertVerifierArgs register CLI args which allow to get CertVerifier by NewCertVerifier()
-func RegisterCertVerifierArgs() {
-	registerCertVerifierArgs(false)
-}
-
-// RegisterCertVerifierArgsWithSeparateClientAndDatabase register CLI args which allow to get CertVerifier by NewClientCertVerifier() or NewDatabaseCertVerifier()
-func RegisterCertVerifierArgsWithSeparateClientAndDatabase() {
-	registerCertVerifierArgs(true)
 }
 
 // CertVerifier is a generic certificate verifier
@@ -104,70 +105,6 @@ func NewCertVerifier() (CertVerifier, error) {
 	}
 
 	crlConfig, err := NewCRLConfig(tlsCrlURL, tlsCrlFromCert, tlsCrlCheckOnlyLeafCertificate, tlsCrlCacheSize, tlsCrlCacheTime)
-	if err != nil {
-		return nil, err
-	}
-
-	return NewCertVerifierFromConfigs(ocspConfig, crlConfig)
-}
-
-// NewClientCertVerifier creates a CertVerifier based on passed OCSP and CRL command line flags.
-// Prioritizes `--tls_{ocsp,crl}_client_url` over `--tls_{ocsp,crl}_url`, ignores `--tls_{ocsp,crl}_database_url`.
-// For usage on server side, to verify certificates that come from clients.
-func NewClientCertVerifier(clientAuthType int) (CertVerifier, error) {
-	var ocspURL, crlURL string
-
-	if tlsOcspClientURL != "" {
-		ocspURL = tlsOcspClientURL
-	} else {
-		ocspURL = tlsOcspURL
-	}
-
-	if tlsCrlClientURL != "" {
-		crlURL = tlsCrlClientURL
-	} else {
-		crlURL = tlsCrlURL
-	}
-
-	ocspConfig, err := NewOCSPConfig(ocspURL, tlsOcspRequired, tlsOcspFromCert, tlsOcspCheckOnlyLeafCertificate)
-	if err != nil {
-		return nil, err
-	}
-	ocspConfig.ClientAuthType = tls.ClientAuthType(clientAuthType)
-
-	crlConfig, err := NewCRLConfig(crlURL, tlsCrlFromCert, tlsCrlCheckOnlyLeafCertificate, tlsCrlCacheSize, tlsCrlCacheTime)
-	if err != nil {
-		return nil, err
-	}
-	crlConfig.ClientAuthType = tls.ClientAuthType(clientAuthType)
-
-	return NewCertVerifierFromConfigs(ocspConfig, crlConfig)
-}
-
-// NewDatabaseCertVerifier creates a CertVerifier based on passed OCSP and CRL command line flags.
-// Prioritizes `--tls_{ocsp,crl}_database_url` over `--tls_{ocsp,crl}_url`, ignores `--tls_{ocsp,crl}_client_url`.
-// For usage on client side, to verify certificates that come from servers (i.e. database).
-func NewDatabaseCertVerifier() (CertVerifier, error) {
-	var ocspURL, crlURL string
-
-	if tlsOcspDbURL != "" {
-		ocspURL = tlsOcspDbURL
-	} else {
-		ocspURL = tlsOcspURL
-	}
-
-	if tlsCrlDbURL != "" {
-		crlURL = tlsCrlDbURL
-	} else {
-		crlURL = tlsCrlURL
-	}
-
-	ocspConfig, err := NewOCSPConfig(ocspURL, tlsOcspRequired, tlsOcspFromCert, tlsOcspCheckOnlyLeafCertificate)
-	if err != nil {
-		return nil, err
-	}
-
-	crlConfig, err := NewCRLConfig(crlURL, tlsCrlFromCert, tlsCrlCheckOnlyLeafCertificate, tlsCrlCacheSize, tlsCrlCacheTime)
 	if err != nil {
 		return nil, err
 	}

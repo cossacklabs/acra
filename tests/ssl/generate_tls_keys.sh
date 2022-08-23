@@ -109,7 +109,9 @@ gen_crl() {
         -out "${OUT_DIR}/$signer/crl.pem"
 }
 
-declare -a names=("mysql" "postgresql" "acra-writer" "acra-writer-2" "acra-writer-revoked" "acra-server" "ocsp-responder" "intermediate-ca" "vault" 'acra-client')
+declare -a names=(mysql postgresql acra-writer acra-writer-2 
+    acra-writer-revoked acra-server ocsp-responder intermediate-ca vault 
+    acra-client redis)
 for name in "${names[@]}"; do
     gen_cert ca $name
 

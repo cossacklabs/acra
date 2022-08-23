@@ -1,5 +1,5 @@
-//go:build integration && redis
-// +build integration,redis
+//go:build integration && redis && !tls
+// +build integration,redis,!tls
 
 /*
  * Copyright 2020, Cossack Labs Limited
@@ -20,14 +20,13 @@
 package backend
 
 import (
-	"os"
-	"strconv"
+	"github.com/cossacklabs/acra/cmd"
+	"github.com/go-redis/redis/v7"
 	"testing"
 	"time"
 
 	"github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend/api"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend/api/tests"
-	"github.com/go-redis/redis/v7"
 )
 
 // Tweak these constants if your Redis testing setup is not the default one.
@@ -38,21 +37,18 @@ import (
 // Note that the tests do not clean up the database after running, so either
 // restart it or delete everything under `testRootDir` before the next run.
 const (
-	redisAddress  = "localhost:6379" // TEST_REDIS_HOSTPORT
-	redisPassword = ""               // TEST_REDIS_PASSWORD
-	redisDatabase = 0                // TEST_REDIS_DB
-
 	testRootDir = "keystore-v2-test"
 )
 
 func TestRedis(t *testing.T) {
+	redisOptions := cmd.GetTestRedisOptions(t)
 	tests.TestBackend(t, func(t *testing.T) api.Backend {
 		config := &RedisConfig{
 			RootDir: testRootDir + "/" + time.Now().Format(time.RFC3339Nano),
 			Options: &redis.Options{
-				Addr:     redisAddress,
-				Password: redisPassword,
-				DB:       redisDatabase,
+				Addr:     redisOptions.HostPort,
+				Password: redisOptions.Password,
+				DB:       redisOptions.DBKeys,
 			},
 		}
 		backend, err := CreateRedisBackend(config)
@@ -61,24 +57,4 @@ func TestRedis(t *testing.T) {
 		}
 		return backend
 	})
-}
-
-func redisOptions() *redis.Options {
-	address := os.Getenv("TEST_REDIS_HOSTPORT")
-	if address == "" {
-		address = redisAddress
-	}
-	password := os.Getenv("TEST_REDIS_PASSWORD")
-	if password == "" {
-		password = redisPassword
-	}
-	database, err := strconv.Atoi(os.Getenv("TEST_REDIS_DB"))
-	if err != nil {
-		database = redisDatabase
-	}
-	return &redis.Options{
-		Addr:     address,
-		Password: password,
-		DB:       database,
-	}
 }
