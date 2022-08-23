@@ -41,7 +41,6 @@ import (
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/themis/gothemis/keys"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
@@ -162,7 +161,6 @@ func main() {
 	connectionString := flag.String("connection_string", "", "Connection string for db")
 	sqlSelect := flag.String("select", "", "Query to fetch data for decryption")
 	sqlInsert := flag.String("insert", "", "Query for insert decrypted data with placeholders (pg: $n, mysql: ?)")
-	withZone := flag.Bool("zonemode_enable", false, "Turn on zone mode")
 	outputFile := flag.String("output_file", "decrypted.sql", "File for store inserts queries")
 	execute := flag.Bool("execute", false, "Execute inserts")
 	escapeFormat := flag.Bool("escape", false, "Escape bytea format")
@@ -268,31 +266,19 @@ func main() {
 	}
 
 	for i := 0; rows.Next(); i++ {
-		var data, zone []byte
-		var privateKeys []*keys.PrivateKey
-		if *withZone {
-			err = rows.Scan(&zone, &data)
-			if err != nil {
-				ErrorExit("Can't read zone & data from row %v", err)
-			}
-			privateKeys, err = keystorage.GetZonePrivateKeys(zone)
-			if err != nil {
-				log.WithError(err).Errorf("Can't get zone private key for row with number %v", i)
-				continue
-			}
-		} else {
-			err = rows.Scan(&data)
-			if err != nil {
-				ErrorExit("Can't read data from row", err)
-			}
-			privateKeys, err = keystorage.GetServerDecryptionPrivateKeys([]byte(*clientID))
-			if err != nil {
-				log.WithError(err).Errorf("Can't get private key for row with number %v", i)
-				continue
-			}
+		var data []byte
+		err = rows.Scan(&data)
+		if err != nil {
+			ErrorExit("Can't read data from row", err)
 		}
-		defer utils.ZeroizePrivateKeys(privateKeys)
-		decrypted, err := acrastruct.DecryptRotatedAcrastruct(data, privateKeys, zone)
+		privateKeys, err := keystorage.GetServerDecryptionPrivateKeys([]byte(*clientID))
+		if err != nil {
+			log.WithError(err).Errorf("Can't get private key for row with number %v", i)
+			continue
+		}
+
+		decrypted, err := acrastruct.DecryptRotatedAcrastruct(data, privateKeys, nil)
+		utils.ZeroizePrivateKeys(privateKeys)
 		if err != nil {
 			log.WithError(err).Errorf("Can't decrypt acrastruct in row with number %v", i)
 			continue

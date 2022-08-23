@@ -4081,7 +4081,7 @@ class TestAcraRollback(BaseTestCase):
                 print(exc.stdout, file=sys.stdout)
             raise
 
-    def test_without_zone_to_file(self):
+    def test_to_file(self):
         server_public1 = read_storage_public_key(TLS_CERT_CLIENT_ID_1, KEYS_FOLDER.name)
 
         rows = []
@@ -4112,46 +4112,7 @@ class TestAcraRollback(BaseTestCase):
         for data in result:
             self.assertIn(data[0], source_data)
 
-    def test_with_zone_to_file(self):
-        zone_public = b64decode(zones[0][ZONE_PUBLIC_KEY].encode('ascii'))
-        rows = []
-        for _ in range(self.DATA_COUNT):
-            data = get_pregenerated_random_data()
-            row = {
-                'raw_data': data,
-                'data': create_acrastruct(
-                    data.encode('ascii'), zone_public,
-                    context=zones[0][ZONE_ID].encode('ascii')),
-                'id': get_random_id()
-            }
-            rows.append(row)
-        self.engine_raw.execute(test_table.insert(), rows)
-        if TEST_MYSQL:
-            select_query = '--select=select \'{id}\', data from {table};'.format(
-                 id=zones[0][ZONE_ID], table=test_table.name)
-        else:
-            select_query = '--select=select \'{id}\'::bytea, data from {table};'.format(
-                 id=zones[0][ZONE_ID], table=test_table.name)
-        args = [
-             select_query,
-             '--zonemode_enable=true',
-             '--insert=insert into {} values({});'.format(
-                 acrarollback_output_table.name, self.placeholder)
-        ]
-        self.run_acrarollback(args)
-
-        # execute file
-        with open(self.output_filename, 'r') as f:
-            for line in f:
-                self.engine_raw.execute(line)
-
-        source_data = set([i['raw_data'].encode('ascii') for i in rows])
-        result = self.engine_raw.execute(acrarollback_output_table.select())
-        result = result.fetchall()
-        for data in result:
-            self.assertIn(data[0], source_data)
-
-    def test_without_zone_execute(self):
+    def test_execute(self):
         server_public1 = read_storage_public_key(TLS_CERT_CLIENT_ID_1, KEYS_FOLDER.name)
 
         rows = []
@@ -4168,42 +4129,6 @@ class TestAcraRollback(BaseTestCase):
         args = [
             '--execute=true',
             '--select=select data from {};'.format(test_table.name),
-            '--insert=insert into {} values({});'.format(
-                acrarollback_output_table.name, self.placeholder)
-        ]
-        self.run_acrarollback(args)
-
-        source_data = set([i['raw_data'].encode('ascii') for i in rows])
-        result = self.engine_raw.execute(acrarollback_output_table.select())
-        result = result.fetchall()
-        for data in result:
-            self.assertIn(data[0], source_data)
-
-    def test_with_zone_execute(self):
-        zone_public = b64decode(zones[0][ZONE_PUBLIC_KEY].encode('ascii'))
-        rows = []
-        for _ in range(self.DATA_COUNT):
-            data = get_pregenerated_random_data()
-            row = {
-                'raw_data': data,
-                'data': create_acrastruct(
-                    data.encode('ascii'), zone_public,
-                    context=zones[0][ZONE_ID].encode('ascii')),
-                'id': get_random_id()
-            }
-            rows.append(row)
-        self.engine_raw.execute(test_table.insert(), rows)
-
-        if TEST_MYSQL:
-            select_query = '--select=select \'{id}\', data from {table};'.format(
-                 id=zones[0][ZONE_ID], table=test_table.name)
-        else:
-            select_query = '--select=select \'{id}\'::bytea, data from {table};'.format(
-                 id=zones[0][ZONE_ID], table=test_table.name)
-        args = [
-            '--execute=true',
-            select_query,
-            '--zonemode_enable=true',
             '--insert=insert into {} values({});'.format(
                 acrarollback_output_table.name, self.placeholder)
         ]
