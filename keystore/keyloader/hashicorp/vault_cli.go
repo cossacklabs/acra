@@ -3,6 +3,8 @@ package hashicorp
 import (
 	"errors"
 	"flag"
+	"strconv"
+
 	"github.com/hashicorp/vault/api"
 	log "github.com/sirupsen/logrus"
 )
@@ -61,13 +63,9 @@ func ParseCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *VaultCLIOp
 		options.ClientKey = f.Value.String()
 	}
 	if f := flags.Lookup(prefix + "vault_tls_transport_enable"); f != nil {
-		getter, ok := f.Value.(flag.Getter)
-		if !ok {
-			log.Fatal("Can't cast flag's Value to Getter")
-		}
-		val, ok := getter.Get().(bool)
-		if !ok {
-			log.WithField("value", getter.Get()).Fatalf("Can't cast %s to bool value", prefix+"vault_tls_transport_enable")
+		val, err := strconv.ParseBool(f.Value.String())
+		if err != nil {
+			log.WithField("value", f.Value.String()).Fatalf("Can't cast %s to bool value", prefix+"vault_tls_transport_enable")
 		}
 		options.EnableTLS = val
 	}
