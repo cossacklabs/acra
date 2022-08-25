@@ -3,7 +3,6 @@ package kms
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"os"
 	"testing"
 
 	"github.com/cossacklabs/acra/keystore"
@@ -21,8 +20,7 @@ func TestSuccessMasterKeyLoading(t *testing.T) {
 
 	masterKey := base64.StdEncoding.EncodeToString(key)
 
-	os.Setenv(keystore.AcraMasterKeyVarName, masterKey)
-	defer os.Unsetenv(keystore.AcraMasterKeyVarName)
+	t.Setenv(keystore.AcraMasterKeyVarName, masterKey)
 
 	kmsKeyManager.On("ID").Return("mocked KMS encryptor")
 	kmsKeyManager.On("Decrypt", mock.Anything, []byte(AcraMasterKeyKEKID), key, []byte(nil)).Return([]byte(masterKey), nil)
