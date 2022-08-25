@@ -21,11 +21,11 @@ import (
 	"errors"
 )
 
-// KeyIDFileMap store dependencies between zone ids and file paths that was encrypted with this zone
+// KeyIDFileMap store dependencies between key ids and file paths that was encrypted with this clientID
 type KeyIDFileMap map[string][]string
 
 // ErrIncorrectConfigFormat is the error when user pass config with incorrect json format
-var ErrIncorrectConfigFormat = errors.New("config must have json format {\"zoneId_or_clientId1\": pathToFileStr, \"zoneId_or_clientId2\": [pathToFileStr, pathToFileStr]}")
+var ErrIncorrectConfigFormat = errors.New("config must have json format {\"ClientId_or_clientId1\": pathToFileStr, \"ClientId_or_clientId2\": [pathToFileStr, pathToFileStr]}")
 
 // ParseConfig parse json config and convert string values to slice of strings to accept both variants of value
 func ParseConfig(configData []byte) (KeyIDFileMap, error) {

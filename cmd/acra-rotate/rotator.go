@@ -38,11 +38,10 @@ type RotateStorageKeyStore interface {
 type keyRotator struct {
 	keystore    RotateStorageKeyStore
 	newKeypairs map[string]*keys.Keypair
-	zoneMode    bool
 }
 
-func newRotator(store RotateStorageKeyStore, zoneMode bool) (*keyRotator, error) {
-	return &keyRotator{keystore: store, newKeypairs: make(map[string]*keys.Keypair), zoneMode: zoneMode}, nil
+func newRotator(store RotateStorageKeyStore) (*keyRotator, error) {
+	return &keyRotator{keystore: store, newKeypairs: make(map[string]*keys.Keypair)}, nil
 }
 func (rotator *keyRotator) getRotatedPublicKey(keyID []byte) (*keys.PublicKey, error) {
 	keypair, ok := rotator.newKeypairs[string(keyID)]
@@ -57,56 +56,7 @@ func (rotator *keyRotator) getRotatedPublicKey(keyID []byte) (*keys.PublicKey, e
 	return newKeypair.Public, nil
 }
 
-func (rotator *keyRotator) rotateAcrastructWithZone(zoneID, data []byte) ([]byte, error) {
-	logger := log.WithFields(log.Fields{"ZoneId": string(zoneID)})
-	logger.Infof("Rotate AcraStruct")
-	// rotate
-	handler, err := crypto.GetHandlerByEnvelopeID(crypto.AcraStructEnvelopeID)
-	if err != nil {
-		log.WithError(err).Errorln("Can't load handler by envelope ID")
-		return nil, err
-	}
-	accessContext := base.NewAccessContext(base.WithZoneMode(true))
-	accessContext.SetZoneID(zoneID)
-	dataContext := &base.DataProcessorContext{Keystore: rotator.keystore,
-		Context: base.SetAccessContextToContext(context.Background(), accessContext)}
-	acrastruct, envelopeID, err := crypto.DeserializeEncryptedData(data)
-	if err != nil {
-		logger.WithError(err).Errorln("Can't deserialize container")
-		return nil, err
-	}
-	if envelopeID != crypto.AcraStructEnvelopeID {
-		logger.WithField("envelope_id", envelopeID).WithError(err).Errorln("Incorrect envelope ID in container, not AcraStruct")
-		return nil, err
-	}
-	decrypted, err := handler.Decrypt(acrastruct, dataContext)
-	if err != nil {
-		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't decrypt AcraStruct")
-		return nil, err
-	}
-	defer utils.ZeroizeBytes(decrypted)
-	publicKey, err := rotator.getRotatedPublicKey(zoneID)
-	if err != nil {
-		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't load public key")
-		return nil, err
-	}
-	rotated, err := acrastruct2.CreateAcrastruct(decrypted, publicKey, zoneID)
-	if err != nil {
-		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't rotate data")
-		return nil, err
-	}
-	rotated, err = crypto.SerializeEncryptedData(rotated, crypto.AcraStructEnvelopeID)
-	if err != nil {
-		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't serialize data")
-		return nil, err
-	}
-	return rotated, nil
-}
-
 func (rotator *keyRotator) rotateAcrastruct(id, acrastruct []byte) ([]byte, error) {
-	if rotator.zoneMode {
-		return rotator.rotateAcrastructWithZone(id, acrastruct)
-	}
 	return rotator.rotateAcrastructWithClientID(id, acrastruct)
 }
 
@@ -156,9 +106,6 @@ func (rotator *keyRotator) rotateAcrastructWithClientID(clientID, data []byte) (
 }
 
 func (rotator *keyRotator) saveRotatedKey(id []byte, keypair *keys.Keypair) error {
-	if rotator.zoneMode {
-		return rotator.keystore.SaveZoneKeypair(id, keypair)
-	}
 	return rotator.keystore.SaveDataEncryptionKeys(id, keypair)
 }
 
@@ -166,7 +113,6 @@ func (rotator *keyRotator) saveRotatedKeys() error {
 	for id, keypair := range rotator.newKeypairs {
 		if err := rotator.saveRotatedKey([]byte(id), keypair); err != nil {
 			log.WithField("key_id", id).
-				WithField("zone_mode", rotator.zoneMode).
 				WithError(err).Errorln("Can't save rotated keypair")
 			return err
 		}
@@ -184,7 +130,7 @@ func (rotator *keyRotator) marshal() ([]byte, error) {
 	const PublicKey = "new_public_key"
 	output := make(map[string]map[string][]byte)
 	for id, keypair := range rotator.newKeypairs {
-		output[string(id)] = map[string][]byte{PublicKey: keypair.Public.Value}
+		output[id] = map[string][]byte{PublicKey: keypair.Public.Value}
 	}
 	return json.Marshal(output)
 }
