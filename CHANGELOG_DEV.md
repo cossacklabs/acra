@@ -4,6 +4,7 @@
   - CRL: `--tls_crl_client_cache_size`, `--tls_crl_client_cache_time`, `--tls_crl_client_check_only_leaf_certificate`, `--tls_crl_client_from_cert`, `--tls_crl_database_cache_size`, `--tls_crl_database_cache_time`, `--tls_crl_database_check_only_leaf_certificate`, `--tls_crl_database_from_cert`, `--tls_ocsp_client_check_only_leaf_certificate`
   - OCSP: `--tls_ocsp_client_check_only_leaf_certificate`, `--tls_ocsp_client_from_cert`, `--tls_ocsp_client_required`, `--tls_ocsp_database_check_only_leaf_certificate`, `--tls_ocsp_database_from_cert`, `--tls_ocsp_database_required`
 - Updated `go` version in `go.mod` to 1.17.
+- Replace `os.Setenv` with `t.Setenv` in tests.
 
 # 0.94.0 - 2022-08-03
 - Fixed reloading on SIGHUP signal

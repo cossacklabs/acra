@@ -41,7 +41,7 @@ func TestRotateSymmetricZoneKey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	os.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
+	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
 	dirName, err := ioutil.TempDir("", "")
 	if err != nil {

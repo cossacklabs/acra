@@ -19,13 +19,13 @@ package keys
 import (
 	"encoding/base64"
 	"flag"
-	"github.com/cossacklabs/acra/keystore/keyloader"
 	"io"
 	"io/ioutil"
 	"os"
 	"testing"
 
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/keystore/keyloader"
 	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 )
@@ -53,7 +53,7 @@ func TestReadCMD_FS_V2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	os.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
+	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
 	t.Run("read storage-public key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
@@ -146,7 +146,7 @@ func TestReadCMD_FS_V1(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	os.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
+	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
 	dirName, err := ioutil.TempDir("", "")
 	if err != nil {
