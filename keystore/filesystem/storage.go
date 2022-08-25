@@ -65,12 +65,15 @@ type Storage interface {
 // DummyStorage keeps key files in filesystem directories.
 type DummyStorage struct{ FileStorage }
 
+// FileStorage is implementation of Storage interface for filesystem
 type FileStorage struct{}
 
+// Stat implementation of Storage interface
 func (*FileStorage) Stat(path string) (os.FileInfo, error) {
 	return os.Stat(path)
 }
 
+// Exists implementation of Storage interface
 func (*FileStorage) Exists(path string) (bool, error) {
 	_, err := os.Stat(path)
 	if err == nil {
@@ -82,18 +85,22 @@ func (*FileStorage) Exists(path string) (bool, error) {
 	return false, err
 }
 
+// ReadDir implementation of Storage interface
 func (*FileStorage) ReadDir(path string) ([]os.FileInfo, error) {
 	return ioutil.ReadDir(path)
 }
 
+// MkdirAll implementation of Storage interface
 func (*FileStorage) MkdirAll(path string, perm os.FileMode) error {
 	return os.MkdirAll(path, perm)
 }
 
+// Rename implementation of Storage interface
 func (*FileStorage) Rename(oldpath, newpath string) error {
 	return os.Rename(oldpath, newpath)
 }
 
+// TempFile implementation of Storage interface
 func (*FileStorage) TempFile(pattern string, perm os.FileMode) (string, error) {
 	tmp, err := ioutil.TempFile(filepath.Dir(pattern), filepath.Base(pattern))
 	if err != nil {
@@ -107,6 +114,7 @@ func (*FileStorage) TempFile(pattern string, perm os.FileMode) (string, error) {
 	return tmp.Name(), nil
 }
 
+// TempDir implementation of Storage interface
 func (*FileStorage) TempDir(pattern string, perm os.FileMode) (string, error) {
 	path, err := ioutil.TempDir(filepath.Dir(pattern), filepath.Base(pattern))
 	if err != nil {
@@ -120,10 +128,12 @@ func (*FileStorage) TempDir(pattern string, perm os.FileMode) (string, error) {
 	return path, nil
 }
 
+// Link implementation of Storage interface
 func (*FileStorage) Link(oldpath, newpath string) error {
 	return os.Link(oldpath, newpath)
 }
 
+// Copy implementation of Storage interface
 func (*FileStorage) Copy(src, dst string) error {
 	srcFile, err := os.Open(src)
 	if err != nil {
@@ -161,18 +171,22 @@ func (*FileStorage) Copy(src, dst string) error {
 	return err
 }
 
+// ReadFile implementation of Storage interface
 func (*FileStorage) ReadFile(path string) ([]byte, error) {
 	return ioutil.ReadFile(path)
 }
 
+// WriteFile implementation of Storage interface
 func (*FileStorage) WriteFile(path string, data []byte, perm os.FileMode) error {
 	return ioutil.WriteFile(path, data, perm)
 }
 
+// Remove implementation of Storage interface
 func (*FileStorage) Remove(path string) error {
 	return os.Remove(path)
 }
 
+// RemoveAll implementation of Storage interface
 func (*FileStorage) RemoveAll(path string) error {
 	return os.RemoveAll(path)
 }

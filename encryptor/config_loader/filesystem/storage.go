@@ -11,6 +11,7 @@ import (
 // StorageCreator implement config_loader.EncryptorConfigStorage via filesystem
 type StorageCreator struct{}
 
+// NewStorage create new filesystem encryptor.ConfigStorage
 func (s StorageCreator) NewStorage(flags *flag.FlagSet, prefix string) (encryptor.ConfigStorage, error) {
 	cliOptions := ParseCLIParametersFromFlags(flags, prefix)
 
@@ -20,8 +21,8 @@ func (s StorageCreator) NewStorage(flags *flag.FlagSet, prefix string) (encrypto
 	}, nil
 }
 
-// StorageConfigured check weather CLI flag for filesystem using was provided
-func (s StorageCreator) StorageConfigured(flags *flag.FlagSet, prefix string) bool {
+// IsStorageConfigured check weather CLI flag for filesystem using was provided
+func (s StorageCreator) IsStorageConfigured(flags *flag.FlagSet, prefix string) bool {
 	if cliOptions := ParseCLIParametersFromFlags(flags, prefix); cliOptions.EncryptorConfigFile != "" {
 		return true
 	}

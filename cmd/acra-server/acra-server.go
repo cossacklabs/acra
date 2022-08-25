@@ -242,7 +242,7 @@ func realMain() error {
 	}
 	serverConfig.SetDBConnectionSettings(*dbHost, *dbPort)
 
-	if config_loader.EncryptorConfigLoaderCLIConfigured() {
+	if config_loader.IsEncryptorConfigLoaderCLIConfigured() {
 		if err := serverConfig.LoadMapTableSchemaConfig(*encryptorConfigStorageType); err != nil {
 			log.WithError(err).Errorln("Can't load encryptor config")
 			return err

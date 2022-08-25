@@ -14,8 +14,8 @@ import (
 // StorageCreator implement config_loader.EncryptorConfigStorage via Hashicorp Consul Backend
 type StorageCreator struct{}
 
-// StorageConfigured check weather CLI flag for Consul using was provided
-func (s StorageCreator) StorageConfigured(flags *flag.FlagSet, prefix string) bool {
+// IsStorageConfigured check weather CLI flag for Consul using was provided
+func (s StorageCreator) IsStorageConfigured(flags *flag.FlagSet, prefix string) bool {
 	if cliOptions := ParseCLIParametersFromFlags(flags, prefix); cliOptions.Address != "" {
 		return true
 	}
@@ -40,6 +40,13 @@ func (s StorageCreator) NewStorage(flags *flag.FlagSet, prefix string) (encrypto
 		Address: consulURL.Host,
 		Scheme:  consulURL.Scheme,
 	}
+
+	if cliOptions.EnableTLS {
+		log.Infoln("Configuring TLS connection to HashiCorp Consul")
+
+		config.TLSConfig = cliOptions.TLSConfig()
+	}
+
 	client, err := api.NewClient(&config)
 	if err != nil {
 		return Storage{}, err

@@ -200,10 +200,11 @@ jobs:
       - store_artifacts:
           path: /home/user/tests_output
 
-  postgresql-master-key-loaders:
+  postgresql-integrations:
     docker:
       - image: cossacklabs/ci-py-go-themis:0.93.0
       - image: nsmithuk/local-kms:3.11.2
+      - image: consul:1.13
       - image: cossacklabs/postgresql-ssl:11-1
         environment:
           POSTGRES_PASSWORD: test
@@ -225,9 +226,10 @@ jobs:
       TEST_TLS: "on"
       TEST_WITH_VAULT: "on"
       TEST_WITH_AWS_KMS: "on"
+      TEST_CONSUL_ENCRYPTOR_CONFIG: "on"
       VAULT_API_TOKEN: cm9vdF90b2tlbgo= # base64 of the root_token
       TEST_POSTGRESQL: "off"
-      TEST_NAME_PATTERN: "MasterKeyLoader"
+      TEST_NAME_PATTERN: "MasterKeyLoader,Consul"
       TEST_BINARY_OUTPUT_FOLDER: /tmp/acra-binaries
     steps:
       # prepare
@@ -257,7 +259,7 @@ jobs:
           path: /home/user/tests_output
 
 
-  postgresql-vault-ssl:
+  postgresql-integrations-ssl:
     docker:
       - image: cossacklabs/ci-py-go-themis:0.93.0
       - image: cossacklabs/postgresql-ssl:11-1
@@ -270,6 +272,9 @@ jobs:
           VAULT_LOCAL_CONFIG: '{"listener": [{"tcp":{"address": "0.0.0.0:8201","tls_disable":"0", "tls_cert_file":"/data/vault-volume/vault_crt.pem", "tls_key_file":"/data/vault-volume/vault_key.pem"}}], "default_lease_ttl": "168h", "max_lease_ttl": "720h"}, "ui": true, "storage":{"file":{"path":"/vault/data"}}}'
           VAULT_TOKEN: 'root_token'
         command: server -dev -dev-root-token-id="root_token"
+      - image: cossacklabs/consul-ssl:1.13
+        environment:
+          CONSUL_LOCAL_CONFIG: '{"verify_incoming":true,"verify_outgoing":true,"verify_server_hostname":false,"ca_file":"/data/consul-volume/root.crt","cert_file":"/data/consul-volume/dc1-server-consul-0.pem","key_file":"/data/consul-volume/dc1-server-consul-0-key.pem","ports":{"http":-1,"https":8501}}'
     environment:
       TEST_DB_USER: test
       TEST_DB_USER_PASSWORD: test
@@ -281,10 +286,12 @@ jobs:
       TEST_TLS: "on"
       TEST_WITH_VAULT: "on"
       TEST_SSL_VAULT: "on"
+      TEST_SSL_CONSUL: "on"
+      TEST_CONSUL_ENCRYPTOR_CONFIG: "on"
       VAULT_ADDRESS: https://localhost:8201/
       VAULT_API_TOKEN: cm9vdF90b2tlbgo= # base64 of the root_token
       TEST_POSTGRESQL: "off"
-      TEST_NAME_PATTERN: "VaultMasterKeyLoader"
+      TEST_NAME_PATTERN: "Consul,Vault"
       TEST_BINARY_OUTPUT_FOLDER: /tmp/acra-binaries
     steps:
       # prepare
@@ -580,10 +587,10 @@ workflows:
       - mariadb-ssl:
           requires:
             - build_binaries
-      - postgresql-master-key-loaders:
+      - postgresql-integrations:
           requires:
             - build_binaries
-      - postgresql-vault-ssl:
+      - postgresql-integrations-ssl:
           requires:
             - build_binaries
       - build_image

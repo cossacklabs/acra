@@ -28,10 +28,11 @@ var (
 	lock                              = sync.Mutex{}
 )
 
+// EncryptorConfigStorageCreator describe interface for creating EncryptorConfigStorage
 type EncryptorConfigStorageCreator interface {
 	NewStorage(flags *flag.FlagSet, prefix string) (encryptor.ConfigStorage, error)
 	RegisterCLIParameters(flags *flag.FlagSet, prefix, description string)
-	StorageConfigured(flags *flag.FlagSet, prefix string) bool
+	IsStorageConfigured(flags *flag.FlagSet, prefix string) bool
 }
 
 var configStorageCreators = map[string]EncryptorConfigStorageCreator{}
@@ -94,10 +95,10 @@ func RegisterEncryptorConfigLoaderCLIWithFlags(flag *flag.FlagSet, prefix, descr
 	}
 }
 
-// EncryptorConfigLoaderCLIConfiguredWithFlags register flags for all fabrics
-func EncryptorConfigLoaderCLIConfiguredWithFlags(flag *flag.FlagSet, prefix string) bool {
+// IsEncryptorConfigLoaderCLIConfiguredWithFlags check weather CLI ConfigStorage flags of FlagSet were configured
+func IsEncryptorConfigLoaderCLIConfiguredWithFlags(flag *flag.FlagSet, prefix string) bool {
 	for _, v := range configStorageCreators {
-		if ok := v.StorageConfigured(flag, prefix); ok {
+		if ok := v.IsStorageConfigured(flag, prefix); ok {
 			return true
 		}
 	}
@@ -110,7 +111,7 @@ func RegisterEncryptorConfigLoaderParameters() {
 	RegisterEncryptorConfigLoaderCLIWithFlags(flag.CommandLine, "", "")
 }
 
-// EncryptorConfigLoaderCLIConfigured check weather CLI flags were configured
-func EncryptorConfigLoaderCLIConfigured() bool {
-	return EncryptorConfigLoaderCLIConfiguredWithFlags(flag.CommandLine, "")
+// IsEncryptorConfigLoaderCLIConfigured check weather CLI ConfigStorage flags were configured
+func IsEncryptorConfigLoaderCLIConfigured() bool {
+	return IsEncryptorConfigLoaderCLIConfiguredWithFlags(flag.CommandLine, "")
 }

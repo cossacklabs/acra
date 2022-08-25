@@ -59,11 +59,19 @@ for go_version in $GO_VERSIONS; do
 
     echo "-------------------- Testing with TEST_TLS=${TEST_TLS}"
 
-    run_test_cmd='timeout ${TEST_RUN_TIMEOUT} python3 tests/test.py -v | tee "${LOG_OUTPUT}";'
+    run_test_cmd='timeout ${TEST_RUN_TIMEOUT} python3 tests/test.py -v'
     if [[ -n "${TEST_NAME_PATTERN}" ]]; then
-        run_test_cmd='timeout ${TEST_RUN_TIMEOUT} python3 tests/test.py -v -k "${TEST_NAME_PATTERN}" | tee "${LOG_OUTPUT}";'
+        export IFS=","
+        PATTERNS_DEFS=""
+
+        for pattern in $TEST_NAME_PATTERN; do
+          PATTERNS_DEFS="$PATTERNS_DEFS -k $pattern"
+        done
+
+        run_test_cmd+="${PATTERNS_DEFS}"
     fi
 
+    run_test_cmd+='| tee "${LOG_OUTPUT}";'
     for iteration in {1..3}; do
         context="${iteration}-golang-${go_version}-tls-${TEST_TLS}"
         export TEST_XMLOUTPUT="${TEST_OUTPUT_FOLDER}/${context}.xml"

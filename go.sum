@@ -205,8 +205,6 @@ github.com/go-playground/universal-translator v0.17.0 h1:icxd5fm+REJzpZx7ZfpaD87
 github.com/go-playground/universal-translator v0.17.0/go.mod h1:UkSxE5sNxxRwHyU+Scu5vgOQjsIJAF8j9muTVoKLVtA=
 github.com/go-playground/validator/v10 v10.4.1 h1:pH2c5ADXtd66mxoE0Zm9SUhxE20r7aM3F26W0hOn+GE=
 github.com/go-playground/validator/v10 v10.4.1/go.mod h1:nlOn6nFhuKACm19sB/8EGNn9GlaMV7XkbRSipzJ0Ii4=
-github.com/go-redis/redis v6.15.6+incompatible h1:H9evprGPLI8+ci7fxQx6WNZHJSb7be8FqJQRhdQZ5Sg=
-github.com/go-redis/redis v6.15.6+incompatible/go.mod h1:NAIEuMOZ/fxfXJIrKDQDz8wamY7mA7PouImQ2Jvg6kA=
 github.com/go-redis/redis/v7 v7.0.1 h1:AVkqXtvak6eXAvqIA+0rDlh6St/M7/vaf67NEqPhP2w=
 github.com/go-redis/redis/v7 v7.0.1/go.mod h1:JDNMw23GTyLNC4GZu9njt15ctBQVn7xjRfnwdHj/Dcg=
 github.com/go-sql-driver/mysql v1.4.0/go.mod h1:zAC/RDZ24gD3HViQzih4MyKcchzm+sOG5ZlKdlhCg5w=
@@ -558,17 +556,6 @@ github.com/pborman/uuid v1.2.0/go.mod h1:X/NO0urCmaxf9VXbdlT7C2Yzkj2IKimNn4k+gtP
 github.com/performancecopilot/speed v3.0.0+incompatible/go.mod h1:/CLtqpZ5gBg1M9iaPbIdPPGyKcA8hKdoy6hAWba7Yac=
 github.com/philhofer/fwd v1.1.1 h1:GdGcTjf5RNAxwS4QLsiMzJYj5KEvPJD3Abr261yRQXQ=
 github.com/philhofer/fwd v1.1.1/go.mod h1:gk3iGcWd9+svBvR0sR+KPcfE+RNWozjowpeBVG3ZVNU=
-github.com/philippgille/gokv v0.0.0-20191001201555-5ac9a20de634/go.mod h1:OCoWPt+mbYuTO1FUVrQ2SxQU0oaaHBsn6lRhFX3JHOc=
-github.com/philippgille/gokv v0.6.0 h1:fNEx/tSwV73nzlYd3iRYB8F+SEVJNNFzH1gsaT8SK2c=
-github.com/philippgille/gokv v0.6.0/go.mod h1:tjXRFw9xDHgxLS8WJdfYotKGWp8TWqu4RdXjMDG/XBo=
-github.com/philippgille/gokv/encoding v0.0.0-20191011213304-eb77f15b9c61 h1:IgQDuUPuEFVf22mBskeCLAtvd5c9XiiJG2UYud6eGHI=
-github.com/philippgille/gokv/encoding v0.0.0-20191011213304-eb77f15b9c61/go.mod h1:SjxSrCoeYrYn85oTtroyG1ePY8aE72nvLQlw8IYwAN8=
-github.com/philippgille/gokv/redis v0.6.0 h1:pDv93IIr6Lcb+ffA+D+Z82iB3s13gvYGlz/y3LcMwW4=
-github.com/philippgille/gokv/redis v0.6.0/go.mod h1:fk4ZJfW1/CF47FzL9jly9CAPgKHMGbxDPsm7PMfam24=
-github.com/philippgille/gokv/test v0.0.0-20191011213304-eb77f15b9c61 h1:4tVyBgfpK0NSqu7tNZTwYfC/pbyWUR2y+O7mxEg5BTQ=
-github.com/philippgille/gokv/test v0.0.0-20191011213304-eb77f15b9c61/go.mod h1:EUc+s9ONc1+VOr9NUEd8S0YbGRrQd/gz/p+2tvwt12s=
-github.com/philippgille/gokv/util v0.0.0-20191011213304-eb77f15b9c61 h1:ril/jI0JgXNjPWwDkvcRxlZ09kgHXV2349xChjbsQ4o=
-github.com/philippgille/gokv/util v0.0.0-20191011213304-eb77f15b9c61/go.mod h1:2dBhsJgY/yVIkjY5V3AnDUxUbEPzT6uQ3LvoVT8TR20=
 github.com/pierrec/lz4 v1.0.2-0.20190131084431-473cd7ce01a1/go.mod h1:3/3N9NVKO0jef7pBehbT1qWhCMrIgbYNnFAZCqQ5LRc=
 github.com/pierrec/lz4 v2.0.5+incompatible/go.mod h1:pdkljMzZIN41W+lC3N2tnIh5sFi+IEE17M5jbnwPHcY=
 github.com/pierrec/lz4 v2.5.2+incompatible h1:WCjObylUIOlKy/+7Abdn34TLIkXiA4UWUMhxq9m9ZXI=

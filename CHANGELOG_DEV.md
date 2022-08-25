@@ -1,3 +1,7 @@
+# 0.94.0 - 2022-08-25
+- Add support of Hashicorp Consul for `encryptor_config loading`. 
+- Introduce new Hashicorp Consul flags: `consul_connection_api_string` and `consul_kv_config_path`.
+
 # 0.94.0 - 2022-08-18
 - Removed deprecated `--tls_db_sni` flag. Now only `--tls_database_sni` is available.
 - Added additional TLS parameters related to OCSP/CRL for connections between App<->AcraServer<->Database: 

@@ -17,11 +17,23 @@ client_id:
 # path to config
 config_file: 
 
-# Connection string (http://x.x.x.x:yyyy) for loading encryptor config from Consul
+# Connection string (http://x.x.x.x:yyyy)for loading encryptor config from HashiCorp Consul
 consul_connection_api_string: 
 
-# KV Encryptor Config Path (acra/encryptor_config) for loading encryptor config from Consul
+# KV Encryptor Config Path (acra/encryptor_config) for loading encryptor config from HashiCorp Consul
 consul_kv_config_path: acra/encryptor_config
+
+# Path to CA certificate for loading encryptor config from HashiCorp Consul
+consul_tls_ca_path: 
+
+# Path to client TLS certificate for loading encryptor config from HashiCorp Consul
+consul_tls_client_cert: 
+
+# Path to private key of the client TLS certificate for loading encryptor config from HashiCorp Consul
+consul_tls_client_key: 
+
+# Use TLS to encrypt transport with HashiCorp Consul
+consul_tls_transport_enable: false
 
 # Log everything to stderr
 d: false
