@@ -163,8 +163,6 @@ TEST_SSL_VAULT = os.environ.get('TEST_SSL_VAULT', 'off').lower() == 'on'
 TEST_SSL_CONSUL = os.environ.get('TEST_SSL_CONSUL', 'off').lower() == 'on'
 TEST_VAULT_TLS_CA = abs_path(os.environ.get('TEST_VAULT_TLS_CA', 'tests/ssl/ca/ca.crt'))
 TEST_CONSUL_TLS_CA = abs_path(os.environ.get('TEST_CONSUL_TLS_CA', 'tests/ssl/ca/ca.crt'))
-TEST_CONSUL_CLIENT_CERT = abs_path(os.environ.get('TEST_CONSUL_CLIENT_CERT', 'tests/ssl/consul/dc1-client-consul-0.pem'))
-TEST_CONSUL_CLIENT_KEY = abs_path(os.environ.get('TEST_CONSUL_CLIENT_KEY', 'tests/ssl/consul/dc1-client-consul-0-key.pem'))
 VAULT_KV_ENGINE_VERSION=os.environ.get('VAULT_KV_ENGINE_VERSION', 'v1')
 CRYPTO_ENVELOPE_HEADER = b'%%%'
 
@@ -3291,7 +3289,7 @@ class HashicorpConsulEncryptorConfigLoaderMixin:
 
         if TEST_SSL_CONSUL:
             self.consul_client = ConsulClient(url=os.environ.get('CONSUL_ADDRESS', 'https://localhost:8501'),
-                                              verify=TEST_CONSUL_TLS_CA, cert=(TEST_CONSUL_CLIENT_CERT, TEST_CONSUL_CLIENT_KEY))
+                                              verify=TEST_CONSUL_TLS_CA, cert=(TEST_TLS_CLIENT_CERT, TEST_TLS_CLIENT_KEY))
         else:
             self.consul_client = ConsulClient(url=os.environ.get('CONSUL_ADDRESS', 'http://localhost:8500'))
 
@@ -3306,10 +3304,11 @@ class HashicorpConsulEncryptorConfigLoaderMixin:
             'encryptor_config_storage_type': 'consul'
         }
         if TEST_SSL_CONSUL:
-            args['consul_tls_transport_enable'] = True
-            args['consul_tls_ca_path'] = TEST_CONSUL_TLS_CA
-            args['consul_tls_client_cert'] = TEST_CONSUL_CLIENT_CERT
-            args['consul_tls_client_key'] = TEST_CONSUL_CLIENT_KEY
+            args['consul_tls_enable'] = True
+            args['consul_tls_client_ca'] = TEST_CONSUL_TLS_CA
+            args['consul_tls_client_cert'] = TEST_TLS_CLIENT_CERT
+            args['consul_tls_client_key'] = TEST_TLS_CLIENT_KEY
+            args['consul_tls_client_auth'] = 4
 
         acra_kwargs.update(args)
         return super(HashicorpConsulEncryptorConfigLoaderMixin, self).fork_acra(popen_kwargs, **acra_kwargs)

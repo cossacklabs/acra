@@ -2,9 +2,12 @@ package consul
 
 import (
 	"flag"
+	"net/http"
+	"net/url"
 	"strconv"
 
-	"github.com/hashicorp/consul/api"
+	"github.com/cossacklabs/acra/network"
+	"github.com/hashicorp/go-cleanhttp"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -30,19 +33,12 @@ func RegisterCLIParametersWithFlagSet(flags *flag.FlagSet, prefix, description s
 	if flags.Lookup(prefix+"consul_connection_api_string") == nil {
 		flags.String(prefix+"consul_connection_api_string", "", "Connection string (http://x.x.x.x:yyyy)for loading encryptor config from HashiCorp Consul"+description)
 		flags.String(prefix+"consul_kv_config_path", defaultConsulConfiPath, "KV Encryptor Config Path (acra/encryptor_config) for loading encryptor config from HashiCorp Consul"+description)
-		flags.String(prefix+"consul_tls_ca_path", "", "Path to CA certificate for loading encryptor config from HashiCorp Consul"+description)
-		flags.String(prefix+"consul_tls_client_cert", "", "Path to client TLS certificate for loading encryptor config from HashiCorp Consul"+description)
-		flags.String(prefix+"consul_tls_client_key", "", "Path to private key of the client TLS certificate for loading encryptor config from HashiCorp Consul"+description)
-		flags.Bool(prefix+"consul_tls_transport_enable", false, "Use TLS to encrypt transport with HashiCorp Consul"+description)
-	}
-}
 
-// TLSConfig return TLS configuration needed to connect to HashiCorp Vault
-func (options *CLIOptions) TLSConfig() api.TLSConfig {
-	return api.TLSConfig{
-		CertFile: options.ClientCert,
-		KeyFile:  options.ClientKey,
-		CAPath:   options.CAPath,
+		flags.Bool(prefix+"consul_tls_enable", false, "Use TLS to encrypt transport with HashiCorp Consul"+description)
+	}
+
+	if flags.Lookup(prefix+network.ClientNameConstructorFunc()("consul", "cert", "")) == nil {
+		network.RegisterTLSArgsForService(flags, true, prefix+"consul", network.ClientNameConstructorFunc())
 	}
 }
 
@@ -58,22 +54,36 @@ func ParseCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *CLIOptions
 		options.EncryptorConfigPath = f.Value.String()
 	}
 
-	if f := flags.Lookup(prefix + "consul_tls_ca_path"); f != nil {
-		options.CAPath = f.Value.String()
-	}
-	if f := flags.Lookup(prefix + "consul_tls_client_cert"); f != nil {
-		options.ClientCert = f.Value.String()
-	}
-	if f := flags.Lookup(prefix + "consul_tls_client_key"); f != nil {
-		options.ClientKey = f.Value.String()
-	}
-	if f := flags.Lookup(prefix + "consul_tls_transport_enable"); f != nil {
+	if f := flags.Lookup(prefix + "consul_tls_enable"); f != nil {
 		val, err := strconv.ParseBool(f.Value.String())
 		if err != nil {
-			log.WithField("value", f.Value.String()).Fatalf("Can't cast %s to bool value", prefix+"consul_tls_transport_enable")
+			log.WithField("value", f.Value.String()).Fatalf("Can't cast %s to bool value", prefix+"consul_tls_enable")
 		}
 		options.EnableTLS = val
 	}
 
 	return &options
+}
+
+// ConsulHttpClient returns api.Config connection configuration
+func (consul *CLIOptions) ConsulHttpClient(flags *flag.FlagSet) (*http.Client, error) {
+	transport := cleanhttp.DefaultPooledTransport()
+	client := &http.Client{
+		Transport: transport,
+	}
+
+	consulURL, err := url.ParseRequestURI(consul.Address)
+	if err != nil {
+		log.WithError(err).WithField("address", consul.Address).Errorln("Invalid Consul address provided")
+		return nil, err
+	}
+
+	if consul.EnableTLS {
+		tlsConfig, err := network.NewTLSConfigByName(flags, "consul", consulURL.Host, network.ClientNameConstructorFunc())
+		if err != nil {
+			return nil, err
+		}
+		transport.TLSClientConfig = tlsConfig
+	}
+	return client, nil
 }

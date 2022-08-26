@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"math/rand"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -36,20 +35,14 @@ func (s StorageCreator) RegisterCLIParameters(flags *flag.FlagSet, prefix, descr
 func (s StorageCreator) NewStorage(flags *flag.FlagSet, prefix string) (encryptor.ConfigStorage, error) {
 	cliOptions := ParseCLIParametersFromFlags(flags, prefix)
 
-	consulURL, err := url.ParseRequestURI(cliOptions.Address)
+	httpClient, err := cliOptions.ConsulHttpClient(flags)
 	if err != nil {
-		return Storage{}, err
+		return nil, err
 	}
 
 	config := api.Config{
-		Address: consulURL.Host,
-		Scheme:  consulURL.Scheme,
-	}
-
-	if cliOptions.EnableTLS {
-		log.Infoln("Configuring TLS connection to HashiCorp Consul")
-
-		config.TLSConfig = cliOptions.TLSConfig()
+		Address:    cliOptions.Address,
+		HttpClient: httpClient,
 	}
 
 	client, err := api.NewClient(&config)

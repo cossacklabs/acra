@@ -16,6 +16,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e
 	github.com/golang/protobuf v1.5.2
 	github.com/hashicorp/consul/api v1.3.0
+	github.com/hashicorp/go-cleanhttp v0.5.1
 	github.com/hashicorp/vault/api v1.3.0
 	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect
 	github.com/jackc/pgx v3.6.2+incompatible
