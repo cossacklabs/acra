@@ -65,8 +65,8 @@ func ParseCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *CLIOptions
 	return &options
 }
 
-// ConsulHttpClient returns api.Config connection configuration
-func (consul *CLIOptions) ConsulHttpClient(flags *flag.FlagSet) (*http.Client, error) {
+// ConsulHTTPClient returns api.Config connection configuration
+func (consul *CLIOptions) ConsulHTTPClient(flags *flag.FlagSet) (*http.Client, error) {
 	transport := cleanhttp.DefaultPooledTransport()
 	client := &http.Client{
 		Transport: transport,

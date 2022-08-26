@@ -35,7 +35,7 @@ func (s StorageCreator) RegisterCLIParameters(flags *flag.FlagSet, prefix, descr
 func (s StorageCreator) NewStorage(flags *flag.FlagSet, prefix string) (encryptor.ConfigStorage, error) {
 	cliOptions := ParseCLIParametersFromFlags(flags, prefix)
 
-	httpClient, err := cliOptions.ConsulHttpClient(flags)
+	httpClient, err := cliOptions.ConsulHTTPClient(flags)
 	if err != nil {
 		return nil, err
 	}
