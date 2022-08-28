@@ -20,7 +20,6 @@ import (
 	"encoding/base64"
 	"flag"
 	"io"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -31,11 +30,10 @@ import (
 )
 
 func TestReadCMD_FS_V2(t *testing.T) {
-	dirName, err := ioutil.TempDir("", "")
-	if err != nil {
+	dirName := t.TempDir()
+	if err := os.Chmod(dirName, 0700); err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(dirName)
 
 	clientID := []byte("testclientid")
 	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
@@ -148,11 +146,10 @@ func TestReadCMD_FS_V1(t *testing.T) {
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
-	dirName, err := ioutil.TempDir("", "")
-	if err != nil {
+	dirName := t.TempDir()
+	if err := os.Chmod(dirName, 0700); err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(dirName)
 
 	t.Run("read storage-public key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{

@@ -24,8 +24,6 @@ import (
 	"encoding/base64"
 	"flag"
 	"io"
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -224,11 +222,7 @@ func TestReadCMD_TLSRedis_V1(t *testing.T) {
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
-	dirName, err := ioutil.TempDir("", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dirName)
+	dirName := t.TempDir()
 
 	t.Run("read storage-public key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{

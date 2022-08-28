@@ -27,7 +27,5 @@ func TestKeyRingInMemory(t *testing.T) {
 }
 
 func TestKeyRingFilesystem(t *testing.T) {
-	newFilesystemKeyStore, cleanup := testFilesystemKeyStore(t)
-	defer cleanup()
-	tests.TestKeyRing(t, newFilesystemKeyStore)
+	tests.TestKeyRing(t, testFilesystemKeyStore)
 }
