@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -135,17 +134,14 @@ func checkPath(store *KeyStore, path string, t *testing.T) {
 }
 
 func testGenerateSymKeyUncreatedDir(store *KeyStore, t *testing.T) {
-	dir, err := ioutil.TempDir("/tmp", "keys")
-	if err != nil {
-		t.Fatal(err)
-	}
+	dir := t.TempDir()
 	// ensure we delete dir
 	if err := os.Remove(dir); err != nil {
 		t.Fatal(err)
 	}
 
 	keyContext := keystore.NewEmptyKeyContext([]byte("key"))
-	err = store.generateAndSaveSymmetricKey(fmt.Sprintf("%s/%s", dir, "test_id_sym"), keyContext)
+	err := store.generateAndSaveSymmetricKey(fmt.Sprintf("%s/%s", dir, "test_id_sym"), keyContext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,16 +221,13 @@ func testKeyStoreCacheOnStart(store *KeyStore, t *testing.T) {
 }
 
 func testWriteKeyFileUncreatedDir(store *KeyStore, t *testing.T) {
-	dir, err := ioutil.TempDir("/tmp", "keys")
-	if err != nil {
-		t.Fatal(err)
-	}
+	dir := t.TempDir()
 	// ensure we delete dir
 	if err := os.Remove(dir); err != nil {
 		t.Fatal(err)
 	}
 
-	err = store.WriteKeyFile(fmt.Sprintf("%s/%s", dir, "test_id_sym"), []byte("key"), PrivateFileMode)
+	err := store.WriteKeyFile(fmt.Sprintf("%s/%s", dir, "test_id_sym"), []byte("key"), PrivateFileMode)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -992,16 +985,10 @@ func testSaveKeypairs(store *KeyStore, t *testing.T) {
 
 func TestFilesystemKeyStoreExport(t *testing.T) {
 	// Prepare filesystem directory
-	keyDirectory, err := ioutil.TempDir(os.TempDir(), "test_filesystem_store")
-	if err != nil {
-		t.Fatalf("failed to create key directory: %v", err)
-	}
-	if err = os.Chmod(keyDirectory, 0700); err != nil {
+	keyDirectory := t.TempDir()
+	if err := os.Chmod(keyDirectory, 0700); err != nil {
 		t.Fatalf("failed to chmod key directory: %v", err)
 	}
-	defer func() {
-		os.RemoveAll(keyDirectory)
-	}()
 	publicKeys := filepath.Join(keyDirectory, "public")
 	privateKeys := filepath.Join(keyDirectory, "private")
 
@@ -1224,11 +1211,7 @@ func BenchmarkHistoricalPathsSerialization(b *testing.B) {
 			reflect.DeepEqual(stringsValue, values)
 		}
 	})
-	tmpDir, err := ioutil.TempDir("", "")
-	if err != nil {
-		b.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := b.TempDir()
 	ks, err := NewCustomFilesystemKeyStore().Encryptor(&dummyEncryptor{}).KeyDirectory(tmpDir).Build()
 	if err != nil {
 		b.Fatal(err)
@@ -1246,8 +1229,8 @@ func BenchmarkHistoricalPathsSerialization(b *testing.B) {
 }
 
 func TestKeyStore_GetPoisonKeyPair(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "")
-	if err != nil {
+	tmpDir := t.TempDir()
+	if err := os.Chmod(tmpDir, 0700); err != nil {
 		t.Fatal(err)
 	}
 	encryptor, err := keystore.NewSCellKeyEncryptor([]byte(`some key`))
@@ -1331,16 +1314,15 @@ func TestKeyStore_GetPoisonKeyPair(t *testing.T) {
 	})
 }
 
-func getKeystore() (*KeyStore, string, error) {
-	keyDir, err := ioutil.TempDir(os.TempDir(), "testKeystore")
-
-	if err != nil {
-		return nil, "", err
+func getKeystore(t *testing.T) (*KeyStore, error) {
+	keyDir := t.TempDir()
+	if err := os.Chmod(keyDir, 0700); err != nil {
+		t.Fatal(err)
 	}
 
 	encryptor, err := keystore.NewSCellKeyEncryptor([]byte("some key"))
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
 	keyStore, err := NewCustomFilesystemKeyStore().
@@ -1348,16 +1330,14 @@ func getKeystore() (*KeyStore, string, error) {
 		Encryptor(encryptor).
 		Storage(&fileStorage{}).
 		Build()
-	return keyStore, keyDir, err
+	return keyStore, err
 }
 
 func TestPoisonKeyGeneration(t *testing.T) {
-	keyStore, path, err := getKeystore()
+	keyStore, err := getKeystore(t)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	defer os.RemoveAll(path)
 
 	t.Run("Poison keys don't generate on Get", func(t *testing.T) {
 		_, err := keyStore.GetPoisonKeyPair()
@@ -1575,12 +1555,10 @@ func getAllExpectedKeys() []keystore.KeyDescription {
 }
 
 func TestListKeysSamePaths(t *testing.T) {
-	keyStore, path, err := getKeystore()
+	keyStore, err := getKeystore(t)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	defer os.RemoveAll(path)
 
 	generateEveryKey(keyStore, t)
 
@@ -1613,17 +1591,15 @@ func TestListKeysSamePaths(t *testing.T) {
 }
 
 func TestListKeysDifferentPaths(t *testing.T) {
-	keyPrivateDir, err := ioutil.TempDir(os.TempDir(), "private")
-	if err != nil {
+	keyPrivateDir := t.TempDir()
+	if err := os.Chmod(keyPrivateDir, 0700); err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(keyPrivateDir)
 
-	keyPublicDir, err := ioutil.TempDir(os.TempDir(), "public")
-	if err != nil {
+	keyPublicDir := t.TempDir()
+	if err := os.Chmod(keyPublicDir, 0700); err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(keyPublicDir)
 
 	encryptor, err := keystore.NewSCellKeyEncryptor([]byte("some key"))
 	if err != nil {

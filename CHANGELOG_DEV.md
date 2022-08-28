@@ -5,6 +5,7 @@
   - OCSP: `--tls_ocsp_client_check_only_leaf_certificate`, `--tls_ocsp_client_from_cert`, `--tls_ocsp_client_required`, `--tls_ocsp_database_check_only_leaf_certificate`, `--tls_ocsp_database_from_cert`, `--tls_ocsp_database_required`
 - Updated `go` version in `go.mod` to 1.17.
 - Replace `os.Setenv` with `t.Setenv` in tests.
+- Replace `ioutil.TempDir` with `t.TempDir` in tests.
 
 # 0.94.0 - 2022-08-03
 - Fixed reloading on SIGHUP signal

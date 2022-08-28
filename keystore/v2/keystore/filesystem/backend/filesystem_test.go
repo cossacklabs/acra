@@ -17,7 +17,6 @@
 package backend
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -26,22 +25,16 @@ import (
 )
 
 func TestFilesystem(t *testing.T) {
-	testDirs := make([]string, 0)
 	tests.TestBackend(t, func(t *testing.T) api.Backend {
-		testRootDir, err := ioutil.TempDir(os.TempDir(), "fs-tests")
-		if err != nil {
-			t.Fatalf("failed to create tempdir: %v", err)
+		testRootDir := t.TempDir()
+		if err := os.Chmod(testRootDir, 0700); err != nil {
+			t.Fatal(err)
 		}
-		testDirs = append(testDirs, testRootDir)
+
 		backend, err := CreateDirectoryBackend(testRootDir)
 		if err != nil {
 			t.Fatalf("failed to create backend: %v", err)
 		}
 		return backend
 	})
-	defer func() {
-		for _, dir := range testDirs {
-			os.RemoveAll(dir)
-		}
-	}()
 }
