@@ -27,7 +27,7 @@ const docTemplate_swagger = `{
     "paths": {
         "/v2/decrypt": {
             "get": {
-                "description": "Decrypt AcraStruct with specified ZoneID or ClientID from connection",
+                "description": "Decrypt AcraStruct with specified AdditionalContext or ClientID from connection",
                 "consumes": [
                     "application/json"
                 ],
@@ -46,7 +46,7 @@ const docTemplate_swagger = `{
                         }
                     },
                     {
-                        "description": "ZoneID",
+                        "description": "AdditionalContext",
                         "name": "zone_id",
                         "in": "body",
                         "schema": {
@@ -78,7 +78,7 @@ const docTemplate_swagger = `{
         },
         "/v2/decryptSearchable": {
             "get": {
-                "description": "Decrypt searchable AcraStruct with specified ZoneID or ClientID from connection",
+                "description": "Decrypt searchable AcraStruct with specified AdditionalContext or ClientID from connection",
                 "consumes": [
                     "application/json"
                 ],
@@ -97,7 +97,7 @@ const docTemplate_swagger = `{
                         }
                     },
                     {
-                        "description": "ZoneID",
+                        "description": "AdditionalContext",
                         "name": "zone_id",
                         "in": "body",
                         "schema": {
@@ -129,7 +129,7 @@ const docTemplate_swagger = `{
         },
         "/v2/decryptSym": {
             "get": {
-                "description": "Decrypt AcraBlock with specified ZoneID or ClientID from connection",
+                "description": "Decrypt AcraBlock with specified AdditionalContext or ClientID from connection",
                 "consumes": [
                     "application/json"
                 ],
@@ -148,7 +148,7 @@ const docTemplate_swagger = `{
                         }
                     },
                     {
-                        "description": "ZoneID",
+                        "description": "AdditionalContext",
                         "name": "zone_id",
                         "in": "body",
                         "schema": {
@@ -180,7 +180,7 @@ const docTemplate_swagger = `{
         },
         "/v2/decryptSymSearchable": {
             "get": {
-                "description": "Decrypt searchable AcraBlock with specified ZoneID or ClientID from connection",
+                "description": "Decrypt searchable AcraBlock with specified AdditionalContext or ClientID from connection",
                 "consumes": [
                     "application/json"
                 ],
@@ -199,7 +199,7 @@ const docTemplate_swagger = `{
                         }
                     },
                     {
-                        "description": "ZoneID",
+                        "description": "AdditionalContext",
                         "name": "zone_id",
                         "in": "body",
                         "schema": {
@@ -250,7 +250,7 @@ const docTemplate_swagger = `{
                         }
                     },
                     {
-                        "description": "ZoneID",
+                        "description": "AdditionalContext",
                         "name": "zone_id",
                         "in": "body",
                         "schema": {
@@ -282,7 +282,7 @@ const docTemplate_swagger = `{
         },
         "/v2/encrypt": {
             "get": {
-                "description": "Encrypt data with specified ZoneID or ClientID from connection",
+                "description": "Encrypt data with specified AdditionalContext or ClientID from connection",
                 "consumes": [
                     "application/json"
                 ],
@@ -301,7 +301,7 @@ const docTemplate_swagger = `{
                         }
                     },
                     {
-                        "description": "ZoneID",
+                        "description": "AdditionalContext",
                         "name": "zone_id",
                         "in": "body",
                         "schema": {
@@ -333,7 +333,7 @@ const docTemplate_swagger = `{
         },
         "/v2/encryptSearchable": {
             "get": {
-                "description": "Encrypt data with searchable AcraStruct with specified ZoneID or ClientID from connection",
+                "description": "Encrypt data with searchable AcraStruct with specified AdditionalContext or ClientID from connection",
                 "consumes": [
                     "application/json"
                 ],
@@ -352,7 +352,7 @@ const docTemplate_swagger = `{
                         }
                     },
                     {
-                        "description": "ZoneID",
+                        "description": "AdditionalContext",
                         "name": "zone_id",
                         "in": "body",
                         "schema": {
@@ -384,7 +384,7 @@ const docTemplate_swagger = `{
         },
         "/v2/encryptSym": {
             "get": {
-                "description": "Encrypt data with AcraBlock with specified ZoneID or ClientID from connection",
+                "description": "Encrypt data with AcraBlock with specified AdditionalContext or ClientID from connection",
                 "consumes": [
                     "application/json"
                 ],
@@ -403,7 +403,7 @@ const docTemplate_swagger = `{
                         }
                     },
                     {
-                        "description": "ZoneID",
+                        "description": "AdditionalContext",
                         "name": "zone_id",
                         "in": "body",
                         "schema": {
@@ -435,7 +435,7 @@ const docTemplate_swagger = `{
         },
         "/v2/encryptSymSearchable": {
             "get": {
-                "description": "Encrypt data with searchable AcraBlock with specified ZoneID or ClientID from connection",
+                "description": "Encrypt data with searchable AcraBlock with specified AdditionalContext or ClientID from connection",
                 "consumes": [
                     "application/json"
                 ],
@@ -454,7 +454,7 @@ const docTemplate_swagger = `{
                         }
                     },
                     {
-                        "description": "ZoneID",
+                        "description": "AdditionalContext",
                         "name": "zone_id",
                         "in": "body",
                         "schema": {
@@ -505,7 +505,7 @@ const docTemplate_swagger = `{
                         }
                     },
                     {
-                        "description": "ZoneID",
+                        "description": "AdditionalContext",
                         "name": "zone_id",
                         "in": "body",
                         "schema": {
@@ -556,7 +556,7 @@ const docTemplate_swagger = `{
                         }
                     },
                     {
-                        "description": "ZoneID",
+                        "description": "AdditionalContext",
                         "name": "zone_id",
                         "in": "body",
                         "schema": {

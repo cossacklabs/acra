@@ -26,6 +26,10 @@ import (
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
+// TODO temp variables zones
+var ZoneIDLength = 12
+var ZoneIDBegin = []byte{}
+
 // GenerateZoneID returns generated random zone id with length == ZoneIDLength bytes.
 func GenerateZoneID() []byte {
 	rand.Seed(time.Now().UnixNano())

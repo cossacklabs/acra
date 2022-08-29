@@ -711,8 +711,6 @@ func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- 
 }
 
 func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHandler, logger *log.Entry) error {
-	// reset previously matched zone
-	base.AccessContextFromContext(ctx).SetZoneID(nil)
 	// Let the protocol observer take a look at the packet, keeping note of it.
 	err := proxy.protocolState.HandleDatabasePacket(packet)
 	if err != nil {

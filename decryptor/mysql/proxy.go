@@ -24,7 +24,6 @@ import (
 	"github.com/cossacklabs/acra/masking"
 	"github.com/cossacklabs/acra/pseudonymization"
 	"github.com/cossacklabs/acra/pseudonymization/common"
-	"github.com/cossacklabs/acra/zone"
 )
 
 type proxyFactory struct {
@@ -86,11 +85,6 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 		poisonDetector.SetPoisonRecordCallbacks(factory.setting.PoisonRecordCallbackStorage())
 
 		envelopeDetector.AddCallback(poisonDetector)
-	}
-
-	if factory.setting.WithZone() {
-		zoneIDMatcher := zone.NewZoneMatcher(proxy.setting.KeyStore())
-		proxy.SubscribeOnAllColumnsDecryption(zoneIDMatcher)
 	}
 
 	chainEncryptors := make([]encryptor.DataEncryptor, 0, 10)

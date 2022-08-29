@@ -311,7 +311,6 @@ func testHTTPAPIEndpoints(testContext apiTestContext, t *testing.T) {
 		{forwardOperation: encryptSymSearchableOperation, backwardOperation: decryptSymSearchableOperation},
 	}
 	for _, testPair := range testOperationPairs {
-		// test without zoneID
 		testEncryptDecrypt(testContext.endpoint, http.MethodGet, testPair.forwardOperation, testPair.backwardOperation, expectedData, testContext.client, t)
 		testEncryptDecrypt(testContext.endpoint, http.MethodPost, testPair.forwardOperation, testPair.backwardOperation, expectedData, testContext.client, t)
 	}
@@ -327,7 +326,6 @@ func testHTTPAPIEndpoints(testContext apiTestContext, t *testing.T) {
 		{[]byte(`321`), pseudonymizationCommon.TokenType_Int64},
 	}
 	for _, testTokenData := range testTokenizeData {
-		// test without zoneID
 		testTokenizeDetokenize(testContext.endpoint, http.MethodGet, testTokenData, testContext.client, t)
 		testTokenizeDetokenize(testContext.endpoint, http.MethodPost, testTokenData, testContext.client, t)
 	}

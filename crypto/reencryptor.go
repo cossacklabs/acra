@@ -51,36 +51,6 @@ func (r ReEncryptHandler) EncryptWithClientID(clientID, data []byte, setting con
 	return r.handler.EncryptWithClientID(clientID, data, setting)
 }
 
-// EncryptWithZoneID implementation of ContainerHandler.EncryptWithZoneID method
-func (r ReEncryptHandler) EncryptWithZoneID(zoneID, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
-	if setting.GetCryptoEnvelope() != config.CryptoEnvelopeTypeAcraBlock || !setting.OnlyEncryption() {
-		return data, nil
-	}
-
-	// case when data encrypted on app side (for example AcraStructs with AcraWriter) and should not be encrypted second time
-	if r.MatchDataSignature(data) {
-		return data, nil
-	}
-
-	if setting.ShouldReEncryptAcraStructToAcraBlock() {
-		// decrypt AcraStruct inside SerializedContainer to encrypt it with AcraBlock
-		if _, serialized, err := ExtractSerializedContainer(data); err == nil {
-			dataContext := base.NewDataProcessorContext(r.keystore)
-			accessContext := base.NewAccessContext(base.WithZoneMode(true))
-			accessContext.SetZoneID(zoneID)
-			dataContext.Context = base.SetAccessContextToContext(context.Background(), accessContext)
-
-			decrypted, err := r.handler.Process(serialized, dataContext)
-			if err != nil {
-				return data, err
-			}
-			data = decrypted
-		}
-	}
-
-	return r.handler.EncryptWithZoneID(zoneID, data, setting)
-}
-
 // MatchDataSignature implementation of ContainerHandler.MatchDataSignature method
 func (r ReEncryptHandler) MatchDataSignature(data []byte) bool {
 	handler, err := GetHandlerByName(string(config.CryptoEnvelopeTypeAcraBlock))

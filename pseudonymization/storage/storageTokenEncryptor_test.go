@@ -33,14 +33,6 @@ func (t tokenKeyStore) GetClientIDSymmetricKey(id []byte) ([]byte, error) {
 	return []byte(`client key`), nil
 }
 
-func (t tokenKeyStore) GetZoneIDSymmetricKeys(id []byte) ([][]byte, error) {
-	return [][]byte{[]byte(`zone key`)}, nil
-}
-
-func (t tokenKeyStore) GetZoneIDSymmetricKey(id []byte) ([]byte, error) {
-	return []byte(`zone key`), nil
-}
-
 func TestNewSCellEncryptor(t *testing.T) {
 	encryptor, err := NewSCellEncryptor(tokenKeyStore{})
 	if err != nil {
@@ -53,7 +45,7 @@ func TestNewSCellEncryptor(t *testing.T) {
 	testData := []testcase{
 		{[]byte(`some data`), common.TokenContext{}},
 		{[]byte(`some data`), common.TokenContext{ClientID: []byte(`some context`)}},
-		{[]byte(`some data`), common.TokenContext{ClientID: []byte(`some context`), ZoneID: []byte(`some context2`)}},
+		{[]byte(`some data`), common.TokenContext{ClientID: []byte(`some context`), AdditionalContext: []byte(`some context2`)}},
 	}
 
 	for _, tcase := range testData {

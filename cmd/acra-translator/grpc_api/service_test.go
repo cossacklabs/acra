@@ -147,7 +147,6 @@ func testTranslatorService(storage common.TokenStorage, t *testing.T) {
 		int64(2),
 	}
 	clientID := []byte(`client id`)
-	// zoneID := []byte(`zone id`)
 	ctx := context.Background()
 	for _, data := range testValues {
 		for i := 0; i < 5; i++ {
@@ -170,7 +169,6 @@ func testTranslatorService(storage common.TokenStorage, t *testing.T) {
 func TestTranslatorService_Search(t *testing.T) {
 	type testCase struct {
 		ClientID []byte
-		ZoneID   []byte
 		Data     []byte
 	}
 
@@ -182,24 +180,14 @@ func TestTranslatorService_Search(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	zoneIDKeypair, err := keys.New(keys.TypeEC)
-	if err != nil {
-		t.Fatal(err)
-	}
 	keystore := &mocks.ServerKeyStore{}
 	// return copy of all private keys because of their erasing on every usage by clients
 	keystore.On("GetHMACSecretKey", mock.MatchedBy(func([]byte) bool { return true })).Return(func([]byte) []byte { return append([]byte{}, hmacKey...) }, nil)
-	keystore.On("GetZonePrivateKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
-		func([]byte) []*keys.PrivateKey {
-			return []*keys.PrivateKey{&keys.PrivateKey{Value: append([]byte{}, zoneIDKeypair.Private.Value...)}}
-		},
-		nil)
 	keystore.On("GetServerDecryptionPrivateKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
 		func([]byte) []*keys.PrivateKey {
 			return []*keys.PrivateKey{&keys.PrivateKey{Value: append([]byte{}, clientIDKeypair.Private.Value...)}}
 		},
 		nil)
-	keystore.On("GetZonePublicKey", mock.MatchedBy(func([]byte) bool { return true })).Return(zoneIDKeypair.Public, nil)
 	keystore.On("GetClientIDEncryptionPublicKey", mock.MatchedBy(func([]byte) bool { return true })).Return(clientIDKeypair.Public, nil)
 	translatorData := &translatorCommon.TranslatorData{PoisonRecordCallbacks: poison.NewCallbackStorage(), Keystorage: keystore}
 	serviceImplementation, err := translatorCommon.NewTranslatorService(translatorData)
@@ -211,8 +199,8 @@ func TestTranslatorService_Search(t *testing.T) {
 		t.Fatal(err)
 	}
 	testCases := []testCase{
-		{[]byte(`client id 1`), nil, []byte(`data1`)},
-		{[]byte(`client id 2`), []byte(`zone id 1`), []byte(`data2`)},
+		{[]byte(`client id 1`), []byte(`data1`)},
+		{[]byte(`client id 2`), []byte(`data2`)},
 	}
 	ctx := context.Background()
 	for _, tcase := range testCases {
@@ -257,7 +245,6 @@ func TestTranslatorService_Search(t *testing.T) {
 func TestTranslatorService_SearchSym(t *testing.T) {
 	type testCase struct {
 		ClientID []byte
-		ZoneID   []byte
 		Data     []byte
 	}
 
@@ -269,22 +256,8 @@ func TestTranslatorService_SearchSym(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	zoneIDSymKey, err := keystore.GenerateSymmetricKey()
-	if err != nil {
-		t.Fatal(err)
-	}
 	keystore := &mocks.ServerKeyStore{}
 	keystore.On("GetHMACSecretKey", mock.MatchedBy(func([]byte) bool { return true })).Return(func([]byte) []byte { return append([]byte{}, hmacKey...) }, nil)
-	keystore.On("GetZoneIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
-		func([]byte) [][]byte {
-			return [][]byte{append([]byte{}, zoneIDSymKey...)}
-		},
-		nil)
-	keystore.On("GetZoneIDSymmetricKey", mock.MatchedBy(func([]byte) bool { return true })).Return(
-		func([]byte) []byte {
-			return append([]byte{}, zoneIDSymKey...)
-		},
-		nil)
 	keystore.On("GetClientIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
 		func([]byte) [][]byte {
 			return [][]byte{append([]byte{}, clientIDSymKey...)}
@@ -306,8 +279,8 @@ func TestTranslatorService_SearchSym(t *testing.T) {
 		t.Fatal(err)
 	}
 	testCases := []testCase{
-		{[]byte(`client id 1`), nil, []byte(`data1`)},
-		{[]byte(`client id 2`), []byte(`zone id 1`), []byte(`data2`)},
+		{[]byte(`client id 1`), []byte(`data1`)},
+		{[]byte(`client id 2`), []byte(`data2`)},
 	}
 	ctx := context.Background()
 	for _, tcase := range testCases {
@@ -387,7 +360,6 @@ func (s *poisonKeyStorageAndGeneratorStub) GeneratePoisonKeyPair() error {
 func TestTranslatorService_DecryptionPoisonRecord(t *testing.T) {
 	type testCase struct {
 		ClientID []byte
-		ZoneID   []byte
 		Data     []byte
 	}
 	hmacKey := make([]byte, 32)
@@ -424,8 +396,8 @@ func TestTranslatorService_DecryptionPoisonRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 	testCases := []testCase{
-		{[]byte(`client id 1`), nil, poisonRecord},
-		{[]byte(`client id 2`), []byte(`zone id 1`), poisonRecord},
+		{[]byte(`client id 1`), poisonRecord},
+		{[]byte(`client id 2`), poisonRecord},
 	}
 	ctx := context.Background()
 	t.Run("DecryptSymSearchable with poison record", func(t *testing.T) {
@@ -434,16 +406,6 @@ func TestTranslatorService_DecryptionPoisonRecord(t *testing.T) {
 		keyStorage.On("GetPoisonSymmetricKeys").Return(func() [][]byte { return [][]byte{append([]byte{}, poisonSymKey...)} }, nil)
 		keyStorage.On("GetPoisonSymmetricKey").Return(func() []byte { return append([]byte{}, poisonSymKey...) }, nil)
 		keyStorage.On("GetHMACSecretKey", mock.MatchedBy(func([]byte) bool { return true })).Return(func([]byte) []byte { return append([]byte{}, hmacKey...) }, nil)
-		keyStorage.On("GetZoneIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
-			func([]byte) [][]byte {
-				return [][]byte{append([]byte{}, someSymKey...)}
-			},
-			nil)
-		keyStorage.On("GetZoneIDSymmetricKey", mock.MatchedBy(func([]byte) bool { return true })).Return(
-			func([]byte) []byte {
-				return append([]byte{}, someSymKey...)
-			},
-			nil)
 		keyStorage.On("GetClientIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
 			func([]byte) [][]byte {
 				return [][]byte{append([]byte{}, someSymKey...)}
@@ -474,16 +436,6 @@ func TestTranslatorService_DecryptionPoisonRecord(t *testing.T) {
 		keyStorage.ExpectedCalls = nil
 		keyStorage.On("GetPoisonSymmetricKeys").Return(func() [][]byte { return [][]byte{append([]byte{}, poisonSymKey...)} }, nil)
 		keyStorage.On("GetPoisonSymmetricKey").Return(func() []byte { return append([]byte{}, poisonSymKey...) }, nil)
-		keyStorage.On("GetZoneIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
-			func([]byte) [][]byte {
-				return [][]byte{append([]byte{}, someSymKey...)}
-			},
-			nil)
-		keyStorage.On("GetZoneIDSymmetricKey", mock.MatchedBy(func([]byte) bool { return true })).Return(
-			func([]byte) []byte {
-				return append([]byte{}, someSymKey...)
-			},
-			nil)
 		keyStorage.On("GetClientIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
 			func([]byte) [][]byte {
 				return [][]byte{append([]byte{}, someSymKey...)}

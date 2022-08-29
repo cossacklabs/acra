@@ -902,7 +902,7 @@ func testFilesystemKeyStoreWithOnlyCachedData(storage Storage, t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(symKeys) != 2 {
-		t.Fatal("ZoneID sym keys not cached")
+		t.Fatal("AdditionalContext sym keys not cached")
 	}
 }
 

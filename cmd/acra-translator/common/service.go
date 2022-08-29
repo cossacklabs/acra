@@ -51,7 +51,7 @@ var (
 	ErrCantDecrypt                      = errors.New("can't decrypt data")
 	ErrClientIDRequired                 = errors.New("clientID is empty")
 	ErrCantEncrypt                      = errors.New("can't encrypt data")
-	ErrZoneIDAdditionalDataNotSupported = errors.New("ZoneID and additional data are not supported")
+	ErrZoneIDAdditionalDataNotSupported = errors.New("AdditionalContext and additional data are not supported")
 )
 
 // Decrypt AcraStruct using ClientID
@@ -66,7 +66,7 @@ func (service *TranslatorService) Decrypt(ctx context.Context, acraStruct, clien
 		return nil, ErrClientIDRequired
 	}
 	if additionalContext != nil {
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("AdditionalContext and additional data are not supported")
 		return nil, ErrZoneIDAdditionalDataNotSupported
 	}
 
@@ -107,7 +107,7 @@ func (service *TranslatorService) Encrypt(ctx context.Context, data, clientID, a
 		return nil, ErrClientIDRequired
 	}
 	if additionalContext != nil {
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("AdditionalContext and additional data are not supported")
 		return nil, ErrZoneIDAdditionalDataNotSupported
 	}
 	id := clientID
@@ -151,7 +151,7 @@ func (service *TranslatorService) EncryptSearchable(ctx context.Context, data, c
 		return SearchableResponse{}, ErrClientIDRequired
 	}
 	if additionalContext != nil {
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("AdditionalContext and additional data are not supported")
 		return SearchableResponse{}, ErrZoneIDAdditionalDataNotSupported
 	}
 
@@ -190,7 +190,7 @@ func (service *TranslatorService) DecryptSearchable(ctx context.Context, data, h
 		return nil, ErrClientIDRequired
 	}
 	if additionalContext != nil {
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("AdditionalContext and additional data are not supported")
 		return nil, ErrZoneIDAdditionalDataNotSupported
 	}
 	logger.Debugln("Load secret key for HMAC from KeyStore")
@@ -241,7 +241,7 @@ func (service *TranslatorService) GenerateQueryHash(context context.Context, dat
 		return nil, ErrClientIDRequired
 	}
 	if additionalContext != nil {
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("AdditionalContext and additional data are not supported")
 		return nil, ErrZoneIDAdditionalDataNotSupported
 	}
 	logger.Debugln("Load secret key for HMAC from KeyStore")
@@ -262,7 +262,7 @@ func (service *TranslatorService) Tokenize(ctx context.Context, data interface{}
 	logger.Debugln("New request")
 	defer logger.WithFields(logrus.Fields{"client_id": string(clientID), "context": string(additionalContext), "operation": "Tokenize"}).Debugln("End processing request")
 	if additionalContext != nil {
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("AdditionalContext and additional data are not supported")
 		return nil, ErrZoneIDAdditionalDataNotSupported
 	}
 	tokenContext := tokenCommon.TokenContext{ClientID: clientID}
@@ -281,7 +281,7 @@ func (service *TranslatorService) Detokenize(ctx context.Context, data interface
 	logger.Debugln("New request")
 	defer logger.Debugln("End processing request to detokenize token")
 	if additionalContext != nil {
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("AdditionalContext and additional data are not supported")
 		return nil, ErrZoneIDAdditionalDataNotSupported
 	}
 	tokenContext := tokenCommon.TokenContext{ClientID: clientID}
@@ -319,7 +319,7 @@ func (service *TranslatorService) EncryptSymSearchable(ctx context.Context, data
 		return SearchableResponse{}, ErrClientIDRequired
 	}
 	if additionalContext != nil {
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("AdditionalContext and additional data are not supported")
 		return SearchableResponse{}, ErrZoneIDAdditionalDataNotSupported
 	}
 	logger.Debugln("Load secret key for HMAC from KeyStore")
@@ -356,7 +356,7 @@ func (service *TranslatorService) DecryptSymSearchable(ctx context.Context, data
 		return nil, ErrClientIDRequired
 	}
 	if additionalContext != nil {
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("AdditionalContext and additional data are not supported")
 		return nil, ErrZoneIDAdditionalDataNotSupported
 	}
 
@@ -417,7 +417,7 @@ func (service *TranslatorService) EncryptSym(ctx context.Context, data, clientID
 		return nil, ErrClientIDRequired
 	}
 	if additionalContext != nil {
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("AdditionalContext and additional data are not supported")
 		return nil, ErrZoneIDAdditionalDataNotSupported
 	}
 
@@ -447,7 +447,7 @@ func (service *TranslatorService) DecryptSym(ctx context.Context, acraBlock, cli
 		return nil, ErrClientIDRequired
 	}
 	if additionalContext != nil {
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("AdditionalContext and additional data are not supported")
 		return nil, ErrZoneIDAdditionalDataNotSupported
 	}
 

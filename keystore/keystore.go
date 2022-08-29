@@ -416,7 +416,7 @@ type ServerKeyStore interface {
 //
 // "ID" is unique string that can be used to identify this key set in the keystore.
 // "Purpose" is short human-readable description of the key purpose.
-// "ClientID" and "ZoneID" are filled in where relevant.
+// "ClientID" and "AdditionalContext" are filled in where relevant.
 type KeyDescription struct {
 	ID       string
 	Purpose  KeyPurpose

@@ -40,7 +40,6 @@ type Config struct {
 	detectPoisonRecords      bool
 	stopOnPoison             bool
 	scriptOnPoison           string
-	withZone                 bool
 	withAPI                  bool
 	acraConnectionString     string
 	acraAPIConnectionString  string
@@ -67,7 +66,7 @@ func NewConfig() (*Config, error) {
 		return nil, err
 	}
 	traceOptions := []trace.StartOption{trace.WithSpanKind(trace.SpanKindServer), trace.WithSampler(trace.AlwaysSample())}
-	return &Config{withZone: false, mysql: false, postgresql: false, tableSchema: schemaStore, traceOptions: traceOptions}, nil
+	return &Config{mysql: false, postgresql: false, tableSchema: schemaStore, traceOptions: traceOptions}, nil
 }
 
 // ErrTwoDBSetup shows that AcraServer can connects only to one database at the same time
@@ -175,16 +174,6 @@ func (config *Config) SetDebug(value bool) {
 // GetDebug returns if AcraServer should run in debug mode and print debug logs
 func (config *Config) GetDebug() bool {
 	return config.debug
-}
-
-// GetWithZone returns if AcraServer should try to decrypt AcraStructs using zones
-func (config *Config) GetWithZone() bool {
-	return config.withZone
-}
-
-// SetWithZone sets if AcraServer should try to decrypt AcraStructs using zones
-func (config *Config) SetWithZone(wz bool) {
-	config.withZone = wz
 }
 
 // SetEnableHTTPAPI sets if AcraServer should listen to HTTP commands

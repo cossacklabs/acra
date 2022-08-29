@@ -10,7 +10,6 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/sirupsen/logrus"
 )
@@ -81,38 +80,6 @@ func (t testDecryptor) GetPrivateKeys() ([]*keys.PrivateKey, error) {
 	panic("implement me")
 }
 
-func (t testDecryptor) SetZoneMatcher(*zone.Matcher) {
-	panic("implement me")
-}
-
-func (t testDecryptor) GetZoneMatcher() *zone.Matcher {
-	panic("implement me")
-}
-
-func (t testDecryptor) GetMatchedZoneID() []byte {
-	panic("implement me")
-}
-
-func (t testDecryptor) MatchZone(byte) bool {
-	panic("implement me")
-}
-
-func (t testDecryptor) IsWithZone() bool {
-	panic("implement me")
-}
-
-func (t testDecryptor) SetWithZone(bool) {
-	panic("implement me")
-}
-
-func (t testDecryptor) IsMatchedZone() bool {
-	panic("implement me")
-}
-
-func (t testDecryptor) ResetZoneMatch() {
-	panic("implement me")
-}
-
 func (t testDecryptor) IsWholeMatch() bool {
 	panic("implement me")
 }
@@ -129,15 +96,7 @@ func (t testDecryptor) SkipBeginInBlock(block []byte) ([]byte, error) {
 	panic("implement me")
 }
 
-func (t testDecryptor) MatchZoneBlock([]byte) {
-	panic("implement me")
-}
-
 func (t testDecryptor) BeginTagIndex([]byte) (int, int) {
-	panic("implement me")
-}
-
-func (t testDecryptor) MatchZoneInBlock([]byte) {
 	panic("implement me")
 }
 

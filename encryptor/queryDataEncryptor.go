@@ -750,15 +750,10 @@ func (encryptor *QueryDataEncryptor) encryptValuesWithPlaceholders(ctx context.C
 	return values, changed, nil
 }
 
-// encryptWithColumnSettings encrypt data and use ZoneId or ClientID from ColumnEncryptionSetting if not empty otherwise static ClientID that passed to parser
+// encryptWithColumnSettings encrypt data and use ClientID from ColumnEncryptionSetting if not empty otherwise static ClientID that passed to parser
 func (encryptor *QueryDataEncryptor) encryptWithColumnSettings(ctx context.Context, columnSetting config.ColumnEncryptionSetting, data []byte) ([]byte, error) {
 	logger := logrus.WithFields(logrus.Fields{"column": columnSetting.ColumnName()})
 	logger.Debugln("QueryDataEncryptor.encryptWithColumnSettings")
-	zoneID := columnSetting.ZoneID()
-	if len(zoneID) > 0 {
-		logger.WithField("zone_id", string(zoneID)).Debugln("Encrypt with specific ZoneID for column")
-		return encryptor.encryptor.EncryptWithZoneID(zoneID, data, columnSetting)
-	}
 	accessContext := base.AccessContextFromContext(ctx)
 	clientID := columnSetting.ClientID()
 	if len(clientID) > 0 {

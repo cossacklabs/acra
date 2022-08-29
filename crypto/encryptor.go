@@ -24,12 +24,3 @@ func (r EncryptHandler) EncryptWithClientID(clientID, data []byte, setting confi
 
 	return r.handler.EncryptWithClientID(clientID, data, setting)
 }
-
-// EncryptWithZoneID implementation of ContainerHandler.EncryptWithZoneID method
-func (r EncryptHandler) EncryptWithZoneID(zoneID, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
-	if !setting.OnlyEncryption() {
-		return data, nil
-	}
-
-	return r.handler.EncryptWithZoneID(zoneID, data, setting)
-}

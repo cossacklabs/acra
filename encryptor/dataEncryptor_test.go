@@ -31,13 +31,7 @@ import (
 
 type keyStore struct {
 	keypair            *keys.Keypair
-	zoneKeyTouched     bool
 	clientIDKeyTouched bool
-}
-
-func (ks *keyStore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) {
-	ks.zoneKeyTouched = true
-	return ks.keypair.Public, nil
 }
 
 func (ks *keyStore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
@@ -65,17 +59,6 @@ func TestAcrawriterDataEncryptor_EncryptWithClientID(t *testing.T) {
 	}
 	if !keystore.clientIDKeyTouched {
 		t.Fatal("Wasn't used client id key")
-	}
-
-	encrypted, err = encryptor.EncryptWithZoneID([]byte("id"), testData, &emptyEncryptionSetting{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if bytes.Equal(encrypted, testData) {
-		t.Fatal("Data wasn't encrypted")
-	}
-	if !keystore.zoneKeyTouched {
-		t.Fatal("Wasn't used zone id key")
 	}
 }
 
@@ -141,10 +124,6 @@ func (*emptyEncryptionSetting) ClientID() []byte {
 	panic("implement me")
 }
 
-func (*emptyEncryptionSetting) ZoneID() []byte {
-	panic("implement me")
-}
-
 type testChainEncryptor struct {
 	expectedData []byte
 	returnData   []byte
@@ -152,9 +131,6 @@ type testChainEncryptor struct {
 	counter      *int
 }
 
-func (t *testChainEncryptor) EncryptWithZoneID(id, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
-	return t.test(id, data, setting)
-}
 func (t *testChainEncryptor) test(clientID, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
 	*t.counter++
 	if bytes.Equal(t.expectedData, data) {
@@ -178,7 +154,7 @@ func TestChainDataEncryptorFailure(t *testing.T) {
 	chainEncryptor := NewChainDataEncryptor(encryptor1, encryptor2, encryptor3)
 
 	type testFunc func(clientID, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error)
-	for _, tFunc := range []testFunc{chainEncryptor.EncryptWithClientID, chainEncryptor.EncryptWithZoneID} {
+	for _, tFunc := range []testFunc{chainEncryptor.EncryptWithClientID} {
 		counter = 0
 		output, err := tFunc(nil, startData, nil)
 		if err != testError {
@@ -203,7 +179,7 @@ func TestChainDataEncryptorSuccess(t *testing.T) {
 	chainEncryptor := NewChainDataEncryptor(encryptor1, encryptor2)
 
 	type testFunc func(clientID, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error)
-	for _, tFunc := range []testFunc{chainEncryptor.EncryptWithClientID, chainEncryptor.EncryptWithZoneID} {
+	for _, tFunc := range []testFunc{chainEncryptor.EncryptWithClientID} {
 		counter = 0
 		output, err := tFunc(nil, startData, nil)
 		if err != nil {
@@ -240,14 +216,6 @@ func TestAcrawriterDataEncryptor(t *testing.T) {
 	if !bytes.Equal(output, testAcrastruct) {
 		t.Fatalf("Expect untouched acrastruct, took %v\n", output)
 	}
-
-	output, err = encryptor.EncryptWithZoneID([]byte(`clientID`), testAcrastruct, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(output, testAcrastruct) {
-		t.Fatalf("Expect untouched acrastruct, took %v\n", output)
-	}
 }
 
 func TestAcrawriterStandaloneDataEncryptorSkip(t *testing.T) {
@@ -268,14 +236,6 @@ func TestAcrawriterStandaloneDataEncryptorSkip(t *testing.T) {
 	acrablockEncryption := config.CryptoEnvelopeTypeAcraBlock
 	setting := &config.BasicColumnEncryptionSetting{CryptoEnvelope: &acrablockEncryption}
 	output, err := encryptor.EncryptWithClientID([]byte(`clientID`), testAcrastruct, setting)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(output, testAcrastruct) {
-		t.Fatalf("Expect untouched acrastruct, took %v\n", output)
-	}
-
-	output, err = encryptor.EncryptWithZoneID([]byte(`clientID`), testAcrastruct, setting)
 	if err != nil {
 		t.Fatal(err)
 	}

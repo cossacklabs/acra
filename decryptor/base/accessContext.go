@@ -23,8 +23,6 @@ import (
 // AccessContext store attributes which may be used for access policies and data manipulations
 type AccessContext struct {
 	clientID   []byte
-	zoneID     []byte
-	withZone   bool
 	columnInfo ColumnInfo
 }
 
@@ -35,13 +33,6 @@ type AccessContextOption func(accessContext *AccessContext)
 func WithClientID(clientID []byte) AccessContextOption {
 	return func(ctx *AccessContext) {
 		ctx.clientID = clientID
-	}
-}
-
-// WithZoneMode set ZoneMode to AccessContext
-func WithZoneMode(zoneMode bool) AccessContextOption {
-	return func(ctx *AccessContext) {
-		ctx.withZone = zoneMode
 	}
 }
 
@@ -59,11 +50,6 @@ func (ctx *AccessContext) SetClientID(clientID []byte) {
 	ctx.clientID = clientID
 }
 
-// SetZoneID set new ZoneID
-func (ctx *AccessContext) SetZoneID(zoneID []byte) {
-	ctx.zoneID = zoneID
-}
-
 // SetColumnInfo set ColumnInfo
 func (ctx *AccessContext) SetColumnInfo(info ColumnInfo) {
 	ctx.columnInfo = info
@@ -72,16 +58,6 @@ func (ctx *AccessContext) SetColumnInfo(info ColumnInfo) {
 // OnNewClientID set new clientID and implements ClientIDObserver interface
 func (ctx *AccessContext) OnNewClientID(clientID []byte) {
 	ctx.clientID = clientID
-}
-
-// IsWithZone returns is AccessContext configured to use with ZoneMode
-func (ctx *AccessContext) IsWithZone() bool {
-	return ctx.withZone
-}
-
-// GetZoneID return ZoneID
-func (ctx *AccessContext) GetZoneID() []byte {
-	return ctx.zoneID
 }
 
 // GetClientID return ClientID

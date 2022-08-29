@@ -40,9 +40,9 @@ func (recognizer PoisonRecordDetector) OnCryptoEnvelope(ctx context.Context, con
 		logger.Debugln("Skip poison record check due to empty callbacks")
 		return container, nil
 	}
-	// poison records encrypted without context parameter for SecureCell and should be used without zone mode
-	// additionally will be used keystore that ignores ClientID/ZoneID and always returns poison keys
-	// so no matter what clientID/zoneID we pass
+	// poison records encrypted without context parameter for SecureCell
+	// additionally will be used keystore that ignores ClientID and always returns poison keys
+	// so no matter what clientID we pass
 	poisonCtx := base.SetAccessContextToContext(ctx, base.NewAccessContext())
 	_, err := recognizer.processor.Process(container, &base.DataProcessorContext{
 		Keystore: NewPoisonRecordKeyStoreWrapper(recognizer.keyStore),
@@ -103,38 +103,8 @@ func (p PoisonRecordKeyStoreWrapper) GetServerDecryptionPrivateKeys([]byte) ([]*
 	return p.keyStore.GetPoisonPrivateKeys()
 }
 
-// GetZoneIDSymmetricKeys implementation of keystore.PrivateKeyStore for poison records keys
-func (p PoisonRecordKeyStoreWrapper) GetZoneIDSymmetricKeys(id []byte) ([][]byte, error) {
-	return p.keyStore.GetPoisonSymmetricKeys()
-}
-
-// GetZoneIDSymmetricKey implementation of keystore.PrivateKeyStore for poison records symmetric key
-func (p PoisonRecordKeyStoreWrapper) GetZoneIDSymmetricKey(id []byte) ([]byte, error) {
-	return p.keyStore.GetPoisonSymmetricKey()
-}
-
-// GetZonePrivateKeys implementation of keystore.PrivateKeyStore for poison records keys
-func (p PoisonRecordKeyStoreWrapper) GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
-	return p.keyStore.GetPoisonPrivateKeys()
-}
-
-// HasZonePrivateKey stub implementation of keystore.PrivateKeyStore
-func (p PoisonRecordKeyStoreWrapper) HasZonePrivateKey(id []byte) bool {
-	panic("implement me")
-}
-
-// GetZonePrivateKey stub implementation of keystore.PrivateKeyStore
-func (p PoisonRecordKeyStoreWrapper) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
-	panic("implement me")
-}
-
 // GetServerDecryptionPrivateKey stub implementation of keystore.PrivateKeyStore
 func (p PoisonRecordKeyStoreWrapper) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error) {
-	panic("implement me")
-}
-
-// GetZonePublicKey stub implementation of keystore.PrivateKeyStore
-func (p PoisonRecordKeyStoreWrapper) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) {
 	panic("implement me")
 }
 

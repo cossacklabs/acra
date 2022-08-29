@@ -884,9 +884,6 @@ func (handler *Handler) ProxyDatabaseConnection(ctx context.Context, errCh chan<
 			fallthrough
 
 		case stateServe:
-			// reset previously matched zoneID
-			accessContext := base.AccessContextFromContext(ctx)
-			accessContext.SetZoneID(nil)
 			responseHandler = handler.getResponseHandler()
 			err = responseHandler(ctx, packet, handler.dbConnection, handler.clientConnection)
 

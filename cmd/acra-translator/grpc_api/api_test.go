@@ -25,15 +25,7 @@ func (keystore *testKeystore) CacheOnStart() error {
 	panic("implement me")
 }
 
-func (keystore *testKeystore) RotateSymmetricZoneKey(zoneID []byte) error {
-	panic("implement me")
-}
-
 func (keystore *testKeystore) GenerateClientIDSymmetricKey(id []byte) error {
-	panic("implement me")
-}
-
-func (keystore *testKeystore) GenerateZoneIDSymmetricKey(id []byte) error {
 	panic("implement me")
 }
 
@@ -61,14 +53,6 @@ func (*testKeystore) GetLogSecretKey() ([]byte, error) {
 	panic("implement me")
 }
 
-func (keystore *testKeystore) GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
-	keystore.UsedID = id
-	if keystore.EncryptionKeypair != nil {
-		return []*keys.PrivateKey{{Value: append([]byte{}, keystore.EncryptionKeypair.Private.Value...)}}, nil
-	}
-	return nil, ErrKeyNotFound
-}
-
 func (keystore *testKeystore) GetServerDecryptionPrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
 	if keystore.EncryptionKeypair != nil {
 		return []*keys.PrivateKey{{Value: append([]byte{}, keystore.EncryptionKeypair.Private.Value...)}}, nil
@@ -85,18 +69,6 @@ func (keystore *testKeystore) GetClientIDSymmetricKeys(id []byte) ([][]byte, err
 }
 
 func (keystore *testKeystore) GetClientIDSymmetricKey(id []byte) ([]byte, error) {
-	panic("implement me")
-}
-
-func (keystore *testKeystore) GetZoneIDSymmetricKeys(id []byte) ([][]byte, error) {
-	panic("implement me")
-}
-
-func (keystore *testKeystore) GetZoneIDSymmetricKey(id []byte) ([]byte, error) {
-	panic("implement me")
-}
-
-func (*testKeystore) RotateZoneKey(zoneID []byte) ([]byte, error) {
 	panic("implement me")
 }
 
@@ -120,35 +92,14 @@ func (*testKeystore) SaveServerKeypair(id []byte, keypair *keys.Keypair) error {
 func (*testKeystore) SaveConnectorKeypair(id []byte, keypair *keys.Keypair) error {
 	panic("implement me")
 }
-func (*testKeystore) SaveZoneKeypair(id []byte, keypair *keys.Keypair) error { panic("implement me") }
 
 var ErrKeyNotFound = errors.New("some error")
-
-func (keystore *testKeystore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
-	if keystore.EncryptionKeypair != nil {
-		return &keys.PrivateKey{Value: append([]byte{}, keystore.EncryptionKeypair.Private.Value...)}, nil
-	}
-	return nil, ErrKeyNotFound
-
-}
-
-func (*testKeystore) HasZonePrivateKey(id []byte) bool {
-	panic("implement me")
-}
 
 func (keystore *testKeystore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error) {
 	if keystore.EncryptionKeypair != nil {
 		return &keys.PrivateKey{Value: append([]byte{}, keystore.EncryptionKeypair.Private.Value...)}, nil
 	}
 	return nil, ErrKeyNotFound
-}
-
-func (*testKeystore) GenerateZoneKey() ([]byte, []byte, error) {
-	panic("implement me")
-}
-
-func (*testKeystore) GenerateConnectorKeys(id []byte) error {
-	panic("implement me")
 }
 
 func (*testKeystore) GenerateServerKeys(id []byte) error {
@@ -179,13 +130,6 @@ func (keystore *testKeystore) GetPoisonPrivateKeys() ([]*keys.PrivateKey, error)
 }
 
 func (*testKeystore) Reset() { panic("implement me") }
-
-func (keystore *testKeystore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) {
-	if keystore.EncryptionKeypair != nil {
-		return &keys.PublicKey{Value: keystore.EncryptionKeypair.Public.Value}, nil
-	}
-	return nil, ErrKeyNotFound
-}
 
 func (keystore *testKeystore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
 	keystore.UsedID = clientID
@@ -250,13 +194,12 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 	// set key
 	keystore.EncryptionKeypair = keypair
 
-	// test error on decyrption
+	// test error on decryption
 	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientID, Acrastruct: []byte("not acrastruct")})
 	if err == nil {
 		t.Fatal(err)
 	}
 
-	// test without zone
 	acrastruct, err := acrastruct2.CreateAcrastruct(data, keypair.Public, nil)
 	if err != nil {
 		t.Fatal(err)

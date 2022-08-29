@@ -94,22 +94,15 @@ func (p DecryptProcessor) Process(data []byte, context *DataProcessorContext) ([
 		return data, err
 	}
 	var privateKeys []*keys.PrivateKey
-	var err error
 	accessContext := AccessContextFromContext(context.Context)
-	var zoneID []byte
-	if accessContext.IsWithZone() {
-		privateKeys, err = context.Keystore.GetZonePrivateKeys(accessContext.GetZoneID())
-		zoneID = accessContext.GetZoneID()
-	} else {
-		privateKeys, err = context.Keystore.GetServerDecryptionPrivateKeys(accessContext.GetClientID())
-	}
+	privateKeys, err := context.Keystore.GetServerDecryptionPrivateKeys(accessContext.GetClientID())
 	defer utils.ZeroizePrivateKeys(privateKeys)
 	if err != nil {
 		logging.GetLoggerFromContext(context.Context).WithError(err).WithFields(
-			logrus.Fields{"client_id": string(accessContext.GetClientID()), "zone_id": string(accessContext.GetZoneID())}).Warningln("Can't read private key for matched client_id/zone_id")
+			logrus.Fields{"client_id": string(accessContext.GetClientID())}).Warningln("Can't read private key for matched client_id")
 		return []byte{}, err
 	}
-	return acrastruct.DecryptRotatedAcrastruct(data, privateKeys, zoneID)
+	return acrastruct.DecryptRotatedAcrastruct(data, privateKeys, nil)
 }
 
 // MatchDataSignature return true if data has valid AcraStruct signature

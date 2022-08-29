@@ -27,10 +27,7 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
-	"github.com/cossacklabs/acra/zone"
-	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/gin-gonic/gin"
-	"github.com/gin-gonic/gin/render"
 	log "github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
 )
@@ -142,48 +139,8 @@ func NewAPICore(ctx context.Context, keystore keystore.ServerKeyStore) APICore {
 
 // InitEngine configures all path handlers for the API
 func (apiServer *HTTPAPIServer) InitEngine(engine *gin.Engine) {
-	engine.GET("/getNewZone", apiServer.getNewZoneGin)
 	engine.GET("/resetKeyStorage", apiServer.resetKeyStorageGin)
 	engine.NoRoute(respondWithError)
-}
-
-func (api *APICore) getNewZone() (id []byte, publicKey []byte, err error) {
-	id, publicKey, err = api.keystore.GenerateZoneKey()
-	if err != nil {
-		return nil, nil, err
-	}
-	if err = api.keystore.GenerateZoneIDSymmetricKey(id); err != nil {
-		return nil, nil, err
-	}
-	return id, publicKey, nil
-}
-
-func (apiServer *HTTPAPIServer) getNewZoneGin(ctx *gin.Context) {
-	logger := ginGetLogger(ctx)
-
-	id, pub, err := apiServer.api.getNewZone()
-	if err != nil {
-		logger.WithError(err).
-			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantGenerateZone).
-			Errorln("Can't generate zone key")
-
-		respondWithError(ctx)
-		return
-	}
-	zoneData, err := zone.DataToJSON(id, &keys.PublicKey{Value: pub})
-	if err != nil {
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantGenerateZone).
-			WithError(err).
-			Errorln("Can't create json with zone key")
-		respondWithError(ctx)
-		return
-	}
-	logger.Infoln("Created new zone")
-
-	ctx.Render(http.StatusOK, render.Data{
-		ContentType: gin.MIMEJSON,
-		Data:        zoneData,
-	})
 }
 
 func (api *APICore) resetKeyStorage() {
