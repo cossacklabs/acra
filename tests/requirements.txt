@@ -21,3 +21,4 @@ cryptography==3.4.7
 redis==4.0.1
 hiredis==2.0.0
 boto3==1.24.23
+python-consul==1.1.0

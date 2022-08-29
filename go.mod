@@ -12,12 +12,16 @@ require (
 	github.com/gin-gonic/gin v1.7.2
 	github.com/go-redis/redis/v7 v7.0.1
 	github.com/go-sql-driver/mysql v1.5.0
+	github.com/go-test/deep v1.0.4 // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e
 	github.com/golang/protobuf v1.5.2
+	github.com/hashicorp/consul/api v1.3.0
+	github.com/hashicorp/go-cleanhttp v0.5.1
 	github.com/hashicorp/vault/api v1.3.0
 	github.com/jackc/pgx v3.6.2+incompatible
 	github.com/jackc/pgx/v4 v4.14.1
 	github.com/lib/pq v1.10.4
+	github.com/onsi/ginkgo v1.10.2 // indirect
 	github.com/prometheus/client_golang v1.7.1
 	github.com/sirupsen/logrus v1.6.0
 	github.com/stretchr/testify v1.7.0

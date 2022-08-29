@@ -33,7 +33,7 @@ import (
 )
 
 func TestFilesystemKeyStore(t *testing.T) {
-	FilesystemKeyStoreTests(&fileStorage{}, t)
+	FilesystemKeyStoreTests(&FileStorage{}, t)
 }
 
 func FilesystemKeyStoreTests(storage Storage, t *testing.T) {
@@ -1328,7 +1328,7 @@ func getKeystore(t *testing.T) (*KeyStore, error) {
 	keyStore, err := NewCustomFilesystemKeyStore().
 		KeyDirectory(keyDir).
 		Encryptor(encryptor).
-		Storage(&fileStorage{}).
+		Storage(&FileStorage{}).
 		Build()
 	return keyStore, err
 }

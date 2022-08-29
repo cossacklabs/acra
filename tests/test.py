@@ -29,6 +29,8 @@ import socket
 import ssl
 import stat
 import subprocess
+
+import consul
 import sys
 import tempfile
 import time
@@ -42,6 +44,7 @@ from urllib.request import urlopen
 
 import asyncpg
 import boto3
+import base64
 import grpc
 import mysql.connector
 import psycopg as psycopg3
@@ -154,9 +157,12 @@ KEYS_FOLDER = None
 ACRA_MASTER_KEY_VAR_NAME = 'ACRA_MASTER_KEY'
 MASTER_KEY_PATH = '/tmp/acra-test-master.key'
 TEST_WITH_VAULT = os.environ.get('TEST_WITH_VAULT', 'off').lower() == 'on'
+TEST_CONSUL_ENCRYPTOR_CONFIG = os.environ.get('TEST_CONSUL_ENCRYPTOR_CONFIG', 'off').lower() == 'on'
 TEST_WITH_AWS_KMS = os.environ.get('TEST_WITH_AWS_KMS', 'off').lower() == 'on'
 TEST_SSL_VAULT = os.environ.get('TEST_SSL_VAULT', 'off').lower() == 'on'
+TEST_SSL_CONSUL = os.environ.get('TEST_SSL_CONSUL', 'off').lower() == 'on'
 TEST_VAULT_TLS_CA = abs_path(os.environ.get('TEST_VAULT_TLS_CA', 'tests/ssl/ca/ca.crt'))
+TEST_CONSUL_TLS_CA = abs_path(os.environ.get('TEST_CONSUL_TLS_CA', 'tests/ssl/ca/ca.crt'))
 VAULT_KV_ENGINE_VERSION=os.environ.get('VAULT_KV_ENGINE_VERSION', 'v1')
 CRYPTO_ENVELOPE_HEADER = b'%%%'
 
@@ -1388,6 +1394,17 @@ class VaultClient:
             args['vault_tls_ca_path'] = TEST_VAULT_TLS_CA
         return args
 
+
+class ConsulClient:
+    def __init__(self, url, verify=True, cert=None):
+        self.url = urlparse(url)
+        self.client = consul.Consul(port=self.url.port, scheme=self.url.scheme, host=self.url.hostname, cert=cert, verify=verify)
+
+    def get_consul_url(self):
+        return self.url.geturl()
+    def set(self, key, value):
+        self.client.kv.put(key, value)
+    
 
 class AWSKMSClient:
     def __init__(self):
@@ -3261,6 +3278,44 @@ class HashiCorpVaultMasterKeyLoaderMixin:
     def tearDown(self):
         super().tearDown()
         self.vault_client.disable_kv_secret_engine(mount_path=self.DEFAULT_MOUNT_PATH)
+
+
+class HashicorpConsulEncryptorConfigLoaderMixin:
+    ENCRYPTOR_CONFIG_KEY_PATH = 'acra/encryptor_config'
+
+    def setUp(self):
+        if not TEST_CONSUL_ENCRYPTOR_CONFIG:
+            self.skipTest("test with HashiCorp Consul EncryptorConfig loader")
+
+        if TEST_SSL_CONSUL:
+            self.consul_client = ConsulClient(url=os.environ.get('CONSUL_ADDRESS', 'https://localhost:8501'),
+                                              verify=TEST_CONSUL_TLS_CA, cert=(TEST_TLS_CLIENT_CERT, TEST_TLS_CLIENT_KEY))
+        else:
+            self.consul_client = ConsulClient(url=os.environ.get('CONSUL_ADDRESS', 'http://localhost:8500'))
+
+        encryptor_config = self.prepare_config()
+        self.consul_client.set(self.ENCRYPTOR_CONFIG_KEY_PATH, encryptor_config)
+        super().setUp()
+
+    def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
+        args = {
+            'consul_connection_api_string': self.consul_client.get_consul_url(),
+            'consul_kv_config_path': self.ENCRYPTOR_CONFIG_KEY_PATH,
+            'encryptor_config_storage_type': 'consul'
+        }
+        if TEST_SSL_CONSUL:
+            args['consul_tls_enable'] = True
+            args['consul_tls_client_ca'] = TEST_CONSUL_TLS_CA
+            args['consul_tls_client_cert'] = TEST_TLS_CLIENT_CERT
+            args['consul_tls_client_key'] = TEST_TLS_CLIENT_KEY
+            args['consul_tls_client_auth'] = 4
+
+        acra_kwargs.update(args)
+        return super(HashicorpConsulEncryptorConfigLoaderMixin, self).fork_acra(popen_kwargs, **acra_kwargs)
+
+    def prepare_config(self):
+        with open(self.get_encryptor_config_path(), 'rb') as config_file:
+            return base64.b64encode(config_file.read())
 
 
 class AWSKMSMasterKeyLoaderMixin:
@@ -5693,6 +5748,10 @@ class BaseTransparentEncryption(BaseTestCase):
         self.prepare_encryptor_config(client_id=TLS_CERT_CLIENT_ID_1)
         super(BaseTransparentEncryption, self).setUp()
 
+    def get_encryptor_config_path(self):
+        self.prepare_encryptor_config(client_id=TLS_CERT_CLIENT_ID_1)
+        return get_test_encryptor_config(self.ENCRYPTOR_CONFIG)
+
     def prepare_encryptor_config(self, client_id=None):
         prepare_encryptor_config(zone_id=self.ZONES[0][ZONE_ID], config_path=self.ENCRYPTOR_CONFIG, client_id=client_id)
 
@@ -5835,6 +5894,10 @@ class TestTransparentEncryption(BaseTransparentEncryption):
             .where(self.encryptor_table.c.id == context['id']))
         data = result.fetchone()
         return data
+
+
+class TestTransparentEncryptionWithConsulEncryptorConfigLoading(HashicorpConsulEncryptorConfigLoaderMixin, TestTransparentEncryption):
+    pass
 
 
 class TransparentEncryptionNoKeyMixin(AcraCatchLogsMixin):
@@ -7088,6 +7151,10 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
 
 
 class TestSearchableTransparentEncryptionWithDefaultsAcraBlockBinaryPostgreSQL(BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin, TestSearchableTransparentEncryption):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_defaults_with_searchable_config.yaml')
+
+
+class TestSearchableTransparentEncryptionWithDefaultsAcraBlockBinaryPostgreSQLWithConsulEncryptorConfigLoader(HashicorpConsulEncryptorConfigLoaderMixin, BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin, TestSearchableTransparentEncryption):
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_defaults_with_searchable_config.yaml')
 
 
@@ -8969,6 +9036,11 @@ class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(BaseTransparentEnc
                 self.assertTrue(len(utils.memoryview_to_bytes(row[column])) > len(data[column]))
 
 
+class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaultsWithConsulEncryptorConfigLoader(HashicorpConsulEncryptorConfigLoaderMixin,
+                                                                                             TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults):
+    pass
+
+
 class TestMySQLTextFormatTypeAwareDecryptionWithDefaults(BaseBinaryMySQLTestCase, BaseTransparentEncryption):
     # test table used for queries and data mapping into python types
     test_table = sa.Table(
@@ -9063,6 +9135,11 @@ class TestMySQLTextFormatTypeAwareDecryptionWithDefaults(BaseBinaryMySQLTestCase
             if column in ('value_str', 'value_bytes'):
                 # length of data should be greater than source data due to encryption overhead
                 self.assertTrue(len(utils.memoryview_to_bytes(row[column])) > len(data[column]))
+
+
+class TestMySQLTextFormatTypeAwareDecryptionWithDefaultsWithConsulEncryptorConfigLoader(HashicorpConsulEncryptorConfigLoaderMixin,
+                                                                                        TestMySQLTextFormatTypeAwareDecryptionWithDefaults):
+    pass
 
 
 class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults(
