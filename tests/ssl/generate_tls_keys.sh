@@ -109,10 +109,13 @@ gen_crl() {
         -out "${OUT_DIR}/$signer/crl.pem"
 }
 
-declare -a names=(consul)
+declare -a names=(mysql postgresql acra-writer acra-writer-2
+    acra-writer-revoked acra-server ocsp-responder intermediate-ca vault
+    acra-client redis consul)
 for name in "${names[@]}"; do
     gen_cert ca $name
 
+    # Hashicorp servers require PEM format for TLS configuration
     if [ "$name" = "vault" ] || [ "$name" = "consul" ] ; then
         openssl x509 -in "${OUT_DIR}/${name}/${name}.crt" -out "${OUT_DIR}/${name}/${name}_crt.pem" -outform PEM
         openssl rsa -in "${OUT_DIR}/${name}/${name}.key" -out "${OUT_DIR}/${name}/${name}_key.pem" -outform PEM
