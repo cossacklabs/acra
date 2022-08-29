@@ -84,28 +84,6 @@ func (data *binaryType) MarshalJSON() ([]byte, error) {
 	return json.Marshal(base64.StdEncoding.EncodeToString(*data))
 }
 
-type zoneIDType []byte
-
-// UnmarshalJSON string value of zoneID as []byte golang value
-func (data *zoneIDType) UnmarshalJSON(bytes []byte) (err error) {
-	err = &json.InvalidUnmarshalError{Type: reflect.TypeOf(data)}
-	if len(bytes) < 2 {
-		return
-	}
-	// should be a string literal ""
-	if bytes[0] != '"' || bytes[len(bytes)-1] != '"' {
-		return
-	}
-	if len(bytes) == 2 {
-		*data = []byte{}
-		return nil
-	}
-	bytes = bytes[1 : len(bytes)-1]
-	*data = make([]byte, len(bytes))
-	copy(*data, bytes)
-	return nil
-}
-
 func bindData(obj interface{}, data []byte, ctx *gin.Context) error {
 	// support only xml
 	switch ctx.ContentType() {
@@ -126,8 +104,7 @@ func bindData(obj interface{}, data []byte, ctx *gin.Context) error {
 
 // encryptionHTTPRequest used to map json/xml/form data from HTTP requests
 type encryptionHTTPRequest struct {
-	ZoneID zoneIDType `json:"zone_id" example:"DDDDDDDDMatNOMYjqVOuhACC"`
-	Data   binaryType `json:"data" swaggertype:"string" format:"base64" example:"ZGF0YQo="`
+	Data binaryType `json:"data" swaggertype:"string" format:"base64" example:"ZGF0YQo="`
 }
 
 type encryptionHTTPResponse struct {
@@ -318,7 +295,6 @@ func (service *HTTPService) decryptOld(ctx *gin.Context) {
 	if !ok {
 		connectionClientID = nil
 	}
-	zoneID := []byte(ctx.Query("zone_id"))
 	if ctx.Request.Body == nil {
 		msg := fmt.Sprintf("HTTP request doesn't have a body, expected to get AcraStruct")
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantParseRequestBody).Warningln(msg)
@@ -332,7 +308,7 @@ func (service *HTTPService) decryptOld(ctx *gin.Context) {
 		ctx.String(http.StatusBadRequest, msg)
 		return
 	}
-	decryptedStruct, err := service.service.Decrypt(service.ctx, acraStruct, connectionClientID, zoneID)
+	decryptedStruct, err := service.service.Decrypt(service.ctx, acraStruct, connectionClientID, nil)
 	if err != nil {
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 		msg := fmt.Sprintf("Can't decrypt AcraStruct")
@@ -354,7 +330,6 @@ func (service *HTTPService) encryptOld(ctx *gin.Context) {
 	if !ok {
 		connectionClientID = nil
 	}
-	zoneID := []byte(ctx.Query("zone_id"))
 	if ctx.Request.Body == nil {
 		msg := fmt.Sprintf("HTTP request doesn't have a body, expected to get data")
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantParseRequestBody).Warningln(msg)
@@ -368,7 +343,7 @@ func (service *HTTPService) encryptOld(ctx *gin.Context) {
 		ctx.String(http.StatusBadRequest, msg)
 		return
 	}
-	decryptedStruct, err := service.service.Encrypt(service.ctx, plaintext, connectionClientID, zoneID)
+	decryptedStruct, err := service.service.Encrypt(service.ctx, plaintext, connectionClientID, nil)
 	if err != nil {
 		base.AcrastructDecryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
 		msg := fmt.Sprintf("Can't encrypt data")
@@ -405,11 +380,10 @@ func callOperationImplementation(ctx *gin.Context, f func(*gin.Context, []byte) 
 
 // encrypt godoc
 // @Summary Encrypt with AcraStruct
-// @Description Encrypt data with specified ZoneID or ClientID from connection
+// @Description Encrypt data with specified ClientID from connection
 // @Accept  json
 // @Produce  json
 // @Param data body string true "Binary data encoded as Base64 string"
-// @Param zone_id body string false "ZoneID"
 // @Success 200 {object} http_api.encryptionHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
@@ -433,7 +407,7 @@ func (service *HTTPService) _encrypt(ctx *gin.Context, data []byte) (response en
 		return
 	}
 
-	encryptedData, err := service.service.Encrypt(service.ctx, request.Data, connectionClientID, request.ZoneID)
+	encryptedData, err := service.service.Encrypt(service.ctx, request.Data, connectionClientID, nil)
 	if err != nil {
 		base.AcrastructDecryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
 		msg := fmt.Sprintf("Can't encrypt data")
@@ -449,11 +423,10 @@ func (service *HTTPService) _encrypt(ctx *gin.Context, data []byte) (response en
 
 // decrypt godoc
 // @Summary Decrypt AcraStruct
-// @Description Decrypt AcraStruct with specified ZoneID or ClientID from connection
+// @Description Decrypt AcraStruct with specified ClientID from connection
 // @Accept  json
 // @Produce  json
 // @Param data body string true "Binary data encoded as Base64 string"
-// @Param zone_id body string false "ZoneID"
 // @Success 200 {object} http_api.encryptionHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
@@ -476,7 +449,7 @@ func (service *HTTPService) _decrypt(ctx *gin.Context, data []byte) (response en
 		return
 	}
 
-	decryptedData, err := service.service.Decrypt(service.ctx, request.Data, connectionClientID, request.ZoneID)
+	decryptedData, err := service.service.Decrypt(service.ctx, request.Data, connectionClientID, nil)
 	if err != nil {
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 		msg := fmt.Sprintf("Can't decrypt data")
@@ -492,11 +465,10 @@ func (service *HTTPService) _decrypt(ctx *gin.Context, data []byte) (response en
 
 // encryptSearchable godoc
 // @Summary Encrypt with searchable AcraStruct
-// @Description Encrypt data with searchable AcraStruct with specified ZoneID or ClientID from connection
+// @Description Encrypt data with searchable AcraStruct with specified ClientID from connection
 // @Accept  json
 // @Produce  json
 // @Param data body string true "Binary data encoded as Base64 string"
-// @Param zone_id body string false "ZoneID"
 // @Success 200 {object} http_api.encryptionHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
@@ -524,7 +496,7 @@ func (service *HTTPService) _encryptSearchable(ctx *gin.Context, data []byte) (r
 		return
 	}
 
-	encryptedData, err := service.service.EncryptSearchable(service.ctx, request.Data, connectionClientID, request.ZoneID)
+	encryptedData, err := service.service.EncryptSearchable(service.ctx, request.Data, connectionClientID, nil)
 	if err != nil {
 		base.AcrastructDecryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
 		msg := fmt.Sprintf("Can't encrypt data")
@@ -540,11 +512,10 @@ func (service *HTTPService) _encryptSearchable(ctx *gin.Context, data []byte) (r
 
 // decryptSearchable godoc
 // @Summary Decrypt searchable AcraStruct
-// @Description Decrypt searchable AcraStruct with specified ZoneID or ClientID from connection
+// @Description Decrypt searchable AcraStruct with ClientID from connection
 // @Accept  json
 // @Produce  json
 // @Param data body string true "Binary data encoded as Base64 string"
-// @Param zone_id body string false "ZoneID"
 // @Success 200 {object} http_api.encryptionHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
@@ -570,7 +541,7 @@ func (service *HTTPService) _decryptSearchable(ctx *gin.Context, data []byte) (r
 	hash := hmac.ExtractHash(request.Data)
 	hashData := hash.Marshal()
 	acraStruct := request.Data[len(hashData):]
-	decryptedData, err := service.service.DecryptSearchable(service.ctx, acraStruct, hashData, connectionClientID, request.ZoneID)
+	decryptedData, err := service.service.DecryptSearchable(service.ctx, acraStruct, hashData, connectionClientID, nil)
 	if err != nil {
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 		msg := fmt.Sprintf("Can't decrypt data")
@@ -590,7 +561,6 @@ func (service *HTTPService) _decryptSearchable(ctx *gin.Context, data []byte) (r
 // @Accept  json
 // @Produce  json
 // @Param data body string true "Binary data encoded as Base64 string"
-// @Param zone_id body string false "ZoneID"
 // @Success 200 {object} http_api.encryptionHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
@@ -618,7 +588,7 @@ func (service *HTTPService) _generateQueryHash(ctx *gin.Context, data []byte) (r
 		return
 	}
 
-	newHash, err := service.service.GenerateQueryHash(service.ctx, request.Data, connectionClientID, request.ZoneID)
+	newHash, err := service.service.GenerateQueryHash(service.ctx, request.Data, connectionClientID, nil)
 	if err != nil {
 		// TODO lagovas(2021-06-24) add and use proper metric
 		//base.AcrastructDecryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
@@ -636,11 +606,10 @@ func (service *HTTPService) _generateQueryHash(ctx *gin.Context, data []byte) (r
 
 // encryptSymSearchable godoc
 // @Summary Encrypt with searchable AcraBlock
-// @Description Encrypt data with searchable AcraBlock with specified ZoneID or ClientID from connection
+// @Description Encrypt data with searchable AcraBlock with ClientID from connection
 // @Accept  json
 // @Produce  json
 // @Param data body string true "Binary data encoded as Base64 string"
-// @Param zone_id body string false "ZoneID"
 // @Success 200 {object} http_api.encryptionHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
@@ -668,7 +637,7 @@ func (service *HTTPService) _encryptSymSearchable(ctx *gin.Context, data []byte)
 		return
 	}
 
-	encryptedData, err := service.service.EncryptSymSearchable(service.ctx, request.Data, connectionClientID, request.ZoneID)
+	encryptedData, err := service.service.EncryptSymSearchable(service.ctx, request.Data, connectionClientID, nil)
 	if err != nil {
 		base.AcrastructDecryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
 		msg := fmt.Sprintf("Can't encrypt data")
@@ -684,11 +653,10 @@ func (service *HTTPService) _encryptSymSearchable(ctx *gin.Context, data []byte)
 
 // decryptSymSearchable godoc
 // @Summary Decrypt searchable AcraBlock
-// @Description Decrypt searchable AcraBlock with specified ZoneID or ClientID from connection
+// @Description Decrypt searchable AcraBlock with ClientID from connection
 // @Accept  json
 // @Produce  json
 // @Param data body string true "Binary data encoded as Base64 string"
-// @Param zone_id body string false "ZoneID"
 // @Success 200 {object} http_api.encryptionHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
@@ -719,7 +687,7 @@ func (service *HTTPService) _decryptSymSearchable(ctx *gin.Context, data []byte)
 	}
 	hashData := hash.Marshal()
 	acraStruct := request.Data[len(hashData):]
-	decryptedData, err := service.service.DecryptSymSearchable(service.ctx, acraStruct, hashData, connectionClientID, request.ZoneID)
+	decryptedData, err := service.service.DecryptSymSearchable(service.ctx, acraStruct, hashData, connectionClientID, nil)
 	if err != nil {
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 		msg := fmt.Sprintf("Can't decrypt data")
@@ -735,11 +703,10 @@ func (service *HTTPService) _decryptSymSearchable(ctx *gin.Context, data []byte)
 
 // encryptSym godoc
 // @Summary Encrypt with AcraBlock
-// @Description Encrypt data with AcraBlock with specified ZoneID or ClientID from connection
+// @Description Encrypt data with AcraBlock with ClientID from connection
 // @Accept  json
 // @Produce  json
 // @Param data body string true "Binary data encoded as Base64 string"
-// @Param zone_id body string false "ZoneID"
 // @Success 200 {object} http_api.encryptionHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
@@ -767,7 +734,7 @@ func (service *HTTPService) _encryptSym(ctx *gin.Context, data []byte) (response
 		return
 	}
 
-	encryptedData, err := service.service.EncryptSym(service.ctx, request.Data, connectionClientID, request.ZoneID)
+	encryptedData, err := service.service.EncryptSym(service.ctx, request.Data, connectionClientID, nil)
 	if err != nil {
 		base.AcrastructDecryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
 		msg := fmt.Sprintf("Can't encrypt data")
@@ -783,11 +750,10 @@ func (service *HTTPService) _encryptSym(ctx *gin.Context, data []byte) (response
 
 // decryptSym godoc
 // @Summary Decrypt AcraBlock
-// @Description Decrypt AcraBlock with specified ZoneID or ClientID from connection
+// @Description Decrypt AcraBlock with ClientID from connection
 // @Accept  json
 // @Produce  json
 // @Param data body string true "Binary data encoded as Base64 string"
-// @Param zone_id body string false "ZoneID"
 // @Success 200 {object} http_api.encryptionHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
@@ -810,7 +776,7 @@ func (service *HTTPService) _decryptSym(ctx *gin.Context, data []byte) (response
 		return
 	}
 
-	decryptedData, err := service.service.DecryptSym(service.ctx, request.Data, connectionClientID, request.ZoneID)
+	decryptedData, err := service.service.DecryptSym(service.ctx, request.Data, connectionClientID, nil)
 	if err != nil {
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 		msg := fmt.Sprintf("Can't decrypt data")
@@ -826,9 +792,8 @@ func (service *HTTPService) _decryptSym(ctx *gin.Context, data []byte) (response
 
 // encryptionHTTPRequest used to map json/xml/form data from HTTP requests
 type tokenizationHTTPRequest struct {
-	ZoneID zoneIDType                       `json:"zone_id" example:"DDDDDDDDMatNOMYjqVOuhACC"`
-	Data   json.RawMessage                  `json:"data" swaggertype:"string,integer" example:"ZGF0YQo="`
-	Type   pseudonymizationCommon.TokenType `json:"type" example:"1"`
+	Data json.RawMessage                  `json:"data" swaggertype:"string,integer" example:"ZGF0YQo="`
+	Type pseudonymizationCommon.TokenType `json:"type" example:"1"`
 }
 
 type tokenizationHTTPResponse struct {
@@ -890,7 +855,6 @@ func prepareDataToTokenization(data json.RawMessage, tokenType pseudonymizationC
 // @Accept  json
 // @Produce  json
 // @Param data body string true "String or Base64 encoded binary value, or integer"
-// @Param zone_id body string false "ZoneID"
 // @Success 200 {object} http_api.tokenizationHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
@@ -923,7 +887,7 @@ func (service *HTTPService) _tokenize(ctx *gin.Context, data []byte) (response t
 		httpErr = NewHTTPError(http.StatusBadRequest, "Invalid request data")
 		return
 	}
-	tokenizedData, err := service.service.Tokenize(service.ctx, dataToTokenize, request.Type, connectionClientID, request.ZoneID)
+	tokenizedData, err := service.service.Tokenize(service.ctx, dataToTokenize, request.Type, connectionClientID, nil)
 	if err != nil {
 		// TODO lagovas(2021-06-24) add and use proper metric
 		//base.AcrastructDecryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
@@ -951,7 +915,6 @@ func (service *HTTPService) _tokenize(ctx *gin.Context, data []byte) (response t
 // @Accept  json
 // @Produce  json
 // @Param data body string true "String or Base64 encoded binary value, or integer"
-// @Param zone_id body string false "ZoneID"
 // @Success 200 {object} http_api.tokenizationHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
@@ -986,7 +949,7 @@ func (service *HTTPService) _detokenize(ctx *gin.Context, data []byte) (response
 		return
 	}
 
-	detokenizedData, err := service.service.Detokenize(service.ctx, dataToDetokenize, request.Type, connectionClientID, request.ZoneID)
+	detokenizedData, err := service.service.Detokenize(service.ctx, dataToDetokenize, request.Type, connectionClientID, nil)
 	if err != nil {
 		// TODO lagovas(2021-06-24) add and use proper metric
 		//base.AcrastructDecryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()

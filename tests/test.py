@@ -1783,19 +1783,15 @@ class AcraTranslatorMixin(object):
             'acratranslator_client_id_from_connection_enable': 'true',
         }
 
-    def http_decrypt_request(self, port, client_id, zone_id, acrastruct):
+    def http_decrypt_request(self, port, client_id, acrastruct):
         api_url = '{}://localhost:{}/v1/decrypt'.format(self.get_http_schema(), port)
-        if zone_id:
-            api_url = '{}?zone_id={}'.format(api_url, zone_id)
         kwargs = self.get_http_default_kwargs()
         kwargs['data'] = acrastruct
         with requests.post(api_url, **kwargs) as response:
             return response.content
 
-    def http_encrypt_request(self, port, client_id, zone_id, data):
+    def http_encrypt_request(self, port, client_id, data):
         api_url = '{}://localhost:{}/v1/encrypt'.format(self.get_http_schema(), port)
-        if zone_id:
-            api_url = '{}?zone_id={}'.format(api_url, zone_id)
         kwargs = self.get_http_default_kwargs()
         kwargs['data'] = data
         with requests.post(api_url, **kwargs) as response:
@@ -1810,37 +1806,25 @@ class AcraTranslatorMixin(object):
         tls_credentials = grpc.ssl_channel_credentials(ca_bytes, key_bytes, cert_bytes)
         return grpc.secure_channel('localhost:{}'.format(port), tls_credentials)
 
-    def grpc_encrypt_request(self, port, client_id, zone_id, data):
+    def grpc_encrypt_request(self, port, client_id, data):
         with self.get_grpc_channel(port) as channel:
             stub = api_pb2_grpc.WriterStub(channel)
             try:
-                if zone_id:
-                    response = stub.Encrypt(api_pb2.EncryptRequest(
-                        zone_id=zone_id.encode('ascii'), data=data,
-                        client_id=client_id.encode('ascii')),
-                        timeout=SOCKET_CONNECT_TIMEOUT)
-                else:
-                    response = stub.Encrypt(api_pb2.EncryptRequest(
-                        client_id=client_id.encode('ascii'), data=data),
-                        timeout=SOCKET_CONNECT_TIMEOUT)
+                response = stub.Encrypt(api_pb2.EncryptRequest(
+                    client_id=client_id.encode('ascii'), data=data),
+                    timeout=SOCKET_CONNECT_TIMEOUT)
             except grpc.RpcError as exc:
                 logging.info(exc)
                 return b''
             return response.acrastruct
 
-    def grpc_decrypt_request(self, port, client_id, zone_id, acrastruct, raise_exception_on_failure=False):
+    def grpc_decrypt_request(self, port, client_id, acrastruct, raise_exception_on_failure=False):
         with self.get_grpc_channel(port) as channel:
             stub = api_pb2_grpc.ReaderStub(channel)
             try:
-                if zone_id:
-                    response = stub.Decrypt(api_pb2.DecryptRequest(
-                        zone_id=zone_id.encode('ascii'), acrastruct=acrastruct,
-                        client_id=client_id.encode('ascii')),
-                        timeout=SOCKET_CONNECT_TIMEOUT)
-                else:
-                    response = stub.Decrypt(api_pb2.DecryptRequest(
-                        client_id=client_id.encode('ascii'), acrastruct=acrastruct),
-                        timeout=SOCKET_CONNECT_TIMEOUT)
+                response = stub.Decrypt(api_pb2.DecryptRequest(
+                    client_id=client_id.encode('ascii'), acrastruct=acrastruct),
+                    timeout=SOCKET_CONNECT_TIMEOUT)
             except grpc.RpcError as exc:
                 logging.info(exc)
                 if raise_exception_on_failure:
@@ -2859,7 +2843,7 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
         data = self.get_poison_record_data()
         with ProcessContextManager(self.fork_translator(translator_kwargs)):
             with self.assertRaises(requests.exceptions.ConnectionError) as exc:
-                response = self.http_decrypt_request(http_port, TLS_CERT_CLIENT_ID_1, None, data)
+                response = self.http_decrypt_request(http_port, TLS_CERT_CLIENT_ID_1, data)
         self.assertEqual(exc.exception.args[0].args[0], 'Connection aborted.')
 
         # check that port not listening anymore
@@ -2884,7 +2868,7 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
 
         with ProcessContextManager(self.fork_translator(translator_kwargs)):
             with self.assertRaises(grpc.RpcError) as exc:
-                response = self.grpc_decrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, None, data,
+                response = self.grpc_decrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, data,
                                                      raise_exception_on_failure=True)
         self.assertEqual(exc.exception.code(), grpc.StatusCode.UNAVAILABLE)
 
@@ -3030,7 +3014,7 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
 
             data = self.get_poison_record_data()
             with ProcessContextManager(self.fork_translator(translator_kwargs)) as translator:
-                response = self.http_decrypt_request(http_port, TLS_CERT_CLIENT_ID_1, None, data)
+                response = self.http_decrypt_request(http_port, TLS_CERT_CLIENT_ID_1, data)
                 self.assertEqual(response, b"Can't decrypt AcraStruct")
 
             with open(log_file.name, 'r') as f:
@@ -3059,7 +3043,7 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
 
             with ProcessContextManager(self.fork_translator(translator_kwargs)):
                 with self.assertRaises(grpc.RpcError) as exc:
-                    response = self.grpc_decrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, None, data,
+                    response = self.grpc_decrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, data,
                                                          raise_exception_on_failure=True)
                 self.assertEqual(exc.exception.code(), grpc.StatusCode.UNKNOWN)
                 self.assertEqual(exc.exception.details(), "can't decrypt data")
@@ -4607,6 +4591,12 @@ class TestZoneIDDecryptionWithAWSKMSMasterKeyLoader(AWSKMSMasterKeyLoaderMixin, 
 
 class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
 
+    def setUp(self):
+        self.checkSkip()
+
+    def tearDown(self):
+        pass
+
     def apiEncryptionTest(self, request_func, use_http=False, use_grpc=False):
         # one is set
         self.assertTrue(use_http or use_grpc)
@@ -4637,7 +4627,7 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
 
             incorrect_client_id = TLS_CERT_CLIENT_ID_2
             with ProcessContextManager(self.fork_translator(translator_kwargs)):
-                response = request_func(translator_port, incorrect_client_id, None, data)
+                response = request_func(translator_port, incorrect_client_id, data)
                 decrypted = deserialize_and_decrypt_acrastruct(response, client_id_private_key, client_id)
                 self.assertEqual(data, decrypted)
         finally:
@@ -4674,7 +4664,7 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
 
             incorrect_client_id = TLS_CERT_CLIENT_ID_2
             with ProcessContextManager(self.fork_translator(translator_kwargs)):
-                response = request_func(translator_port, incorrect_client_id, None, acrastruct)
+                response = request_func(translator_port, incorrect_client_id, acrastruct)
                 self.assertEqual(data, response)
         finally:
             shutil.rmtree(key_folder.name)
@@ -4818,7 +4808,7 @@ class TestTranslatorDisableCachedOnStartup(AcraTranslatorMixin, BaseTestCase):
         incorrect_client_id = TLS_CERT_CLIENT_ID_2
         with ProcessContextManager(self.fork_translator(translator_kwargs)):
             self.cached_dir.cleanup()
-            response = self.http_encrypt_request(translator_port, incorrect_client_id, None, data)
+            response = self.http_encrypt_request(translator_port, incorrect_client_id, data)
             # we cant encrypt data because AcraServer doest have access to encryption key with disabled keystore caching
             self.assertEqual(response, b"Can't encrypt data")
             with self.assertRaises(ValueError):
@@ -4877,7 +4867,7 @@ class TestTranslatorEnableCachedOnStartup(AcraTranslatorMixin, BaseTestCase):
         incorrect_client_id = TLS_CERT_CLIENT_ID_2
         with ProcessContextManager(self.fork_translator(translator_kwargs)):
             self.cached_dir.cleanup()
-            response = self.http_encrypt_request(translator_port, incorrect_client_id, None, data)
+            response = self.http_encrypt_request(translator_port, incorrect_client_id, data)
             decrypted = deserialize_and_decrypt_acrastruct(response, client_id_private_key, client_id)
             self.assertEqual(data, decrypted)
 
@@ -5329,7 +5319,7 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
         base_translator_kwargs.update(grpc_translator_kwargs)
         with ProcessContextManager(self.fork_translator(base_translator_kwargs)):
                 AcraTranslatorTest.grpc_decrypt_request(
-                    self, translator_port, client_id, None, acrastruct)
+                    self, translator_port, client_id, acrastruct)
                 self.checkMetrics(metrics_url, labels)
 
 
@@ -10561,7 +10551,7 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
             raise
         test_data = b'test data'
         try:
-            ciphertext = self.grpc_encrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, None, test_data)
+            ciphertext = self.grpc_encrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, test_data)
             self.assertNotEqual(ciphertext, b'')
             # load default config
             shutil.rmtree(temp_keystore)
@@ -10576,7 +10566,7 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
                 stop_process(translator)
                 raise
 
-            plaintext = self.grpc_decrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, None, ciphertext)
+            plaintext = self.grpc_decrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, ciphertext)
             self.assertEqual(plaintext, test_data)
 
             with self.assertRaises(Exception) as exc:

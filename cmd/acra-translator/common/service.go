@@ -13,17 +13,17 @@ import (
 
 // ITranslatorService interface introduce all supported methods by Acra-Translator
 type ITranslatorService interface {
-	Decrypt(ctx context.Context, acraStruct, clientID, zoneID []byte) ([]byte, error)
-	Encrypt(ctx context.Context, data, clientID, zoneID []byte) ([]byte, error)
-	EncryptSearchable(ctx context.Context, data, clientID, zoneID []byte) (SearchableResponse, error)
-	DecryptSearchable(ctx context.Context, data, hash, clientID, zoneID []byte) ([]byte, error)
-	GenerateQueryHash(context context.Context, data, clientID, zoneID []byte) ([]byte, error)
-	Tokenize(ctx context.Context, data interface{}, dataType tokenCommon.TokenType, clientID, zoneID []byte) (interface{}, error)
-	Detokenize(ctx context.Context, data interface{}, dataType tokenCommon.TokenType, clientID, zoneID []byte) (interface{}, error)
-	EncryptSymSearchable(ctx context.Context, data, clientID, zoneID []byte) (SearchableResponse, error)
-	DecryptSymSearchable(ctx context.Context, data, hash, clientID, zoneID []byte) ([]byte, error)
-	EncryptSym(ctx context.Context, data, clientID, zoneID []byte) ([]byte, error)
-	DecryptSym(ctx context.Context, acraBlock, clientID, zoneID []byte) ([]byte, error)
+	Decrypt(ctx context.Context, acraStruct, clientID, additionalContext []byte) ([]byte, error)
+	Encrypt(ctx context.Context, data, clientID, additionalContext []byte) ([]byte, error)
+	EncryptSearchable(ctx context.Context, data, clientID, additionalContext []byte) (SearchableResponse, error)
+	DecryptSearchable(ctx context.Context, data, hash, clientID, additionalContext []byte) ([]byte, error)
+	GenerateQueryHash(context context.Context, data, clientID, additionalContext []byte) ([]byte, error)
+	Tokenize(ctx context.Context, data interface{}, dataType tokenCommon.TokenType, clientID, additionalContext []byte) (interface{}, error)
+	Detokenize(ctx context.Context, data interface{}, dataType tokenCommon.TokenType, clientID, additionalContext []byte) (interface{}, error)
+	EncryptSymSearchable(ctx context.Context, data, clientID, additionalContext []byte) (SearchableResponse, error)
+	DecryptSymSearchable(ctx context.Context, data, hash, clientID, additionalContext []byte) ([]byte, error)
+	EncryptSym(ctx context.Context, data, clientID, additionalContext []byte) ([]byte, error)
+	DecryptSym(ctx context.Context, acraBlock, clientID, additionalContext []byte) ([]byte, error)
 }
 
 // TranslatorService service that implements all Acra-Translator functions
@@ -48,15 +48,16 @@ func NewTranslatorService(translatorData *TranslatorData) (*TranslatorService, e
 
 // Errors possible during decrypting AcraStructs.
 var (
-	ErrCantDecrypt      = errors.New("can't decrypt data")
-	ErrClientIDRequired = errors.New("clientID is empty")
-	ErrCantEncrypt      = errors.New("can't encrypt data")
+	ErrCantDecrypt                      = errors.New("can't decrypt data")
+	ErrClientIDRequired                 = errors.New("clientID is empty")
+	ErrCantEncrypt                      = errors.New("can't encrypt data")
+	ErrZoneIDAdditionalDataNotSupported = errors.New("ZoneID and additional data are not supported")
 )
 
-// Decrypt AcraStruct using passed ZoneID if length > 0 otherwise use ClientID (that is required after that)
-func (service *TranslatorService) Decrypt(ctx context.Context, acraStruct, clientID, zoneID []byte) ([]byte, error) {
+// Decrypt AcraStruct using ClientID
+func (service *TranslatorService) Decrypt(ctx context.Context, acraStruct, clientID, additionalContext []byte) ([]byte, error) {
 	logger := logging.GetLoggerFromContext(ctx)
-	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "zone_id": string(zoneID), "operation": "Decrypt"})
+	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "context": string(additionalContext), "operation": "Decrypt"})
 	logger.Debugln("New request")
 	defer logger.Debugln("End processing request")
 
@@ -64,14 +65,13 @@ func (service *TranslatorService) Decrypt(ctx context.Context, acraStruct, clien
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorClientIDMissing).Errorln("Request without ClientID not allowed")
 		return nil, ErrClientIDRequired
 	}
-
-	var accessContext *base.AccessContext
-	if len(zoneID) != 0 {
-		accessContext = base.NewAccessContext(base.WithZoneMode(len(zoneID) > 0))
-		accessContext.SetZoneID(zoneID)
-	} else {
-		accessContext = base.NewAccessContext(base.WithClientID(clientID))
+	if additionalContext != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		return nil, ErrZoneIDAdditionalDataNotSupported
 	}
+
+	accessContext := base.NewAccessContext(base.WithClientID(clientID))
+
 	dataCtx := base.SetAccessContextToContext(ctx, accessContext)
 	dataContext := &base.DataProcessorContext{Keystore: service.data.Keystorage, Context: dataCtx}
 	handler, err := crypto.GetHandlerByEnvelopeID(crypto.AcraStructEnvelopeID)
@@ -95,10 +95,10 @@ func (service *TranslatorService) Decrypt(ctx context.Context, acraStruct, clien
 	return data, nil
 }
 
-// Encrypt AcraStruct using passed ZoneID if length > 0 otherwise use ClientID (that is required after that)
-func (service *TranslatorService) Encrypt(ctx context.Context, data, clientID, zoneID []byte) ([]byte, error) {
+// Encrypt AcraStruct using ClientID
+func (service *TranslatorService) Encrypt(ctx context.Context, data, clientID, additionalContext []byte) ([]byte, error) {
 	logger := logging.GetLoggerFromContext(ctx)
-	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "zone_id": string(zoneID), "operation": "Encrypt"})
+	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "context": string(additionalContext), "operation": "Encrypt"})
 	logger.Debugln("Process request to encrypt data")
 	defer logger.Debugln("End processing request")
 
@@ -106,10 +106,11 @@ func (service *TranslatorService) Encrypt(ctx context.Context, data, clientID, z
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorClientIDMissing).Errorln("GRPC request without ClientID not allowed")
 		return nil, ErrClientIDRequired
 	}
-	id := clientID
-	if len(zoneID) != 0 {
-		id = zoneID
+	if additionalContext != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		return nil, ErrZoneIDAdditionalDataNotSupported
 	}
+	id := clientID
 	handler, err := crypto.GetHandlerByEnvelopeID(crypto.AcraStructEnvelopeID)
 	if err != nil {
 		base.AcrastructDecryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
@@ -122,7 +123,7 @@ func (service *TranslatorService) Encrypt(ctx context.Context, data, clientID, z
 		return nil, ErrCantDecrypt
 	}
 
-	data, encryptErr := service.handler.EncryptWithHandler(handler, id, data, len(zoneID) != 0)
+	data, encryptErr := service.handler.EncryptWithHandler(handler, id, data, false)
 	if encryptErr != nil {
 		base.AcrastructDecryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraStruct).WithError(encryptErr).Errorln("Can't encrypt data")
@@ -139,15 +140,19 @@ type SearchableResponse struct {
 	Hash          []byte
 }
 
-// EncryptSearchable generate AcraStruct using passed ZoneID if length > 0 otherwise use ClientID (that is required after that) and searchable hash
-func (service *TranslatorService) EncryptSearchable(ctx context.Context, data, clientID, zoneID []byte) (SearchableResponse, error) {
+// EncryptSearchable generate AcraStruct using ClientID and searchable hash
+func (service *TranslatorService) EncryptSearchable(ctx context.Context, data, clientID, additionalContext []byte) (SearchableResponse, error) {
 	logger := logging.GetLoggerFromContext(ctx)
-	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "zone_id": string(zoneID), "operation": "Encrypt (searchable)"})
+	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "context": string(additionalContext), "operation": "Encrypt (searchable)"})
 	logger.Debugln("New request")
 	defer logger.Debugln("End processing request")
 	if clientID == nil {
 		logger.Errorln("Empty ClientID")
 		return SearchableResponse{}, ErrClientIDRequired
+	}
+	if additionalContext != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		return SearchableResponse{}, ErrZoneIDAdditionalDataNotSupported
 	}
 
 	logger.Debugln("Load secret key for HMAC from KeyStore")
@@ -160,15 +165,12 @@ func (service *TranslatorService) EncryptSearchable(ctx context.Context, data, c
 	dataHash := hmac.GenerateHMAC(hmacKey, data)
 	logger.Debugln("Create AcraStruct")
 	id := clientID
-	if len(zoneID) != 0 {
-		id = zoneID
-	}
 	handler, err := crypto.GetHandlerByEnvelopeID(crypto.AcraStructEnvelopeID)
 	if err != nil {
 		return SearchableResponse{}, ErrEncryptionFailed
 	}
 
-	acraStruct, err := service.handler.EncryptWithHandler(handler, id, data, len(zoneID) != 0)
+	acraStruct, err := service.handler.EncryptWithHandler(handler, id, data, false)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't create AcraStruct")
 		return SearchableResponse{}, ErrEncryptionFailed
@@ -177,15 +179,19 @@ func (service *TranslatorService) EncryptSearchable(ctx context.Context, data, c
 
 }
 
-// DecryptSearchable decrypt AcraStruct using passed ZoneID if length > 0 otherwise use ClientID (that is required after that) and then verify hash
-func (service *TranslatorService) DecryptSearchable(ctx context.Context, data, hash, clientID, zoneID []byte) ([]byte, error) {
+// DecryptSearchable decrypt AcraStruct using ClientID and then verify hash
+func (service *TranslatorService) DecryptSearchable(ctx context.Context, data, hash, clientID, additionalContext []byte) ([]byte, error) {
 	logger := logging.GetLoggerFromContext(ctx)
-	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "zone_id": string(zoneID), "operation": "Decrypt (searchable)"})
+	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "context": string(additionalContext), "operation": "Decrypt (searchable)"})
 	logger.Debugln("New request")
 	defer logger.Debugln("End processing request")
 	if clientID == nil {
 		logger.Errorln("Empty ClientID")
 		return nil, ErrClientIDRequired
+	}
+	if additionalContext != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		return nil, ErrZoneIDAdditionalDataNotSupported
 	}
 	logger.Debugln("Load secret key for HMAC from KeyStore")
 	// if wasn't provided Hash as extra field than we expect that AcraStruct concatenated with hash
@@ -198,13 +204,7 @@ func (service *TranslatorService) DecryptSearchable(ctx context.Context, data, h
 	if hashPart == nil {
 		return nil, ErrCantDecrypt
 	}
-	var accessContext *base.AccessContext
-	if len(zoneID) != 0 {
-		accessContext = base.NewAccessContext(base.WithZoneMode(len(zoneID) > 0))
-		accessContext.SetZoneID(zoneID)
-	} else {
-		accessContext = base.NewAccessContext(base.WithClientID(clientID))
-	}
+	accessContext := base.NewAccessContext(base.WithClientID(clientID))
 	dataCtx := base.SetAccessContextToContext(ctx, accessContext)
 	dataContext := &base.DataProcessorContext{Keystore: service.data.Keystorage, Context: dataCtx}
 	handler, err := crypto.GetHandlerByEnvelopeID(crypto.AcraStructEnvelopeID)
@@ -231,14 +231,18 @@ func (service *TranslatorService) DecryptSearchable(ctx context.Context, data, h
 }
 
 // GenerateQueryHash generates searchable hash for data
-func (service *TranslatorService) GenerateQueryHash(context context.Context, data, clientID, zoneID []byte) ([]byte, error) {
+func (service *TranslatorService) GenerateQueryHash(context context.Context, data, clientID, additionalContext []byte) ([]byte, error) {
 	logger := logging.GetLoggerFromContext(context)
-	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "zone_id": string(zoneID), "operation": "GenerateQueryHash"})
+	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "context": string(additionalContext), "operation": "GenerateQueryHash"})
 	logger.Debugln("New request")
 	defer logger.Debugln("End processing request")
 	if clientID == nil {
 		logger.Errorln("Empty clientID")
 		return nil, ErrClientIDRequired
+	}
+	if additionalContext != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		return nil, ErrZoneIDAdditionalDataNotSupported
 	}
 	logger.Debugln("Load secret key for HMAC from KeyStore")
 	key, err := service.data.Keystorage.GetHMACSecretKey(clientID)
@@ -251,16 +255,17 @@ func (service *TranslatorService) GenerateQueryHash(context context.Context, dat
 	return hash, nil
 }
 
-// Tokenize data from request according to TokenType using passed ZoneID if length > 0 otherwise use ClientID (that is required after that)
-func (service *TranslatorService) Tokenize(ctx context.Context, data interface{}, dataType tokenCommon.TokenType, clientID, zoneID []byte) (interface{}, error) {
+// Tokenize data from request according to TokenType using ClientID
+func (service *TranslatorService) Tokenize(ctx context.Context, data interface{}, dataType tokenCommon.TokenType, clientID, additionalContext []byte) (interface{}, error) {
 	logger := logging.GetLoggerFromContext(ctx)
-	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "zone_id": string(zoneID), "operation": "Tokenize"})
+	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "context": string(additionalContext), "operation": "Tokenize"})
 	logger.Debugln("New request")
-	defer logger.WithFields(logrus.Fields{"client_id": string(clientID), "zone_id": string(zoneID), "operation": "Tokenize"}).Debugln("End processing request")
-	tokenContext := tokenCommon.TokenContext{ClientID: clientID}
-	if len(zoneID) > 0 {
-		tokenContext = tokenCommon.TokenContext{ZoneID: zoneID}
+	defer logger.WithFields(logrus.Fields{"client_id": string(clientID), "context": string(additionalContext), "operation": "Tokenize"}).Debugln("End processing request")
+	if additionalContext != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		return nil, ErrZoneIDAdditionalDataNotSupported
 	}
+	tokenContext := tokenCommon.TokenContext{ClientID: clientID}
 	response, err := service.data.Tokenizer.AnonymizeConsistently(data, tokenContext, dataType)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't tokenize")
@@ -269,16 +274,17 @@ func (service *TranslatorService) Tokenize(ctx context.Context, data interface{}
 	return response, nil
 }
 
-// Detokenize data from request according to TokenType using passed ZoneID if length > 0 otherwise use ClientID (that is required after that)
-func (service *TranslatorService) Detokenize(ctx context.Context, data interface{}, dataType tokenCommon.TokenType, clientID, zoneID []byte) (interface{}, error) {
+// Detokenize data from request according to TokenType using ClientID
+func (service *TranslatorService) Detokenize(ctx context.Context, data interface{}, dataType tokenCommon.TokenType, clientID, additionalContext []byte) (interface{}, error) {
 	logger := logging.GetLoggerFromContext(ctx)
-	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "zone_id": string(zoneID), "operation": "Detokenize"})
+	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "context": string(additionalContext), "operation": "Detokenize"})
 	logger.Debugln("New request")
 	defer logger.Debugln("End processing request to detokenize token")
-	tokenContext := tokenCommon.TokenContext{ClientID: clientID}
-	if len(zoneID) > 0 {
-		tokenContext = tokenCommon.TokenContext{ZoneID: zoneID}
+	if additionalContext != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		return nil, ErrZoneIDAdditionalDataNotSupported
 	}
+	tokenContext := tokenCommon.TokenContext{ClientID: clientID}
 	switch dataType {
 	case tokenCommon.TokenType_Bytes, tokenCommon.TokenType_Email, tokenCommon.TokenType_Int32, tokenCommon.TokenType_Int64, tokenCommon.TokenType_String:
 		sourceData, err := service.data.Tokenizer.Deanonymize(data, tokenContext, dataType)
@@ -302,15 +308,19 @@ var (
 	ErrTokenize         = errors.New("can't tokenize")
 )
 
-// EncryptSymSearchable encrypts data with AcraBlock using passed ZoneID if length > 0 otherwise use ClientID (that is required after that) and searchable hash
-func (service *TranslatorService) EncryptSymSearchable(ctx context.Context, data, clientID, zoneID []byte) (SearchableResponse, error) {
+// EncryptSymSearchable encrypts data with AcraBlock using ClientID and searchable hash
+func (service *TranslatorService) EncryptSymSearchable(ctx context.Context, data, clientID, additionalContext []byte) (SearchableResponse, error) {
 	logger := logging.GetLoggerFromContext(ctx)
-	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "zone_id": string(zoneID), "operation": "EncryptSym (searchable)"})
+	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "context": string(additionalContext), "operation": "EncryptSym (searchable)"})
 	logger.Debugln("New request")
 	defer logger.Debugln("End processing request")
 	if clientID == nil {
 		logger.Errorln("Empty ClientID")
 		return SearchableResponse{}, ErrClientIDRequired
+	}
+	if additionalContext != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		return SearchableResponse{}, ErrZoneIDAdditionalDataNotSupported
 	}
 	logger.Debugln("Load secret key for HMAC from KeyStore")
 	hmacKey, err := service.data.Keystorage.GetHMACSecretKey(clientID)
@@ -322,15 +332,12 @@ func (service *TranslatorService) EncryptSymSearchable(ctx context.Context, data
 	dataHash := hmac.GenerateHMAC(hmacKey, data)
 	logger.Debugln("Create AcraBlock")
 	id := clientID
-	if len(zoneID) != 0 {
-		id = zoneID
-	}
 	handler, err := crypto.GetHandlerByEnvelopeID(crypto.AcraBlockEnvelopeID)
 	if err != nil {
 		return SearchableResponse{}, ErrEncryptionFailed
 	}
 
-	acraBlock, err := service.handler.EncryptWithHandler(handler, id, data, len(zoneID) != 0)
+	acraBlock, err := service.handler.EncryptWithHandler(handler, id, data, false)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't create AcraBlock")
 		return SearchableResponse{}, ErrEncryptionFailed
@@ -338,15 +345,19 @@ func (service *TranslatorService) EncryptSymSearchable(ctx context.Context, data
 	return SearchableResponse{Hash: dataHash, EncryptedData: acraBlock}, nil
 }
 
-// DecryptSymSearchable decrypt AcraBlock using passed ZoneID if length > 0 otherwise use ClientID (that is required after that) and verify hash
-func (service *TranslatorService) DecryptSymSearchable(ctx context.Context, data, hash, clientID, zoneID []byte) ([]byte, error) {
+// DecryptSymSearchable decrypt AcraBlock using ClientID and verify hash
+func (service *TranslatorService) DecryptSymSearchable(ctx context.Context, data, hash, clientID, additionalContext []byte) ([]byte, error) {
 	logger := logging.GetLoggerFromContext(ctx)
-	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "zone_id": string(zoneID), "operation": "DecryptSym (searchable)"})
+	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "context": string(additionalContext), "operation": "DecryptSym (searchable)"})
 	logger.Debugln("New request")
 	defer logger.Debugln("End processing request")
 	if clientID == nil {
 		logger.Errorln("Empty ClientID")
 		return nil, ErrClientIDRequired
+	}
+	if additionalContext != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		return nil, ErrZoneIDAdditionalDataNotSupported
 	}
 
 	logger.Debugln("Load secret key for HMAC from KeyStore")
@@ -356,13 +367,7 @@ func (service *TranslatorService) DecryptSymSearchable(ctx context.Context, data
 		dataToDecrypt = append(hash, data...)
 	}
 	logger.Debugln("Decrypt AcraBlock")
-	var accessContext *base.AccessContext
-	if len(zoneID) != 0 {
-		accessContext = base.NewAccessContext(base.WithZoneMode(len(zoneID) > 0))
-		accessContext.SetZoneID(zoneID)
-	} else {
-		accessContext = base.NewAccessContext(base.WithClientID(clientID))
-	}
+	accessContext := base.NewAccessContext(base.WithClientID(clientID))
 	dataCtx := base.SetAccessContextToContext(ctx, accessContext)
 	dataContext := &base.DataProcessorContext{Keystore: service.data.Keystorage, Context: dataCtx}
 	handler, err := crypto.GetHandlerByEnvelopeID(crypto.AcraBlockEnvelopeID)
@@ -401,28 +406,29 @@ func (service *TranslatorService) DecryptSymSearchable(ctx context.Context, data
 	return decrypted, nil
 }
 
-// EncryptSym encrypts data with AcraBlock using passed ZoneID if length > 0 otherwise use ClientID (that is required after that)
-func (service *TranslatorService) EncryptSym(ctx context.Context, data, clientID, zoneID []byte) ([]byte, error) {
+// EncryptSym encrypts data with AcraBlock using ClientID
+func (service *TranslatorService) EncryptSym(ctx context.Context, data, clientID, additionalContext []byte) ([]byte, error) {
 	logger := logging.GetLoggerFromContext(ctx)
-	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "zone_id": string(zoneID), "operation": "EncryptSym"})
+	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "context": string(additionalContext), "operation": "EncryptSym"})
 	logger.Debugln("New request")
 	defer logger.Debugln("End processing request")
 	if clientID == nil {
 		logger.Errorln("Empty ClientID")
 		return nil, ErrClientIDRequired
 	}
+	if additionalContext != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		return nil, ErrZoneIDAdditionalDataNotSupported
+	}
 
 	logger.Debugln("Create AcraBlock")
 	id := clientID
-	if len(zoneID) != 0 {
-		id = zoneID
-	}
 	handler, err := crypto.GetHandlerByEnvelopeID(crypto.AcraBlockEnvelopeID)
 	if err != nil {
 		return nil, ErrEncryptionFailed
 	}
 
-	acraBlock, err := service.handler.EncryptWithHandler(handler, id, data, len(zoneID) != 0)
+	acraBlock, err := service.handler.EncryptWithHandler(handler, id, data, false)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't create AcraBlock")
 		return nil, ErrEncryptionFailed
@@ -430,25 +436,23 @@ func (service *TranslatorService) EncryptSym(ctx context.Context, data, clientID
 	return acraBlock, nil
 }
 
-// DecryptSym decrypts AcraBlock using passed ZoneID if length > 0 otherwise use ClientID (that is required after that)
-func (service *TranslatorService) DecryptSym(ctx context.Context, acraBlock, clientID, zoneID []byte) ([]byte, error) {
+// DecryptSym decrypts AcraBlock using ClientID
+func (service *TranslatorService) DecryptSym(ctx context.Context, acraBlock, clientID, additionalContext []byte) ([]byte, error) {
 	logger := logging.GetLoggerFromContext(ctx)
-	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "zone_id": string(zoneID), "operation": "DecryptSym"})
+	logger = logger.WithFields(logrus.Fields{"client_id": string(clientID), "context": string(additionalContext), "operation": "DecryptSym"})
 	logger.Debugln("New request")
 	defer logger.Debugln("End processing request")
 	if clientID == nil {
 		logger.Errorln("Empty ClientID")
 		return nil, ErrClientIDRequired
 	}
+	if additionalContext != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDAndAdditionalDataNotSupported).Errorln("ZoneID and additional data are not supported")
+		return nil, ErrZoneIDAdditionalDataNotSupported
+	}
 
 	logger.Debugln("Decrypt AcraBlock")
-	var accessContext *base.AccessContext
-	if len(zoneID) != 0 {
-		accessContext = base.NewAccessContext(base.WithZoneMode(len(zoneID) > 0))
-		accessContext.SetZoneID(zoneID)
-	} else {
-		accessContext = base.NewAccessContext(base.WithClientID(clientID))
-	}
+	accessContext := base.NewAccessContext(base.WithClientID(clientID))
 	dataCtx := base.SetAccessContextToContext(ctx, accessContext)
 	dataContext := &base.DataProcessorContext{Keystore: service.data.Keystorage, Context: dataCtx}
 	handler, err := crypto.GetHandlerByEnvelopeID(crypto.AcraBlockEnvelopeID)

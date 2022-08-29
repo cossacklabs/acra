@@ -247,12 +247,6 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 		t.Fatalf("expected %s, took %s\n", common.ErrCantDecrypt, err)
 	}
 
-	// error if key not found by zone id
-	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientID, ZoneId: clientID, Acrastruct: nil})
-	if response != nil || err != common.ErrCantDecrypt {
-		t.Fatalf("expected %s, took %s\n", common.ErrCantDecrypt, err)
-	}
-
 	// set key
 	keystore.EncryptionKeypair = keypair
 
@@ -275,27 +269,13 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 		t.Fatal("response data not equal to initial data")
 	}
 
-	// test with zone
-	zoneID := clientID // use client id as zone id because no matter what to use
-	acrastruct, err = acrastruct2.CreateAcrastruct(data, keypair.Public, zoneID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientID, ZoneId: zoneID, Acrastruct: acrastruct})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(response.Data, data) {
-		t.Fatal("response data not equal to initial data")
-	}
-
 	poisonRecord, err := poison.CreatePoisonRecord(keystore, 100)
 	if err != nil {
 		t.Fatal(err)
 	}
 	callback := &poisonCallback{}
 	poisonCallbacks.AddCallback(callback)
-	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientID, ZoneId: zoneID, Acrastruct: poisonRecord})
+	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientID, Acrastruct: poisonRecord})
 	if err == nil {
 		t.Fatal(err)
 	}
@@ -313,7 +293,7 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 	}
 	service.service = serviceImplementation
 	callback.Called = false // reset
-	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientID, ZoneId: zoneID, Acrastruct: poisonRecord})
+	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientID, Acrastruct: poisonRecord})
 	if err != common.ErrCantDecrypt {
 		t.Fatal(err)
 	}
@@ -366,26 +346,5 @@ func TestDecryptGRPCService_Encrypt(t *testing.T) {
 	}
 	if !bytes.Equal(decrypted, data) {
 		t.Fatal("Incorrect encryption/decryption with client id")
-	}
-
-	// encrypt with zone id
-	zoneID := []byte("some zone")
-	response, err = service.Encrypt(ctx, &EncryptRequest{Data: data, ClientId: clientID, ZoneId: zoneID})
-	if err != nil {
-		t.Fatal(err)
-	}
-	internalContainer, envelopeID, err = crypto.DeserializeEncryptedData(response.Acrastruct)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if envelopeID != crypto.AcraStructEnvelopeID {
-		t.Fatal("invalid crypto envelope id")
-	}
-	decrypted, err = acrastruct2.DecryptAcrastruct(internalContainer, encryptionKey.Private, zoneID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(decrypted, data) {
-		t.Fatal("Incorrect encryption/decryption with zone id")
 	}
 }

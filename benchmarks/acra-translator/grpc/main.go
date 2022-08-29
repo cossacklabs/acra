@@ -46,12 +46,12 @@ func BenchTLSAcraBlock(connectionString, serverName, clientID, zoneID, data, ca,
 			client := grpc_api.NewWriterSymClient(conn)
 			readClient := grpc_api.NewReaderSymClient(conn)
 			for i := 0; i < b.N; i++ {
-				resp, err := client.EncryptSym(ctx, &grpc_api.EncryptSymRequest{Data: []byte(data), ClientId: []byte(clientID), ZoneId: []byte(zoneID)})
+				resp, err := client.EncryptSym(ctx, &grpc_api.EncryptSymRequest{Data: []byte(data), ClientId: []byte(clientID)})
 				if err != nil {
 					b.Fatal(err)
 				}
 
-				resp2, err := readClient.DecryptSym(ctx, &grpc_api.DecryptSymRequest{Acrablock: resp.Acrablock, ClientId: []byte(clientID), ZoneId: []byte(zoneID)})
+				resp2, err := readClient.DecryptSym(ctx, &grpc_api.DecryptSymRequest{Acrablock: resp.Acrablock, ClientId: []byte(clientID)})
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -81,12 +81,12 @@ func BenchTLSAcraStruct(connectionString, serverName, clientID, zoneID, data, ca
 			client := grpc_api.NewWriterClient(conn)
 			readClient := grpc_api.NewReaderClient(conn)
 			for i := 0; i < b.N; i++ {
-				resp, err := client.Encrypt(ctx, &grpc_api.EncryptRequest{Data: []byte(data), ClientId: []byte(clientID), ZoneId: []byte(zoneID)})
+				resp, err := client.Encrypt(ctx, &grpc_api.EncryptRequest{Data: []byte(data), ClientId: []byte(clientID)})
 				if err != nil {
 					b.Fatal(err)
 				}
 
-				resp2, err := readClient.Decrypt(ctx, &grpc_api.DecryptRequest{Acrastruct: resp.Acrastruct, ClientId: []byte(clientID), ZoneId: []byte(zoneID)})
+				resp2, err := readClient.Decrypt(ctx, &grpc_api.DecryptRequest{Acrastruct: resp.Acrastruct, ClientId: []byte(clientID)})
 				if err != nil {
 					b.Fatal(err)
 				}
