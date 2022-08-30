@@ -41,6 +41,7 @@ LABEL org.label-schema.schema-version="1.0" \
 
 # Copy prepared component's folder from acra-build image
 COPY --from=acra-build /container.acra-tools/ /
+COPY --from=acra-build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
 VOLUME ["/keys"]
 # Base command
