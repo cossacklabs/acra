@@ -38,17 +38,12 @@ paths:
     get:
       consumes:
       - application/json
-      description: Decrypt AcraStruct with specified ZoneID or ClientID from connection
+      description: Decrypt AcraStruct with specified ClientID from connection
       parameters:
       - description: Binary data encoded as Base64 string
         in: body
         name: data
         required: true
-        schema:
-          type: string
-      - description: ZoneID
-        in: body
-        name: zone_id
         schema:
           type: string
       produces:
@@ -71,18 +66,12 @@ paths:
     get:
       consumes:
       - application/json
-      description: Decrypt searchable AcraStruct with specified ZoneID or ClientID
-        from connection
+      description: Decrypt searchable AcraStruct with ClientID from connection
       parameters:
       - description: Binary data encoded as Base64 string
         in: body
         name: data
         required: true
-        schema:
-          type: string
-      - description: ZoneID
-        in: body
-        name: zone_id
         schema:
           type: string
       produces:
@@ -105,17 +94,12 @@ paths:
     get:
       consumes:
       - application/json
-      description: Decrypt AcraBlock with specified ZoneID or ClientID from connection
+      description: Decrypt AcraBlock with ClientID from connection
       parameters:
       - description: Binary data encoded as Base64 string
         in: body
         name: data
         required: true
-        schema:
-          type: string
-      - description: ZoneID
-        in: body
-        name: zone_id
         schema:
           type: string
       produces:
@@ -138,18 +122,12 @@ paths:
     get:
       consumes:
       - application/json
-      description: Decrypt searchable AcraBlock with specified ZoneID or ClientID
-        from connection
+      description: Decrypt searchable AcraBlock with ClientID from connection
       parameters:
       - description: Binary data encoded as Base64 string
         in: body
         name: data
         required: true
-        schema:
-          type: string
-      - description: ZoneID
-        in: body
-        name: zone_id
         schema:
           type: string
       produces:
@@ -180,11 +158,6 @@ paths:
         required: true
         schema:
           type: string
-      - description: ZoneID
-        in: body
-        name: zone_id
-        schema:
-          type: string
       produces:
       - application/json
       responses:
@@ -205,17 +178,12 @@ paths:
     get:
       consumes:
       - application/json
-      description: Encrypt data with specified ZoneID or ClientID from connection
+      description: Encrypt data with specified ClientID from connection
       parameters:
       - description: Binary data encoded as Base64 string
         in: body
         name: data
         required: true
-        schema:
-          type: string
-      - description: ZoneID
-        in: body
-        name: zone_id
         schema:
           type: string
       produces:
@@ -238,18 +206,13 @@ paths:
     get:
       consumes:
       - application/json
-      description: Encrypt data with searchable AcraStruct with specified ZoneID or
-        ClientID from connection
+      description: Encrypt data with searchable AcraStruct with specified ClientID
+        from connection
       parameters:
       - description: Binary data encoded as Base64 string
         in: body
         name: data
         required: true
-        schema:
-          type: string
-      - description: ZoneID
-        in: body
-        name: zone_id
         schema:
           type: string
       produces:
@@ -272,18 +235,12 @@ paths:
     get:
       consumes:
       - application/json
-      description: Encrypt data with AcraBlock with specified ZoneID or ClientID from
-        connection
+      description: Encrypt data with AcraBlock with ClientID from connection
       parameters:
       - description: Binary data encoded as Base64 string
         in: body
         name: data
         required: true
-        schema:
-          type: string
-      - description: ZoneID
-        in: body
-        name: zone_id
         schema:
           type: string
       produces:
@@ -306,18 +263,12 @@ paths:
     get:
       consumes:
       - application/json
-      description: Encrypt data with searchable AcraBlock with specified ZoneID or
-        ClientID from connection
+      description: Encrypt data with searchable AcraBlock with ClientID from connection
       parameters:
       - description: Binary data encoded as Base64 string
         in: body
         name: data
         required: true
-        schema:
-          type: string
-      - description: ZoneID
-        in: body
-        name: zone_id
         schema:
           type: string
       produces:
@@ -348,11 +299,6 @@ paths:
         required: true
         schema:
           type: string
-      - description: ZoneID
-        in: body
-        name: zone_id
-        schema:
-          type: string
       produces:
       - application/json
       responses:
@@ -379,11 +325,6 @@ paths:
         in: body
         name: data
         required: true
-        schema:
-          type: string
-      - description: ZoneID
-        in: body
-        name: zone_id
         schema:
           type: string
       produces:
