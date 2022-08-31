@@ -51,7 +51,7 @@ endif
 #----- Packages ----------------------------------------------------------------
 
 ## Application components to include
-PKG_COMPONENTS ?= addzone backup keymaker keys poisonrecordmaker rollback rotate server translator tokens
+PKG_COMPONENTS ?= backup keymaker keys poisonrecordmaker rollback rotate server translator tokens
 
 ## Installation path prefix for packages
 PKG_INSTALL_PREFIX ?= /usr

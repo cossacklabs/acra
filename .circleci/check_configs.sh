@@ -3,7 +3,7 @@
 function compare_configs() {
     folder_a=$1
     folder_b=$2
-    binaries=(server translator addzone rollback keymaker poisonrecordmaker rotate)
+    binaries=(server translator rollback keymaker poisonrecordmaker rotate)
     for cmd in "${binaries[@]}"; do
      cmp ${folder_a}/acra-${cmd}.yaml ${folder_b}/acra-${cmd}.yaml
      cmp_status="$?"
