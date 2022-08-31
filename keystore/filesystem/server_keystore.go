@@ -842,11 +842,32 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 		}, nil
 	}
 
+	if lastKeyPart == "zone" {
+		return &keystore.KeyDescription{
+			ID:      fileInfo.Name(),
+			Purpose: keystore.PurposeLegacy,
+		}, nil
+	}
+
+	if lastKeyPart == "zone.pub" {
+		return &keystore.KeyDescription{
+			ID:      fileInfo.Name(),
+			Purpose: keystore.PurposeLegacy,
+		}, nil
+	}
+
 	if penultimateKeyPart == "storage" && lastKeyPart == "sym" {
 		return &keystore.KeyDescription{
 			ID:       fileInfo.Name(),
 			Purpose:  keystore.PurposeStorageClientSymmetricKey,
 			ClientID: []byte(strings.Join(components[:len(components)-2], "_")),
+		}, nil
+	}
+
+	if penultimateKeyPart == "zone" && lastKeyPart == "sym" {
+		return &keystore.KeyDescription{
+			ID:      fileInfo.Name(),
+			Purpose: keystore.PurposeLegacy,
 		}, nil
 	}
 
