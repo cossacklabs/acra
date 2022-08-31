@@ -5345,7 +5345,7 @@ class BaseTransparentEncryption(BaseTestCase):
         super(BaseTransparentEncryption, self).setUp()
 
     def prepare_encryptor_config(self, client_id=None):
-        prepare_encryptor_config(zone_id=self.ZONES[0][ZONE_ID], config_path=self.ENCRYPTOR_CONFIG, client_id=client_id)
+        prepare_encryptor_config(config_path=self.ENCRYPTOR_CONFIG, client_id=client_id)
 
     def tearDown(self):
         self.engine_raw.execute(self.encryptor_table.delete())
@@ -6790,7 +6790,7 @@ class BaseTokenization(BaseTestCase):
 
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
         prepare_encryptor_config(
-            client_id=self.get_specified_client_id(), zone_id=zones[0][ZONE_ID], config_path=self.ENCRYPTOR_CONFIG)
+            client_id=self.get_specified_client_id(), config_path=self.ENCRYPTOR_CONFIG)
         acra_kwargs.update(encryptor_config_file=get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
         return super(BaseTokenization, self).fork_acra(popen_kwargs, **acra_kwargs)
 
@@ -7511,7 +7511,7 @@ class BaseMasking(BaseTokenization):
 
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
         prepare_encryptor_config(
-            client_id=self.get_specified_client_id(), zone_id=zones[0][ZONE_ID], config_path=self.ENCRYPTOR_CONFIG)
+            client_id=self.get_specified_client_id(), config_path=self.ENCRYPTOR_CONFIG)
         acra_kwargs.update(token_db='token1.db',
                            encryptor_config_file=get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
         return super(BaseTokenization, self).fork_acra(popen_kwargs, **acra_kwargs)

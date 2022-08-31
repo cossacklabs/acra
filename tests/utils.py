@@ -196,14 +196,12 @@ def read_poison_private_key(keys_dir):
     return read_key('poison-record', public=False, keys_dir=keys_dir)
 
 
-def prepare_encryptor_config(zone_id, config_path, client_id=None):
+def prepare_encryptor_config(config_path, client_id=None):
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
 
     for table in config['schemas']:
         for column in table['encrypted']:
-            if 'zone_id' in column:
-                column['zone_id'] = zone_id
             if client_id and 'client_id' in column:
                 column['client_id'] = client_id
     with open(get_test_encryptor_config(config_path), 'w') as f:
