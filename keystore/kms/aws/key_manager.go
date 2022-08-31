@@ -10,9 +10,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const createAliasCheckAttempts = 10
-
+// ErrAliasIsNotAppliedToKey describe the error returned if AWS KMS cant applied alias for created key
 var ErrAliasIsNotAppliedToKey = errors.New("error creating alias for KMS key")
+
+const createAliasCheckAttempts = 10
 
 // KeyManager is AWS implementation of kms.KeyManager
 type KeyManager struct {
