@@ -5,6 +5,7 @@ import (
 	"errors"
 	baseKMS "github.com/cossacklabs/acra/keystore/kms/base"
 	"strings"
+	"time"
 )
 
 // KeyManager is AWS implementation of kms.KeyManager
@@ -43,9 +44,20 @@ func (k *KeyManager) CreateKey(ctx context.Context, metaData baseKMS.CreateKeyMe
 		return nil, err
 	}
 
-	return &baseKMS.KeyMetadata{
-		KeyID: *keyMetadata.Arn,
-	}, nil
+	// wait some time for alias to be active
+	for {
+		keyExist, err := k.IsKeyExist(ctx, metaData.KeyName)
+		if err != nil {
+			return nil, err
+		}
+
+		if keyExist {
+			return &baseKMS.KeyMetadata{
+				KeyID: *keyMetadata.Arn,
+			}, nil
+		}
+		time.Sleep(time.Millisecond * 100)
+	}
 }
 
 // IsKeyExist check if key is present on KMS

@@ -7,7 +7,6 @@ import (
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
-	"time"
 )
 
 // KMS kek descriptions
@@ -194,18 +193,7 @@ func (k KeyMakingWrapper) createKMSKeyFromContext(keyContext keystore.KeyContext
 	if err != nil {
 		return err
 	}
+
 	log.WithField("keyID", resp.KeyID).WithField("key-name", string(keyID)).Info("KMS key created")
-
-	// wait some time for alias to be active
-	for {
-		keyExist, err = k.kmsKeyManager.IsKeyExist(ctx, string(keyID))
-		if err != nil {
-			return err
-		}
-
-		if keyExist {
-			return nil
-		}
-		time.Sleep(time.Millisecond * 100)
-	}
+	return nil
 }
