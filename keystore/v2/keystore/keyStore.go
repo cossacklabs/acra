@@ -36,16 +36,12 @@ var (
 
 // Key purpose constants.
 const (
-	PurposePoisonRecord        = "poison record key"
-	PurposeStorageClient       = "client storage key"
-	PurposeStorageZone         = "zone storage key"
-	PurposeTransportServer     = "AcraServer transport key"
-	PurposeTransportTranslator = "AcraTranslator transport key"
-	PurposeAuditLog            = "audit log signature key"
-	PurposePoisonSym           = "poison record symmetric key"
-	PurposeStorageClientSym    = "client storage symmetric key"
-	PurposeStorageZoneSym      = "zone storage symmetric key"
-	PurposeSearchHMAC          = "encrypted search HMAC key"
+	PurposePoisonRecord     = "poison record key"
+	PurposeStorageClient    = "client storage key"
+	PurposeAuditLog         = "audit log signature key"
+	PurposePoisonSym        = "poison record symmetric key"
+	PurposeStorageClientSym = "client storage symmetric key"
+	PurposeSearchHMAC       = "encrypted search HMAC key"
 )
 
 // ServerKeyStore provides full access to Acra Keystore.
@@ -142,13 +138,6 @@ func (s *ServerKeyStore) DescribeKeyRing(path string) (*keystore.KeyDescription,
 				ClientID: []byte(components[1]),
 			}, nil
 		}
-		if components[0] == zonePrefix && components[2] == storageSuffix {
-			return &keystore.KeyDescription{
-				ID:      path,
-				Purpose: PurposeStorageZone,
-				ZoneID:  []byte(components[1]),
-			}, nil
-		}
 		if components[0] == clientPrefix && components[2] == hmacSymmetricSuffix {
 			return &keystore.KeyDescription{
 				ID:       path,
@@ -161,13 +150,6 @@ func (s *ServerKeyStore) DescribeKeyRing(path string) (*keystore.KeyDescription,
 				ID:       path,
 				Purpose:  PurposeStorageClientSym,
 				ClientID: []byte(components[1]),
-			}, nil
-		}
-		if components[0] == zonePrefix && components[2] == storageSymmetricSuffix {
-			return &keystore.KeyDescription{
-				ID:      path,
-				Purpose: PurposeStorageZoneSym,
-				ZoneID:  []byte(components[1]),
 			}, nil
 		}
 	}

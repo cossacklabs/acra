@@ -4,22 +4,18 @@ import (
 	"context"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/network"
-	"github.com/cossacklabs/acra/zone"
-	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
 )
 
 // KMS kek descriptions
 const (
 	AcraClientKeyDescription   = "Acra client key encryption key, used for encryption/decryption AcraBlock symmetric key, AcraStruct private key and HMAC symmetric key"
-	AcraZoneKeyDescription     = "Acra zone key encryption key, used for encryption/decryption Zone symmetric key and Zone private key"
 	AcraPoisonKeyDescription   = "Acra common key encryption key, used for encryption/decryption poison symmetric/private keys"
 	AcraAuditLogKeyDescription = "Acra common key encryption key, used for encryption/decryption audit log key"
 )
 
 // KeyMaking interface used by KMS wrapper for generating keys
 type KeyMaking interface {
-	zone.KeyChecker
 	keystore.KeyMaking
 	keystore.PoisonKeyStorageAndGenerator
 }
@@ -123,49 +119,6 @@ func (k KeyMakingWrapper) GenerateClientIDSymmetricKey(id []byte) error {
 	}
 
 	return k.KeyMaking.GenerateClientIDSymmetricKey(id)
-}
-
-// GenerateZoneKey wrap GenerateZoneKey with KMS key creation at start
-func (k KeyMakingWrapper) GenerateZoneKey() ([]byte, []byte, error) {
-	var id []byte
-	for {
-		// generate until key not exists
-		id = zone.GenerateZoneID()
-		if !k.KeyMaking.HasZonePrivateKey(id) {
-			break
-		}
-	}
-
-	ctx := keystore.KeyContext{
-		ZoneID:  id,
-		Purpose: keystore.PurposeStorageZoneKeyPair,
-	}
-
-	err := k.createKMSKeyFromContext(ctx, AcraZoneKeyDescription)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	keypair, err := keys.New(keys.TypeEC)
-	if err != nil {
-		return nil, nil, err
-	}
-	return id, keypair.Public.Value, k.KeyMaking.SaveZoneKeypair(id, keypair)
-}
-
-// GenerateZoneIDSymmetricKey wrap GenerateZoneIDSymmetricKey with KMS key creation at start
-func (k KeyMakingWrapper) GenerateZoneIDSymmetricKey(id []byte) error {
-	ctx := keystore.KeyContext{
-		ZoneID:  id,
-		Purpose: keystore.PurposeStorageZoneSymmetricKey,
-	}
-
-	err := k.createKMSKeyFromContext(ctx, AcraZoneKeyDescription)
-	if err != nil {
-		return err
-	}
-
-	return k.KeyMaking.GenerateZoneIDSymmetricKey(id)
 }
 
 func (k KeyMakingWrapper) createKMSKeyFromContext(keyContext keystore.KeyContext, description string) error {

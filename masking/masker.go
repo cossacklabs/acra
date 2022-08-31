@@ -31,7 +31,6 @@ type Masker interface {
 // KeyStore interface with required methods from keystore for masking
 type KeyStore interface {
 	keystore.PublicKeyStore
-	GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error)
 	GetServerDecryptionPrivateKeys(id []byte) ([]*keys.PrivateKey, error)
 }
 type masker struct {

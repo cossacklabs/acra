@@ -46,11 +46,10 @@ func (s *scellEncryptor) Encrypt(data []byte, ctx common.TokenContext) ([]byte, 
 	// TODO decide what to do
 	if len(ctx.AdditionalContext) != 0 {
 		context = ctx.AdditionalContext
-		key, err = s.tokenKeystore.GetZoneIDSymmetricKey(ctx.AdditionalContext)
 	} else {
 		context = ctx.ClientID
-		key, err = s.tokenKeystore.GetClientIDSymmetricKey(ctx.ClientID)
 	}
+	key, err = s.tokenKeystore.GetClientIDSymmetricKey(ctx.ClientID)
 	if err != nil {
 		return nil, err
 	}
@@ -70,11 +69,10 @@ func (s *scellEncryptor) Decrypt(data []byte, ctx common.TokenContext) ([]byte, 
 	var keys [][]byte
 	if len(ctx.AdditionalContext) != 0 {
 		context = ctx.AdditionalContext
-		keys, err = s.tokenKeystore.GetZoneIDSymmetricKeys(ctx.AdditionalContext)
 	} else {
 		context = ctx.ClientID
-		keys, err = s.tokenKeystore.GetClientIDSymmetricKeys(ctx.ClientID)
 	}
+	keys, err = s.tokenKeystore.GetClientIDSymmetricKeys(ctx.ClientID)
 	if err != nil {
 		return nil, err
 	}

@@ -22,8 +22,9 @@ import (
 
 // AccessContext store attributes which may be used for access policies and data manipulations
 type AccessContext struct {
-	clientID   []byte
-	columnInfo ColumnInfo
+	clientID          []byte
+	additionalContext []byte
+	columnInfo        ColumnInfo
 }
 
 // AccessContextOption function used to configure AccessContext struct
@@ -63,6 +64,11 @@ func (ctx *AccessContext) OnNewClientID(clientID []byte) {
 // GetClientID return ClientID
 func (ctx *AccessContext) GetClientID() []byte {
 	return ctx.clientID
+}
+
+// GetAdditionalContext returns additional context
+func (ctx *AccessContext) GetAdditionalContext() []byte {
+	return ctx.additionalContext
 }
 
 // GetColumnInfo return ColumnInfo

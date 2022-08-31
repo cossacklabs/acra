@@ -84,20 +84,6 @@ func (_m *KeyStore) GeneratePoisonSymmetricKey() error {
 	return r0
 }
 
-// GenerateZoneIDSymmetricKey provides a mock function with given fields: id
-func (_m *KeyStore) GenerateZoneIDSymmetricKey(id []byte) error {
-	ret := _m.Called(id)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func([]byte) error); ok {
-		r0 = rf(id)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
 // GenerateZoneKey provides a mock function with given fields:
 func (_m *KeyStore) GenerateZoneKey() ([]byte, []byte, error) {
 	ret := _m.Called()
@@ -347,29 +333,6 @@ func (_m *KeyStore) GetServerDecryptionPrivateKeys(id []byte) ([]*keys.PrivateKe
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]*keys.PrivateKey)
-		}
-	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func([]byte) error); ok {
-		r1 = rf(id)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// GetZoneIDSymmetricKeys provides a mock function with given fields: id
-func (_m *KeyStore) GetZoneIDSymmetricKeys(id []byte) ([][]byte, error) {
-	ret := _m.Called(id)
-
-	var r0 [][]byte
-	if rf, ok := ret.Get(0).(func([]byte) [][]byte); ok {
-		r0 = rf(id)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([][]byte)
 		}
 	}
 

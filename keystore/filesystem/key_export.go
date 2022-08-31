@@ -280,12 +280,6 @@ func (*DefaultKeyFileClassifier) ClassifyExportedKey(path string) *ExportedKey {
 		return NewExportedSymmetricKey(path, keyContext)
 	}
 
-	if strings.HasSuffix(filename, "_zone_sym") {
-		keyContext := keystore.NewZoneIDKeyContext(keystore.PurposeStorageZoneSymmetricKey, []byte(strings.TrimSuffix(filename, "_zone_sym")))
-
-		return NewExportedSymmetricKey(path, keyContext)
-	}
-
 	// Poison key pairs use PoisonKeyFilename as context for encryption.
 	if strings.HasSuffix(path, poisonKeyFilenamePublic) {
 		keyContext := keystore.NewKeyContext(keystore.PurposePoisonRecordKeyPair, []byte(PoisonKeyFilename))
@@ -300,17 +294,6 @@ func (*DefaultKeyFileClassifier) ClassifyExportedKey(path string) *ExportedKey {
 		keyContext := keystore.NewClientIDKeyContext(keystore.PurposeStorageClientKeyPair, []byte(strings.TrimSuffix(filename, "_storage.pub")))
 		return NewExportedPublicKey(path, keyContext)
 	}
-	if strings.HasSuffix(filename, "_storage") {
-		keyContext := keystore.NewClientIDKeyContext(keystore.PurposeStorageClientKeyPair, []byte(strings.TrimSuffix(filename, "_storage")))
-		return NewExportedPrivateKey(path, keyContext)
-	}
-
-	if strings.HasSuffix(filename, "_zone.pub") {
-		keyContext := keystore.NewKeyContext(keystore.PurposeStorageZoneKeyPair, []byte(strings.TrimSuffix(filename, "_zone.pub")))
-		return NewExportedPublicKey(path, keyContext)
-	}
-
-	keyContext := keystore.NewZoneIDKeyContext(keystore.PurposeStorageZoneKeyPair, []byte(strings.TrimSuffix(filename, "_zone")))
+	keyContext := keystore.NewClientIDKeyContext(keystore.PurposeStorageClientKeyPair, []byte(strings.TrimSuffix(filename, "_storage")))
 	return NewExportedPrivateKey(path, keyContext)
-
 }

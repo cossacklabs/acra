@@ -181,34 +181,34 @@ schemas:
 	testData := []parserTestData{
 		// 0. without list of columns and with schema, one value
 		{
-			Query:             `INSERT INTO TableWithColumnSchema VALUES (1, X'%s', X'%s', X'%s')`,
-			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue},
-			ExpectedQueryData: []interface{}{hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Query:             `INSERT INTO TableWithColumnSchema VALUES (1, X'%s', X'%s')`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{hexEncryptedValue, hexEncryptedValue},
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{defaultClientID, specifiedClientID},
 		},
 		// 1. without list of columns and with schema
 		{
-			Query:             `INSERT INTO TableWithColumnSchema VALUES (1, X'%s', X'%s', X'%s'), (1, X'%s', X'%s', X'%s')`,
-			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue},
-			ExpectedQueryData: []interface{}{hexEncryptedValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Query:             `INSERT INTO TableWithColumnSchema VALUES (1, X'%s', X'%s'), (1, X'%s', X'%s')`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{hexEncryptedValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{defaultClientID, specifiedClientID, defaultClientID, specifiedClientID},
 		},
 		// 2. without list of columns and without schema
 		{
-			Query:             `INSERT INTO TableWithoutColumnSchema VALUES (1, X'%s', X'%s', X'%s'), (1, X'%s', X'%s', X'%s')`,
-			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue},
-			ExpectedQueryData: []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			Query:             `INSERT INTO TableWithoutColumnSchema VALUES (1, X'%s', X'%s'), (1, X'%s', X'%s')`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue},
 			Normalized:        false,
 			Changed:           false,
 			ExpectedIDS:       [][]byte{},
 		},
 		// 3. with list of columns and without schema
 		{
-			Query:             `INSERT INTO TableWithoutColumnSchema (specified_client_id, other_column, default_client_id) VALUES (X'%s', X'%s', 1, X'%s')`,
+			Query:             `INSERT INTO TableWithoutColumnSchema (specified_client_id, other_column, default_client_id) VALUES (X'%s', 1, X'%s')`,
 			QueryData:         []interface{}{dataHexValue, dataHexValue},
 			ExpectedQueryData: []interface{}{hexEncryptedValue, hexEncryptedValue},
 			Normalized:        true,
@@ -236,8 +236,8 @@ schemas:
 		// 6. insert with ON DUPLICATE with columns and without schema
 		{
 			Query:             `INSERT INTO TableWithoutColumnSchema (specified_client_id, other_column, default_client_id) VALUES (X'%s', X'%s', X'%s') ON DUPLICATE KEY UPDATE default_client_id=X'%s', other_column=X'%s', specified_client_id=X'%s';`,
-			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue},
-			ExpectedQueryData: []interface{}{hexEncryptedValue, dataHexValue, hexEncryptedValue, dataHexValue, hexEncryptedValue},
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{hexEncryptedValue, dataHexValue, hexEncryptedValue, hexEncryptedValue, dataHexValue, hexEncryptedValue},
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{specifiedClientID, defaultClientID, defaultClientID, specifiedClientID},
@@ -254,8 +254,8 @@ schemas:
 		// 8. insert without table info
 		{
 			Query:             `INSERT INTO UnknownTable (other_column, specified_client_id, default_client_id) VALUES (X'%s', X'%s', X'%s') ON DUPLICATE KEY UPDATE other_column=X'%s', other_column=X'%s';`,
-			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue},
-			ExpectedQueryData: []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue},
 			Normalized:        false,
 			Changed:           false,
 			ExpectedIDS:       [][]byte{},
@@ -355,8 +355,8 @@ schemas:
 			Query:             `INSERT INTO TableWithColumnSchema VALUES (1, X'%s', X'%s')`,
 			QueryData:         []interface{}{hexAcrastruct, hexAcrastruct},
 			ExpectedQueryData: []interface{}{hexAcrastruct, hexAcrastruct},
-			Normalized:        true,
-			Changed:           true,
+			Normalized:        false,
+			Changed:           false,
 			ExpectedIDS:       [][]byte{},
 		},
 		// 20. update ignorable acrastruct
@@ -370,7 +370,7 @@ schemas:
 		},
 		// 21. with double quoted table and column names
 		{
-			Query:             `INSERT INTO "TableWithoutColumnSchema" (""specified_client_id", "other_column", "default_client_id") VALUES (X'%s', 1, X'%s')`,
+			Query:             `INSERT INTO "TableWithoutColumnSchema" ("specified_client_id", "other_column", "default_client_id") VALUES (X'%s', 1, X'%s')`,
 			QueryData:         []interface{}{dataHexValue, dataHexValue},
 			ExpectedQueryData: []interface{}{hexEncryptedValue, hexEncryptedValue},
 			Normalized:        true,
@@ -849,7 +849,7 @@ schemas:
 		}
 
 		expectedNilColumns := map[int]struct{}{
-			2: {},
+			1: {},
 		}
 
 		for i := range returningColumns {

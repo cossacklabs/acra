@@ -12,7 +12,6 @@ var (
 	ErrMissingKeyPurpose     = errors.New("key purpose is required for keyID creating")
 	ErrUnsupportedKeyPurpose = errors.New("unsupported KeyPurpose option provided")
 	ErrEmptyClientIDProvided = errors.New("empty clientID in key context")
-	ErrEmptyZoneIDProvided   = errors.New("empty zoneID in key context")
 )
 
 // KeyEncryptor implementation of KMS keystore.KeyEncryptor
@@ -58,11 +57,6 @@ func getKeyIDFromContext(ctx keystore.KeyContext) ([]byte, error) {
 			return nil, ErrEmptyClientIDProvided
 		}
 		return []byte("acra_" + string(ctx.ClientID)), nil
-	case keystore.PurposeStorageZoneSymmetricKey, keystore.PurposeStorageZonePrivateKey, keystore.PurposeStorageZoneKeyPair:
-		if ctx.ZoneID == nil {
-			return nil, ErrEmptyZoneIDProvided
-		}
-		return []byte("acra_" + string(ctx.ZoneID)), nil
 	case keystore.PurposePoisonRecordSymmetricKey, keystore.PurposePoisonRecordKeyPair:
 		return []byte("acra_poison"), nil
 	case keystore.PurposeAuditLog:

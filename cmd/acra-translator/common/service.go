@@ -123,7 +123,7 @@ func (service *TranslatorService) Encrypt(ctx context.Context, data, clientID, a
 		return nil, ErrCantDecrypt
 	}
 
-	data, encryptErr := service.handler.EncryptWithHandler(handler, id, data, false)
+	data, encryptErr := service.handler.EncryptWithHandler(handler, id, data)
 	if encryptErr != nil {
 		base.AcrastructDecryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraStruct).WithError(encryptErr).Errorln("Can't encrypt data")
@@ -170,7 +170,7 @@ func (service *TranslatorService) EncryptSearchable(ctx context.Context, data, c
 		return SearchableResponse{}, ErrEncryptionFailed
 	}
 
-	acraStruct, err := service.handler.EncryptWithHandler(handler, id, data, false)
+	acraStruct, err := service.handler.EncryptWithHandler(handler, id, data)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't create AcraStruct")
 		return SearchableResponse{}, ErrEncryptionFailed
@@ -337,7 +337,7 @@ func (service *TranslatorService) EncryptSymSearchable(ctx context.Context, data
 		return SearchableResponse{}, ErrEncryptionFailed
 	}
 
-	acraBlock, err := service.handler.EncryptWithHandler(handler, id, data, false)
+	acraBlock, err := service.handler.EncryptWithHandler(handler, id, data)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't create AcraBlock")
 		return SearchableResponse{}, ErrEncryptionFailed
@@ -428,7 +428,7 @@ func (service *TranslatorService) EncryptSym(ctx context.Context, data, clientID
 		return nil, ErrEncryptionFailed
 	}
 
-	acraBlock, err := service.handler.EncryptWithHandler(handler, id, data, false)
+	acraBlock, err := service.handler.EncryptWithHandler(handler, id, data)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't create AcraBlock")
 		return nil, ErrEncryptionFailed

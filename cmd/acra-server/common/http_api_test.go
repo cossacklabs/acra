@@ -90,37 +90,9 @@ func runWithServer(t *testing.T, keyStorage keystore.ServerKeyStore, tlsWrapper 
 func TestPlainHTTPAPI(t *testing.T) {
 
 	keyStorage := &mocks.ServerKeyStore{}
-
-	keyStorage.On("GenerateZoneKey").Return([]byte("id"), []byte("publicKey"), error(nil))
-	keyStorage.On("GenerateZoneIDSymmetricKey", []byte("id")).Return(error(nil))
 	keyStorage.On("Reset").Return()
 
 	runWithServer(t, keyStorage, nil, func(url string) {
-		t.Run("Test /getNewZone", func(t *testing.T) {
-			response, err := http.Get(fmt.Sprintf("http://%s/getNewZone", url))
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			if sc := response.StatusCode; sc != http.StatusOK {
-				t.Fatalf("status code (%d) != %d", sc, http.StatusOK)
-			}
-
-			if ct := response.Header.Get("content-type"); ct != gin.MIMEJSON {
-				t.Fatalf("content-type (%s) != %s", ct, gin.MIMEJSON)
-			}
-
-			body, err := ioutil.ReadAll(response.Body)
-			if err != nil {
-				t.Fatal(err)
-			}
-			// base64("publicKey") -> "cHVibGljS2V5"
-			expectedBody := `{"id":"id","public_key":"cHVibGljS2V5"}`
-
-			if !bytes.Equal(body, []byte(expectedBody)) {
-				t.Fatalf("expected body %q, but found %q", expectedBody, body)
-			}
-		})
 
 		t.Run("Test /resetKeyStorage", func(t *testing.T) {
 			response, err := http.Get(fmt.Sprintf("http://%s/resetKeyStorage", url))
@@ -178,7 +150,7 @@ func TestPlainHTTPAPI(t *testing.T) {
 
 		t.Run("TLS connection", func(t *testing.T) {
 			_, client, _ := createTLSWrapper(t)
-			_, err := client.Get(fmt.Sprintf("https://%s/getNewZone", url))
+			_, err := client.Get(fmt.Sprintf("https://%s/resetKeyStorage", url))
 			expectedError := "http: server gave HTTP response to HTTPS client"
 			if !strings.Contains(err.Error(), expectedError) {
 				t.Fatalf("expected %q, but found %q", expectedError, err)
@@ -242,37 +214,9 @@ func TestTLSHTTPAPI(t *testing.T) {
 
 	keyStorage := &mocks.ServerKeyStore{}
 
-	keyStorage.On("GenerateZoneKey").Return([]byte("id"), []byte("publicKey"), error(nil))
-	keyStorage.On("GenerateZoneIDSymmetricKey", []byte("id")).Return(error(nil))
 	keyStorage.On("Reset").Return()
 
 	runWithServer(t, keyStorage, serverWrapper, func(url string) {
-		t.Run("Test /getNewZone", func(t *testing.T) {
-			response, err := client.Get(fmt.Sprintf("https://%s/getNewZone", url))
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			if sc := response.StatusCode; sc != http.StatusOK {
-				t.Fatalf("status code (%d) != %d", sc, http.StatusOK)
-			}
-
-			if ct := response.Header.Get("content-type"); ct != gin.MIMEJSON {
-				t.Fatalf("content-type (%s) != %s", ct, gin.MIMEJSON)
-			}
-
-			body, err := ioutil.ReadAll(response.Body)
-			if err != nil {
-				t.Fatal(err)
-			}
-			// base64("publicKey") -> "cHVibGljS2V5"
-			expectedBody := `{"id":"id","public_key":"cHVibGljS2V5"}`
-
-			if !bytes.Equal(body, []byte(expectedBody)) {
-				t.Fatalf("expected body %q, but found %q", expectedBody, body)
-			}
-		})
-
 		t.Run("Test /resetKeyStorage", func(t *testing.T) {
 			response, err := client.Get(fmt.Sprintf("https://%s/resetKeyStorage", url))
 			if err != nil {
@@ -328,7 +272,7 @@ func TestTLSHTTPAPI(t *testing.T) {
 		})
 
 		t.Run("plain connection", func(t *testing.T) {
-			_, err := client.Get(fmt.Sprintf("http://%s/getNewZone", url))
+			_, err := client.Get(fmt.Sprintf("http://%s/resetKeyStorage", url))
 			expectedError := "EOF"
 			if !strings.Contains(err.Error(), expectedError) {
 				t.Fatalf("expected %q, but found %q", expectedError, err)

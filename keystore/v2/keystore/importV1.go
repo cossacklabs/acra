@@ -64,18 +64,6 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			log.WithError(err).Debug("failed to import client storage key pair")
 			return err
 		}
-	case keystore.PurposeStorageZoneKeyPair:
-		keypair, err := oldKeyStore.ExportKeyPair(key)
-		if err != nil {
-			log.WithError(err).Debug("failed to export zone storage key pair")
-			return err
-		}
-		defer utils.ZeroizeKeyPair(keypair)
-		err = s.SaveZoneKeypair(keyID, keypair)
-		if err != nil {
-			log.WithError(err).Debug("failed to import zone storage key pair")
-			return err
-		}
 	case keystore.PurposeAuditLog:
 		symkey, err := oldKeyStore.ExportSymmetricKey(key)
 		if err != nil {
@@ -124,19 +112,6 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 		err = s.importClientIDSymmetricKey(keyID, symkey)
 		if err != nil {
 			log.WithError(err).Debug("Failed to import client storage symmetric key")
-			return err
-		}
-
-	case keystore.PurposeStorageZoneSymmetricKey:
-		symkey, err := oldKeyStore.ExportSymmetricKey(key)
-		if err != nil {
-			log.WithError(err).Debug("Failed to export zone storage symmetric key")
-			return err
-		}
-		defer utils.ZeroizeSymmetricKey(symkey)
-		err = s.importZoneIDSymmetricKey(keyID, symkey)
-		if err != nil {
-			log.WithError(err).Debug("Failed to import zone storage symmetric key")
 			return err
 		}
 	default:

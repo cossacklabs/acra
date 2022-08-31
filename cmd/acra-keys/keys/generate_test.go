@@ -32,8 +32,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func TestRotateSymmetricZoneKey(t *testing.T) {
-	zoneID := "DDDDDDDDHCzqZAZNbBvybWLR"
+func TestRotateSymmetricKey(t *testing.T) {
 	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
 
 	masterKey, err := keystore.GenerateSymmetricKey()
@@ -58,14 +57,14 @@ func TestRotateSymmetricZoneKey(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	clientID := []byte("client")
 	generateCmd := &GenerateKeySubcommand{
 		CommonKeyStoreParameters: CommonKeyStoreParameters{
 			keyDir: dirName,
 		},
-		zoneID:        zoneID,
-		rotateZoneSym: true,
-		flagSet:       flagSet,
+		clientID:   string(clientID),
+		flagSet:    flagSet,
+		acraBlocks: true,
 	}
 
 	keyStore, err = openKeyStoreV1(generateCmd)
@@ -73,29 +72,29 @@ func TestRotateSymmetricZoneKey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := keyStore.GenerateZoneIDSymmetricKey([]byte(zoneID)); err != nil {
+	if err := keyStore.GenerateClientIDSymmetricKey(clientID); err != nil {
 		log.WithError(err).Errorln("Can't generate symmetric key")
 		os.Exit(1)
 	}
 
-	zoneKeyPath := fmt.Sprintf("%s/%s_zone_sym", dirName, zoneID)
-	oldSymKey, err := ioutil.ReadFile(zoneKeyPath)
+	keyPath := fmt.Sprintf("%s/%s_storage_sym", dirName, clientID)
+	oldSymKey, err := ioutil.ReadFile(keyPath)
 	if err != nil {
-		t.Fatal("no old symmetric zone key found")
+		t.Fatal("no old symmetric sym key found")
 	}
 
 	generateCmd.Execute()
 
-	newSymKey, err := ioutil.ReadFile(zoneKeyPath)
+	newSymKey, err := ioutil.ReadFile(keyPath)
 	if err != nil {
-		t.Fatal("no new symmetric zone key found")
+		t.Fatal("no new symmetric sym key found")
 	}
 
 	if bytes.Equal(oldSymKey, newSymKey) {
 		t.Fatal("same key after rotation error")
 	}
 
-	f, err := os.Open(fmt.Sprintf("%s.old", zoneKeyPath))
+	f, err := os.Open(fmt.Sprintf("%s.old", keyPath))
 	if err != nil {
 		t.Fatal("no backup directory found", err.Error())
 	}
