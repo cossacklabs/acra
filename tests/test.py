@@ -6516,7 +6516,7 @@ class BaseTokenizationWithBinaryMySQL(BaseTokenization):
         return result
 
 
-class TestTokenizationWithoutZone(BaseTokenization):
+class TestTokenization(BaseTokenization):
     def testTokenizationDefaultClientID(self):
         default_client_id_table = sa.Table(
             'test_tokenization_default_client_id', metadata,
@@ -6862,27 +6862,27 @@ class TestReturningProcessingPostgreSQL(TestReturningProcessingMixing, BaseToken
         return source, hidden, self.data
 
 
-class TestTokenizationWithoutZoneWithRedis(BaseTokenizationWithRedis, TestTokenizationWithoutZone):
+class TestTokenizationWithRedis(BaseTokenizationWithRedis, TestTokenization):
     pass
 
 
-class TestTokenizationWithoutZoneBinaryMySQL(BaseTokenizationWithBinaryMySQL, TestTokenizationWithoutZone):
+class TestTokenizationBinaryMySQL(BaseTokenizationWithBinaryMySQL, TestTokenization):
     pass
 
 
-class TestTokenizationWithoutZoneTextPostgreSQL(BaseTokenizationWithTextPostgreSQL, TestTokenizationWithoutZone):
+class TestTokenizationTextPostgreSQL(BaseTokenizationWithTextPostgreSQL, TestTokenization):
     pass
 
 
-class TestTokenizationWithoutZoneBinaryPostgreSQL(BaseTokenizationWithBinaryPostgreSQL, TestTokenizationWithoutZone):
+class TestTokenizationBinaryPostgreSQL(BaseTokenizationWithBinaryPostgreSQL, TestTokenization):
     pass
 
 
-class TestTokenizationWithoutZoneBinaryPostgreSQLWithAWSKMSMaterKeyLoading(AWSKMSMasterKeyLoaderMixin, BaseTokenizationWithBinaryPostgreSQL, TestTokenizationWithoutZone):
+class TestTokenizationBinaryPostgreSQLWithAWSKMSMaterKeyLoading(AWSKMSMasterKeyLoaderMixin, BaseTokenizationWithBinaryPostgreSQL, TestTokenization):
     pass
 
 
-class TestTokenizationWithoutZoneBinaryBindMySQL(BaseTokenizationWithBinaryBindMySQL, TestTokenizationWithoutZone):
+class TestTokenizationBinaryBindMySQL(BaseTokenizationWithBinaryBindMySQL, TestTokenization):
     pass
 
 
@@ -6951,7 +6951,7 @@ class BaseMaskingBinaryMySQLMixin(BaseBinaryMySQLTestCase, BaseTestCase):
         return self.executor1.execute_prepared_statement_no_result(query, parameters)
 
 
-class TestMaskingWithoutZone(BaseMasking):
+class TestMasking(BaseMasking):
     def test_masking_default_client_id(self):
         default_client_id_table = sa.Table(
             'test_masking_default_client_id', metadata,
@@ -7121,28 +7121,28 @@ class BaseAcraBlockMasking:
             self.assertIn(temp_acrastruct[:4], source_data[i])
 
 
-class TestMaskingAcraBlockWithoutZone(BaseAcraBlockMasking, TestMaskingWithoutZone):
+class TestMaskingAcraBlock(BaseAcraBlockMasking, TestMasking):
     pass
 
 
-class TestMaskingAcraBlockWithoutZoneBinaryMySQL(BaseAcraBlockMasking, BaseMaskingBinaryMySQLMixin, TestMaskingWithoutZone):
+class TestMaskingAcraBlockBinaryMySQL(BaseAcraBlockMasking, BaseMaskingBinaryMySQLMixin, TestMasking):
     pass
 
 
-class TestMaskingAcraBlockWithoutZoneBinaryPostgreSQL(BaseAcraBlockMasking, BaseMaskingBinaryPostgreSQLMixin, TestMaskingWithoutZone):
+class TestMaskingAcraBlockBinaryPostgreSQL(BaseAcraBlockMasking, BaseMaskingBinaryPostgreSQLMixin, TestMasking):
     pass
 
 
-class TestMaskingAcraBlockWithoutZoneWithDefaults(BaseAcraBlockMasking, TestMaskingWithoutZone):
+class TestMaskingAcraBlockWithDefaults(BaseAcraBlockMasking, TestMasking):
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_masking_acrablock_with_defaults_config.yaml')
 
 
-class TestMaskingWithoutZoneConnectorlessWithTLSByDN(TLSAuthenticationByDistinguishedNameMixin, TLSAuthenticationDirectlyToAcraMixin, TestMaskingWithoutZone):
+class TestMaskingConnectorlessWithTLSByDN(TLSAuthenticationByDistinguishedNameMixin, TLSAuthenticationDirectlyToAcraMixin, TestMasking):
     def get_specified_client_id(self):
         return extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_2_CERT, extractor=self.get_identifier_extractor_type())
 
 
-class TestMaskingWithoutZoneConnectorlessWithTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin, TLSAuthenticationDirectlyToAcraMixin, TestMaskingWithoutZone):
+class TestMaskingConnectorlessWithTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin, TLSAuthenticationDirectlyToAcraMixin, TestMasking):
     def get_specified_client_id(self):
         return extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_2_CERT, extractor=self.get_identifier_extractor_type())
 
@@ -7163,12 +7163,12 @@ class TestSearchableTransparentEncryptionConnectorlessWithTLSBySerialNumber(TLSA
     pass
 
 
-class TestTokenizationConnectorlessWithTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin, TLSAuthenticationDirectlyToAcraMixin, TestTokenizationWithoutZone):
+class TestTokenizationConnectorlessWithTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin, TLSAuthenticationDirectlyToAcraMixin, TestTokenization):
     def get_specified_client_id(self):
         return extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_2_CERT, extractor=self.get_identifier_extractor_type())
 
 
-class TestTokenizationConnectorlessWithTLSByDN(TLSAuthenticationByDistinguishedNameMixin, TLSAuthenticationDirectlyToAcraMixin, TestTokenizationWithoutZone):
+class TestTokenizationConnectorlessWithTLSByDN(TLSAuthenticationByDistinguishedNameMixin, TLSAuthenticationDirectlyToAcraMixin, TestTokenization):
     def get_specified_client_id(self):
         return extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_2_CERT, extractor=self.get_identifier_extractor_type())
 
