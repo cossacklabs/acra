@@ -6,7 +6,6 @@ schemas:
       - specified_client_id
       - default_client_id
       - number
-      - zone_id
       - raw_data
       - nullable
       - searchable
@@ -24,9 +23,6 @@ schemas:
         client_id: 12824c1c541a615f428a740770291374a8504f84a0682ab4015bc8e792b1bc8240022c5c9faa8c2111e0076b3b929148f4b801414413edaa800cb42492c20cf7
 
       - column: default_client_id
-
-      - column: zone_id
-        zone_id: DDDDDDDDMatNOMYjqVOuhACC
 
       - column: searchable
         searchable: true
