@@ -332,15 +332,3 @@ tls_cert:
 # Decide which field of TLS certificate to use as ClientID (distinguished_name|serial_number). Default is distinguished_name.
 tls_identifier_extractor_type: distinguished_name
 
-# Generate new Acra storage zone
-zone: false
-
-# Zone ID
-zone_id: 
-
-# Rotate existing Acra zone storage keypair
-zone_storage_key: false
-
-# Rotate existing Acra zone symmetric key
-zone_symmetric_key: false
-
