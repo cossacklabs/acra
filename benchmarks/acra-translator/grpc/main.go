@@ -29,7 +29,7 @@ import (
 )
 
 // BenchTLSAcraBlock run AcraBlock TLS benchmarking test
-func BenchTLSAcraBlock(connectionString, serverName, clientID, zoneID, data, ca, key, cert string, authType int) func(b *testing.B) {
+func BenchTLSAcraBlock(connectionString, serverName, clientID, data, ca, key, cert string, authType int) func(b *testing.B) {
 	return func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			ctx := context.Background()
@@ -64,7 +64,7 @@ func BenchTLSAcraBlock(connectionString, serverName, clientID, zoneID, data, ca,
 }
 
 // BenchTLSAcraStruct run AcraStruct TLS benchmarking test
-func BenchTLSAcraStruct(connectionString, serverName, clientID, zoneID, data, ca, key, cert string, authType int) func(b *testing.B) {
+func BenchTLSAcraStruct(connectionString, serverName, clientID, data, ca, key, cert string, authType int) func(b *testing.B) {
 	return func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			ctx := context.Background()
@@ -106,7 +106,6 @@ func main() {
 	connectionString := flag.String("connection_string", "127.0.0.1:9696", "host:port to AcraTranslator")
 	serverName := flag.String("tls_server_sni", "localhost", "Server name of AcraTranslator")
 	clientID := flag.String("client_id", "client", "Client id used in request")
-	zoneID := flag.String("zone_id", "", "Zone id used in request")
 	data := flag.String("data", "some data", "Data sent to encrypt/decrypt")
 	flag.Parse()
 
@@ -115,8 +114,8 @@ func main() {
 		Result testing.BenchmarkResult
 	}
 	result := make([]benchData, 0, 10)
-	result = append(result, benchData{Name: "TLS + AcraBlock", Result: testing.Benchmark(BenchTLSAcraBlock(*connectionString, *serverName, *clientID, *zoneID, *data, *ca, *key, *cert, *authType))})
-	result = append(result, benchData{Name: "TLS + AcraStruct", Result: testing.Benchmark(BenchTLSAcraStruct(*connectionString, *serverName, *clientID, *zoneID, *data, *ca, *key, *cert, *authType))})
+	result = append(result, benchData{Name: "TLS + AcraBlock", Result: testing.Benchmark(BenchTLSAcraBlock(*connectionString, *serverName, *clientID, *data, *ca, *key, *cert, *authType))})
+	result = append(result, benchData{Name: "TLS + AcraStruct", Result: testing.Benchmark(BenchTLSAcraStruct(*connectionString, *serverName, *clientID, *data, *ca, *key, *cert, *authType))})
 	for _, res := range result {
 		fmt.Printf("%s - %s\n", res.Name, res.Result.String())
 	}

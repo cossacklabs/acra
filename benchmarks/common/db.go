@@ -45,28 +45,15 @@ func ConnectAcra() *sql.DB {
 	return connect(os.Getenv("ACRA_CONNECTION_STRING"))
 }
 
-// DropCreateWithZone drop table 'test_with_zone' if exists and create table
+// DropCreate drop table 'test_data' if exists and create table
 // with sequence for primary key. Into this table will be inserted acrastructs
-// encrypted with zone and used in read benchmarks in zonemode
-func DropCreateWithZone(db *sql.DB) {
+// encrypted with one key and used in read benchmarks
+func DropCreate(db *sql.DB) {
 	scripts := []string{
-		"DROP TABLE IF EXISTS test_with_zone;",
-		"DROP SEQUENCE IF EXISTS test_with_zone_seq;",
-		"CREATE SEQUENCE test_with_zone_seq START 1;",
-		"CREATE TABLE IF NOT EXISTS test_with_zone(id INTEGER PRIMARY KEY DEFAULT nextval('test_with_zone_seq'), zone BYTEA, data BYTEA);",
-	}
-	RunScripts(scripts, db)
-}
-
-// DropCreateWithoutZone drop table 'test_without_zone' if exists and create table
-// with sequence for primary key. Into this table will be inserted acrastructs
-// encrypted with one key and used in read benchmarks without zonemode
-func DropCreateWithoutZone(db *sql.DB) {
-	scripts := []string{
-		"DROP TABLE IF EXISTS test_without_zone;",
-		"DROP SEQUENCE IF EXISTS test_without_zone_seq;",
-		"CREATE SEQUENCE test_without_zone_seq START 1;",
-		"CREATE TABLE IF NOT EXISTS test_without_zone(id INTEGER PRIMARY KEY DEFAULT nextval('test_without_zone_seq'), data BYTEA);",
+		"DROP TABLE IF EXISTS test_data;",
+		"DROP SEQUENCE IF EXISTS test_data_seq;",
+		"CREATE SEQUENCE test_data_seq START 1;",
+		"CREATE TABLE IF NOT EXISTS test_data(id INTEGER PRIMARY KEY DEFAULT nextval('test_data_seq'), data BYTEA);",
 	}
 	RunScripts(scripts, db)
 }

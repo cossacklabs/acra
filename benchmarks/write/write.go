@@ -70,7 +70,7 @@ func GenerateAcrastructRowsOneKey(publicKey *keys.PublicKey, db *sql.DB) {
 		if err != nil {
 			panic(err)
 		}
-		_, err = db.Exec("INSERT INTO test_without_zone(data) VALUES ($1);", &acrastruct)
+		_, err = db.Exec("INSERT INTO test_data(data) VALUES ($1);", &acrastruct)
 		if err != nil {
 			panic(err)
 		}
@@ -85,28 +85,6 @@ func GenerateDataRows(db *sql.DB) {
 			panic(err)
 		}
 		_, err = db.Exec("INSERT INTO test_raw(data) VALUES ($1);", &data)
-		if err != nil {
-			panic(err)
-		}
-	}
-}
-
-// GenerateAcrastructWithZone generate RowCount acrastructs using sequentially
-// all ZoneCount zones
-func GenerateAcrastructWithZone(db *sql.DB) {
-	zones := common.LoadZones()
-	for count := 0; count < common.RowCount; count++ {
-		data, err := common.GenerateData()
-		if err != nil {
-			panic(err)
-		}
-
-		zoneData := zones[count%common.ZoneCount]
-		acraStruct, err := acrastruct.CreateAcrastruct(data, &keys.PublicKey{Value: zoneData.PublicKey}, zoneData.ID)
-		if err != nil {
-			panic(err)
-		}
-		_, err = db.Exec("INSERT INTO test_with_zone(zone, data) VALUES ($1, $2);", &zoneData.ID, &acraStruct)
 		if err != nil {
 			panic(err)
 		}

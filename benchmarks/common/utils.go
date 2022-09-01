@@ -15,9 +15,7 @@
 package common
 
 import (
-	"bytes"
 	data_rand "crypto/rand"
-	"encoding/json"
 	"math/rand"
 
 	"github.com/cossacklabs/acra/utils"
@@ -25,8 +23,7 @@ import (
 )
 
 const (
-	oneKeyPath   = "src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey_server.pub"
-	zoneListPath = "src/github.com/cossacklabs/acra/benchmarks/.acrakeys/public_keys.txt"
+	oneKeyPath = "src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey_server.pub"
 )
 
 // GenerateData generates random data with MaxDataLength
@@ -44,34 +41,4 @@ func GetServerOneKeyPublic() *keys.PublicKey {
 		panic(err)
 	}
 	return &keys.PublicKey{Value: publicKey}
-}
-
-// ZoneData stores zone: zoneID and PublicKey
-type ZoneData struct {
-	ID        []byte
-	PublicKey []byte
-}
-
-// JSONData stores JSON zone: zoneID and PublicKey
-type JSONData struct {
-	ID        string
-	PublicKey []byte
-}
-
-// LoadZones loads zones keys
-func LoadZones() []*ZoneData {
-	zones := make([]*ZoneData, ZoneCount)
-	dumpedZoneData, err := utils.ReadFile(zoneListPath)
-	if err != nil {
-		panic(err)
-	}
-	for i, zoneData := range bytes.Split(dumpedZoneData, []byte("\n")) {
-		jsonData := JSONData{}
-		err = json.Unmarshal(zoneData, &jsonData)
-		if err != nil {
-			panic(err)
-		}
-		zones[i] = &ZoneData{PublicKey: jsonData.PublicKey, ID: []byte(jsonData.ID)}
-	}
-	return zones
 }

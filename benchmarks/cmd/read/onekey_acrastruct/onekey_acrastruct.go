@@ -25,7 +25,7 @@ import (
 func main() {
 	db := common.Connect()
 	fmt.Println("Generate rows")
-	common.DropCreateWithoutZone(db)
+	common.DropCreate(db)
 	write.GenerateAcrastructRowsOneKey(common.GetServerOneKeyPublic(), db)
 	db.Close()
 
@@ -36,7 +36,7 @@ func main() {
 	var data []byte
 	for i := 0; i < common.RequestCount; i++ {
 		id := rand.Intn(common.RowCount)
-		err := db.QueryRow("SELECT id, data FROM test_without_zone WHERE id=$1+1;", &id).Scan(&rowID, &data)
+		err := db.QueryRow("SELECT id, data FROM test_data WHERE id=$1+1;", &id).Scan(&rowID, &data)
 		if err != nil {
 			panic(err)
 		}

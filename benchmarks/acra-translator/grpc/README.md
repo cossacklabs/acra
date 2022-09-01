@@ -28,6 +28,4 @@ Flags:
     	TLS private key (default "acra-writer.key")
   --tls_server_sni
     	Server name of AcraTranslator (default "localhost")
-  --zone_id
-    	Zone id used in request
 ```
