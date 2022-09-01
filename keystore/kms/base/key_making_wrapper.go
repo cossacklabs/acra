@@ -193,6 +193,7 @@ func (k KeyMakingWrapper) createKMSKeyFromContext(keyContext keystore.KeyContext
 	if err != nil {
 		return err
 	}
+
 	log.WithField("keyID", resp.KeyID).WithField("key-name", string(keyID)).Info("KMS key created")
 	return nil
 }
