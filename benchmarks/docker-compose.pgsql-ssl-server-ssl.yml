@@ -21,7 +21,6 @@ services:
 
     acra-keymaker_redis_client:
         image: "cossacklabs/acra-keymaker:${ACRA_DOCKER_IMAGE_TAG:-latest}"
-        network_mode: "host"
         environment:
             ACRA_MASTER_KEY: ${ACRA_SERVER_MASTER_KEY:-N0MyZEVCRGY1cHA4ODRSVHp3c3BNeGtDekxaV3BhTHI=}
         volumes:
@@ -40,7 +39,6 @@ services:
         build:
             context: ../
             dockerfile: docker/postgresql-ssl.dockerfile
-        network_mode: host
         environment:
             POSTGRES_DB: ${POSTGRES_DB:-test}
             POSTGRES_USER: ${POSTGRES_USER:-test}
@@ -58,7 +56,6 @@ services:
         depends_on:
             - postgresql
         restart: on-failure
-        network_mode: host
         environment:
             PGDBNAME: benchmark
             PGUSER: test
@@ -75,7 +72,6 @@ services:
 
     redis:
         image: redis:6.2.6-alpine
-        network_mode: host
 
     acra-server:
         build:
@@ -96,7 +92,6 @@ services:
             - postgresql
             - redis
         # need because debug server listens 127.0.0.1
-        network_mode: host
         ports:
             - "9393:9393"
             # debug server for profiling

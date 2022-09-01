@@ -23,12 +23,13 @@ import (
 )
 
 const (
-	oneKeyPath = "src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey_server.pub"
+	oneKeyPath = "./benchmarks/.acrakeys/onekey_server.pub"
 )
 
 // GenerateData generates random data with MaxDataLength
 func GenerateData() ([]byte, error) {
-	length := rand.Intn(MaxDataLength)
+	// at least 1 byte
+	length := 1 + rand.Intn(MaxDataLength)
 	data := make([]byte, length)
 	_, err := data_rand.Read(data)
 	return data, err
