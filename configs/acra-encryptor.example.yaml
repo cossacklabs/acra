@@ -2,15 +2,6 @@ schemas:
 - table: test
   columns:
   - id
-  - data
-  - raw_data
-  encrypted:
-  - column: data
-    zone_id: DDDDDDDDMatNOMYjqVOuhACC
-
-- table: test2
-  columns:
-  - id
   - zone
   - data
   - raw_data
@@ -18,5 +9,5 @@ schemas:
   - column: data
     client_id: client
 
-    # use key by client_id from transport
+    # use key by client_id from a TLS certificate
   - column: raw_data
