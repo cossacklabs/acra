@@ -2,7 +2,6 @@ schemas:
 - table: test
   columns:
   - id
-  - zone
   - data
   - raw_data
   encrypted:
