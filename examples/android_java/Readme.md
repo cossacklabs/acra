@@ -34,7 +34,7 @@ And that's all!
 Under the hood, AcraWriter depends on Themis, which depends on OpenSSL, but you don't need to install them separately.
 
 
-# Generating AcraStruct without zone
+# Generating AcraStruct
 
 Please update AcraStrorage Public key to yours:
 
@@ -48,23 +48,4 @@ PublicKey publicKey = new PublicKey(Base64.decode(acraTranslatorPublicKey.getByt
 
 AcraWriter aw = new AcraWriter();
 AcraStruct acraStruct = aw.createAcraStruct(message.getBytes(), publicKey, null);
-```
-
-
-# Generating AcraStruct with zone
-
-Please update AcraStrorage Zone Public key to yours:
-
-```java
-import com.cossacklabs.acrawriter.AcraStruct;
-import com.cossacklabs.acrawriter.AcraWriter;
-
-String message = "zone hello message";
-String zoneID = "DDDDDDDDbBnbDdyQhsIKDHmg";
-
-String acraTranslatorZoneKey = "VUVDMgAAAC0a1L6iAj46qMJ7eofpjF2h/+u+uItIvpyvZcNW+5enohvCIY6G";
-PublicKey publicKey = new PublicKey(Base64.decode(acraTranslatorZoneKey.getBytes(), Base64.NO_WRAP));
-
-AcraWriter aw = new AcraWriter();
-AcraStruct acraStruct = aw.createAcraStruct(message.getBytes(), publicKey, zoneID.getBytes());
 ```

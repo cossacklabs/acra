@@ -54,7 +54,6 @@ pool.connect(function(err, client, done) {
       return console.error('error running query', err);
     }
     for(i=0;i<res.rows.length;i++){
-        console.log(res.rows[i].zone.toString('utf8'));
         console.log(res.rows[i].data.toString('utf8'));
         console.log(res.rows[i].raw_data.toString('utf8'));
         console.log(" ");

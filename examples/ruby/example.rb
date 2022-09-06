@@ -105,11 +105,11 @@ if options[:print]
 
   puts "data | raw_data"
   if options[:mysql]
-    db_driver.select_all('SELECT data, raw_data FROM test_example_without_zone;') do | row |
+    db_driver.select_all('SELECT data, raw_data FROM test_example;') do | row |
         puts "%s | %s " % [row['data'].to_s, row['raw_data']]
     end
   else
-    db_driver.exec("SELECT data, raw_data FROM test_example_without_zone;") do |result|
+    db_driver.exec("SELECT data, raw_data FROM test_example;") do |result|
       result.each do |row|
         puts "%s | %s " % [db_driver.unescape_bytea(row['data']).to_s, row['raw_data']]
       end
@@ -123,10 +123,10 @@ else
   acrastruct = create_acrastruct(options[:data], acra_public.b)
   if options[:mysql]
     acrastruct = DBI::Binary.new(acrastruct)
-    db_driver.do("INSERT INTO test_example_without_zone(id, data, raw_data) VALUES (?, ?, ?);", rand_id, acrastruct, options[:data])
+    db_driver.do("INSERT INTO test_example(id, data, raw_data) VALUES (?, ?, ?);", rand_id, acrastruct, options[:data])
     db_driver.commit
   else
-    db_driver.exec_params("INSERT INTO test_example_without_zone(id, data, raw_data) VALUES ($1, $2, $3);", [rand_id, db_driver.escape_bytea(acrastruct), options[:data]])
+    db_driver.exec_params("INSERT INTO test_example(id, data, raw_data) VALUES ($1, $2, $3);", [rand_id, db_driver.escape_bytea(acrastruct), options[:data]])
   end
 end
 

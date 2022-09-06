@@ -35,7 +35,6 @@ public class MainActivityAcraStructExample extends AppCompatActivity {
 
             // use with running AcraTranslator
 //            generateAndSendAcraStruct();
-//            generateAndSendAcraStructWithZone();
 
         } catch (InvalidArgumentException | NullArgumentException | SecureCellException e) {
             e.printStackTrace();
@@ -43,7 +42,7 @@ public class MainActivityAcraStructExample extends AppCompatActivity {
     }
 
     // Generate storage keys, AcraWriter is using <client_id>_storage.pub public key
-    // https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter#client-side-with-zones
+    // https://docs.cossacklabs.com/acra/security-controls/key-management/operations/generation/#12-generating-transport-and-encryption-keys
     void generateAcraStructLocally() throws SecureCellException, NullArgumentException, InvalidArgumentException {
         String message = "local acrastruct";
 
@@ -63,7 +62,7 @@ public class MainActivityAcraStructExample extends AppCompatActivity {
     }
 
     // Generate storage keys, AcraWriter is using <client_id>_storage.pub public key
-    // https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter#client-side-with-zones
+    // https://docs.cossacklabs.com/acra/security-controls/key-management/operations/generation/#12-generating-transport-and-encryption-keys
     void generateAndSendAcraStruct() throws SecureCellException, NullArgumentException, InvalidArgumentException {
         String message = "hello message";
 
@@ -84,32 +83,6 @@ public class MainActivityAcraStructExample extends AppCompatActivity {
             e.printStackTrace();
         }
     }
-
-    // Generate Zone keys, AcraWriter is using <zone_id>_zone.pub public key
-    // https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter#client-side-with-zones
-    void generateAndSendAcraStructWithZone() throws SecureCellException, NullArgumentException, InvalidArgumentException {
-        String message = "zone hello message";
-        String zoneID = "DDDDDDDDbBnbDdyQhsIKDHmg";
-
-        String acraTranslatorZoneKey = "VUVDMgAAAC0a1L6iAj46qMJ7eofpjF2h/+u+uItIvpyvZcNW+5enohvCIY6G";
-        PublicKey publicKey = new PublicKey(Base64.decode(acraTranslatorZoneKey.getBytes(), Base64.NO_WRAP));
-
-        String URL = "http://10.0.2.2:9494/v1/decrypt?zone_id=" + zoneID;
-
-
-        try {
-            AcraWriter aw = new AcraWriter();
-            AcraStruct acraStruct = aw.createAcraStruct(message.getBytes(), publicKey, zoneID.getBytes());
-
-            // sending acrastructs will work in AcraConnector and AcraTranslator are up and running, and listening on localhost
-            AsyncHttpPost asyncHttpPost = new AsyncHttpPost(acraStruct.toByteArray());
-            asyncHttpPost.execute(URL);
-
-        } catch (KeyGenerationException | IOException e) {
-            e.printStackTrace();
-        }
-    }
-
 
     private class AsyncHttpPost extends AsyncTask<String, String, byte[]> {
         private byte[] message = null;// post data

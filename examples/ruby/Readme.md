@@ -21,7 +21,7 @@ Scripts have next required params:
 * `port` (of database)
 * `postgresql` or `mysql` (depends on database you use)
 
-Other params depends on mode (with zone or without) and type of action (`print` to list rows from db or `data` to add encrypted data to database)
+Other params depends on  type of action (`print` to list rows from db or `data` to add encrypted data to database)
 
 **Important**
 
@@ -29,8 +29,6 @@ If you use MySQL database then you should pass `--mysql` parameter in each examp
 
 ## Printing decrypted data
 To see decrypted data you must use port of AcraConnector (default 9494). If you will print using databases port then you will see encrypted data
-
-# Without zone
 
 ## Insert data
 ```
@@ -41,24 +39,4 @@ ruby examples/ruby/example.rb --db_name=${DB_NAME} --db_user=${DB_USER} --host=$
 ```
 ruby examples/ruby/example.rb --db_name=${DB_NAME} --db_user=${DB_USER} --host=${ACRA_CONNECTOR_HOST} --port=${ACRA_CONNECTOR_PORT} --public_key=docker/.acrakeys/acra-writer/${ACRA_CLIENT_ID}_storage.pub --postgresql --print
 ```
-*Use AcraConnector's port:host to see encrypted data and databases host:port to see encrypted data*
-
-# With zone
-
-## Insert data
-```
-ruby examples/ruby/example_with_zone.rb --db_name=${DB_NAME} --db_user=${DB_USER} --host=${ACRA_CONNECTOR_HOST} --port=${ACRA_CONNECTOR_PORT} --postgresql --data="some data"
-```
-
-Then you will see next output with generated `zone_id`:
-```
-zone_id=DDDDDDDDPsLLWtZgIbhMzuuj
-done
-```
-To print decrypted value you must use zone id from output (`DDDDDDDDPsLLWtZgIbhMzuuj` in this example)
-## Print data
-Use zone id of row that you want to decrypt (`DDDDDDDDPsLLWtZgIbhMzuuj` for example):
-```
-ruby examples/ruby/example_with_zone.rb --db_name=${DB_NAME} --db_user=${DB_USER} --host=${ACRA_CONNECTOR_HOST} --port=${ACRA_CONNECTOR_PORT} --postgresql --print --zone_id=DDDDDDDDPsLLWtZgIbhMzuuj
-```
-*Use AcraConnector's port:host to see encrypted data and databases host:port to see encrypted data*
+*Use AcraServer's port:host to see encrypted data and databases host:port to see encrypted data*

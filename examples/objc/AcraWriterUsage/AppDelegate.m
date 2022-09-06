@@ -24,8 +24,6 @@
   
   [self generateAndSendAcraStruct];
   
-  [self generateAndSendAcraStructWithZone];
-  
   return YES;
 }
 
@@ -33,8 +31,7 @@
   NSLog(@"Generating simple AcraStruct");
   
   // Generate storage keys, AcraWriter is using <client_id>_storage.pub public key
-  // https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter#client-side-with-zones
-  
+
   AcraWriter * aw = [AcraWriter new];
   NSString * acraStoragePublicKey = @"VUVDMgAAAC19EoDCAjPFi89Z/Y4bLX9FAzVonJ+Z1GmxKJQo/DvJY8K8nw9V";
   NSData * acraStoragePublicKeyData = [[NSData alloc] initWithBase64EncodedString:acraStoragePublicKey
@@ -57,40 +54,8 @@
 }
 
 
-- (void)generateAndSendAcraStructWithZone {
-  NSLog(@"Generating simple AcraStruct with Zone");
-  
-  // Generate Zone keys, AcraWriter is using <zone_id>_zone.pub public key
-  // https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter#client-side-with-zones
-  
-  AcraWriter * aw = [AcraWriter new];
-  NSString * zonePublicKey = @"VUVDMgAAAC1dStsgAwKbjEzpd3Xptt+hjhFX3Kypbd36qjCF0koFzZHBNPLM";
-  NSData * zonePublicKeyData = [[NSData alloc] initWithBase64EncodedString:zonePublicKey
-                                                                   options:NSDataBase64DecodingIgnoreUnknownCharacters];
-  NSString * zoneID = @"DDDDDDDDNVGIGGzYSCklWQPx";
-  NSError * generationError;
-  
-  AcraStruct * acraStructWithZone = [aw createAcraStructFrom:[@"secret message with zones" dataUsingEncoding:NSUTF8StringEncoding]
-                                                   publicKey:zonePublicKeyData
-                                                      zoneID:[zoneID dataUsingEncoding:NSUTF8StringEncoding]
-                                                       error:&generationError];
-  if (generationError) {
-    NSLog(@"Error occurred while generating AcraStruct with Zone: %@", generationError);
-  }
-
-  if (ONLY_LOCAL_SETUP == 0) {
-    [self sendAcraStruct:acraStructWithZone zoneID:zoneID];
-  } else {
-    NSLog(@"AcraStruct with zone %@", [acraStructWithZone.data base64EncodedDataWithOptions:0]);
-  }
-}
-
-
 - (void)sendAcraStruct:(AcraStruct *)acraStruct zoneID:(NSString *)zoneID {
   NSString * requestURL = [NSString stringWithFormat:@"http://127.0.0.1:8000/v1/decrypt"];
-  if (zoneID != nil) {
-    requestURL = [requestURL stringByAppendingString:[NSString stringWithFormat:@"?zone_id=%@", zoneID]];
-  }
   NSURL *url = [NSURL URLWithString: requestURL];
   NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
   
@@ -113,7 +78,7 @@
       NSLog(@"Got decrypted data: %@", [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
     }
   }];
-  [uploadTask setTaskDescription:(zoneID == nil) ? @"no zones" : @"with zones"];
+  [uploadTask setTaskDescription:@"AcraStruct generation"];
   [uploadTask resume];
 }
 
