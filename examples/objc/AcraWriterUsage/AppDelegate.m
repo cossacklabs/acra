@@ -40,21 +40,21 @@
   NSError * generationError;
   AcraStruct * acraStruct = [aw createAcraStructFrom:[@"secret message" dataUsingEncoding:NSUTF8StringEncoding]
                                            publicKey:acraStoragePublicKeyData
-                                              zoneID:nil
+                                              additionalContext:nil
                                                error:&generationError];
   if (generationError) {
     NSLog(@"Error occurred while generating AcraStruct: %@", generationError);
   }
   
   if (ONLY_LOCAL_SETUP == 0) {
-    [self sendAcraStruct:acraStruct zoneID:nil];
+    [self sendAcraStruct:acraStruct additionalContext:nil];
   } else {
     NSLog(@"simple AcraStruct %@", [acraStruct.data base64EncodedDataWithOptions:0]);
   }
 }
 
 
-- (void)sendAcraStruct:(AcraStruct *)acraStruct zoneID:(NSString *)zoneID {
+- (void)sendAcraStruct:(AcraStruct *)acraStruct additionalContext:(NSString *)additionalContext {
   NSString * requestURL = [NSString stringWithFormat:@"http://127.0.0.1:8000/v1/decrypt"];
   NSURL *url = [NSURL URLWithString: requestURL];
   NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];

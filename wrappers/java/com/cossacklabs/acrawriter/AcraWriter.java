@@ -25,11 +25,9 @@ import java.util.Arrays;
  * AcraWriter generates AcraStructs, specially encrypted data, from provided plaintext.
  * AcraStruct encrypts data using mix of symmetric and asymmetric encryption,
  * using Themis Secure Cell and Themis Secure Message. Data is encrypted with publicKey,
- * that represents AcraStorage public key (known as <client_id>_storage.pub) or
- * with AcraZonePublicKeys (known as <zone_id>_zone.pub).
+ * that represents AcraStorage public key (known as <client_id>_storage.pub)
  *
  * What is AcraWriter and how it works https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter
- * What is Zone https://github.com/cossacklabs/acra/wiki/Zones
  */
 public class AcraWriter {
 
@@ -39,15 +37,13 @@ public class AcraWriter {
     private static byte kAcraStructHeaderByte = 34;
 
     /**
-     * @discussion Method to generate AcraStruct from plain text message. Two option are possible: without Zones or with Zones.
-     * Without zones: `publicKey` is AcraStorage public key.
-     * With zones: `zoneID` is required, `publicKey` is Zone public key.
+     * @discussion Method to generate AcraStruct from plain text message.
+     * `publicKey` is AcraStorage public key.
      * @param message plaintext data to encrypt into AcraStruct.
-     * @param peerPublicKey either storage key or zone key, depending if client wants to use Zones.
-     * @param zoneID is optional, when client is using Zones. If zoneId is represented as string Id, expected input is [@"some zone id here" dataUsingEncoding:NSUTF8StringEncoding]
-     * @return data encrypted into AcraStruct format, or null on error
+     * @param peerPublicKey either storage key.
+     * @param additionalContext is optional, may be used for AEAD encryption in the future
      */
-    public AcraStruct createAcraStruct(byte[] message, PublicKey peerPublicKey, byte[] zoneID) throws NullArgumentException, KeyGenerationException, InvalidArgumentException, SecureCellException, IOException {
+    public AcraStruct createAcraStruct(byte[] message, PublicKey peerPublicKey, byte[] additionalContext) throws NullArgumentException, KeyGenerationException, InvalidArgumentException, SecureCellException, IOException {
         if (message == null || message.length == 0) {
             throw new NullArgumentException("Message to encrypt is empty or not provided");
         }
@@ -63,7 +59,7 @@ public class AcraWriter {
         byte[] randomSymmetricKey = new byte[kSymmetricKeySize];
         new SecureRandom().nextBytes(randomSymmetricKey);
 
-        // 3. encrypt random symmetric key using asymmetric encryption with random private key and acra/zone public key
+        // 3. encrypt random symmetric key using asymmetric encryption with random private key and acra public key
         PrivateKey privateKey = throwAwayKeypair.getPrivateKey();
         SecureMessage sm = new SecureMessage(privateKey, peerPublicKey);
         byte[] wrappedSymmetricKey;
@@ -78,7 +74,7 @@ public class AcraWriter {
 
         // 4. encrypt payload using symmetric encryption and random symm key
         SecureCell sc = new SecureCell(randomSymmetricKey, SecureCell.MODE_SEAL);
-        SecureCellData encryptedPayload = sc.protect(zoneID, message);
+        SecureCellData encryptedPayload = sc.protect(additionalContext, message);
         byte[] encryptedData = encryptedPayload.getProtectedData();
 
         // convert encrypted data length to little endian

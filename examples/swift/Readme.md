@@ -12,7 +12,7 @@ let acraStoragePublicKeyData = Data(base64Encoded: acraStoragePublicKey, options
 do {
     let acraStruct = try aw.createAcraStruct(from: "secret data".data(using: .utf8)!,
                                              publicKey: acraStoragePublicKeyData,
-                                             zoneID: nil)
+                                             additionalContext: nil)
     let acraStructBase64 = acraStruct.data.base64EncodedString(options: .lineLength64Characters)
     print("generated acraStruct ->\n\(acraStructBase64)")
     

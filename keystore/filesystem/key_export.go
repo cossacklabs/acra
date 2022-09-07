@@ -53,7 +53,7 @@ type KeyFileClassifier interface {
 // `Purpose` describes the purpose of this key.
 // This is one of the `Purpose...` constants exported by this module.
 //
-// `ID` is either client ID, or zone ID, or nil depending on the purpose.
+// `ID` is either client ID or nil depending on the purpose.
 //
 // `*Path` fields will be empty when not applicable.
 // For example, symmetric keys will not have public or private parts,

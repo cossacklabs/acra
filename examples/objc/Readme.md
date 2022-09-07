@@ -13,6 +13,6 @@ NSData * acraStoragePublicKeyData = [[NSData alloc] initWithBase64EncodedString:
 NSError * generationError;
 AcraStruct * acraStruct = [aw createAcraStructFrom:[@"secret message" dataUsingEncoding:NSUTF8StringEncoding]
                                        publicKey:acraStoragePublicKeyData
-                                          zoneID:nil
+                                          additionalContext:nil
                                            error:&generationError];
 ```
