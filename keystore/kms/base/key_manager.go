@@ -40,7 +40,7 @@ type KeyMetadata struct {
 
 // KeyManager is main kms interface
 //
-//go:generate mockery --name KeyManager --output ../mocks --filename KeyManager.go
+//go:generate mockery --name KeyManager --output ../../mocks --filename KeyManager.go
 type KeyManager interface {
 	Encryptor
 
@@ -49,9 +49,9 @@ type KeyManager interface {
 	IsKeyExist(ctx context.Context, keyID string) (bool, error)
 }
 
-//go:generate mockery --name Encryptor --output ../mocks --filename KmsEncryptor.go
-
 // Encryptor is main kms encryptor interface
+//
+//go:generate mockery --name Encryptor --output ../../mocks --filename KmsEncryptor.go
 type Encryptor interface {
 	Encrypt(ctx context.Context, keyID []byte, data []byte, context []byte) ([]byte, error)
 	Decrypt(ctx context.Context, keyID []byte, data []byte, context []byte) ([]byte, error)
