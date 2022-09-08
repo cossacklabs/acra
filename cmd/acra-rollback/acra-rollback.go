@@ -162,7 +162,7 @@ func main() {
 	connectionString := flag.String("connection_string", "", "Connection string for db")
 	sqlSelect := flag.String("select", "", "Query to fetch data for decryption")
 	sqlInsert := flag.String("insert", "", "Query for insert decrypted data with placeholders (pg: $n, mysql: ?)")
-	withZone := flag.Bool("zonemode_enable", false, "Turn on zone mode")
+	withZone := flag.Bool("zonemode_enable", false, "Turn on zone mode (deprecated since 0.94.0, will be removed).")
 	outputFile := flag.String("output_file", "decrypted.sql", "File for store inserts queries")
 	execute := flag.Bool("execute", false, "Execute inserts")
 	escapeFormat := flag.Bool("escape", false, "Escape bytea format")

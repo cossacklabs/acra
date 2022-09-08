@@ -405,11 +405,11 @@ func callOperationImplementation(ctx *gin.Context, f func(*gin.Context, []byte) 
 
 // encrypt godoc
 // @Summary Encrypt with AcraStruct
-// @Description Encrypt data with specified ZoneID or ClientID from connection
+// @Description Encrypt data with specified ZoneID or ClientID from connection (zones support deprecated since 0.94.0, will be removed)
 // @Accept  json
 // @Produce  json
 // @Param data body string true "Binary data encoded as Base64 string"
-// @Param zone_id body string false "ZoneID"
+// @Param zone_id body string false "ZoneID" (deprecated since 0.94.0, will be removed)
 // @Success 200 {object} http_api.encryptionHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
@@ -449,11 +449,11 @@ func (service *HTTPService) _encrypt(ctx *gin.Context, data []byte) (response en
 
 // decrypt godoc
 // @Summary Decrypt AcraStruct
-// @Description Decrypt AcraStruct with specified ZoneID or ClientID from connection
+// @Description Decrypt AcraStruct with specified ZoneID or ClientID from connection (zones support deprecated since 0.94.0, will be removed)
 // @Accept  json
 // @Produce  json
 // @Param data body string true "Binary data encoded as Base64 string"
-// @Param zone_id body string false "ZoneID"
+// @Param zone_id body string false "ZoneID" (deprecated since 0.94.0, will be removed)
 // @Success 200 {object} http_api.encryptionHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
@@ -492,11 +492,11 @@ func (service *HTTPService) _decrypt(ctx *gin.Context, data []byte) (response en
 
 // encryptSearchable godoc
 // @Summary Encrypt with searchable AcraStruct
-// @Description Encrypt data with searchable AcraStruct with specified ZoneID or ClientID from connection
+// @Description Encrypt data with searchable AcraStruct with specified ZoneID or ClientID from connection (zones support deprecated since 0.94.0, will be removed)
 // @Accept  json
 // @Produce  json
 // @Param data body string true "Binary data encoded as Base64 string"
-// @Param zone_id body string false "ZoneID"
+// @Param zone_id body string false "ZoneID" (deprecated since 0.94.0, will be removed)
 // @Success 200 {object} http_api.encryptionHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
@@ -540,11 +540,11 @@ func (service *HTTPService) _encryptSearchable(ctx *gin.Context, data []byte) (r
 
 // decryptSearchable godoc
 // @Summary Decrypt searchable AcraStruct
-// @Description Decrypt searchable AcraStruct with specified ZoneID or ClientID from connection
+// @Description Decrypt searchable AcraStruct with specified ZoneID or ClientID from connection (zones support deprecated since 0.94.0, will be removed)
 // @Accept  json
 // @Produce  json
 // @Param data body string true "Binary data encoded as Base64 string"
-// @Param zone_id body string false "ZoneID"
+// @Param zone_id body string false "ZoneID" (deprecated since 0.94.0, will be removed)
 // @Success 200 {object} http_api.encryptionHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
@@ -590,7 +590,7 @@ func (service *HTTPService) _decryptSearchable(ctx *gin.Context, data []byte) (r
 // @Accept  json
 // @Produce  json
 // @Param data body string true "Binary data encoded as Base64 string"
-// @Param zone_id body string false "ZoneID"
+// @Param zone_id body string false "ZoneID" (deprecated since 0.94.0, will be removed)
 // @Success 200 {object} http_api.encryptionHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
@@ -636,11 +636,11 @@ func (service *HTTPService) _generateQueryHash(ctx *gin.Context, data []byte) (r
 
 // encryptSymSearchable godoc
 // @Summary Encrypt with searchable AcraBlock
-// @Description Encrypt data with searchable AcraBlock with specified ZoneID or ClientID from connection
+// @Description Encrypt data with searchable AcraBlock with specified ZoneID or ClientID from connection (zones support deprecated since 0.94.0, will be removed)
 // @Accept  json
 // @Produce  json
 // @Param data body string true "Binary data encoded as Base64 string"
-// @Param zone_id body string false "ZoneID"
+// @Param zone_id body string false "ZoneID" (deprecated since 0.94.0, will be removed)
 // @Success 200 {object} http_api.encryptionHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
@@ -684,11 +684,11 @@ func (service *HTTPService) _encryptSymSearchable(ctx *gin.Context, data []byte)
 
 // decryptSymSearchable godoc
 // @Summary Decrypt searchable AcraBlock
-// @Description Decrypt searchable AcraBlock with specified ZoneID or ClientID from connection
+// @Description Decrypt searchable AcraBlock with specified ZoneID or ClientID from connection (zones support deprecated since 0.94.0, will be removed)
 // @Accept  json
 // @Produce  json
 // @Param data body string true "Binary data encoded as Base64 string"
-// @Param zone_id body string false "ZoneID"
+// @Param zone_id body string false "ZoneID" (deprecated since 0.94.0, will be removed)
 // @Success 200 {object} http_api.encryptionHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
@@ -735,11 +735,11 @@ func (service *HTTPService) _decryptSymSearchable(ctx *gin.Context, data []byte)
 
 // encryptSym godoc
 // @Summary Encrypt with AcraBlock
-// @Description Encrypt data with AcraBlock with specified ZoneID or ClientID from connection
+// @Description Encrypt data with AcraBlock with specified ZoneID or ClientID from connection (zones support deprecated since 0.94.0, will be removed)
 // @Accept  json
 // @Produce  json
 // @Param data body string true "Binary data encoded as Base64 string"
-// @Param zone_id body string false "ZoneID"
+// @Param zone_id body string false "ZoneID" (deprecated since 0.94.0, will be removed)
 // @Success 200 {object} http_api.encryptionHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
@@ -783,11 +783,11 @@ func (service *HTTPService) _encryptSym(ctx *gin.Context, data []byte) (response
 
 // decryptSym godoc
 // @Summary Decrypt AcraBlock
-// @Description Decrypt AcraBlock with specified ZoneID or ClientID from connection
+// @Description Decrypt AcraBlock with specified ZoneID or ClientID from connection (zones support deprecated since 0.94.0, will be removed)
 // @Accept  json
 // @Produce  json
 // @Param data body string true "Binary data encoded as Base64 string"
-// @Param zone_id body string false "ZoneID"
+// @Param zone_id body string false "ZoneID" (deprecated since 0.94.0, will be removed)
 // @Success 200 {object} http_api.encryptionHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
@@ -890,7 +890,7 @@ func prepareDataToTokenization(data json.RawMessage, tokenType pseudonymizationC
 // @Accept  json
 // @Produce  json
 // @Param data body string true "String or Base64 encoded binary value, or integer"
-// @Param zone_id body string false "ZoneID"
+// @Param zone_id body string false "ZoneID" (deprecated since 0.94.0, will be removed)
 // @Success 200 {object} http_api.tokenizationHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
@@ -951,7 +951,7 @@ func (service *HTTPService) _tokenize(ctx *gin.Context, data []byte) (response t
 // @Accept  json
 // @Produce  json
 // @Param data body string true "String or Base64 encoded binary value, or integer"
-// @Param zone_id body string false "ZoneID"
+// @Param zone_id body string false "ZoneID" (deprecated since 0.94.0, will be removed)
 // @Success 200 {object} http_api.tokenizationHTTPResponse
 // @Failure 400 {object} http_api.HTTPError
 // @Failure 422 {object} http_api.HTTPError
