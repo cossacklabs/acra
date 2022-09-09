@@ -194,14 +194,47 @@ vault_connection_api_string:
 # KV Secret Path (secret/) for reading ACRA_MASTER_KEY from HashiCorp Vault
 vault_secrets_path: secret/
 
-# Path to CA certificate for HashiCorp Vault certificate validation
-vault_tls_ca_path: 
+# Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is -1 which means NotSpecified and will be used value from tls_auth.
+vault_tls_client_auth: -1
 
-# Path to client TLS certificate for reading ACRA_MASTER_KEY from HashiCorp Vault
+# Path to root certificate which will be used with system root certificates to validate peer's certificate. Uses --tls_ca value if not specified.
+vault_tls_client_ca: 
+
+# Path to certificate. Uses --tls_cert value if not specified.
 vault_tls_client_cert: 
 
-# Path to private key of the client TLS certificate for reading ACRA_MASTER_KEY from HashiCorp Vault
+# Path to private key that will be used for TLS connections. Uses --tls_key value if not specified.
 vault_tls_client_key: 
+
+# Expected Server Name (SNI) from the service's side.
+vault_tls_client_sni: 
+
+# How many CRLs to cache in memory (use 0 to disable caching)
+vault_tls_crl_client_cache_size: 16
+
+# How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: 300 s)
+vault_tls_crl_client_cache_time: 0
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using CRL
+vault_tls_crl_client_check_only_leaf_certificate: false
+
+# How to treat CRL URL described in certificate itself: <use|trust|prefer|ignore>
+vault_tls_crl_client_from_cert: prefer
+
+# URL of the Certificate Revocation List (CRL) to use
+vault_tls_crl_client_url: 
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using OCSP
+vault_tls_ocsp_client_check_only_leaf_certificate: false
+
+# How to treat OCSP server described in certificate itself: <use|trust|prefer|ignore>
+vault_tls_ocsp_client_from_cert: prefer
+
+# How to treat certificates unknown to OCSP: <denyUnknown|allowUnknown|requireGood>
+vault_tls_ocsp_client_required: denyUnknown
+
+# OCSP service URL
+vault_tls_ocsp_client_url: 
 
 # Use TLS to encrypt transport with HashiCorp Vault
 vault_tls_transport_enable: false
