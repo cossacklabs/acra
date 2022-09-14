@@ -86,6 +86,9 @@ vault_connection_api_string:
 # KV Secret Path (secret/) for reading ACRA_MASTER_KEY from HashiCorp Vault
 vault_secrets_path: secret/
 
+# Path to CA certificate for HashiCorp Vault certificate validation (deprecated since 0.94.0)
+vault_tls_ca_path: 
+
 # Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is -1 which means NotSpecified and will be used value from tls_auth.
 vault_tls_client_auth: -1
 
