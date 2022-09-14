@@ -86,7 +86,7 @@ vault_connection_api_string:
 # KV Secret Path (secret/) for reading ACRA_MASTER_KEY from HashiCorp Vault
 vault_secrets_path: secret/
 
-# Path to CA certificate for HashiCorp Vault certificate validation (deprecated since 0.94.0)
+# Path to CA certificate for HashiCorp Vault certificate validation (deprecated since 0.94.0, use `vault_tls_client_ca`)
 vault_tls_ca_path: 
 
 # Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is -1 which means NotSpecified and will be used value from tls_auth.
@@ -227,7 +227,7 @@ dst_vault_connection_api_string:
 # KV Secret Path (secret/) for reading ACRA_MASTER_KEY from HashiCorp Vault (new keystore, destination)
 dst_vault_secrets_path: secret/
 
-# Path to CA certificate for HashiCorp Vault certificate validation (deprecated since 0.94.0) (new keystore, destination)
+# Path to CA certificate for HashiCorp Vault certificate validation (deprecated since 0.94.0, use `vault_tls_client_ca`) (new keystore, destination)
 dst_vault_tls_ca_path: 
 
 # Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is -1 which means NotSpecified and will be used value from tls_auth.
@@ -356,7 +356,7 @@ src_vault_connection_api_string:
 # KV Secret Path (secret/) for reading ACRA_MASTER_KEY from HashiCorp Vault (old keystore, source)
 src_vault_secrets_path: secret/
 
-# Path to CA certificate for HashiCorp Vault certificate validation (deprecated since 0.94.0) (old keystore, source)
+# Path to CA certificate for HashiCorp Vault certificate validation (deprecated since 0.94.0, use `vault_tls_client_ca`) (old keystore, source)
 src_vault_tls_ca_path: 
 
 # Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is -1 which means NotSpecified and will be used value from tls_auth.

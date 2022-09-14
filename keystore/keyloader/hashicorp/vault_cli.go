@@ -47,7 +47,7 @@ func RegisterCLIParametersWithFlagSet(flags *flag.FlagSet, prefix, description s
 		flags.String(prefix+vaultConnectionStringFlag, "", "Connection string (http://x.x.x.x:yyyy) for loading ACRA_MASTER_KEY from HashiCorp Vault"+description)
 		flags.String(prefix+"vault_secrets_path", defaultVaultSecretsPath, "KV Secret Path (secret/) for reading ACRA_MASTER_KEY from HashiCorp Vault"+description)
 		flags.Bool(prefix+"vault_tls_transport_enable", false, "Use TLS to encrypt transport with HashiCorp Vault"+description)
-		flags.String(prefix+"vault_tls_ca_path", "", "Path to CA certificate for HashiCorp Vault certificate validation (deprecated since 0.94.0)"+description)
+		flags.String(prefix+"vault_tls_ca_path", "", "Path to CA certificate for HashiCorp Vault certificate validation (deprecated since 0.94.0, use `vault_tls_client_ca`)"+description)
 	}
 
 	if flags.Lookup(prefix+network.ClientNameConstructorFunc()("vault", "cert", "")) == nil {
