@@ -5,8 +5,10 @@ package keyloader
 
 import (
 	"github.com/cossacklabs/acra/keystore/keyloader/kms"
+	"github.com/cossacklabs/acra/keystore/kms/aws"
 )
 
 func init() {
-	RegisterKeyEncryptorFabric(KeystoreStrategyKMSPerClient, kms.PerClientKeyEncryptorFabric{})
+	RegisterKeyEncryptorFabric(KeystoreStrategyKMSPerClient, KmsPerClientKeyEncryptorFabric{})
+	RegisterKeystoreStrategyKeyMapper(KeystoreStrategyKMSPerClient, kms.TypeAWS, aws.NewKMSPerClientKeyMapper())
 }

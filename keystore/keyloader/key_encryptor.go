@@ -6,6 +6,8 @@ import (
 	"sync"
 
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/keystore/keyloader/kms"
+	"github.com/cossacklabs/acra/keystore/kms/base"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
 	log "github.com/sirupsen/logrus"
 )
@@ -16,6 +18,9 @@ var (
 	lock                          = sync.Mutex{}
 )
 
+var keyEncryptorFabrics = map[string]KeyEncryptorFabric{}
+var strategyKeyMappers = map[string]base.KeyMapper{}
+
 // KeyEncryptorFabric represent Fabric interface for constructing keystore.KeyEncryptor for v1 keystore and crypto.KeyStoreSuite for v2
 type KeyEncryptorFabric interface {
 	RegisterCLIParameters(flags *flag.FlagSet, prefix, description string)
@@ -23,14 +28,26 @@ type KeyEncryptorFabric interface {
 	NewKeyEncryptorSuite(flag *flag.FlagSet, prefix string) (*crypto.KeyStoreSuite, error)
 }
 
-var keyEncryptorFabrics = map[string]KeyEncryptorFabric{}
-
 // RegisterKeyEncryptorFabric add new kms MasterKeyLoader to registry
 func RegisterKeyEncryptorFabric(strategy string, keyEncryptorFabric KeyEncryptorFabric) {
 	lock.Lock()
 	keyEncryptorFabrics[strategy] = keyEncryptorFabric
 	lock.Unlock()
 	log.WithField("strategy", strategy).Debug("Registered KeyEncryptorFabric")
+}
+
+// RegisterKeystoreStrategyKeyMapper add new base.KeyMapper for strategy and KMS type
+func RegisterKeystoreStrategyKeyMapper(strategy, kmsType string, mapper base.KeyMapper) {
+	lock.Lock()
+	strategyKeyMappers[strategy+"_"+kmsType] = mapper
+	lock.Unlock()
+	log.WithField("strategy", strategy).WithField("kms", kmsType).Debug("Registered KeyMapper")
+}
+
+// GetKeystoreStrategyKeyMapper return KeyMapper by its ID and KMS type from registry
+func GetKeystoreStrategyKeyMapper(strategy, kmsType string) (base.KeyMapper, bool) {
+	creator, ok := strategyKeyMappers[strategy+"_"+kmsType]
+	return creator, ok
 }
 
 // MasterKeyLoader interface for loading ACRA_MASTER_KEYs from different sources.
@@ -78,4 +95,14 @@ func RegisterKeyStoreStrategyParametersWithFlags(flag *flag.FlagSet, prefix, des
 	for _, v := range keyEncryptorFabrics {
 		v.RegisterCLIParameters(flag, prefix, description)
 	}
+}
+
+// NewKeyMapper search for KeyMapper by kmsType and strategy
+func NewKeyMapper(kmsType, strategy string) (base.KeyMapper, error) {
+	keyMapper, ok := GetKeystoreStrategyKeyMapper(strategy, kmsType)
+	if !ok {
+		log.Errorf("Unknown KMS type provided %s", kmsType)
+		return nil, kms.ErrUnknownKMSType
+	}
+	return keyMapper, nil
 }
