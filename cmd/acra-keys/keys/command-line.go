@@ -175,6 +175,7 @@ func ParseKeyKind(keyID string) (string, []byte, error) {
 			}
 		}
 		if parts[0] == "zone" {
+			log.Warningln("Zone keys are deprecated since 0.94.0 and will be removed soon.")
 			switch parts[2] {
 			case "symmetric":
 				return KeyZoneSymmetric, id, nil

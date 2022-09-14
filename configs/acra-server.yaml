@@ -395,6 +395,6 @@ vault_tls_client_key:
 # Use TLS to encrypt transport with HashiCorp Vault
 vault_tls_transport_enable: false
 
-# Turn on zone mode
+# Turn on zone mode (deprecated since 0.94.0, will be removed).
 zonemode_enable: false
 

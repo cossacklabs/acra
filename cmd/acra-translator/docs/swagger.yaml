@@ -39,6 +39,7 @@ paths:
       consumes:
       - application/json
       description: Decrypt AcraStruct with specified ZoneID or ClientID from connection
+        (zones support deprecated since 0.94.0, will be removed)
       parameters:
       - description: Binary data encoded as Base64 string
         in: body
@@ -72,7 +73,7 @@ paths:
       consumes:
       - application/json
       description: Decrypt searchable AcraStruct with specified ZoneID or ClientID
-        from connection
+        from connection (zones support deprecated since 0.94.0, will be removed)
       parameters:
       - description: Binary data encoded as Base64 string
         in: body
@@ -106,6 +107,7 @@ paths:
       consumes:
       - application/json
       description: Decrypt AcraBlock with specified ZoneID or ClientID from connection
+        (zones support deprecated since 0.94.0, will be removed)
       parameters:
       - description: Binary data encoded as Base64 string
         in: body
@@ -139,7 +141,7 @@ paths:
       consumes:
       - application/json
       description: Decrypt searchable AcraBlock with specified ZoneID or ClientID
-        from connection
+        from connection (zones support deprecated since 0.94.0, will be removed)
       parameters:
       - description: Binary data encoded as Base64 string
         in: body
@@ -206,6 +208,7 @@ paths:
       consumes:
       - application/json
       description: Encrypt data with specified ZoneID or ClientID from connection
+        (zones support deprecated since 0.94.0, will be removed)
       parameters:
       - description: Binary data encoded as Base64 string
         in: body
@@ -239,7 +242,7 @@ paths:
       consumes:
       - application/json
       description: Encrypt data with searchable AcraStruct with specified ZoneID or
-        ClientID from connection
+        ClientID from connection (zones support deprecated since 0.94.0, will be removed)
       parameters:
       - description: Binary data encoded as Base64 string
         in: body
@@ -273,7 +276,7 @@ paths:
       consumes:
       - application/json
       description: Encrypt data with AcraBlock with specified ZoneID or ClientID from
-        connection
+        connection (zones support deprecated since 0.94.0, will be removed)
       parameters:
       - description: Binary data encoded as Base64 string
         in: body
@@ -307,7 +310,7 @@ paths:
       consumes:
       - application/json
       description: Encrypt data with searchable AcraBlock with specified ZoneID or
-        ClientID from connection
+        ClientID from connection (zones support deprecated since 0.94.0, will be removed)
       parameters:
       - description: Binary data encoded as Base64 string
         in: body

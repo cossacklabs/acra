@@ -48,8 +48,8 @@ var (
 
 func main() {
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which the keys will be loaded")
-	fileMapConfig := flag.String("file_map_config", "", "Path to file with map of <ZoneId>: <FilePaths> in json format {\"zone_id1\": [\"filepath1\", \"filepath2\"], \"zone_id2\": [\"filepath1\", \"filepath2\"]}")
-	sqlSelect := flag.String("sql_select", "", "Select query with ? as placeholders where last columns in result must be ClientId/ZoneId and AcraStruct. Other columns will be passed into insert/update query into placeholders")
+	fileMapConfig := flag.String("file_map_config", "", "Path to file with map of <ZoneId>: <FilePaths> in json format {\"zone_id1\": [\"filepath1\", \"filepath2\"], \"zone_id2\": [\"filepath1\", \"filepath2\"]} (zones support deprecated since 0.94.0, will map ClientIDs only to file paths)")
+	sqlSelect := flag.String("sql_select", "", "Select query with ? as placeholders where last columns in result must be ClientId/ZoneId and AcraStruct. Other columns will be passed into insert/update query into placeholders (zones support deprecated since 0.94.0 and will be ignored).")
 	sqlUpdate := flag.String("sql_update", "", "Insert/Update query with ? as placeholder where into first will be placed rotated AcraStruct")
 	connectionString := flag.String("db_connection_string", "", "Connection string to db")
 	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
