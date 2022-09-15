@@ -14,9 +14,7 @@ type KeyEncryptorFabric struct{}
 
 // NewKeyEncryptor fabric of keystore.KeyEncryptor for for `vault_master_key` strategy
 func (k KeyEncryptorFabric) NewKeyEncryptor(flags *flag.FlagSet, prefix string) (keystore.KeyEncryptor, error) {
-	vaultOptions := ParseCLIParametersFromFlags(flags, prefix)
-
-	loader, err := NewMasterKeyLoader(vaultOptions)
+	loader, err := NewMasterKeyLoader(flags, prefix)
 	if err != nil {
 		return nil, err
 	}
@@ -30,9 +28,7 @@ func (k KeyEncryptorFabric) NewKeyEncryptor(flags *flag.FlagSet, prefix string) 
 
 // NewKeyEncryptorSuite fabric of crypto.KeyStoreSuite for `vault_master_key` strategy
 func (k KeyEncryptorFabric) NewKeyEncryptorSuite(flags *flag.FlagSet, prefix string) (*crypto.KeyStoreSuite, error) {
-	vaultOptions := ParseCLIParametersFromFlags(flags, prefix)
-
-	loader, err := NewMasterKeyLoader(vaultOptions)
+	loader, err := NewMasterKeyLoader(flags, prefix)
 	if err != nil {
 		return nil, err
 	}

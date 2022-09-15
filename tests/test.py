@@ -1391,7 +1391,7 @@ class VaultClient:
 
         if TEST_SSL_VAULT:
             args['vault_tls_transport_enable'] = True
-            args['vault_tls_ca_path'] = TEST_VAULT_TLS_CA
+            args['vault_tls_client_ca'] = TEST_VAULT_TLS_CA
         return args
 
 
