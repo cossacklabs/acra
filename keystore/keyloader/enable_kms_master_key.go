@@ -3,6 +3,8 @@
 
 package keyloader
 
+import "github.com/cossacklabs/acra/keystore/keyloader/kms"
+
 func init() {
-	RegisterKeyEncryptorFabric(KeystoreStrategyKMSMasterKey, KmsMasterKeyEncryptorFabric{})
+	RegisterKeyEncryptorFabric(KeystoreStrategyKMSMasterKey, kms.MasterKeyEncryptorFabric{})
 }
