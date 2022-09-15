@@ -21,6 +21,7 @@ import (
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/jackc/pgx/pgproto3"
+	log "github.com/sirupsen/logrus"
 )
 
 // PgProtocolState keeps track of PostgreSQL protocol state.
@@ -28,9 +29,9 @@ type PgProtocolState struct {
 	parser *sqlparser.Parser
 
 	lastPacketType              PacketType
+	pendingPackets              *pendingPacketsList
 	pendingQuery                base.OnQueryObject
 	pendingParse                *ParsePacket
-	pendingBind                 *BindPacket
 	pendingExecute              *ExecutePacket
 	pendingRowDescription       *pgproto3.RowDescription
 	pendingParameterDescription *pgproto3.ParameterDescription
@@ -55,7 +56,7 @@ const (
 
 // NewPgProtocolState makes an initial PostgreSQL state, awaiting for queries.
 func NewPgProtocolState(parser *sqlparser.Parser) *PgProtocolState {
-	return &PgProtocolState{lastPacketType: OtherPacket, parser: parser}
+	return &PgProtocolState{lastPacketType: OtherPacket, parser: parser, pendingPackets: newPendingPacketsList()}
 }
 
 // LastPacketType returns type of the last seen packet.
@@ -74,8 +75,15 @@ func (p *PgProtocolState) PendingParse() *ParsePacket {
 }
 
 // PendingBind returns the pending query parameters, if any.
-func (p *PgProtocolState) PendingBind() *BindPacket {
-	return p.pendingBind
+func (p *PgProtocolState) PendingBind() (*BindPacket, error) {
+	packet, err := p.pendingPackets.GetPendingPacket(&BindPacket{})
+	if err != nil {
+		return nil, err
+	}
+	if packet == nil {
+		return nil, nil
+	}
+	return packet.(*BindPacket), nil
 }
 
 // PendingExecute returns the pending query parameters, if any.
@@ -118,7 +126,6 @@ func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) error {
 		p.pendingQuery = base.NewOnQueryObjectFromQuery(parsePacket.QueryString(), p.parser)
 		p.pendingParse = parsePacket
 		p.pendingParameterDescription = nil
-		p.pendingBind = nil
 		return nil
 	}
 
@@ -131,7 +138,9 @@ func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) error {
 			return err
 		}
 		p.lastPacketType = BindStatementPacket
-		p.pendingBind = bindPacket
+		if err := p.pendingPackets.Add(bindPacket); err != nil {
+			panic(err)
+		}
 		return nil
 	}
 
@@ -201,7 +210,9 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 
 		// Sensitive data in this bind was already cleared after processing BindComplete packet,
 		// so here we only set it to `nil`
-		p.pendingBind = nil
+		if err := p.pendingPackets.RemoveAll(&BindPacket{}); err != nil {
+			panic(err)
+		}
 
 		p.lastPacketType = ReadyForQueryPacket
 		return nil
@@ -212,22 +223,38 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 	return nil
 }
 
-func (p *PgProtocolState) forgetPendingParse() {
+func (p *PgProtocolState) forgetPendingParse() error {
 	// Query content is sensitive so we should securely remove it from memory
 	// once we're sure that it's not needed anymore.
-	if p.pendingParse != nil {
-		p.pendingParse.Zeroize()
+	pendingParse, err := p.pendingPackets.GetPendingPacket(&ParsePacket{})
+	if err != nil {
+		log.WithError(err).Errorln("Can't get pending Parse packet")
+		return err
 	}
-	p.pendingParse = nil
+	if pendingParse != nil {
+		pendingParse.(*ParsePacket).Zeroize()
+	}
+	if err := p.pendingPackets.RemoveCurrent(pendingParse.(*ParsePacket)); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (p *PgProtocolState) forgetPendingBind() {
+func (p *PgProtocolState) forgetPendingBind() error {
 	// We forget sensitive data here, but not the bind itself
 	// because it's needed in handleQueryDataPacket(),
 	// then we set `pendingBind` to `nil` after receiving ReadyForQuery
-	if p.pendingBind != nil {
-		p.pendingBind.Zeroize()
+	pendingBind, err := p.pendingPackets.GetPendingPacket(&BindPacket{})
+	if err != nil {
+		return err
 	}
+	if pendingBind != nil {
+		pendingBind.(*BindPacket).Zeroize()
+		if err := p.pendingPackets.RemoveCurrent(pendingBind.(*BindPacket)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (p *PgProtocolState) forgetPendingExecute() {

@@ -376,7 +376,11 @@ func (proxy *PgProxy) handleQueryPacket(ctx context.Context, packet *PacketHandl
 }
 
 func (proxy *PgProxy) handleBindPacket(ctx context.Context, packet *PacketHandler, logger *log.Entry) (bool, error) {
-	bind := proxy.protocolState.PendingBind()
+	bind, err := proxy.protocolState.PendingBind()
+	if err != nil {
+		logger.WithError(err).Error("Can't get pending Bind packet")
+		return false, nil
+	}
 	logger = logger.WithField("portal", bind.PortalName()).WithField("statement", bind.StatementName())
 	logger.Debug("Bind packet")
 	// There must be previously registered prepared statement with requested name. If there isn't
@@ -731,8 +735,16 @@ func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHa
 
 	case BindCompletePacket:
 		// Previously requested cursor has been confirmed by the database, register it.
-		bindPacket := proxy.protocolState.PendingBind()
-		defer proxy.protocolState.forgetPendingBind()
+		bindPacket, err := proxy.protocolState.PendingBind()
+		if err != nil {
+			logger.WithError(err).Error("Can't get pending Bind packet")
+			return err
+		}
+		defer func() {
+			if err := proxy.protocolState.forgetPendingBind(); err != nil {
+				logger.WithError(err).Errorln("Can't forget pending Bind packet")
+			}
+		}()
 		return proxy.registerCursor(bindPacket, logger)
 	case RowDescriptionPacket:
 		return proxy.handleRowDescription(ctx, packet, logger)
@@ -844,7 +856,7 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 	// by default it's text format
 	columnFormats := []uint16{uint16(base.TextFormat)}
 	var err error
-	if bindPacket := proxy.protocolState.PendingBind(); bindPacket != nil {
+	if bindPacket, _ := proxy.protocolState.PendingBind(); bindPacket != nil {
 		columnFormats, err = bindPacket.GetResultFormats()
 		if err != nil {
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
@@ -869,8 +881,12 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 		}
 		// default values Text
 		format := 0
-		if proxy.protocolState.pendingBind != nil {
-			boundFormat, err := GetParameterFormatByIndex(i, proxy.protocolState.pendingBind.resultFormats)
+		pendingBind, err := proxy.protocolState.pendingPackets.GetPendingPacket(&BindPacket{})
+		if err != nil {
+			panic(err)
+		}
+		if pendingBind != nil {
+			boundFormat, err := GetParameterFormatByIndex(i, pendingBind.(*BindPacket).resultFormats)
 			if err != nil {
 				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
 					WithError(err).Errorln("Can't get format for column")
