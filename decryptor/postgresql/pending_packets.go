@@ -58,6 +58,9 @@ func (packets *pendingPacketsList) Remove(packet interface{}) error {
 			return ErrRemoveFromEmptyPendingList
 		}
 		currentElement := packetList.Front()
+		if currentElement == nil {
+			return nil
+		}
 		if currentElement.Value != packet {
 			return errors.New("removing not current packet")
 		}
@@ -76,6 +79,9 @@ func (packets *pendingPacketsList) RemoveCurrent(packet interface{}) error {
 			return ErrRemoveFromEmptyPendingList
 		}
 		currentElement := packetList.Front()
+		if currentElement == nil {
+			return nil
+		}
 		packetList.Remove(currentElement)
 		return nil
 	}
@@ -104,6 +110,25 @@ func (packets *pendingPacketsList) GetPendingPacket(packet interface{}) (interfa
 			return nil, nil
 		}
 		currentElement := packetList.Front()
+		if currentElement == nil {
+			return nil, nil
+		}
+		return currentElement.Value, nil
+	}
+	return nil, ErrUnsupportedPendingPacketType
+}
+
+func (packets *pendingPacketsList) GetLast(packet interface{}) (interface{}, error) {
+	switch packet.(type) {
+	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription:
+		packetList, ok := packets.lists[reflect.TypeOf(packet)]
+		if !ok {
+			return nil, nil
+		}
+		currentElement := packetList.Back()
+		if currentElement == nil {
+			return nil, nil
+		}
 		return currentElement.Value, nil
 	}
 	return nil, ErrUnsupportedPendingPacketType
