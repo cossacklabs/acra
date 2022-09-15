@@ -304,12 +304,17 @@ func (proxy *PgProxy) handleClientPacket(ctx context.Context, packet *PacketHand
 		if err != nil || censored {
 			return censored, err
 		}
+		// we get last registered in HandleClientPacket, continue to process it
+		pendingParse, err := proxy.protocolState.LastParse()
+		if err != nil {
+			logger.WithError(err).Errorln("Can't get pending Parse packet")
+			return false, err
+		}
 		// Register prepared statement, though it can produce an error on the db
 		// side. In that case, it should have been removed from the registry,
 		// but for now it is not implemented yet. Therefore, connection with a
 		// large number of prepared statements with errors tend to leak memory,
 		// but on practice it is not that noticeable.
-		pendingParse := proxy.protocolState.pendingParse
 		if err = proxy.registerPreparedStatement(packet, pendingParse, logger); err != nil {
 			return false, err
 		}
@@ -344,7 +349,11 @@ func (proxy *PgProxy) handleQueryPacket(ctx context.Context, packet *PacketHandl
 		} else {
 			log := logger.WithField("sql", queryWithHiddenValues)
 			if proxy.protocolState.LastPacketType() == ParseStatementPacket {
-				preparedStatement := proxy.protocolState.PendingParse()
+				preparedStatement, err := proxy.protocolState.LastParse()
+				if err != nil {
+					log.WithError(err).Errorln("Can't get pending Parse packet")
+					return false, err
+				}
 				log = log.WithField("prepared_name", preparedStatement.Name())
 			}
 			log.Debugln("New query")
@@ -729,8 +738,16 @@ func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHa
 		return proxy.handleQueryDataPacket(ctx, packet, logger)
 
 	case ParseCompletePacket:
-		log.WithField("parse", proxy.protocolState.pendingParse).Debugln("ParseComplete")
-		proxy.protocolState.forgetPendingParse()
+		pendingParse, err := proxy.protocolState.PendingParse()
+		if err != nil {
+			logger.WithError(err).Errorln("Can't get pending Parse packet")
+			return err
+		}
+		log.WithField("parse", pendingParse).Debugln("ParseComplete")
+		if err := proxy.protocolState.forgetPendingParse(); err != nil {
+			log.WithError(err).Errorln("Can't forget pending Parse packet")
+			return err
+		}
 		return nil
 
 	case BindCompletePacket:
@@ -881,12 +898,13 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 		}
 		// default values Text
 		format := 0
-		pendingBind, err := proxy.protocolState.pendingPackets.GetPendingPacket(&BindPacket{})
+		pendingBind, err := proxy.protocolState.PendingBind()
 		if err != nil {
-			panic(err)
+			logger.WithError(err).Errorln("Can't get pending Bind packet")
+			return err
 		}
 		if pendingBind != nil {
-			boundFormat, err := GetParameterFormatByIndex(i, pendingBind.(*BindPacket).resultFormats)
+			boundFormat, err := GetParameterFormatByIndex(i, pendingBind.resultFormats)
 			if err != nil {
 				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
 					WithError(err).Errorln("Can't get format for column")
