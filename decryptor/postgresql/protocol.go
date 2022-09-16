@@ -237,18 +237,10 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 func (p *PgProtocolState) forgetPendingParse() {
 	// Query content is sensitive so we should securely remove it from memory
 	// once we're sure that it's not needed anymore.
-	pendingParse, err := p.pendingPackets.GetPendingPacket(&ParsePacket{})
-	if err != nil {
-		log.WithError(err).Errorln("Can't get pending Parse packet")
-		return err
+	if p.pendingParse != nil {
+		p.pendingParse.Zeroize()
 	}
-	if pendingParse != nil {
-		pendingParse.(*ParsePacket).Zeroize()
-	}
-	if err := p.pendingPackets.RemoveCurrent(pendingParse.(*ParsePacket)); err != nil {
-		return err
-	}
-	return nil
+	p.pendingParse = nil
 }
 
 func (p *PgProtocolState) forgetPendingBind() error {
