@@ -30,6 +30,7 @@ type PgProtocolState struct {
 	lastPacketType              PacketType
 	pendingPackets              *pendingPacketsList
 	pendingQuery                base.OnQueryObject
+	pendingParse                *ParsePacket
 	pendingExecute              *ExecutePacket
 	pendingRowDescription       *pgproto3.RowDescription
 	pendingParameterDescription *pgproto3.ParameterDescription
@@ -68,26 +69,8 @@ func (p *PgProtocolState) PendingQuery() base.OnQueryObject {
 }
 
 // PendingParse returns the pending prepared statement, if any.
-func (p *PgProtocolState) PendingParse() (*ParsePacket, error) {
-	packet, err := p.pendingPackets.GetPendingPacket(&ParsePacket{})
-	if err != nil {
-		return nil, err
-	}
-	if packet == nil {
-		return nil, nil
-	}
-	return packet.(*ParsePacket), nil
-}
-
-func (p *PgProtocolState) LastParse() (*ParsePacket, error) {
-	packet, err := p.pendingPackets.GetLast(&ParsePacket{})
-	if err != nil {
-		return nil, err
-	}
-	if packet == nil {
-		return nil, nil
-	}
-	return packet.(*ParsePacket), nil
+func (p *PgProtocolState) PendingParse() *ParsePacket {
+	return p.pendingParse
 }
 
 // PendingBind returns the pending query parameters, if any.
@@ -152,10 +135,7 @@ func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) error {
 		}
 		p.lastPacketType = ParseStatementPacket
 		p.pendingQuery = base.NewOnQueryObjectFromQuery(parsePacket.QueryString(), p.parser)
-		if err := p.pendingPackets.Add(parsePacket); err != nil {
-			logger.WithError(err).Errorln("Can't add Parse packet to pending list")
-			return err
-		}
+		p.pendingParse = parsePacket
 		p.pendingParameterDescription = nil
 		return nil
 	}
@@ -241,9 +221,8 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 
 		// Sensitive data in this bind was already cleared after processing BindComplete packet,
 		// so here we only set it to `nil`
-		if err := p.forgetPendingBind(); err != nil {
-			log.WithError(err).Errorln("Can't forget Bind packet")
-			return err
+		if err := p.pendingPackets.RemoveAll(&BindPacket{}); err != nil {
+			panic(err)
 		}
 
 		p.lastPacketType = ReadyForQueryPacket
@@ -258,15 +237,15 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 func (p *PgProtocolState) forgetPendingParse() {
 	// Query content is sensitive so we should securely remove it from memory
 	// once we're sure that it's not needed anymore.
-	pendingParse, err := p.PendingParse()
+	pendingParse, err := p.pendingPackets.GetPendingPacket(&ParsePacket{})
 	if err != nil {
 		log.WithError(err).Errorln("Can't get pending Parse packet")
 		return err
 	}
 	if pendingParse != nil {
-		pendingParse.Zeroize()
+		pendingParse.(*ParsePacket).Zeroize()
 	}
-	if err := p.pendingPackets.RemoveCurrent(pendingParse); err != nil {
+	if err := p.pendingPackets.RemoveCurrent(pendingParse.(*ParsePacket)); err != nil {
 		return err
 	}
 	return nil
