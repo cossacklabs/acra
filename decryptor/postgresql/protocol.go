@@ -21,7 +21,6 @@ import (
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/jackc/pgx/pgproto3"
-	log "github.com/sirupsen/logrus"
 )
 
 // PgProtocolState keeps track of PostgreSQL protocol state.
@@ -94,6 +93,18 @@ func (p *PgProtocolState) LastParse() (*ParsePacket, error) {
 // PendingBind returns the pending query parameters, if any.
 func (p *PgProtocolState) PendingBind() (*BindPacket, error) {
 	packet, err := p.pendingPackets.GetPendingPacket(&BindPacket{})
+	if err != nil {
+		return nil, err
+	}
+	if packet == nil {
+		return nil, nil
+	}
+	return packet.(*BindPacket), nil
+}
+
+// LastBind returns the last added BindPacket
+func (p *PgProtocolState) LastBind() (*BindPacket, error) {
+	packet, err := p.pendingPackets.GetLast(&BindPacket{})
 	if err != nil {
 		return nil, err
 	}
@@ -244,7 +255,7 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 	return nil
 }
 
-func (p *PgProtocolState) forgetPendingParse() error {
+func (p *PgProtocolState) forgetPendingParse() {
 	// Query content is sensitive so we should securely remove it from memory
 	// once we're sure that it's not needed anymore.
 	pendingParse, err := p.PendingParse()

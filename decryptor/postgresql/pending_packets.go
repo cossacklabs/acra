@@ -20,6 +20,7 @@ import (
 	"container/list"
 	"errors"
 	"github.com/jackc/pgx/pgproto3"
+	log "github.com/sirupsen/logrus"
 	"reflect"
 )
 
@@ -43,28 +44,8 @@ func (packets *pendingPacketsList) Add(packet interface{}) error {
 			packetList = list.New()
 			packets.lists[reflect.TypeOf(packet)] = packetList
 		}
+		log.WithField("packet", packet).Debugln("Add pending packet")
 		packetList.PushBack(packet)
-		return nil
-	}
-	return ErrUnsupportedPendingPacketType
-}
-
-// Remove packet from list of pending packets only if it is current pending packet
-func (packets *pendingPacketsList) Remove(packet interface{}) error {
-	switch packet.(type) {
-	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription:
-		packetList, ok := packets.lists[reflect.TypeOf(packet)]
-		if !ok {
-			return ErrRemoveFromEmptyPendingList
-		}
-		currentElement := packetList.Front()
-		if currentElement == nil {
-			return nil
-		}
-		if currentElement.Value != packet {
-			return errors.New("removing not current packet")
-		}
-		packetList.Remove(currentElement)
 		return nil
 	}
 	return ErrUnsupportedPendingPacketType
@@ -82,6 +63,7 @@ func (packets *pendingPacketsList) RemoveCurrent(packet interface{}) error {
 		if currentElement == nil {
 			return nil
 		}
+		log.WithField("packet", currentElement.Value).Debugln("Remove pending packet")
 		packetList.Remove(currentElement)
 		return nil
 	}
@@ -96,6 +78,7 @@ func (packets *pendingPacketsList) RemoveAll(packet interface{}) error {
 		if !ok {
 			return nil
 		}
+		log.Debugln("Remove all pending packets")
 		packetList.Init()
 		return nil
 	}
@@ -113,6 +96,7 @@ func (packets *pendingPacketsList) GetPendingPacket(packet interface{}) (interfa
 		if currentElement == nil {
 			return nil, nil
 		}
+		log.WithField("packet", currentElement.Value).Debugln("Return pending packet")
 		return currentElement.Value, nil
 	}
 	return nil, ErrUnsupportedPendingPacketType
@@ -129,6 +113,7 @@ func (packets *pendingPacketsList) GetLast(packet interface{}) (interface{}, err
 		if currentElement == nil {
 			return nil, nil
 		}
+		log.WithField("packet", currentElement.Value).Debugln("Return last added packet")
 		return currentElement.Value, nil
 	}
 	return nil, ErrUnsupportedPendingPacketType

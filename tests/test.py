@@ -991,7 +991,7 @@ class AsyncpgExecutor(QueryExecutor):
 
     def _set_text_format(self, conn):
         """Force text format to numeric types."""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.new_event_loop()
         for pg_type in ['int2', 'int4', 'int8']:
             loop.run_until_complete(
                 conn.set_type_codec(pg_type,
@@ -1012,7 +1012,7 @@ class AsyncpgExecutor(QueryExecutor):
     def execute_prepared_statement(self, query, args=None):
         if not args:
             args = []
-        loop = asyncio.get_event_loop()
+        loop = asyncio.new_event_loop()
         conn = self._connect(loop)
         if self.connection_args.format == self.TextFormat:
             self._set_text_format(conn)
@@ -1028,7 +1028,7 @@ class AsyncpgExecutor(QueryExecutor):
     def execute(self, query, args=None):
         if not args:
             args = []
-        loop = asyncio.get_event_loop()
+        loop = asyncio.new_event_loop()
         conn = self._connect(loop)
         if self.connection_args.format == self.TextFormat:
             self._set_text_format(conn)
@@ -1038,6 +1038,7 @@ class AsyncpgExecutor(QueryExecutor):
             return result
         finally:
             loop.run_until_complete(conn.close(timeout=STATEMENT_TIMEOUT))
+            loop.close()
 
 
 class Psycopg2Executor(QueryExecutor):
@@ -1571,6 +1572,10 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             popen_kwargs = {}
         cli_args = sorted(['--{}={}'.format(k, v) for k, v in args.items() if v is not None])
         print("acra-server args: {}".format(' '.join(cli_args)))
+        args['version'] = '0.93.0'
+        dump_yaml_config(args, '/tmp/test.yaml')
+        if self.EXTERNAL_ACRA:
+            return ProcessStub()
 
         process = fork(lambda: subprocess.Popen([self.get_acraserver_bin_path()] + cli_args,
                                                      **popen_kwargs))
@@ -1625,8 +1630,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     def setUp(self):
         self.checkSkip()
         try:
-            if not self.EXTERNAL_ACRA:
-                self.acra = self.fork_acra()
+            self.acra = self.fork_acra()
 
             base_args = get_connect_args(port=self.ACRASERVER_PORT, sslmode=SSLMODE)
 
@@ -9144,6 +9148,7 @@ class TestMySQLTextFormatTypeAwareDecryptionWithDefaultsWithConsulEncryptorConfi
 
 class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults(
         BaseBinaryPostgreSQLTestCase, TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults):
+    EXTERNAL_ACRA = False
     def testClientIDRead(self):
         """test decrypting with correct clientID and not decrypting with
         incorrect clientID or using direct connection to db
