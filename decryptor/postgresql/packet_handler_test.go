@@ -19,8 +19,12 @@ package postgresql
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/binary"
 	"encoding/hex"
+	acracensor "github.com/cossacklabs/acra/acra-censor"
+	"github.com/cossacklabs/acra/cmd/acra-server/common"
+	"github.com/cossacklabs/acra/sqlparser"
 	"testing"
 
 	"github.com/cossacklabs/acra/decryptor/base"
@@ -235,4 +239,70 @@ func TestParseColumns(t *testing.T) {
 	if !bytes.Equal(handler.Columns[0].data, testData) {
 		t.Fatal("Incorrect ")
 	}
+}
+
+func TestSequenceOfParsePackets(t *testing.T) {
+	// Regression test for T2663 && https://github.com/cossacklabs/acra/issues/575
+	// used a dump from wireshark and java app with request + response
+	// We check that Acra correctly handle Bind and BindComplete packets and links Bind to the first Parse packet,
+	// not to last received
+
+	// Parse + Bind + Execute + Parse + Describe + Sync
+	requestPacket, err := hex.DecodeString("5000000010535f3100424547494e000000420000000f00535f3100000000000000450000000900000000005000000042535f3200494e5345525420494e544f206d797461626c6520286e616d652c20616765292056414c554553202824312c202432290000020000041300000017440000000953535f32005300000004")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// ParseComplete + BindComplete + CommandComplete + ParseComplete + ParameterDescription + NoData (empty data rows) + ReadyForQuery
+	responsePacket, err := hex.DecodeString(`31000000043200000004430000000a424547494e003100000004740000000e000200000413000000176e000000045a0000000554`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	//emptyStore := &tableSchemaStore{true}
+	parser := sqlparser.New(sqlparser.ModeStrict)
+	session, err := common.NewClientSession(ctx, &common.Config{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	setting := base.NewProxySetting(parser, nil, nil, nil, acracensor.NewAcraCensor(), nil, false)
+	proxy, err := NewPgProxy(session, parser, setting)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader := bytes.NewReader(requestPacket)
+	output := &bytes.Buffer{}
+	writer := bufio.NewWriter(output)
+	packetHandler, err := NewClientSidePacketHandler(reader, writer, logrus.NewEntry(logrus.StandardLogger()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// don't wait startup packet
+	packetHandler.started = true
+	for i := 0; i < 6; i++ {
+		if err := packetHandler.ReadClientPacket(); err != nil {
+			t.Fatal(err)
+		}
+		if censored, err := proxy.handleClientPacket(ctx, packetHandler, logrus.NewEntry(logrus.New())); err != nil {
+			t.Fatal(err)
+		} else if censored {
+			t.Fatal("Should not be censored")
+		}
+	}
+
+	reader = bytes.NewReader(responsePacket)
+	output.Reset()
+	packetHandler, err = NewDbSidePacketHandler(reader, writer, logrus.NewEntry(logrus.StandardLogger()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < 7; i++ {
+		if err := packetHandler.ReadPacket(); err != nil {
+			t.Fatal(err)
+		}
+		if err := proxy.handleDatabasePacket(ctx, packetHandler, logrus.NewEntry(logrus.New())); err != nil {
+			t.Fatal(err)
+		}
+	}
+
 }
