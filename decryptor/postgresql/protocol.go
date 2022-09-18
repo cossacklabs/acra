@@ -30,7 +30,6 @@ type PgProtocolState struct {
 	lastPacketType              PacketType
 	pendingPackets              *pendingPacketsList
 	pendingQuery                base.OnQueryObject
-	pendingExecute              *ExecutePacket
 	pendingRowDescription       *pgproto3.RowDescription
 	pendingParameterDescription *pgproto3.ParameterDescription
 }
@@ -116,8 +115,15 @@ func (p *PgProtocolState) LastBind() (*BindPacket, error) {
 }
 
 // PendingExecute returns the pending query parameters, if any.
-func (p *PgProtocolState) PendingExecute() *ExecutePacket {
-	return p.pendingExecute
+func (p *PgProtocolState) PendingExecute() (*ExecutePacket, error) {
+	packet, err := p.pendingPackets.GetPendingPacket(&ExecutePacket{})
+	if err != nil {
+		return nil, err
+	}
+	if packet == nil {
+		return nil, nil
+	}
+	return packet.(*ExecutePacket), nil
 }
 
 // PendingRowDescription returns the pending query parameters, if any.
@@ -172,7 +178,9 @@ func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) error {
 		}
 		p.lastPacketType = BindStatementPacket
 		if err := p.pendingPackets.Add(bindPacket); err != nil {
-			panic(err)
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).
+				WithError(err).Errorln("Can't save pending Bind packet")
+			return err
 		}
 		return nil
 	}
@@ -188,7 +196,11 @@ func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) error {
 		// There is nothing in the packet to process when we receive it,
 		// but we'd like to keep it around while the data responses are flowing.
 		p.lastPacketType = OtherPacket
-		p.pendingExecute = executePacket
+		if err := p.pendingPackets.Add(executePacket); err != nil {
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).
+				WithError(err).Errorln("Can't save pending Execute packet")
+			return err
+		}
 	}
 
 	// We are not interested in other packets, just pass them through.
@@ -238,7 +250,9 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 	// ReadyForQuery starts a new query processing. Forget pending queries.
 	// There is nothing interesting in the packet otherwise.
 	if packet.IsReadyForQuery() {
-		p.forgetPendingExecute()
+		if err := p.forgetPendingExecute(); err != nil {
+			return err
+		}
 		p.forgetPendingQuery()
 
 		// Sensitive data in this bind was already cleared after processing BindComplete packet,
@@ -304,11 +318,18 @@ func (p *PgProtocolState) zeroizePendingBind() error {
 	return nil
 }
 
-func (p *PgProtocolState) forgetPendingExecute() {
-	if p.pendingExecute != nil {
-		p.pendingExecute.Zeroize()
+func (p *PgProtocolState) forgetPendingExecute() error {
+	pendingPacket, err := p.pendingPackets.GetPendingPacket(&ExecutePacket{})
+	if err != nil {
+		return err
 	}
-	p.pendingExecute = nil
+	if pendingPacket != nil {
+		pendingPacket.(*ExecutePacket).Zeroize()
+		if err := p.pendingPackets.RemoveCurrent(pendingPacket.(*ExecutePacket)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (p *PgProtocolState) forgetPendingQuery() {
