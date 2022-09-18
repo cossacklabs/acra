@@ -27,6 +27,8 @@ type PgProtocolState struct {
 	parser *sqlparser.Parser
 
 	lastPacketType PacketType
+	// some packets have pairs request/response and we save data from request only after receiving successful response
+	// here we save requests that wait acceptance by database
 	pendingPackets *pendingPacketsList
 	pendingQuery   base.OnQueryObject
 }
