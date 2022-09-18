@@ -991,7 +991,7 @@ class AsyncpgExecutor(QueryExecutor):
 
     def _set_text_format(self, conn):
         """Force text format to numeric types."""
-        loop = asyncio.new_event_loop()
+        loop = asyncio.get_event_loop()
         for pg_type in ['int2', 'int4', 'int8']:
             loop.run_until_complete(
                 conn.set_type_codec(pg_type,
@@ -1012,7 +1012,7 @@ class AsyncpgExecutor(QueryExecutor):
     def execute_prepared_statement(self, query, args=None):
         if not args:
             args = []
-        loop = asyncio.new_event_loop()
+        loop = asyncio.get_event_loop()
         conn = self._connect(loop)
         if self.connection_args.format == self.TextFormat:
             self._set_text_format(conn)
@@ -1028,7 +1028,7 @@ class AsyncpgExecutor(QueryExecutor):
     def execute(self, query, args=None):
         if not args:
             args = []
-        loop = asyncio.new_event_loop()
+        loop = asyncio.get_event_loop()
         conn = self._connect(loop)
         if self.connection_args.format == self.TextFormat:
             self._set_text_format(conn)
@@ -1038,7 +1038,6 @@ class AsyncpgExecutor(QueryExecutor):
             return result
         finally:
             loop.run_until_complete(conn.close(timeout=STATEMENT_TIMEOUT))
-            loop.close()
 
 
 class Psycopg2Executor(QueryExecutor):

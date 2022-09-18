@@ -741,7 +741,7 @@ func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHa
 			return err
 		}
 		defer func() {
-			if err := proxy.protocolState.forgetPendingBind(); err != nil {
+			if err := proxy.protocolState.zeroizePendingBind(); err != nil {
 				logger.WithError(err).Errorln("Can't forget pending Bind packet")
 			}
 		}()
