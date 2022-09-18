@@ -20,17 +20,15 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
-	"github.com/jackc/pgx/pgproto3"
 )
 
 // PgProtocolState keeps track of PostgreSQL protocol state.
 type PgProtocolState struct {
 	parser *sqlparser.Parser
 
-	lastPacketType              PacketType
-	pendingPackets              *pendingPacketsList
-	pendingQuery                base.OnQueryObject
-	pendingParameterDescription *pgproto3.ParameterDescription
+	lastPacketType PacketType
+	pendingPackets *pendingPacketsList
+	pendingQuery   base.OnQueryObject
 }
 
 // PacketType describes how to handle a message packet.
@@ -158,7 +156,6 @@ func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) error {
 				WithError(err).Errorln("Can't save parse packet")
 			return err
 		}
-		p.pendingParameterDescription = nil
 		return nil
 	}
 
@@ -218,11 +215,6 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 
 	if packet.IsParameterDescription() {
 		p.lastPacketType = ParameterDescriptionPacket
-		parameterDescription, err := packet.GetParameterDescriptionData()
-		if err != nil {
-			return err
-		}
-		p.pendingParameterDescription = parameterDescription
 		return nil
 	}
 
