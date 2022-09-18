@@ -30,7 +30,6 @@ type PgProtocolState struct {
 	lastPacketType              PacketType
 	pendingPackets              *pendingPacketsList
 	pendingQuery                base.OnQueryObject
-	pendingRowDescription       *pgproto3.RowDescription
 	pendingParameterDescription *pgproto3.ParameterDescription
 }
 
@@ -126,11 +125,6 @@ func (p *PgProtocolState) PendingExecute() (*ExecutePacket, error) {
 	return packet.(*ExecutePacket), nil
 }
 
-// PendingRowDescription returns the pending query parameters, if any.
-func (p *PgProtocolState) PendingRowDescription() *pgproto3.RowDescription {
-	return p.pendingRowDescription
-}
-
 // HandleClientPacket observes a packet from client to the database,
 // extracts query information from it, and anticipates future database responses.
 func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) error {
@@ -219,11 +213,6 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 
 	if packet.IsRowDescription() {
 		p.lastPacketType = RowDescriptionPacket
-		rowDescription, err := packet.GetRowDescriptionData()
-		if err != nil {
-			return err
-		}
-		p.pendingRowDescription = rowDescription
 		return nil
 	}
 
