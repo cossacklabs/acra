@@ -309,7 +309,10 @@ func (proxy *PgProxy) handleClientPacket(ctx context.Context, packet *PacketHand
 		// but for now it is not implemented yet. Therefore, connection with a
 		// large number of prepared statements with errors tend to leak memory,
 		// but on practice it is not that noticeable.
-		pendingParse := proxy.protocolState.pendingParse
+		pendingParse, err := proxy.protocolState.LastParse()
+		if err != nil {
+			return false, err
+		}
 		if err = proxy.registerPreparedStatement(packet, pendingParse, logger); err != nil {
 			return false, err
 		}
@@ -344,7 +347,10 @@ func (proxy *PgProxy) handleQueryPacket(ctx context.Context, packet *PacketHandl
 		} else {
 			log := logger.WithField("sql", queryWithHiddenValues)
 			if proxy.protocolState.LastPacketType() == ParseStatementPacket {
-				preparedStatement := proxy.protocolState.PendingParse()
+				preparedStatement, err := proxy.protocolState.PendingParse()
+				if err != nil {
+					return false, err
+				}
 				log = log.WithField("prepared_name", preparedStatement.Name())
 			}
 			log.Debugln("New query")
@@ -729,10 +735,12 @@ func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHa
 		return proxy.handleQueryDataPacket(ctx, packet, logger)
 
 	case ParseCompletePacket:
-		log.WithField("parse", proxy.protocolState.pendingParse).Debugln("ParseComplete")
-		proxy.protocolState.forgetPendingParse()
-		return nil
-
+		pendingParse, err := proxy.protocolState.PendingParse()
+		if err != nil {
+			return err
+		}
+		log.WithField("parse", pendingParse).Debugln("ParseComplete")
+		return proxy.protocolState.forgetPendingParse()
 	case BindCompletePacket:
 		// Previously requested cursor has been confirmed by the database, register it.
 		bindPacket, err := proxy.protocolState.PendingBind()
