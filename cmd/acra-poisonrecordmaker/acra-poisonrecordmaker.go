@@ -132,7 +132,7 @@ func openKeyStoreV1(output string) keystore.PoisonKeyStorageAndGenerator {
 
 	if keyLoaderParams := keyloader.ParseCLIOptions(); keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
 		keyManager, _ := kms.NewKeyManager(kms.ParseCLIParameters())
-		return base.NewKeyMakingWrapper(keyStoreV1, keyManager)
+		return base.NewKeyMakingWrapper(keyStoreV1, keyManager, kms.NewKMSPerClientKeyMapper())
 	}
 	return keyStoreV1
 }

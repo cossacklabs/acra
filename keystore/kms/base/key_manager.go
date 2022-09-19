@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/cossacklabs/acra/keystore"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -55,4 +56,9 @@ type KeyManager interface {
 type Encryptor interface {
 	Encrypt(ctx context.Context, keyID []byte, data []byte, context []byte) ([]byte, error)
 	Decrypt(ctx context.Context, keyID []byte, data []byte, context []byte) ([]byte, error)
+}
+
+// KeyMapper represent interface for converting keystore.KeyContext to keyID
+type KeyMapper interface {
+	GetKeyID(ctx keystore.KeyContext) ([]byte, error)
 }

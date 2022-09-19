@@ -140,7 +140,7 @@ func openKeyStoreV1(output string) keystore.KeyMaking {
 
 	if keyLoaderParams := keyloader.ParseCLIOptions(); keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
 		keyManager, _ := kms.NewKeyManager(kms.ParseCLIParameters())
-		return baseKMS.NewKeyMakingWrapper(keyStore, keyManager)
+		return baseKMS.NewKeyMakingWrapper(keyStore, keyManager, kms.NewKMSPerClientKeyMapper())
 	}
 
 	return keyStore

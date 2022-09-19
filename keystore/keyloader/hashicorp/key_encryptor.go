@@ -4,6 +4,7 @@ import (
 	"flag"
 
 	"github.com/cossacklabs/acra/keystore"
+	baseKMS "github.com/cossacklabs/acra/keystore/kms/base"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
 	log "github.com/sirupsen/logrus"
@@ -44,4 +45,9 @@ func (k KeyEncryptorFabric) NewKeyEncryptorSuite(flags *flag.FlagSet, prefix str
 // RegisterCLIParameters empty implementation of KeyEncryptorFabric interface
 func (k KeyEncryptorFabric) RegisterCLIParameters(flags *flag.FlagSet, prefix, description string) {
 	RegisterCLIParametersWithFlagSet(flags, prefix, description)
+}
+
+// GetKeyMapper return KeyMapper for `vault_master_key` strategy
+func (k KeyEncryptorFabric) GetKeyMapper() baseKMS.KeyMapper {
+	panic("No KeyMapper for vault_master_key strategy")
 }

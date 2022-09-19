@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/keystore/kms/base"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
 	log "github.com/sirupsen/logrus"
 )
@@ -16,14 +17,15 @@ var (
 	lock                          = sync.Mutex{}
 )
 
+var keyEncryptorFabrics = map[string]KeyEncryptorFabric{}
+
 // KeyEncryptorFabric represent Fabric interface for constructing keystore.KeyEncryptor for v1 keystore and crypto.KeyStoreSuite for v2
 type KeyEncryptorFabric interface {
 	RegisterCLIParameters(flags *flag.FlagSet, prefix, description string)
 	NewKeyEncryptor(flag *flag.FlagSet, prefix string) (keystore.KeyEncryptor, error)
 	NewKeyEncryptorSuite(flag *flag.FlagSet, prefix string) (*crypto.KeyStoreSuite, error)
+	GetKeyMapper() base.KeyMapper
 }
-
-var keyEncryptorFabrics = map[string]KeyEncryptorFabric{}
 
 // RegisterKeyEncryptorFabric add new kms MasterKeyLoader to registry
 func RegisterKeyEncryptorFabric(strategy string, keyEncryptorFabric KeyEncryptorFabric) {

@@ -3,6 +3,7 @@ package env_loader
 import (
 	"flag"
 	"github.com/cossacklabs/acra/keystore"
+	baseKMS "github.com/cossacklabs/acra/keystore/kms/base"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
 	log "github.com/sirupsen/logrus"
@@ -46,4 +47,9 @@ func (k EnvKeyEncryptorFabric) NewKeyEncryptorSuite(flags *flag.FlagSet, prefix 
 // RegisterCLIParameters empty implementation of KeyEncryptorFabric interface
 func (k EnvKeyEncryptorFabric) RegisterCLIParameters(flags *flag.FlagSet, prefix, description string) {
 	// no flag registration for EnvKeyEncryptorFabric
+}
+
+// GetKeyMapper return KeyMapper for `env_master_key` strategy
+func (k EnvKeyEncryptorFabric) GetKeyMapper() baseKMS.KeyMapper {
+	panic("No KeyMapper for env_master_key strategy")
 }
