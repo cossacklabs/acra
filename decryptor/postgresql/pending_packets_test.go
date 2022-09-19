@@ -12,7 +12,7 @@ func Test_newPendingPackets(t *testing.T) {
 		t.Fatal("Packet should be nil")
 	}
 
-	if packet, err := pendingPackets.GetLast(&BindPacket{}); err != nil {
+	if packet, err := pendingPackets.GetLastPending(&BindPacket{}); err != nil {
 		t.Fatal(err)
 	} else if packet != nil {
 		t.Fatal("Packet should be nil")
@@ -30,7 +30,7 @@ func Test_newPendingPackets(t *testing.T) {
 		t.Fatal("Unexpected value")
 	}
 
-	if packet, err := pendingPackets.GetLast(&BindPacket{}); err != nil {
+	if packet, err := pendingPackets.GetLastPending(&BindPacket{}); err != nil {
 		t.Fatal(err)
 	} else if packet == nil {
 		t.Fatal("Packet should not be nil")
@@ -50,7 +50,7 @@ func Test_newPendingPackets(t *testing.T) {
 		t.Fatal("Unexpected value")
 	}
 
-	if packet, err := pendingPackets.GetLast(&BindPacket{}); err != nil {
+	if packet, err := pendingPackets.GetLastPending(&BindPacket{}); err != nil {
 		t.Fatal(err)
 	} else if packet == nil {
 		t.Fatal("Packet should not be nil")
@@ -58,7 +58,7 @@ func Test_newPendingPackets(t *testing.T) {
 		t.Fatal("Unexpected value")
 	}
 
-	if err := pendingPackets.RemoveCurrent(&BindPacket{}); err != nil {
+	if err := pendingPackets.RemoveNextPendingPacket(&BindPacket{}); err != nil {
 		t.Fatal(err)
 	}
 	if packet, err := pendingPackets.GetPendingPacket(&BindPacket{}); err != nil {
@@ -69,7 +69,7 @@ func Test_newPendingPackets(t *testing.T) {
 		t.Fatal("Unexpected value")
 	}
 
-	if packet, err := pendingPackets.GetLast(&BindPacket{}); err != nil {
+	if packet, err := pendingPackets.GetLastPending(&BindPacket{}); err != nil {
 		t.Fatal(err)
 	} else if packet == nil {
 		t.Fatal("Packet should not be nil")
@@ -86,7 +86,7 @@ func Test_newPendingPackets(t *testing.T) {
 		t.Fatal("Packet should be nil")
 	}
 
-	if packet, err := pendingPackets.GetLast(&BindPacket{}); err != nil {
+	if packet, err := pendingPackets.GetLastPending(&BindPacket{}); err != nil {
 		t.Fatal(err)
 	} else if packet != nil {
 		t.Fatal("Packet should be nil")

@@ -79,7 +79,7 @@ func (p *PgProtocolState) PendingParse() (*ParsePacket, error) {
 
 // LastParse returns the last added ParsePacket
 func (p *PgProtocolState) LastParse() (*ParsePacket, error) {
-	packet, err := p.pendingPackets.GetLast(&ParsePacket{})
+	packet, err := p.pendingPackets.GetLastPending(&ParsePacket{})
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func (p *PgProtocolState) PendingBind() (*BindPacket, error) {
 
 // LastBind returns the last added BindPacket
 func (p *PgProtocolState) LastBind() (*BindPacket, error) {
-	packet, err := p.pendingPackets.GetLast(&BindPacket{})
+	packet, err := p.pendingPackets.GetLastPending(&BindPacket{})
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +263,7 @@ func (p *PgProtocolState) forgetPendingParse() error {
 	}
 	if pendingParse != nil {
 		pendingParse.(*ParsePacket).Zeroize()
-		if err := p.pendingPackets.RemoveCurrent(pendingParse.(*ParsePacket)); err != nil {
+		if err := p.pendingPackets.RemoveNextPendingPacket(pendingParse.(*ParsePacket)); err != nil {
 			return err
 		}
 	}
@@ -280,7 +280,7 @@ func (p *PgProtocolState) forgetPendingBind() error {
 	}
 	if pendingBind != nil {
 		pendingBind.(*BindPacket).Zeroize()
-		if err := p.pendingPackets.RemoveCurrent(pendingBind.(*BindPacket)); err != nil {
+		if err := p.pendingPackets.RemoveNextPendingPacket(pendingBind.(*BindPacket)); err != nil {
 			return err
 		}
 	}
@@ -308,7 +308,7 @@ func (p *PgProtocolState) forgetPendingExecute() error {
 	}
 	if pendingPacket != nil {
 		pendingPacket.(*ExecutePacket).Zeroize()
-		if err := p.pendingPackets.RemoveCurrent(pendingPacket.(*ExecutePacket)); err != nil {
+		if err := p.pendingPackets.RemoveNextPendingPacket(pendingPacket.(*ExecutePacket)); err != nil {
 			return err
 		}
 	}

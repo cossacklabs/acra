@@ -24,6 +24,7 @@ import (
 	"reflect"
 )
 
+// pendingPacketsList stores objects per their type and provides API similar to queue
 type pendingPacketsList struct {
 	lists map[reflect.Type]*list.List
 }
@@ -32,7 +33,10 @@ func newPendingPacketsList() *pendingPacketsList {
 	return &pendingPacketsList{lists: make(map[reflect.Type]*list.List)}
 }
 
+// ErrUnsupportedPendingPacketType error after using unknown type of structure
 var ErrUnsupportedPendingPacketType = errors.New("unsupported pending packet type")
+
+// ErrRemoveFromEmptyPendingList error after trying to remove object from empty list
 var ErrRemoveFromEmptyPendingList = errors.New("removing from empty pending list")
 
 // Add packet to pending list of packets of this type
@@ -51,8 +55,8 @@ func (packets *pendingPacketsList) Add(packet interface{}) error {
 	return ErrUnsupportedPendingPacketType
 }
 
-// RemoveCurrent removes first in the list pending packet
-func (packets *pendingPacketsList) RemoveCurrent(packet interface{}) error {
+// RemoveNextPendingPacket removes first in the list pending packet
+func (packets *pendingPacketsList) RemoveNextPendingPacket(packet interface{}) error {
 	switch packet.(type) {
 	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription:
 		packetList, ok := packets.lists[reflect.TypeOf(packet)]
@@ -85,6 +89,7 @@ func (packets *pendingPacketsList) RemoveAll(packet interface{}) error {
 	return ErrUnsupportedPendingPacketType
 }
 
+// GetPendingPacket returns next pending packet
 func (packets *pendingPacketsList) GetPendingPacket(packet interface{}) (interface{}, error) {
 	switch packet.(type) {
 	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription:
@@ -102,7 +107,8 @@ func (packets *pendingPacketsList) GetPendingPacket(packet interface{}) (interfa
 	return nil, ErrUnsupportedPendingPacketType
 }
 
-func (packets *pendingPacketsList) GetLast(packet interface{}) (interface{}, error) {
+// GetLastPending return last added pending packet
+func (packets *pendingPacketsList) GetLastPending(packet interface{}) (interface{}, error) {
 	switch packet.(type) {
 	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription:
 		packetList, ok := packets.lists[reflect.TypeOf(packet)]
