@@ -894,7 +894,9 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 		format := 0
 		pendingBind, err := proxy.protocolState.pendingPackets.GetPendingPacket(&BindPacket{})
 		if err != nil {
-			panic(err)
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDBProtocolError).
+				WithError(err).Errorln("Can't get pending Bind packet")
+			return err
 		}
 		if pendingBind != nil {
 			boundFormat, err := GetParameterFormatByIndex(i, pendingBind.(*BindPacket).resultFormats)
