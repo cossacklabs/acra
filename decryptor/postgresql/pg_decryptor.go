@@ -313,6 +313,9 @@ func (proxy *PgProxy) handleClientPacket(ctx context.Context, packet *PacketHand
 		if err != nil {
 			return false, err
 		}
+		if pendingParse == nil {
+			return false, ErrNilPendingPacket
+		}
 		if err = proxy.registerPreparedStatement(packet, pendingParse, logger); err != nil {
 			return false, err
 		}
@@ -351,7 +354,9 @@ func (proxy *PgProxy) handleQueryPacket(ctx context.Context, packet *PacketHandl
 				if err != nil {
 					return false, err
 				}
-				log = log.WithField("prepared_name", preparedStatement.Name())
+				if preparedStatement != nil {
+					log = log.WithField("prepared_name", preparedStatement.Name())
+				}
 			}
 			log.Debugln("New query")
 		}
@@ -386,6 +391,9 @@ func (proxy *PgProxy) handleBindPacket(ctx context.Context, packet *PacketHandle
 	if err != nil {
 		logger.WithError(err).Errorln("Can't get pending Bind packet")
 		return false, err
+	}
+	if bind == nil {
+		return false, ErrNilPendingPacket
 	}
 	logger = logger.WithField("portal", bind.PortalName()).WithField("statement", bind.StatementName())
 	logger.Debug("Bind packet")
@@ -739,7 +747,9 @@ func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHa
 		if err != nil {
 			return err
 		}
-		log.WithField("parse", pendingParse).Debugln("ParseComplete")
+		if pendingParse != nil {
+			log.WithField("parse", pendingParse).Debugln("ParseComplete")
+		}
 		return proxy.protocolState.forgetPendingParse()
 	case BindCompletePacket:
 		// Previously requested cursor has been confirmed by the database, register it.
@@ -747,6 +757,9 @@ func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHa
 		if err != nil {
 			logger.WithError(err).Errorln("Can't get pending Bind packet")
 			return err
+		}
+		if bindPacket == nil {
+			return ErrNilPendingPacket
 		}
 		defer func() {
 			if err := proxy.protocolState.zeroizePendingBind(); err != nil {

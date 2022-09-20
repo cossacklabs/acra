@@ -478,6 +478,9 @@ const WithoutMessageType = 0
 // ErrUnsupportedPacketType error when recognized unsupported message type or new added to postgresql wire protocol
 var ErrUnsupportedPacketType = errors.New("unsupported postgresql message type")
 
+// ErrNilPendingPacket error when took nil instead of pending packet
+var ErrNilPendingPacket = errors.New("nil pending packet")
+
 // ReadClientPacket read and recognize packets that may be sent only from client/frontend.
 //
 // There are two types of messages: startup and general ones.
