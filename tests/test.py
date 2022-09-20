@@ -1571,11 +1571,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             popen_kwargs = {}
         cli_args = sorted(['--{}={}'.format(k, v) for k, v in args.items() if v is not None])
         print("acra-server args: {}".format(' '.join(cli_args)))
-        args['version'] = '0.93.0'
-        dump_yaml_config(args, '/tmp/test.yaml')
-        if self.EXTERNAL_ACRA:
-            return ProcessStub()
-
         process = fork(lambda: subprocess.Popen([self.get_acraserver_bin_path()] + cli_args,
                                                      **popen_kwargs))
         try:
@@ -1629,7 +1624,8 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     def setUp(self):
         self.checkSkip()
         try:
-            self.acra = self.fork_acra()
+            if not self.EXTERNAL_ACRA:
+                self.acra = self.fork_acra()
 
             base_args = get_connect_args(port=self.ACRASERVER_PORT, sslmode=SSLMODE)
 
@@ -9147,7 +9143,6 @@ class TestMySQLTextFormatTypeAwareDecryptionWithDefaultsWithConsulEncryptorConfi
 
 class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults(
         BaseBinaryPostgreSQLTestCase, TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults):
-    EXTERNAL_ACRA = False
     def testClientIDRead(self):
         """test decrypting with correct clientID and not decrypting with
         incorrect clientID or using direct connection to db
