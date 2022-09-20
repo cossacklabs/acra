@@ -1,3 +1,6 @@
+# 0.94.0 - 2022-09-19
+- Accumulate packets in a queue and handle paired packets in the correct order. Fixes issue with incorrectly linked Bind packet to inappropriate Parse packet and nil dereferences.
+
 # 0.94.0 - 2022-08-25
 - Add support of Hashicorp Consul for `encryptor_config loading`. 
 - Introduce new Hashicorp Consul flags: `consul_connection_api_string` and `consul_kv_config_path` and corresponded `consul` TLS configuration flags.

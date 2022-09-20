@@ -309,7 +309,13 @@ func (proxy *PgProxy) handleClientPacket(ctx context.Context, packet *PacketHand
 		// but for now it is not implemented yet. Therefore, connection with a
 		// large number of prepared statements with errors tend to leak memory,
 		// but on practice it is not that noticeable.
-		pendingParse := proxy.protocolState.pendingParse
+		pendingParse, err := proxy.protocolState.LastParse()
+		if err != nil {
+			return false, err
+		}
+		if pendingParse == nil {
+			return false, ErrNilPendingPacket
+		}
 		if err = proxy.registerPreparedStatement(packet, pendingParse, logger); err != nil {
 			return false, err
 		}
@@ -344,8 +350,13 @@ func (proxy *PgProxy) handleQueryPacket(ctx context.Context, packet *PacketHandl
 		} else {
 			log := logger.WithField("sql", queryWithHiddenValues)
 			if proxy.protocolState.LastPacketType() == ParseStatementPacket {
-				preparedStatement := proxy.protocolState.PendingParse()
-				log = log.WithField("prepared_name", preparedStatement.Name())
+				preparedStatement, err := proxy.protocolState.PendingParse()
+				if err != nil {
+					return false, err
+				}
+				if preparedStatement != nil {
+					log = log.WithField("prepared_name", preparedStatement.Name())
+				}
 			}
 			log.Debugln("New query")
 		}
@@ -376,7 +387,14 @@ func (proxy *PgProxy) handleQueryPacket(ctx context.Context, packet *PacketHandl
 }
 
 func (proxy *PgProxy) handleBindPacket(ctx context.Context, packet *PacketHandler, logger *log.Entry) (bool, error) {
-	bind := proxy.protocolState.PendingBind()
+	bind, err := proxy.protocolState.LastBind()
+	if err != nil {
+		logger.WithError(err).Errorln("Can't get pending Bind packet")
+		return false, err
+	}
+	if bind == nil {
+		return false, ErrNilPendingPacket
+	}
 	logger = logger.WithField("portal", bind.PortalName()).WithField("statement", bind.StatementName())
 	logger.Debug("Bind packet")
 	// There must be previously registered prepared statement with requested name. If there isn't
@@ -725,14 +743,29 @@ func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHa
 		return proxy.handleQueryDataPacket(ctx, packet, logger)
 
 	case ParseCompletePacket:
-		log.WithField("parse", proxy.protocolState.pendingParse).Debugln("ParseComplete")
-		proxy.protocolState.forgetPendingParse()
-		return nil
-
+		pendingParse, err := proxy.protocolState.PendingParse()
+		if err != nil {
+			return err
+		}
+		if pendingParse != nil {
+			log.WithField("parse", pendingParse).Debugln("ParseComplete")
+		}
+		return proxy.protocolState.forgetPendingParse()
 	case BindCompletePacket:
 		// Previously requested cursor has been confirmed by the database, register it.
-		bindPacket := proxy.protocolState.PendingBind()
-		defer proxy.protocolState.forgetPendingBind()
+		bindPacket, err := proxy.protocolState.PendingBind()
+		if err != nil {
+			logger.WithError(err).Errorln("Can't get pending Bind packet")
+			return err
+		}
+		if bindPacket == nil {
+			return ErrNilPendingPacket
+		}
+		defer func() {
+			if err := proxy.protocolState.zeroizePendingBind(); err != nil {
+				logger.WithError(err).Errorln("Can't forget pending Bind packet")
+			}
+		}()
 		return proxy.registerCursor(bindPacket, logger)
 	case RowDescriptionPacket:
 		return proxy.handleRowDescription(ctx, packet, logger)
@@ -843,8 +876,11 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 	logger.Debugln("Matched data row packet")
 	// by default it's text format
 	columnFormats := []uint16{uint16(base.TextFormat)}
-	var err error
-	if bindPacket := proxy.protocolState.PendingBind(); bindPacket != nil {
+	if bindPacket, err := proxy.protocolState.PendingBind(); err != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
+			WithError(err).Errorln("Can't get pending Bind packet")
+		return err
+	} else if bindPacket != nil {
 		columnFormats, err = bindPacket.GetResultFormats()
 		if err != nil {
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
@@ -869,8 +905,14 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 		}
 		// default values Text
 		format := 0
-		if proxy.protocolState.pendingBind != nil {
-			boundFormat, err := GetParameterFormatByIndex(i, proxy.protocolState.pendingBind.resultFormats)
+		pendingBind, err := proxy.protocolState.pendingPackets.GetPendingPacket(&BindPacket{})
+		if err != nil {
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDBProtocolError).
+				WithError(err).Errorln("Can't get pending Bind packet")
+			return err
+		}
+		if pendingBind != nil {
+			boundFormat, err := GetParameterFormatByIndex(i, pendingBind.(*BindPacket).resultFormats)
 			if err != nil {
 				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
 					WithError(err).Errorln("Can't get format for column")
