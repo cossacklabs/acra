@@ -1571,7 +1571,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             popen_kwargs = {}
         cli_args = sorted(['--{}={}'.format(k, v) for k, v in args.items() if v is not None])
         print("acra-server args: {}".format(' '.join(cli_args)))
-
         process = fork(lambda: subprocess.Popen([self.get_acraserver_bin_path()] + cli_args,
                                                      **popen_kwargs))
         try:
