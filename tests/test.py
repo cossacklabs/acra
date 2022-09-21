@@ -1987,6 +1987,11 @@ class BaseBinaryPostgreSQLTestCase(AsyncpgExecutorMixin, BaseTestCase):
             # SQLAlchemy default dialect has placeholders of form ":name".
             # PostgreSQL syntax is "$n", with 1-based sequential parameters.
             saPlaceholder = ':' + placeholder
+            # SQLAlchemy has placeholders of form ":name_1" for literal value
+            # https://docs.sqlalchemy.org/en/14/core/tutorial.html#operators
+            saPlaceholderIndex = saPlaceholder + '_' + str(len(values) + 1)
+            if saPlaceholderIndex in query:
+                saPlaceholder = saPlaceholderIndex
             pgPlaceholder = '$' + str(len(values) + 1)
             # Replace and keep values only for those placeholders which
             # are actually used in the query.
@@ -7218,7 +7223,7 @@ class BaseTokenization(BaseTestCase):
         """Execute SQLAlchemy Bulk INSERT query via AcraServer with "TEST_TLS_CLIENT_CERT"."""
         self.engine1.execute(query.values(values))
 
-    def fetch_from_1(self, query):
+    def fetch_from_1(self, query, parameters={}, literal_binds=True):
         """Execute SQLAlchemy SELECT query via AcraServer with "TEST_TLS_CLIENT_CERT"."""
         return self.engine1.execute(query).fetchall()
 
@@ -7270,8 +7275,8 @@ class BaseTokenizationWithBinaryBindMySQL(BaseTokenization, BaseBinaryMySQLTestC
         query, parameters = self.compileBulkInsertQuery(query.values(values), values)
         return self.executor1.execute_prepared_statement_no_result(query, parameters)
 
-    def fetch_from_1(self, query):
-        query, parameters = self.compileQuery(query, literal_binds=True)
+    def fetch_from_1(self, query, parameters={}, literal_binds=True):
+        query, parameters = self.compileQuery(query, parameters=parameters, literal_binds=literal_binds)
         return self.executor1.execute_prepared_statement(query, parameters)
 
     def fetch_from_2(self, query):
@@ -7297,8 +7302,8 @@ class BaseTokenizationWithBinaryPostgreSQL(BaseTokenization, BaseBinaryPostgreSQ
         query, parameters = self.compileBulkInsertQuery(query.values(values), values)
         return self.executor1.execute_prepared_statement(query, parameters)
 
-    def fetch_from_1(self, query):
-        query, parameters = self.compileQuery(query, literal_binds=True)
+    def fetch_from_1(self, query, parameters={}, literal_binds=True):
+        query, parameters = self.compileQuery(query, parameters=parameters, literal_binds=literal_binds)
         return self.executor1.execute_prepared_statement(query, parameters)
 
     def fetch_from_2(self, query):
@@ -7360,6 +7365,59 @@ class BaseTokenizationWithBinaryMySQL(BaseTokenization):
                     except (LookupError, UnicodeDecodeError):
                         pass
         return result
+
+
+class TestSearchableTokenizationWithoutZone(BaseTokenization):
+    ZONE = False
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_searchable_tokenization_config.yaml')
+
+    def testSearchableTokenizationDefaultClientID(self):
+        default_client_id_table = sa.Table(
+            'test_tokenization_default_client_id', metadata,
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('nullable_column', sa.Text, nullable=True),
+            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_i32', sa.Integer()),
+            sa.Column('token_i64', sa.BigInteger()),
+            sa.Column('token_str', sa.Text),
+            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_email', sa.Text),
+            extend_existing=True,
+        )
+        metadata.create_all(self.engine_raw, [default_client_id_table])
+        self.engine1.execute(default_client_id_table.delete())
+        data = {
+            'id': 1,
+            'nullable_column': None,
+            'empty': b'',
+            'token_i32': random_int32(),
+            'token_i64': random_int64(),
+            'token_str': random_str(),
+            'token_bytes': random_bytes(),
+            'token_email': random_email(),
+        }
+
+        # insert data data
+        self.insert_via_1(default_client_id_table.insert(), data)
+
+        columns = {
+            'token_i32': default_client_id_table.c.token_i32,
+            'token_i64': default_client_id_table.c.token_i64,
+            'token_str': default_client_id_table.c.token_str,
+            'token_bytes': default_client_id_table.c.token_bytes,
+            'token_email': default_client_id_table.c.token_email,
+        }
+        # data owner take source data
+        for key in columns:
+            parameters = {key: data[key]}
+            query = sa.select(default_client_id_table).where(columns[key] == data[key])
+
+            source_data = self.fetch_from_1(query, parameters, literal_binds=False)
+            for k in ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email'):
+                if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+                    self.assertEqual(source_data[0][k], data[k].encode('utf-8'))
+                else:
+                    self.assertEqual(source_data[0][k], data[k])
 
 
 class TestTokenizationWithoutZone(BaseTokenization):
@@ -7886,6 +7944,10 @@ class TestTokenizationWithZoneTextPostgreSQL(BaseTokenizationWithTextPostgreSQL,
 
 
 class TestTokenizationWithoutZoneBinaryPostgreSQL(BaseTokenizationWithBinaryPostgreSQL, TestTokenizationWithoutZone):
+    pass
+
+
+class TestSearchableTokenizationWithoutZoneBinaryPostgreSQL(BaseTokenizationWithBinaryPostgreSQL, TestSearchableTokenizationWithoutZone):
     pass
 
 
@@ -10369,7 +10431,7 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
 
     def testPreparedStatementIsNotAborted(self):
         """
-        Test that connection is not closed in case of "encoding error" when we 
+        Test that connection is not closed in case of "encoding error" when we
         use prepared statements.
         """
         async def test():

@@ -1,24 +1,9 @@
-/*
-Copyright 2018, Cossack Labs Limited
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package decryptor
 
 import (
 	"context"
 	"fmt"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	queryEncryptor "github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
@@ -37,128 +22,28 @@ type HashDecryptStore interface {
 
 // HashQuery calculate hmac for data inside AcraStruct and change WHERE conditions to support searchable encryption
 type HashQuery struct {
-	keystore    HashDecryptStore
-	coder       queryEncryptor.DBDataCoder
-	schemaStore config.TableSchemaStore
-	decryptor   base.ExtendedDataProcessor
-	parser      *sqlparser.Parser
+	keystore              HashDecryptStore
+	searchableQueryFilter *queryEncryptor.SearchableQueryFilter
+	coder                 queryEncryptor.DBDataCoder
+	decryptor             base.ExtendedDataProcessor
+	parser                *sqlparser.Parser
 }
 
 // NewPostgresqlHashQuery return HashQuery with coder for postgresql
-func NewPostgresqlHashQuery(keystore HashDecryptStore, schemaStore config.TableSchemaStore, decryptor base.ExtendedDataProcessor) *HashQuery {
-	return &HashQuery{keystore: keystore, coder: &queryEncryptor.PostgresqlDBDataCoder{}, schemaStore: schemaStore, decryptor: decryptor}
+func NewPostgresqlHashQuery(keystore HashDecryptStore, schemaStore config.TableSchemaStore, processor base.ExtendedDataProcessor) *HashQuery {
+	searchableQueryFilter := queryEncryptor.NewSearchableQueryFilter(schemaStore, queryEncryptor.QueryFilterModeSearchableEncryption)
+	return &HashQuery{keystore: keystore, coder: &queryEncryptor.PostgresqlDBDataCoder{}, searchableQueryFilter: searchableQueryFilter, decryptor: processor}
 }
 
 // NewMysqlHashQuery return HashQuery with coder for mysql
-func NewMysqlHashQuery(keystore HashDecryptStore, schemaStore config.TableSchemaStore, decryptor base.ExtendedDataProcessor) *HashQuery {
-	return &HashQuery{keystore: keystore, coder: &queryEncryptor.MysqlDBDataCoder{}, schemaStore: schemaStore, decryptor: decryptor}
+func NewMysqlHashQuery(keystore HashDecryptStore, schemaStore config.TableSchemaStore, processor base.ExtendedDataProcessor) *HashQuery {
+	searchableQueryFilter := queryEncryptor.NewSearchableQueryFilter(schemaStore, queryEncryptor.QueryFilterModeSearchableEncryption)
+	return &HashQuery{keystore: keystore, coder: &queryEncryptor.MysqlDBDataCoder{}, searchableQueryFilter: searchableQueryFilter, decryptor: processor}
 }
 
 // ID returns name of this QueryObserver.
 func (encryptor *HashQuery) ID() string {
 	return "HashQuery"
-}
-
-func (encryptor *HashQuery) filterSearchableComparisons(statement sqlparser.Statement) []searchableExprItem {
-	// We are interested only in SELECT statements which access at least one encryptable table.
-	// If that's not the case, we have nothing to do here.
-	defaultTable, aliasedTables := encryptor.filterInterestingTables(statement)
-	if len(aliasedTables) == 0 {
-		logrus.Debugln("No encryptable tables in search query")
-		return nil
-	}
-	// Now take a closer look at WHERE clauses of the statement. We need only expressions
-	// which are simple equality comparisons, like "WHERE column = value".
-	exprs := encryptor.filterComparisonExprs(statement)
-	if len(exprs) == 0 {
-		logrus.Debugln("No eligible comparisons in search query")
-		return nil
-	}
-	// And among those expressions, not all may refer to columns with searchable encryption
-	// enabled for them. Leave only those expressions which are searchable.
-	searchableExprs := encryptor.filterSerchableComparisons(exprs, defaultTable, aliasedTables)
-	if len(exprs) == 0 {
-		logrus.Debugln("No searchable comparisons in search query")
-		return nil
-	}
-	return searchableExprs
-}
-
-func (encryptor *HashQuery) filterInterestingTables(statement sqlparser.Statement) (*queryEncryptor.AliasedTableName, queryEncryptor.AliasToTableMap) {
-	// We are interested only in SELECT statements.
-	selectStatement, ok := statement.(*sqlparser.Select)
-	if !ok {
-		return nil, nil
-	}
-	// Not all SELECT statements refer to tables at all.
-	tables := queryEncryptor.GetTablesWithAliases(selectStatement.From)
-	if len(tables) == 0 {
-		return nil, nil
-	}
-	// And even then, we can work only with tables that we have an encryption schema for.
-	var encryptableTables []*queryEncryptor.AliasedTableName
-	for _, table := range tables {
-		if v := encryptor.schemaStore.GetTableSchema(table.TableName.Name.String()); v != nil {
-			encryptableTables = append(encryptableTables, table)
-		}
-	}
-	if len(encryptableTables) == 0 {
-		return nil, nil
-	}
-	return tables[0], queryEncryptor.NewAliasToTableMapFromTables(encryptableTables)
-}
-
-func (encryptor *HashQuery) filterComparisonExprs(statement sqlparser.Statement) []*sqlparser.ComparisonExpr {
-	// Walk through WHERE clauses of a SELECT statements...
-	whereExprs, err := getWhereStatements(statement)
-	if err != nil {
-		logrus.WithError(err).Debugln("Failed to extract WHERE clauses")
-		return nil
-	}
-	// ...and find all eligible comparison expressions in them.
-	var exprs []*sqlparser.ComparisonExpr
-	for _, whereExpr := range whereExprs {
-		comparisonExprs, err := getEqualComparisonExprs(whereExpr)
-		if err != nil {
-			logrus.WithError(err).Debugln("Failed to extract comparison expressions")
-			return nil
-		}
-		exprs = append(exprs, comparisonExprs...)
-	}
-	return exprs
-}
-
-type searchableExprItem struct {
-	expr    *sqlparser.ComparisonExpr
-	setting config.ColumnEncryptionSetting
-}
-
-func (encryptor *HashQuery) filterSerchableComparisons(exprs []*sqlparser.ComparisonExpr, defaultTable *queryEncryptor.AliasedTableName, aliasedTables queryEncryptor.AliasToTableMap) []searchableExprItem {
-	filtered := make([]searchableExprItem, 0, len(exprs))
-	for _, expr := range exprs {
-		// Leave out comparisons of columns which do not have a schema after alias resolution.
-		column := expr.Left.(*sqlparser.ColName)
-		schema := encryptor.getTableSchemaOfColumn(column, defaultTable, aliasedTables)
-		if schema == nil {
-			continue
-		}
-		// Also leave out those columns which are not searchable.
-		columnName := column.Name.String()
-		encryptionSetting := schema.GetColumnEncryptionSettings(columnName)
-		if encryptionSetting == nil || !encryptionSetting.IsSearchable() {
-			continue
-		}
-		filtered = append(filtered, searchableExprItem{expr: expr, setting: encryptionSetting})
-	}
-	return filtered
-}
-
-func (encryptor *HashQuery) getTableSchemaOfColumn(column *sqlparser.ColName, defaultTable *queryEncryptor.AliasedTableName, aliasedTables queryEncryptor.AliasToTableMap) config.TableSchema {
-	if column.Qualifier.Qualifier.IsEmpty() {
-		return encryptor.schemaStore.GetTableSchema(defaultTable.TableName.Name.String())
-	}
-	tableName := aliasedTables[column.Qualifier.Name.String()]
-	return encryptor.schemaStore.GetTableSchema(tableName)
 }
 
 // OnQuery processes query text before database sees it.
@@ -182,7 +67,7 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObjec
 	// Extract the subexpressions that we are interested in for searchable encryption.
 	// The list might be empty for non-SELECT queries or for non-eligible SELECTs.
 	// In that case we don't have any more work to do here.
-	items := encryptor.filterSearchableComparisons(stmt)
+	items := encryptor.searchableQueryFilter.FilterSearchableComparisons(stmt)
 	if len(items) == 0 {
 		return query, false, nil
 	}
@@ -192,20 +77,20 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObjec
 	hashSize := []byte(fmt.Sprintf("%d", hmac.GetDefaultHashSize()))
 	for _, item := range items {
 		// column = 'value' ===> substring(column, 1, <HMAC_size>) = 'value'
-		item.expr.Left = &sqlparser.SubstrExpr{
-			Name: item.expr.Left.(*sqlparser.ColName),
+		item.Expr.Left = &sqlparser.SubstrExpr{
+			Name: item.Expr.Left.(*sqlparser.ColName),
 			From: sqlparser.NewIntVal([]byte{'1'}),
 			To:   sqlparser.NewIntVal(hashSize),
 		}
 
 		// substring(column, 1, <HMAC_size>) = 'value' ===> substring(column, 1, <HMAC_size>) = <HMAC('value')>
 		// substring(column, 1, <HMAC_size>) = $1      ===> no changes
-		err := queryEncryptor.UpdateExpressionValue(ctx, item.expr.Right, encryptor.coder, encryptor.calculateHmac)
+		err := queryEncryptor.UpdateExpressionValue(ctx, item.Expr.Right, encryptor.coder, encryptor.calculateHmac)
 		if err != nil {
 			logrus.WithError(err).Debugln("Failed to update expression")
 			return query, false, err
 		}
-		sqlVal, ok := item.expr.Right.(*sqlparser.SQLVal)
+		sqlVal, ok := item.Expr.Right.(*sqlparser.SQLVal)
 		if !ok {
 			continue
 		}
@@ -215,7 +100,7 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObjec
 		} else if err != nil {
 			return query, false, err
 		}
-		bindSettings[placeholderIndex] = item.setting
+		bindSettings[placeholderIndex] = item.Setting
 	}
 	logrus.Debugln("HashQuery.OnQuery changed query")
 	return base.NewOnQueryObjectFromStatement(stmt, encryptor.parser), true, nil
@@ -238,7 +123,7 @@ func (encryptor *HashQuery) OnBind(ctx context.Context, statement sqlparser.Stat
 	// Extract the subexpressions that we are interested in for searchable encryption.
 	// The list might be empty for non-SELECT queries or for non-eligible SELECTs.
 	// In that case we don't have any more work to do here.
-	items := encryptor.filterSearchableComparisons(statement)
+	items := encryptor.searchableQueryFilter.FilterSearchableComparisons(statement)
 	if len(items) == 0 {
 		return values, false, nil
 	}
@@ -246,7 +131,7 @@ func (encryptor *HashQuery) OnBind(ctx context.Context, statement sqlparser.Stat
 	// and map them onto values that we need to update.
 	indexes := make([]int, 0, len(values))
 	for _, item := range items {
-		switch value := item.expr.Right.(type) {
+		switch value := item.Expr.Right.(type) {
 		case *sqlparser.SQLVal:
 			var err error
 			index, err := queryEncryptor.ParsePlaceholderIndex(value)
