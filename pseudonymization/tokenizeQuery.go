@@ -31,6 +31,7 @@ func NewMySQLTokenizeQuery(schemaStore config.TableSchemaStore, tokenEncryptor *
 	return &TokenizeQuery{
 		searchableQueryFilter: queryEncryptor.NewSearchableQueryFilter(schemaStore, queryEncryptor.QueryFilterModeConsistentTokenization),
 		tokenEncryptor:        tokenEncryptor,
+		coder:                 &queryEncryptor.MysqlDBDataCoder{},
 	}
 }
 

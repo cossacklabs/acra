@@ -2126,6 +2126,9 @@ class BaseBinaryMySQLTestCase(MysqlExecutorMixin, BaseTestCase):
             for placeholder in res:
                 # parameters map contain values where keys without ':' so we need trim the placeholder before
                 key = placeholder.lstrip(':')
+                index_suffix = '_' + str(len(values) + 1)
+                if index_suffix in key:
+                    key = key.rstrip(index_suffix)
                 values.append(parameters[key])
                 query = query.replace(placeholder, '?')
         return query, tuple(values)
@@ -7962,6 +7965,10 @@ class TestTokenizationWithoutZoneBinaryBindMySQL(BaseTokenizationWithBinaryBindM
 
 
 class TestTokenizationWithZoneBinaryBindMySQL(BaseTokenizationWithBinaryBindMySQL, TestTokenizationWithZone):
+    pass
+
+
+class TestSearchableTokenizationWithoutZoneBinaryBindMySQL(BaseTokenizationWithBinaryBindMySQL, TestSearchableTokenizationWithoutZone):
     pass
 
 
