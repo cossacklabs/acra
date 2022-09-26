@@ -7589,25 +7589,25 @@ class TestReturningProcessingMixing:
 
     def test_insert_returning_with_col_enum(self):
         source, hidden, data = self.insert_with_enum_and_return_data()
-        self.assertEqual(source[1], data['token_str'])
-        self.assertEqual(source[2], data['token_i64'])
-        self.assertEqual(source[3], data['token_email'])
-        self.assertEqual(source[4], data['token_i32'])
-        self.assertNotEqual(hidden[1], data['token_str'])
-        self.assertNotEqual(hidden[2], data['token_i64'])
-        self.assertNotEqual(hidden[3], data['token_email'])
-        self.assertNotEqual(hidden[4], data['token_i32'])
+        self.assertEqual(source['token_str'], data['token_str'])
+        self.assertEqual(source['token_i64'], data['token_i64'])
+        self.assertEqual(source['token_email'], data['token_email'])
+        self.assertEqual(source['token_i32'], data['token_i32'])
+        self.assertNotEqual(hidden['token_str'], data['token_str'])
+        self.assertNotEqual(hidden['token_i64'], data['token_i64'])
+        self.assertNotEqual(hidden['token_email'], data['token_email'])
+        self.assertNotEqual(hidden['token_i32'], data['token_i32'])
 
     def test_insert_returning_with_star(self):
         source, hidden, data = self.insert_with_star_and_return_data()
-        self.assertEqual(source[3], data['token_i32'])
-        self.assertEqual(source[4], data['token_i64'])
-        self.assertEqual(source[5], data['token_str'])
-        self.assertEqual(source[7], data['token_email'])
-        self.assertNotEqual(hidden[3], data['token_i32'])
-        self.assertNotEqual(hidden[4], data['token_i64'])
-        self.assertNotEqual(hidden[5], data['token_str'])
-        self.assertNotEqual(hidden[7], data['token_email'])
+        self.assertEqual(source['token_i32'], data['token_i32'])
+        self.assertEqual(source['token_i64'], data['token_i64'])
+        self.assertEqual(source['token_str'], data['token_str'])
+        self.assertEqual(source['token_email'], data['token_email'])
+        self.assertNotEqual(hidden['token_i32'], data['token_i32'])
+        self.assertNotEqual(hidden['token_i64'], data['token_i64'])
+        self.assertNotEqual(hidden['token_str'], data['token_str'])
+        self.assertNotEqual(hidden['token_email'], data['token_email'])
 
 
 class TestReturningProcessingMariaDB(TestReturningProcessingMixing, BaseTokenization):
@@ -7703,10 +7703,12 @@ class TestReturningProcessingPostgreSQL(TestReturningProcessingMixing, BaseToken
         self.fetch_from_2(sa.select([self.specific_client_id_table]).where(self.specific_client_id_table.c.id == get_random_id()))
 
         source_query, data = self.build_raw_query_with_star()
-        source = self.engine2.execute(source_query, data).fetchone()
+        with self.engine2.connect() as connection:
+            source = connection.execute(source_query, data).fetchone()
 
         hidden_query, data = self.build_raw_query_with_star()
-        hidden = self.engine1.execute(hidden_query, data).fetchone()
+        with self.engine1.connect() as connection:
+            hidden = connection.execute(hidden_query, data).fetchone()
         return source, hidden, self.data
 
 
