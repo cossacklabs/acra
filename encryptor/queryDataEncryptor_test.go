@@ -824,7 +824,7 @@ schemas:
 	}
 
 	parser := sqlparser.New(sqlparser.ModeStrict)
-	mysqlParser, err := NewMysqlQueryEncryptor(schemaStore, parser, nil)
+	encryptor, err := NewMysqlQueryEncryptor(schemaStore, parser, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -840,13 +840,13 @@ schemas:
 	t.Run("RETURNING *", func(t *testing.T) {
 		query := `INSERT INTO TableWithColumnSchema ('zone_id', 'specified_client_id', 'other_column', 'default_client_id') VALUES (1, 1, 1, 1) RETURNING *`
 
-		_, _, err := mysqlParser.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
+		_, _, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
 		if err != nil {
 			t.Fatalf("%s", err.Error())
 		}
 
-		if len(columns) != len(mysqlParser.querySelectSettings) {
-			t.Fatalf("Incorrect mysqlParser.querySelectSettings length")
+		if len(columns) != len(encryptor.querySelectSettings) {
+			t.Fatalf("Incorrect encryptor.querySelectSettings length")
 		}
 
 		expectedNilColumns := map[int]struct{}{
@@ -857,7 +857,7 @@ schemas:
 			if _, ok := expectedNilColumns[i]; ok {
 				continue
 			}
-			setting := mysqlParser.querySelectSettings[i]
+			setting := encryptor.querySelectSettings[i]
 
 			if columns[i] != setting.columnName {
 				t.Fatalf("%v. Incorrect QueryDataItem \nTook: %v\nExpected: %v", i, setting.columnName, columns[i])
@@ -870,14 +870,14 @@ schemas:
 		query := fmt.Sprintf(`INSERT INTO TableWithColumnSchema 
 ('zone_id', 'specified_client_id', 'other_column', 'default_client_id') VALUES (1, 1, 1, 1) RETURNING %s`, returning)
 
-		_, _, err := mysqlParser.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
+		_, _, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
 		if err != nil {
 			t.Fatalf("%s", err.Error())
 		}
 
 		returningColumns := strings.Split(returning, ", ")
 		if len(columns) != len(returningColumns) {
-			t.Fatalf("Incorrect mysqlParser.querySelectSettings length")
+			t.Fatalf("Incorrect encryptor.querySelectSettings length")
 		}
 
 		expectedNilColumns := map[int]struct{}{
@@ -889,7 +889,44 @@ schemas:
 				continue
 			}
 
-			setting := mysqlParser.querySelectSettings[i]
+			setting := encryptor.querySelectSettings[i]
+
+			if returningColumns[i] != setting.columnName {
+				t.Fatalf("%v. Incorrect QueryDataItem \nTook: %v\nExpected: %v", i, setting.columnName, columns[i])
+			}
+		}
+	})
+
+	t.Run("RETURNING columns with sql literals", func(t *testing.T) {
+		returning := "1, 0 as literal, zone_id, specified_client_id, other_column, default_client_id, NULL"
+		query := fmt.Sprintf(`INSERT INTO TableWithColumnSchema 
+('zone_id', 'specified_client_id', 'other_column', 'default_client_id') VALUES (1, 1, 1, 1) RETURNING %s`, returning)
+
+		_, _, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
+		if err != nil {
+			t.Fatalf("%s", err.Error())
+		}
+
+		returningColumns := strings.Split(returning, ", ")
+		// 1, 0 as literal, NULL
+		extraValuesCount := 3
+		if (len(columns) + extraValuesCount) != len(returningColumns) {
+			t.Fatalf("Incorrect encryptor.querySelectSettings length")
+		}
+
+		expectedNilColumns := map[int]struct{}{
+			0: {},
+			1: {},
+			4: {},
+			6: {},
+		}
+
+		for i := range returningColumns {
+			if _, ok := expectedNilColumns[i]; ok {
+				continue
+			}
+
+			setting := encryptor.querySelectSettings[i]
 
 			if returningColumns[i] != setting.columnName {
 				t.Fatalf("%v. Incorrect QueryDataItem \nTook: %v\nExpected: %v", i, setting.columnName, columns[i])

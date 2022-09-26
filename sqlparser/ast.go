@@ -1706,8 +1706,26 @@ type SetExpr struct {
 // OnDup represents an ON DUPLICATE KEY clause.
 type OnDup UpdateExprs
 
-// Returning represents RETURNING clause from postgresql syntex
+// Returning represents RETURNING clause from postgresql syntax
 type Returning SelectExprs
+
+// Format formats the node.
+func (node Returning) Format(buf *TrackedBuffer) {
+	prefix := " returning "
+	for _, n := range node {
+		buf.Myprintf("%s%v", prefix, n)
+		prefix = ", "
+	}
+}
+
+func (node Returning) walkSubtree(visit Visit) error {
+	for _, n := range node {
+		if err := Walk(visit, n); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // ColIdent is a case insensitive SQL identifier. It will be escaped with
 // backquotes if necessary.

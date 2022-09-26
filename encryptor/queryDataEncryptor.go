@@ -424,12 +424,24 @@ func (encryptor *QueryDataEncryptor) onReturning(ctx context.Context, returning 
 		return nil
 	}
 
-	for _, col := range returning {
-		colName, ok := col.(*sqlparser.ColName)
-		if !ok {
-			return errors.New("invalid returning format provided")
+	for _, item := range returning {
+		var colName *sqlparser.ColName
+		switch returningItem := item.(type) {
+		case *sqlparser.AliasedExpr:
+			switch expr := returningItem.Expr.(type) {
+			case *sqlparser.ColName:
+				colName = expr
+				break
+			default:
+				// skip all other not relevant types
+				querySelectSettings = append(querySelectSettings, nil)
+				continue
+			}
+		default:
+			// skip all other not relevant types: StarExpr & Nextval
+			querySelectSettings = append(querySelectSettings, nil)
+			continue
 		}
-
 		rawColName := colName.Name.String()
 		if columnSetting := schema.GetColumnEncryptionSettings(rawColName); columnSetting != nil {
 			querySelectSettings = append(querySelectSettings, &QueryDataItem{
