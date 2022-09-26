@@ -1707,17 +1707,7 @@ type SetExpr struct {
 type OnDup UpdateExprs
 
 // Returning represents RETURNING clause from postgresql syntex
-type Returning Exprs
-
-// replace implement Expr interface
-func (node Returning) replace(from, to Expr) bool {
-	for i := range node {
-		if replaceExprs(from, to, &node[i]) {
-			return true
-		}
-	}
-	return false
-}
+type Returning SelectExprs
 
 // ColIdent is a case insensitive SQL identifier. It will be escaped with
 // backquotes if necessary.
