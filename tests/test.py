@@ -4079,7 +4079,7 @@ class TestAcraRollback(BaseTestCase):
             self.sslmode='disable'
         if TEST_MYSQL:
             # https://github.com/go-sql-driver/mysql/
-            connection_string = "{user}:{password}@tcp({host}:{port})/{dbname}".format(
+            connection_string = "{user}:{password}@tcp({host}:{port})/{dbname}?tls=skip-verify".format(
                 user=DB_USER, password=DB_USER_PASSWORD, dbname=DB_NAME,
                 port=DB_PORT, host=DB_HOST
             )
@@ -5213,7 +5213,7 @@ class TestAcraRotateWithZone(BaseTestCase):
 
         if TEST_MYSQL:
             # test:test@tcp(127.0.0.1:3306)/test
-            connection_string = "{user}:{password}@tcp({host}:{port})/{db_name}".format(
+            connection_string = "{user}:{password}@tcp({host}:{port})/{db_name}?tls=skip-verify".format(
                 user=DB_USER, password=DB_USER_PASSWORD, host=DB_HOST,
                 port=DB_PORT, db_name=DB_NAME)
             mode_arg = '--mysql_enable'
@@ -5480,7 +5480,7 @@ class TestAcraRotate(TestAcraRotateWithZone):
 
         if TEST_MYSQL:
             # test:test@tcp(127.0.0.1:3306)/test
-            connection_string = "{user}:{password}@tcp({host}:{port})/{db_name}".format(
+            connection_string = "{user}:{password}@tcp({host}:{port})/{db_name}?tls=skip-verify".format(
                 user=DB_USER, password=DB_USER_PASSWORD, host=DB_HOST,
                 port=DB_PORT, db_name=DB_NAME)
             mode_arg = '--mysql_enable'
