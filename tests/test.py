@@ -7622,19 +7622,20 @@ class TestReturningProcessingMariaDB(TestReturningProcessingMixing, BaseTokeniza
     }
 
     def checkSkip(self):
-        if not TEST_MARIADB or TEST_WITH_TLS:
+        if not TEST_MARIADB:
             self.skipTest("Only for MariaDB")
         super().checkSkip()
 
     def build_raw_query_with_enum(self):
         id = get_random_id()
         # TODO(zhars, 2021-5-20): rewrite query when sqlalchemy will support RETURNING statements
+        # include literals 0, 1, null to be sure that we support non-column values too
         return 'INSERT INTO test_tokenization_specific_client_id ' \
                '(id, empty, token_bytes, token_i32, token_i64, token_str, token_email) ' \
                'VALUES ({}, {}, {}, {}, {}, \'{}\', \'{}\') ' \
-               'RETURNING test_tokenization_specific_client_id.id, test_tokenization_specific_client_id.token_str,' \
+               'RETURNING 0, 1 as literal, test_tokenization_specific_client_id.id, test_tokenization_specific_client_id.token_str,' \
                ' test_tokenization_specific_client_id.token_i64, test_tokenization_specific_client_id.token_email, ' \
-               'test_tokenization_specific_client_id.token_i32'.format(id, self.data['empty'], self.data['empty'], self.data['token_i32'], self.data['token_i64'], self.data['token_str'], self.data['token_email'])
+               'test_tokenization_specific_client_id.token_i32, NULL'.format(id, self.data['empty'], self.data['empty'], self.data['token_i32'], self.data['token_i64'], self.data['token_str'], self.data['token_email'])
 
     def build_raw_query_with_star(self):
         id = get_random_id()
@@ -7679,9 +7680,12 @@ class TestReturningProcessingPostgreSQL(TestReturningProcessingMixing, BaseToken
 
     def build_raw_query_with_enum(self):
         self.data['id'] = get_random_id()
+        # include literals 0, 1, null to be sure that we support non-column values too
         return self.specific_client_id_table.insert(). \
-            returning(self.specific_client_id_table.c.id, self.specific_client_id_table.c.token_str, self.specific_client_id_table.c.token_i64,
-                      self.specific_client_id_table.c.token_email, self.specific_client_id_table.c.token_i32), self.data
+                   returning(0, sa.literal('1').label('literal'),
+                             self.specific_client_id_table.c.id, self.specific_client_id_table.c.token_str, self.specific_client_id_table.c.token_i64,
+                             self.specific_client_id_table.c.token_email, self.specific_client_id_table.c.token_i32,
+                             sa.text('null')), self.data
 
     def build_raw_query_with_star(self):
         self.data['id'] = get_random_id()
