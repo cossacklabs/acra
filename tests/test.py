@@ -1982,15 +1982,17 @@ class BaseBinaryPostgreSQLTestCase(AsyncpgExecutorMixin, BaseTestCase):
         compile_kwargs = {"literal_binds": literal_binds}
         query = str(query.compile(compile_kwargs=compile_kwargs))
         values = []
+        param_counter = 1
         for placeholder, value in parameters.items():
             # SQLAlchemy default dialect has placeholders of form ":name".
             # PostgreSQL syntax is "$n", with 1-based sequential parameters.
             saPlaceholder = ':' + placeholder
             # SQLAlchemy has placeholders of form ":name_1" for literal value
             # https://docs.sqlalchemy.org/en/14/core/tutorial.html#operators
-            saPlaceholderIndex = saPlaceholder + '_' + str(len(values) + 1)
+            saPlaceholderIndex = saPlaceholder + '_' + str(param_counter)
             if saPlaceholderIndex in query:
                 saPlaceholder = saPlaceholderIndex
+                param_counter += 1
             pgPlaceholder = '$' + str(len(values) + 1)
             # Replace and keep values only for those placeholders which
             # are actually used in the query.
@@ -2122,13 +2124,16 @@ class BaseBinaryMySQLTestCase(MysqlExecutorMixin, BaseTestCase):
         # parse all parameters like `:id` in the query
         pattern_string = r'(:\w+)'
         res = re.findall(pattern_string, query, re.IGNORECASE | re.DOTALL)
+        param_counter = 1
         if len(res) > 0:
             for placeholder in res:
                 # parameters map contain values where keys without ':' so we need trim the placeholder before
                 key = placeholder.lstrip(':')
-                index_suffix = '_' + str(len(values) + 1)
-                if index_suffix in key:
-                    key = key.rstrip(index_suffix)
+                if key not in parameters.keys():
+                    index_suffix = '_' + str(param_counter)
+                    if index_suffix in key:
+                        key = key.rstrip(index_suffix)
+                        param_counter += 1
                 values.append(parameters[key])
                 query = query.replace(placeholder, '?')
         return query, tuple(values)
@@ -7221,6 +7226,10 @@ class BaseTokenization(BaseTestCase):
         """Execute SQLAlchemy INSERT query via AcraServer with "TEST_TLS_CLIENT_CERT"."""
         return self.engine1.execute(query, values)
 
+    def execute_via_1(self, query, values):
+        """Execute SQLAlchemy execute query via AcraServer with "TEST_TLS_CLIENT_CERT"."""
+        return self.engine1.execute(query, values)
+
     def insert_via_1_bulk(self, query, values):
         """Execute SQLAlchemy Bulk INSERT query via AcraServer with "TEST_TLS_CLIENT_CERT"."""
         self.engine1.execute(query.values(values))
@@ -7277,6 +7286,10 @@ class BaseTokenizationWithBinaryBindMySQL(BaseTokenization, BaseBinaryMySQLTestC
         query, parameters = self.compileBulkInsertQuery(query.values(values), values)
         return self.executor1.execute_prepared_statement_no_result(query, parameters)
 
+    def execute_via_1(self, query, values):
+        query, parameters = self.compileQuery(query, values)
+        self.executor1.execute_prepared_statement_no_result(query, parameters)
+
     def fetch_from_1(self, query, parameters={}, literal_binds=True):
         query, parameters = self.compileQuery(query, parameters=parameters, literal_binds=literal_binds)
         return self.executor1.execute_prepared_statement(query, parameters)
@@ -7303,6 +7316,10 @@ class BaseTokenizationWithBinaryPostgreSQL(BaseTokenization, BaseBinaryPostgreSQ
         """Execute SQLAlchemy Bulk INSERT query via AcraServer with "TEST_TLS_CLIENT_CERT"."""
         query, parameters = self.compileBulkInsertQuery(query.values(values), values)
         return self.executor1.execute_prepared_statement(query, parameters)
+
+    def execute_via_1(self, query, values):
+        query, parameters = self.compileQuery(query, values)
+        self.executor1.execute_prepared_statement(query, parameters)
 
     def fetch_from_1(self, query, parameters={}, literal_binds=True):
         query, parameters = self.compileQuery(query, parameters=parameters, literal_binds=literal_binds)
@@ -7388,8 +7405,10 @@ class TestSearchableTokenizationWithoutZone(BaseTokenization):
         )
         metadata.create_all(self.engine_raw, [default_client_id_table])
         self.engine1.execute(default_client_id_table.delete())
+
+        row_id = 1
         data = {
-            'id': 1,
+            'id': row_id,
             'nullable_column': None,
             'empty': b'',
             'token_i32': random_int32(),
@@ -7403,6 +7422,7 @@ class TestSearchableTokenizationWithoutZone(BaseTokenization):
         self.insert_via_1(default_client_id_table.insert(), data)
 
         columns = {
+            'id': default_client_id_table.c.id,
             'token_i32': default_client_id_table.c.token_i32,
             'token_i64': default_client_id_table.c.token_i64,
             'token_str': default_client_id_table.c.token_str,
@@ -7420,6 +7440,55 @@ class TestSearchableTokenizationWithoutZone(BaseTokenization):
                     self.assertEqual(source_data[0][k], data[k].encode('utf-8'))
                 else:
                     self.assertEqual(source_data[0][k], data[k])
+
+        new_token_str = random_str()
+        update_data = {
+            'token_str': new_token_str,
+            'token_i32': data['token_i32']
+        }
+
+        # test searchable tokenization in update where statements
+        query = sa.update(default_client_id_table).where(columns['token_i32'] == data['token_i32']).values(token_str=new_token_str)
+        self.execute_via_1(query, update_data)
+
+        parameters = {key: data[key]}
+        query = sa.select(default_client_id_table).where(columns[key] == data[key])
+        source_data = self.fetch_from_1(query, parameters, literal_binds=False)
+
+        if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+            self.assertEqual(source_data[0]['token_str'], new_token_str.encode('utf-8'))
+        else:
+            self.assertEqual(source_data[0]['token_str'], new_token_str)
+
+        row_id += 1
+        insert_data = {
+            'param_1': row_id,
+            'token_i32': data['token_i32']
+        }
+        select_columns = ['id', 'nullable_column', 'empty', 'token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email']
+        select_query = sa.select(sa.literal(row_id).label('id'), sa.column('nullable_column'), sa.column('empty'), columns['token_i32'], columns['token_i64'], columns['token_str'], columns['token_bytes'], columns['token_email']).\
+            where(columns['token_i32'] == data['token_i32'])
+
+        query = sa.insert(default_client_id_table).from_select(select_columns, select_query)
+        self.execute_via_1(query, insert_data)
+
+        # expect that data was encrypted with client_id which used to insert (client_id==keypair1)
+        source_data = self.fetch_from_1(
+            sa.select([default_client_id_table])
+            .where(default_client_id_table.c.id == row_id))
+
+        for k in ('token_i32', 'token_i64', 'token_bytes', 'token_email'):
+            if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+                self.assertEqual(source_data[0][k], data[k].encode('utf-8'))
+            else:
+                self.assertEqual(source_data[0][k], data[k])
+
+        # test searchable tokenization in update where statements
+        query = sa.delete(default_client_id_table).where(columns['token_str'] == update_data['token_str'])
+        self.execute_via_1(query, update_data)
+
+        source_data = self.fetch_from_1(sa.select([default_client_id_table]))
+        self.assertEqual(0, len(source_data))
 
 
 class TestTokenizationWithoutZone(BaseTokenization):

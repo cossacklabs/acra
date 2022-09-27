@@ -75,7 +75,7 @@ func (encryptor *TokenizeQuery) OnQuery(ctx context.Context, query base.OnQueryO
 			continue
 		}
 
-		err = queryEncryptor.UpdateExpressionValue(ctx, item.Expr.Right, encryptor.coder, encryptor.tokenizerDataWithSetting(item.Setting))
+		err = queryEncryptor.UpdateExpressionValue(ctx, item.Expr.Right, encryptor.coder, encryptor.getTokenizerDataWithSetting(item.Setting))
 		if err != nil {
 			logrus.WithError(err).Debugln("Failed to update expression")
 			return query, false, err
@@ -156,14 +156,17 @@ func (encryptor *TokenizeQuery) replaceValuesWithTokenizedData(ctx context.Conte
 			}
 		}
 
+		if encryptionSetting == nil {
+			continue
+		}
+
 		data, err := values[valueIndex].GetData(encryptionSetting)
 		if err != nil {
 			return values, false, err
 		}
 
-		tokenize := encryptor.tokenizerDataWithSetting(encryptionSetting)
-
-		tokenized, err := tokenize(ctx, data)
+		tokenizeFunc := encryptor.getTokenizerDataWithSetting(encryptionSetting)
+		tokenized, err := tokenizeFunc(ctx, data)
 		if err != nil {
 			logrus.WithError(err).WithField("index", valueIndex).Debug("Failed to encrypt column")
 			return values, false, err
@@ -174,7 +177,7 @@ func (encryptor *TokenizeQuery) replaceValuesWithTokenizedData(ctx context.Conte
 	return newValues, true, nil
 }
 
-func (encryptor *TokenizeQuery) tokenizerDataWithSetting(setting config.ColumnEncryptionSetting) func(ctx context.Context, dataToTokenize []byte) (tokenized []byte, err error) {
+func (encryptor *TokenizeQuery) getTokenizerDataWithSetting(setting config.ColumnEncryptionSetting) func(ctx context.Context, dataToTokenize []byte) (tokenized []byte, err error) {
 	return func(ctx context.Context, dataToTokenize []byte) (tokenized []byte, err error) {
 		accessContext := base.AccessContextFromContext(ctx)
 

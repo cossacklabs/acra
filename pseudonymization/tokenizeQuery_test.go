@@ -24,6 +24,7 @@ schemas:
   - table: test_table
     columns:
       - data1
+      - data2
     encrypted:
       - column: data1
         token_type: %s
@@ -56,9 +57,10 @@ schemas:
 		sessionData[args[0].(string)] = args[1]
 	})
 
+	clientID := []byte("client-id")
 	ctx := base.SetClientSessionToContext(context.Background(), clientSession)
 
-	accessContext := base.NewAccessContext(base.WithClientID([]byte("client-id")))
+	accessContext := base.NewAccessContext(base.WithClientID(clientID))
 	ctx = base.SetAccessContextToContext(ctx, accessContext)
 
 	parser := sqlparser.New(sqlparser.ModeDefault)
@@ -73,7 +75,14 @@ schemas:
 		Query     string
 	}
 	testcases := []testcase{
+		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "INSERT INTO table2 SELECT * FROM test_table WHERE data1='somedata';"},
+		{Value: []byte("test@gmail.com"), Type: common.TokenType_Email, TokenType: "email", Query: "INSERT INTO table2 SELECT * FROM test_table WHERE data1='test@gmail.com' and data2='ignoreddata';"},
+		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "UPDATE test_table SET kind = 'Dramatic' WHERE data1='somedata';"},
+		{Value: []byte("4444"), Type: common.TokenType_Int32, TokenType: "int32", Query: "UPDATE test_table SET kind = 'Dramatic' WHERE data1=4444 and data2='ignoreddata';"},
+		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "DELETE FROM test_table WHERE data1='somedata';"},
+		{Value: randomBytes, Type: common.TokenType_Bytes, TokenType: "bytes", Query: fmt.Sprintf("DELETE FROM test_table where data1='%s' or data2='ignoreddata'", encryptor2.PgEncodeToHexString(randomBytes))},
 		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "select data1 from test_table where data1='somedata'"},
+		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "select data1 from test_table where data1='somedata' and data2='ignoreddata'"},
 		{Value: []byte("333"), Type: common.TokenType_Int32, TokenType: "int32", Query: "select data1 from test_table where data1=333"},
 		{Value: []byte("33333333333333333"), Type: common.TokenType_Int64, TokenType: "int64", Query: "select data1 from test_table where data1=33333333333333333"},
 		{Value: []byte("test@gmail.com"), Type: common.TokenType_Email, TokenType: "email", Query: "select data1 from test_table where data1='test@gmail.com'"},
@@ -90,7 +99,7 @@ schemas:
 			TokenType:              tcase.TokenType,
 			ConsistentTokenization: true,
 		}
-		anonimized, err := tokenizer.Tokenize(tcase.Value, common.TokenContext{ClientID: []byte("client-id")}, &setting)
+		anonymized, err := tokenizer.Tokenize(tcase.Value, common.TokenContext{ClientID: clientID}, &setting)
 		assert.NoError(t, err)
 
 		newQuery, ok, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(tcase.Query, parser))
@@ -100,16 +109,39 @@ schemas:
 		stmt, err := newQuery.Statement()
 		assert.NoError(t, err)
 
-		selectQuery := stmt.(*sqlparser.Select)
+		var whereExp *sqlparser.Where
+		switch query := stmt.(type) {
+		case *sqlparser.Select:
+			whereExp = query.Where
+		case *sqlparser.Update:
+			whereExp = query.Where
+		case *sqlparser.Delete:
+			whereExp = query.Where
+		case *sqlparser.Insert:
+			selectInInsert, ok := query.Rows.(*sqlparser.Select)
+			if !ok {
+				panic("expect INSERT FROM SELECT queries")
+			}
+			whereExp = selectInInsert.Where
+		}
 
-		whereExpr := selectQuery.Where.Expr.(*sqlparser.ComparisonExpr)
-		rightExpr := whereExpr.Right.(*sqlparser.SQLVal)
+		var rightExpr *sqlparser.SQLVal
+		switch expr := whereExp.Expr.(type) {
+		case *sqlparser.ComparisonExpr:
+			rightExpr = expr.Right.(*sqlparser.SQLVal)
+		case *sqlparser.AndExpr:
+			rightExpr = expr.Left.(*sqlparser.ComparisonExpr).Right.(*sqlparser.SQLVal)
+			assert.Equal(t, expr.Right.(*sqlparser.ComparisonExpr).Right.(*sqlparser.SQLVal).Val, []byte("ignoreddata"))
+		case *sqlparser.OrExpr:
+			rightExpr = expr.Left.(*sqlparser.ComparisonExpr).Right.(*sqlparser.SQLVal)
+			assert.Equal(t, expr.Right.(*sqlparser.ComparisonExpr).Right.(*sqlparser.SQLVal).Val, []byte("ignoreddata"))
+		}
 
 		if tcase.Type == common.TokenType_Bytes {
-			assert.Equal(t, rightExpr.Val, encryptor2.PgEncodeToHexString(anonimized))
+			assert.Equal(t, rightExpr.Val, encryptor2.PgEncodeToHexString(anonymized))
 			continue
 		}
 
-		assert.Equal(t, rightExpr.Val, anonimized)
+		assert.Equal(t, rightExpr.Val, anonymized)
 	}
 }

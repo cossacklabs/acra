@@ -17,10 +17,14 @@ limitations under the License.
 package encryptor
 
 import (
+	"errors"
+
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/sirupsen/logrus"
 )
+
+var ErrUnsupportedQueryType = errors.New("unsupported Query type")
 
 // SearchableQueryFilterMode represent the mode work of SearchableQueryFilter
 type SearchableQueryFilterMode int
@@ -37,7 +41,7 @@ type SearchableExprItem struct {
 	Setting config.ColumnEncryptionSetting
 }
 
-// SearchableQueryFilter filter se
+// SearchableQueryFilter filter searchable expression based on SearchableQueryFilterMode
 type SearchableQueryFilter struct {
 	mode        SearchableQueryFilterMode
 	schemaStore config.TableSchemaStore
@@ -53,9 +57,13 @@ func NewSearchableQueryFilter(schemaStore config.TableSchemaStore, mode Searchab
 
 // FilterSearchableComparisons filter search comparisons from statement
 func (filter *SearchableQueryFilter) FilterSearchableComparisons(statement sqlparser.Statement) []SearchableExprItem {
-	// We are interested only in SELECT statements which access at least one encryptable table.
-	// If that's not the case, we have nothing to do here.
-	defaultTable, aliasedTables := filter.filterInterestingTables(statement)
+	tableExps, err := filter.filterTableExpressions(statement)
+	if err != nil {
+		logrus.Debugln("Unsupported search query")
+		return nil
+	}
+
+	defaultTable, aliasedTables := filter.filterInterestingTables(tableExps)
 	if len(aliasedTables) == 0 {
 		logrus.Debugln("No encryptable tables in search query")
 		return nil
@@ -77,14 +85,9 @@ func (filter *SearchableQueryFilter) FilterSearchableComparisons(statement sqlpa
 	return searchableExprs
 }
 
-func (filter *SearchableQueryFilter) filterInterestingTables(statement sqlparser.Statement) (*AliasedTableName, AliasToTableMap) {
-	// We are interested only in SELECT statements.
-	selectStatement, ok := statement.(*sqlparser.Select)
-	if !ok {
-		return nil, nil
-	}
+func (filter *SearchableQueryFilter) filterInterestingTables(fromExp sqlparser.TableExprs) (*AliasedTableName, AliasToTableMap) {
 	// Not all SELECT statements refer to tables at all.
-	tables := GetTablesWithAliases(selectStatement.From)
+	tables := GetTablesWithAliases(fromExp)
 	if len(tables) == 0 {
 		return nil, nil
 	}
@@ -99,6 +102,34 @@ func (filter *SearchableQueryFilter) filterInterestingTables(statement sqlparser
 		return nil, nil
 	}
 	return tables[0], NewAliasToTableMapFromTables(encryptableTables)
+}
+
+func (filter *SearchableQueryFilter) filterTableExpressions(statement sqlparser.Statement) (sqlparser.TableExprs, error) {
+	if filter.mode == QueryFilterModeConsistentTokenization {
+		switch query := statement.(type) {
+		case *sqlparser.Select:
+			return query.From, nil
+		case *sqlparser.Update:
+			return query.TableExprs, nil
+		case *sqlparser.Delete:
+			return query.TableExprs, nil
+		case *sqlparser.Insert:
+			// only support INSERT INTO table2 SELECT * FROM test_table WHERE data1='somedata' syntax for INSERTs
+			if selectInInsert, ok := query.Rows.(*sqlparser.Select); ok {
+				return selectInInsert.From, nil
+			}
+			return nil, ErrUnsupportedQueryType
+		default:
+			return nil, ErrUnsupportedQueryType
+		}
+	}
+
+	// TODO: extend with more query types for support for searchable encryption
+	selectStatement, ok := statement.(*sqlparser.Select)
+	if ok {
+		return selectStatement.From, nil
+	}
+	return nil, ErrUnsupportedQueryType
 }
 
 func (filter *SearchableQueryFilter) filterComparisonExprs(statement sqlparser.Statement) []*sqlparser.ComparisonExpr {
