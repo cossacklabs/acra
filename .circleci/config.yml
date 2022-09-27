@@ -325,7 +325,7 @@ jobs:
       - image: cossacklabs/ci-py-go-themis:0.93.0
       # use the same credentials for mysql db as for postgresql (which support was added first)
       # has latest tag on 2018.03.29
-      - image: cossacklabs/mariadb-ssl:10.3-1
+      - image: cossacklabs/mariadb-ssl:10.7.1
         environment:
           MYSQL_DATABASE: test
           MYSQL_USER: test
