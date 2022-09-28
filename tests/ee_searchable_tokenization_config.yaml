@@ -1,0 +1,27 @@
+schemas:
+  - table: test_tokenization_default_client_id
+    columns:
+      - id
+      - nullable
+      - empty
+      - token_i32
+      - token_i64
+      - token_str
+      - token_bytes
+      - token_email
+    encrypted:
+      - column: token_i32
+        token_type: int32
+        consistent_tokenization: true
+      - column: token_i64
+        token_type: int64
+        consistent_tokenization: true
+      - column: token_str
+        token_type: str
+        consistent_tokenization: true
+      - column: token_bytes
+        token_type: bytes
+        consistent_tokenization: true
+      - column: token_email
+        token_type: email
+        consistent_tokenization: true
