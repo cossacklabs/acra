@@ -1889,18 +1889,6 @@ func (node OnDup) walkSubtree(visit Visit) error {
 	return Walk(visit, UpdateExprs(node))
 }
 
-// Format formats the node.
-func (node Returning) Format(buf *TrackedBuffer) {
-	if node == nil {
-		return
-	}
-	buf.Myprintf(" returning %v", Exprs(node))
-}
-
-func (node Returning) walkSubtree(visit Visit) error {
-	return Walk(visit, Exprs(node))
-}
-
 // FormatForDialect formats the node for specified dialect
 func (node ColIdent) FormatForDialect(dialect dialect.Dialect, buf *TrackedBuffer) {
 	if node.quote != 0 {

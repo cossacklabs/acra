@@ -3023,17 +3023,14 @@ tuple_expression:
     }
   }
 
+// according to PGSQL docs, returning supports same expression as SELECT statement
+// https://www.postgresql.org/docs/14/dml-returning.html
 returning_opt:
   {
     $$ = nil
   }
-  |
-  RETURNING '*'
-  {
-    $$ = Returning{&StarExpr{}}
-  }
 |
-  RETURNING expression_list
+  RETURNING select_expression_list
   {
     $$ = Returning($2)
   }

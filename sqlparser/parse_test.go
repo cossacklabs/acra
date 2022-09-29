@@ -1432,7 +1432,22 @@ func TestCaseSensitivity(t *testing.T) {
 		output: "select next 1 values from t",
 	}, {
 		input: "select /* use */ 1 from t1 use index (A) where b = 1",
-	}}
+	},
+		// RETURNING with literals, aliased literals, column names with table name and without, null value
+		{
+			input: "INSERT INTO test_tokenization_specific_client_id (id, nullable_column, empty, token_i32, token_i64, token_str, token_bytes, token_email) " +
+				"VALUES (76226, NULL, '\\x'::bytea, 922401311,  -8618859720926082254, 'uOY5uD0tvF', '\\x00010203'::bytea, 'HJiJq6EzLK@HRgtzzOE5') " +
+				"RETURNING 0, '1' AS literal, id, test_tokenization_specific_client_id.token_str, test_tokenization_specific_client_id.token_i64, test_tokenization_specific_client_id.token_email, " +
+				"test_tokenization_specific_client_id.token_i32, null",
+			output: "insert into test_tokenization_specific_client_id(id, nullable_column, empty, token_i32, token_i64, token_str, token_bytes, token_email) values (76226, null, '\\x'::bytea, 922401311, -8618859720926082254, 'uOY5uD0tvF', '\\x00010203'::bytea, 'HJiJq6EzLK@HRgtzzOE5') returning 0, '1' as literal, id, test_tokenization_specific_client_id.token_str, test_tokenization_specific_client_id.token_i64, test_tokenization_specific_client_id.token_email, test_tokenization_specific_client_id.token_i32, null",
+		},
+		// RETURNING with literals, aliased literals, column names with table name and without, null value
+		{
+			input: "INSERT INTO test_tokenization_specific_client_id (id, nullable_column, empty, token_i32, token_i64, token_str, token_bytes, token_email) " +
+				"VALUES (76226, NULL, '\\x'::bytea, 922401311,  -8618859720926082254, 'uOY5uD0tvF', '\\x00010203'::bytea, 'HJiJq6EzLK@HRgtzzOE5') " +
+				"RETURNING *",
+			output: "insert into test_tokenization_specific_client_id(id, nullable_column, empty, token_i32, token_i64, token_str, token_bytes, token_email) values (76226, null, '\\x'::bytea, 922401311, -8618859720926082254, 'uOY5uD0tvF', '\\x00010203'::bytea, 'HJiJq6EzLK@HRgtzzOE5') returning *",
+		}}
 
 	parser := New(ModeStrict)
 	for _, tcase := range validSQL {

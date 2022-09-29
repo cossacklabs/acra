@@ -4092,7 +4092,7 @@ class TestAcraRollback(BaseTestCase):
             self.sslmode='disable'
         if TEST_MYSQL:
             # https://github.com/go-sql-driver/mysql/
-            connection_string = "{user}:{password}@tcp({host}:{port})/{dbname}".format(
+            connection_string = "{user}:{password}@tcp({host}:{port})/{dbname}?tls=skip-verify".format(
                 user=DB_USER, password=DB_USER_PASSWORD, dbname=DB_NAME,
                 port=DB_PORT, host=DB_HOST
             )
@@ -5226,7 +5226,7 @@ class TestAcraRotateWithZone(BaseTestCase):
 
         if TEST_MYSQL:
             # test:test@tcp(127.0.0.1:3306)/test
-            connection_string = "{user}:{password}@tcp({host}:{port})/{db_name}".format(
+            connection_string = "{user}:{password}@tcp({host}:{port})/{db_name}?tls=skip-verify".format(
                 user=DB_USER, password=DB_USER_PASSWORD, host=DB_HOST,
                 port=DB_PORT, db_name=DB_NAME)
             mode_arg = '--mysql_enable'
@@ -5493,7 +5493,7 @@ class TestAcraRotate(TestAcraRotateWithZone):
 
         if TEST_MYSQL:
             # test:test@tcp(127.0.0.1:3306)/test
-            connection_string = "{user}:{password}@tcp({host}:{port})/{db_name}".format(
+            connection_string = "{user}:{password}@tcp({host}:{port})/{db_name}?tls=skip-verify".format(
                 user=DB_USER, password=DB_USER_PASSWORD, host=DB_HOST,
                 port=DB_PORT, db_name=DB_NAME)
             mode_arg = '--mysql_enable'
@@ -7807,25 +7807,25 @@ class TestReturningProcessingMixing:
 
     def test_insert_returning_with_col_enum(self):
         source, hidden, data = self.insert_with_enum_and_return_data()
-        self.assertEqual(source[1], data['token_str'])
-        self.assertEqual(source[2], data['token_i64'])
-        self.assertEqual(source[3], data['token_email'])
-        self.assertEqual(source[4], data['token_i32'])
-        self.assertNotEqual(hidden[1], data['token_str'])
-        self.assertNotEqual(hidden[2], data['token_i64'])
-        self.assertNotEqual(hidden[3], data['token_email'])
-        self.assertNotEqual(hidden[4], data['token_i32'])
+        self.assertEqual(source['token_str'], data['token_str'])
+        self.assertEqual(source['token_i64'], data['token_i64'])
+        self.assertEqual(source['token_email'], data['token_email'])
+        self.assertEqual(source['token_i32'], data['token_i32'])
+        self.assertNotEqual(hidden['token_str'], data['token_str'])
+        self.assertNotEqual(hidden['token_i64'], data['token_i64'])
+        self.assertNotEqual(hidden['token_email'], data['token_email'])
+        self.assertNotEqual(hidden['token_i32'], data['token_i32'])
 
     def test_insert_returning_with_star(self):
         source, hidden, data = self.insert_with_star_and_return_data()
-        self.assertEqual(source[3], data['token_i32'])
-        self.assertEqual(source[4], data['token_i64'])
-        self.assertEqual(source[5], data['token_str'])
-        self.assertEqual(source[7], data['token_email'])
-        self.assertNotEqual(hidden[3], data['token_i32'])
-        self.assertNotEqual(hidden[4], data['token_i64'])
-        self.assertNotEqual(hidden[5], data['token_str'])
-        self.assertNotEqual(hidden[7], data['token_email'])
+        self.assertEqual(source['token_i32'], data['token_i32'])
+        self.assertEqual(source['token_i64'], data['token_i64'])
+        self.assertEqual(source['token_str'], data['token_str'])
+        self.assertEqual(source['token_email'], data['token_email'])
+        self.assertNotEqual(hidden['token_i32'], data['token_i32'])
+        self.assertNotEqual(hidden['token_i64'], data['token_i64'])
+        self.assertNotEqual(hidden['token_str'], data['token_str'])
+        self.assertNotEqual(hidden['token_email'], data['token_email'])
 
 
 class TestReturningProcessingMariaDB(TestReturningProcessingMixing, BaseTokenization):
@@ -7840,19 +7840,20 @@ class TestReturningProcessingMariaDB(TestReturningProcessingMixing, BaseTokeniza
     }
 
     def checkSkip(self):
-        if not TEST_MARIADB or TEST_WITH_TLS:
+        if not TEST_MARIADB:
             self.skipTest("Only for MariaDB")
         super().checkSkip()
 
     def build_raw_query_with_enum(self):
         id = get_random_id()
         # TODO(zhars, 2021-5-20): rewrite query when sqlalchemy will support RETURNING statements
+        # include literals 0, 1, null to be sure that we support non-column values too
         return 'INSERT INTO test_tokenization_specific_client_id ' \
                '(id, empty, token_bytes, token_i32, token_i64, token_str, token_email) ' \
                'VALUES ({}, {}, {}, {}, {}, \'{}\', \'{}\') ' \
-               'RETURNING test_tokenization_specific_client_id.id, test_tokenization_specific_client_id.token_str,' \
+               'RETURNING 0, 1 as literal, test_tokenization_specific_client_id.id, test_tokenization_specific_client_id.token_str,' \
                ' test_tokenization_specific_client_id.token_i64, test_tokenization_specific_client_id.token_email, ' \
-               'test_tokenization_specific_client_id.token_i32'.format(id, self.data['empty'], self.data['empty'], self.data['token_i32'], self.data['token_i64'], self.data['token_str'], self.data['token_email'])
+               'test_tokenization_specific_client_id.token_i32, NULL'.format(id, self.data['empty'], self.data['empty'], self.data['token_i32'], self.data['token_i64'], self.data['token_str'], self.data['token_email'])
 
     def build_raw_query_with_star(self):
         id = get_random_id()
@@ -7897,9 +7898,12 @@ class TestReturningProcessingPostgreSQL(TestReturningProcessingMixing, BaseToken
 
     def build_raw_query_with_enum(self):
         self.data['id'] = get_random_id()
+        # include literals 0, 1, null to be sure that we support non-column values too
         return self.specific_client_id_table.insert(). \
-            returning(self.specific_client_id_table.c.id, self.specific_client_id_table.c.token_str, self.specific_client_id_table.c.token_i64,
-                      self.specific_client_id_table.c.token_email, self.specific_client_id_table.c.token_i32), self.data
+                   returning(0, sa.literal('1').label('literal'),
+                             self.specific_client_id_table.c.id, self.specific_client_id_table.c.token_str, self.specific_client_id_table.c.token_i64,
+                             self.specific_client_id_table.c.token_email, self.specific_client_id_table.c.token_i32,
+                             sa.text('null')), self.data
 
     def build_raw_query_with_star(self):
         self.data['id'] = get_random_id()
@@ -7921,10 +7925,12 @@ class TestReturningProcessingPostgreSQL(TestReturningProcessingMixing, BaseToken
         self.fetch_from_2(sa.select([self.specific_client_id_table]).where(self.specific_client_id_table.c.id == get_random_id()))
 
         source_query, data = self.build_raw_query_with_star()
-        source = self.engine2.execute(source_query, data).fetchone()
+        with self.engine2.connect() as connection:
+            source = connection.execute(source_query, data).fetchone()
 
         hidden_query, data = self.build_raw_query_with_star()
-        hidden = self.engine1.execute(hidden_query, data).fetchone()
+        with self.engine1.connect() as connection:
+            hidden = connection.execute(hidden_query, data).fetchone()
         return source, hidden, self.data
 
 
