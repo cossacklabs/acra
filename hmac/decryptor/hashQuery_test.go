@@ -35,11 +35,10 @@ func TestSearchablePreparedStatementsWithTextFormat(t *testing.T) {
   - table: test_table
     columns:
       - data1
+      - data2
     encrypted:
       - column: data1
         searchable: true`
-
-	query := `select data1 from test_table where data1=$1`
 
 	schema, err := config.MapTableSchemaStoreFromConfig([]byte(schemaConfig))
 	if err != nil {
@@ -64,36 +63,48 @@ func TestSearchablePreparedStatementsWithTextFormat(t *testing.T) {
 	}), mock.Anything).Return(nil)
 	_ = bindValue
 
-	queryObj := base.NewOnQueryObjectFromQuery(query, parser)
-	queryObj, _, err = encryptor.OnQuery(ctx, queryObj)
-	if err != nil {
-		t.Fatal(err)
+	type testcase struct {
+		Query string
 	}
-	bindPlaceholders := encryptor2.PlaceholderSettingsFromClientSession(clientSession)
-	if len(bindPlaceholders) != 1 {
-		t.Fatal("Not found expected amount of placeholders")
+	testcases := []testcase{
+		{Query: "SELECT data1 from test_table WHERE data1=$1"},
+		{Query: "UPDATE test_table SET kind = 'kind' WHERE data1=$1"},
+		{Query: "INSERT INTO table2 SELECT * FROM test_table WHERE data1=$1 and data2=$2"},
+		{Query: "DELETE FROM test_table WHERE data1=$1"},
+		{Query: "DELETE FROM test_table WHERE data1=$1 OR data2=$2"},
 	}
-	queryObj = base.NewOnQueryObjectFromQuery(query, parser)
-	statement, err := queryObj.Statement()
-	if err != nil {
-		t.Fatal(err)
-	}
-	newVals, ok, err := encryptor.OnBind(ctx, statement, []base.BoundValue{boundValue})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ok {
-		t.Fatal("Values should be changed")
-	}
-	if len(newVals) != 1 {
-		t.Fatal("Invalid amount of bound values")
-	}
-	setting := schema.GetTableSchema("test_table").GetColumnEncryptionSettings("data1")
-	newData, err := newVals[0].GetData(setting)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if bytes.Equal(newData, sourceBindValue) {
-		t.Fatal("Data wasn't changed")
+	for _, testcase := range testcases {
+		queryObj := base.NewOnQueryObjectFromQuery(testcase.Query, parser)
+		queryObj, _, err = encryptor.OnQuery(ctx, queryObj)
+		if err != nil {
+			t.Fatal(err)
+		}
+		bindPlaceholders := encryptor2.PlaceholderSettingsFromClientSession(clientSession)
+		if len(bindPlaceholders) != 1 {
+			t.Fatal("Not found expected amount of placeholders")
+		}
+		queryObj = base.NewOnQueryObjectFromQuery(testcase.Query, parser)
+		statement, err := queryObj.Statement()
+		if err != nil {
+			t.Fatal(err)
+		}
+		newVals, ok, err := encryptor.OnBind(ctx, statement, []base.BoundValue{boundValue})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !ok {
+			t.Fatal("Values should be changed")
+		}
+		if len(newVals) != 1 {
+			t.Fatal("Invalid amount of bound values")
+		}
+		setting := schema.GetTableSchema("test_table").GetColumnEncryptionSettings("data1")
+		newData, err := newVals[0].GetData(setting)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Equal(newData, sourceBindValue) {
+			t.Fatal("Data wasn't changed")
+		}
 	}
 }
