@@ -529,7 +529,8 @@ def get_engine_connection_string(connection_string, dbname):
     addr = urlparse(connection_string)
     port = addr.port
     if connection_string.startswith('tcp'):
-        return get_postgresql_tcp_connection_string(port, dbname)
+        # we should not change hostname becase connection_string may be for acra-server or database
+        return get_postgresql_tcp_connection_string(port, dbname, host=addr.hostname)
     else:
         port = re.search(r'\.s\.PGSQL\.(\d+)', addr.path)
         if port:
@@ -541,8 +542,8 @@ def get_postgresql_unix_connection_string(port, dbname):
     return '{}:///{}?host={}&port={}'.format(DB_DRIVER, dbname, PG_UNIX_HOST, port)
 
 
-def get_postgresql_tcp_connection_string(port, dbname):
-    return '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, port, dbname)
+def get_postgresql_tcp_connection_string(port, dbname, host=DB_HOST):
+    return '{}://{}:{}/{}'.format(DB_DRIVER, host, port, dbname)
 
 
 def get_tcp_connection_string(port):
