@@ -542,7 +542,7 @@ def get_postgresql_unix_connection_string(port, dbname):
 
 
 def get_postgresql_tcp_connection_string(port, dbname):
-    return '{}://localhost:{}/{}'.format(DB_DRIVER, port, dbname)
+    return '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, port, dbname)
 
 
 def get_tcp_connection_string(port):
