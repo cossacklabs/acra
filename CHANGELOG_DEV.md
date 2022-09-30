@@ -1,4 +1,7 @@
 # 0.94.0 - 2022-09-21
+- Extended SQL syntax for searchable encryption for PostgreSQL/MySQL with UPDATE/DELETE/INSERTS queries.
+
+# 0.94.0 - 2022-09-21
 - Implemented searchable tokenization for PostgreSQL/MySQL for text/binary protocols
 
 # 0.94.0 - 2022-09-19
