@@ -109,9 +109,10 @@ gen_crl() {
         -out "${OUT_DIR}/$signer/crl.pem"
 }
 
+# *-buildbot used in our buildbot environment to re-use CRL/OCSP artifacts and registries
 declare -a names=(mysql postgresql acra-writer acra-writer-2
     acra-writer-revoked acra-server ocsp-responder intermediate-ca vault
-    acra-client redis consul)
+    acra-client redis consul mysql-buildbot postgresql-buildbot)
 for name in "${names[@]}"; do
     gen_cert ca $name
 
