@@ -29,6 +29,19 @@ schemas:
       - column: data1
         token_type: %s
         consistent_tokenization: true
+
+      - column: data2
+        token_type: %s
+        consistent_tokenization: true
+
+  - table: test_table_test
+    columns:
+      - row_data1
+      - data2
+    encrypted:
+      - column: row_data1
+        token_type: %s
+        consistent_tokenization: true
 `
 	tokenStorage, err := storage.NewMemoryTokenStorage()
 	assert.NoError(t, err)
@@ -74,15 +87,20 @@ schemas:
 		TokenType string
 		Query     string
 	}
+
 	testcases := []testcase{
 		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "INSERT INTO table2 SELECT * FROM test_table WHERE data1='somedata';"},
-		{Value: []byte("test@gmail.com"), Type: common.TokenType_Email, TokenType: "email", Query: "INSERT INTO table2 SELECT * FROM test_table WHERE data1='test@gmail.com' and data2='ignoreddata';"},
+		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "SELECT * FROM table1 t1 inner join test_table t2 on  t2.data1='somedata' and t2.name=t1.name"},
+		//just some test some inner join with filter on t2.data1=t1.name to test printing some warning log that searchable encryption can be applied only to value comparison
+		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "SELECT * FROM table1 t1 inner join test_table t2 on t2.data1='somedata' and t2.data2=t1.name"},
+		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "SELECT * FROM table1 t1 inner join test_table t2 on  t2.data1='somedata' inner join test_table_test t3 on  t3.row_data1='somedata' and t3.name=t1.name"},
+		{Value: []byte("test@gmail.com"), Type: common.TokenType_Email, TokenType: "email", Query: "INSERT INTO table2 SELECT * FROM test_table WHERE data1='test@gmail.com' and data_ignored='ignoreddata';"},
 		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "UPDATE test_table SET kind = 'Dramatic' WHERE data1='somedata';"},
-		{Value: []byte("4444"), Type: common.TokenType_Int32, TokenType: "int32", Query: "UPDATE test_table SET kind = 'Dramatic' WHERE data1=4444 and data2='ignoreddata';"},
+		{Value: []byte("4444"), Type: common.TokenType_Int32, TokenType: "int32", Query: "UPDATE test_table SET kind = 'Dramatic' WHERE data1=4444 and data_ignored='ignoreddata';"},
 		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "DELETE FROM test_table WHERE data1='somedata';"},
-		{Value: randomBytes, Type: common.TokenType_Bytes, TokenType: "bytes", Query: fmt.Sprintf("DELETE FROM test_table where data1='%s' or data2='ignoreddata'", encryptor2.PgEncodeToHexString(randomBytes))},
+		{Value: randomBytes, Type: common.TokenType_Bytes, TokenType: "bytes", Query: fmt.Sprintf("DELETE FROM test_table where data1='%s' or data_ignored='ignoreddata'", encryptor2.PgEncodeToHexString(randomBytes))},
 		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "select data1 from test_table where data1='somedata'"},
-		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "select data1 from test_table where data1='somedata' and data2='ignoreddata'"},
+		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "select data1 from test_table where data1='somedata' and data_ignored='ignoreddata'"},
 		{Value: []byte("333"), Type: common.TokenType_Int32, TokenType: "int32", Query: "select data1 from test_table where data1=333"},
 		{Value: []byte("33333333333333333"), Type: common.TokenType_Int64, TokenType: "int64", Query: "select data1 from test_table where data1=33333333333333333"},
 		{Value: []byte("test@gmail.com"), Type: common.TokenType_Email, TokenType: "email", Query: "select data1 from test_table where data1='test@gmail.com'"},
@@ -90,7 +108,7 @@ schemas:
 	}
 
 	for _, tcase := range testcases {
-		schema, err := config.MapTableSchemaStoreFromConfig([]byte(fmt.Sprintf(schemaConfigTemplate, tcase.TokenType)))
+		schema, err := config.MapTableSchemaStoreFromConfig([]byte(fmt.Sprintf(schemaConfigTemplate, tcase.TokenType, tcase.TokenType, tcase.TokenType)))
 		assert.NoError(t, err)
 
 		encryptor := NewPostgresqlTokenizeQuery(schema, tokenEncryptor)
@@ -109,39 +127,48 @@ schemas:
 		stmt, err := newQuery.Statement()
 		assert.NoError(t, err)
 
-		var whereExp *sqlparser.Where
-		switch query := stmt.(type) {
-		case *sqlparser.Select:
-			whereExp = query.Where
-		case *sqlparser.Update:
-			whereExp = query.Where
-		case *sqlparser.Delete:
-			whereExp = query.Where
-		case *sqlparser.Insert:
-			selectInInsert, ok := query.Rows.(*sqlparser.Select)
-			if !ok {
-				panic("expect INSERT FROM SELECT queries")
+		var whereExps = make([]*sqlparser.Where, 0)
+		err = sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
+			switch nodeType := node.(type) {
+			case *sqlparser.Where:
+				whereExps = append(whereExps, nodeType)
+			case sqlparser.JoinCondition:
+				whereExps = append(whereExps, &sqlparser.Where{
+					Type: "on",
+					Expr: nodeType.On,
+				})
 			}
-			whereExp = selectInInsert.Where
-		}
+			return true, nil
+		}, stmt)
 
-		var rightExpr *sqlparser.SQLVal
-		switch expr := whereExp.Expr.(type) {
-		case *sqlparser.ComparisonExpr:
-			rightExpr = expr.Right.(*sqlparser.SQLVal)
-		case *sqlparser.AndExpr:
-			rightExpr = expr.Left.(*sqlparser.ComparisonExpr).Right.(*sqlparser.SQLVal)
-			assert.Equal(t, expr.Right.(*sqlparser.ComparisonExpr).Right.(*sqlparser.SQLVal).Val, []byte("ignoreddata"))
-		case *sqlparser.OrExpr:
-			rightExpr = expr.Left.(*sqlparser.ComparisonExpr).Right.(*sqlparser.SQLVal)
-			assert.Equal(t, expr.Right.(*sqlparser.ComparisonExpr).Right.(*sqlparser.SQLVal).Val, []byte("ignoreddata"))
-		}
+		for _, whereExp := range whereExps {
+			if whereExp == nil {
+				continue
+			}
 
-		if tcase.Type == common.TokenType_Bytes {
-			assert.Equal(t, rightExpr.Val, encryptor2.PgEncodeToHexString(anonymized))
-			continue
-		}
+			var lRightExpr *sqlparser.SQLVal
+			switch expr := whereExp.Expr.(type) {
+			case *sqlparser.ComparisonExpr:
+				lRightExpr = expr.Right.(*sqlparser.SQLVal)
+			case *sqlparser.AndExpr:
+				lRightExpr = expr.Left.(*sqlparser.ComparisonExpr).Right.(*sqlparser.SQLVal)
 
-		assert.Equal(t, rightExpr.Val, anonymized)
+				rRightExpr := expr.Right.(*sqlparser.ComparisonExpr).Right
+				if sqlVal, ok := rRightExpr.(*sqlparser.SQLVal); ok {
+					assert.Equal(t, sqlVal.Val, []byte("ignoreddata"))
+				}
+
+			case *sqlparser.OrExpr:
+				lRightExpr = expr.Left.(*sqlparser.ComparisonExpr).Right.(*sqlparser.SQLVal)
+				assert.Equal(t, expr.Right.(*sqlparser.ComparisonExpr).Right.(*sqlparser.SQLVal).Val, []byte("ignoreddata"))
+			}
+
+			if tcase.Type == common.TokenType_Bytes {
+				assert.Equal(t, lRightExpr.Val, encryptor2.PgEncodeToHexString(anonymized))
+				continue
+			}
+
+			assert.Equal(t, lRightExpr.Val, anonymized)
+		}
 	}
 }

@@ -18,7 +18,6 @@ package encryptor
 
 import (
 	"errors"
-
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/sirupsen/logrus"
@@ -63,29 +62,39 @@ func (filter *SearchableQueryFilter) FilterSearchableComparisons(statement sqlpa
 		return nil
 	}
 
-	defaultTable, aliasedTables := filter.filterInterestingTables(tableExps)
+	defaultTables, aliasedTables := filter.filterInterestingTables(tableExps)
 	if len(aliasedTables) == 0 {
 		logrus.Debugln("No encryptable tables in search query")
 		return nil
 	}
-	// Now take a closer look at WHERE clauses of the statement. We need only expressions
-	// which are simple equality comparisons, like "WHERE column = value".
-	exprs := filter.filterComparisonExprs(statement)
-	if len(exprs) == 0 {
-		logrus.Debugln("No eligible comparisons in search query")
-		return nil
+
+	searchableExprs := make(map[string]SearchableExprItem)
+	for _, defaultTable := range defaultTables {
+		// And among those expressions, not all may refer to columns with searchable encryption/tokenization
+		// enabled for them. Leave only those expressions which are searchable.
+		filteredExprs := filter.filterComparisons(statement, defaultTable, aliasedTables)
+		if len(filteredExprs) == 0 {
+			logrus.Debugln("No searchable comparisons in search query")
+			return nil
+		}
+
+		for _, expr := range filteredExprs {
+			exprKey := sqlparser.String(expr.Expr)
+			if _, ok := searchableExprs[exprKey]; !ok {
+				searchableExprs[exprKey] = expr
+			}
+		}
 	}
-	// And among those expressions, not all may refer to columns with searchable encryption
-	// enabled for them. Leave only those expressions which are searchable.
-	searchableExprs := filter.filterComparisons(exprs, defaultTable, aliasedTables)
-	if len(exprs) == 0 {
-		logrus.Debugln("No searchable comparisons in search query")
-		return nil
+
+	res := make([]SearchableExprItem, 0, len(searchableExprs))
+	for _, expr := range searchableExprs {
+		res = append(res, expr)
 	}
-	return searchableExprs
+
+	return res
 }
 
-func (filter *SearchableQueryFilter) filterInterestingTables(fromExp sqlparser.TableExprs) (*AliasedTableName, AliasToTableMap) {
+func (filter *SearchableQueryFilter) filterInterestingTables(fromExp sqlparser.TableExprs) ([]*AliasedTableName, AliasToTableMap) {
 	// Not all SELECT statements refer to tables at all.
 	tables := GetTablesWithAliases(fromExp)
 	if len(tables) == 0 {
@@ -101,7 +110,7 @@ func (filter *SearchableQueryFilter) filterInterestingTables(fromExp sqlparser.T
 	if len(encryptableTables) == 0 {
 		return nil, nil
 	}
-	return tables[0], NewAliasToTableMapFromTables(encryptableTables)
+	return encryptableTables, NewAliasToTableMapFromTables(encryptableTables)
 }
 
 func (filter *SearchableQueryFilter) filterTableExpressions(statement sqlparser.Statement) (sqlparser.TableExprs, error) {
@@ -132,39 +141,31 @@ func (filter *SearchableQueryFilter) filterTableExpressions(statement sqlparser.
 	return nil, ErrUnsupportedQueryType
 }
 
-func (filter *SearchableQueryFilter) filterComparisonExprs(statement sqlparser.Statement) []*sqlparser.ComparisonExpr {
+func (filter *SearchableQueryFilter) filterComparisons(statement sqlparser.Statement, defaultTable *AliasedTableName, aliasedTables AliasToTableMap) []SearchableExprItem {
 	// Walk through WHERE clauses of a SELECT statements...
 	whereExprs, err := getWhereStatements(statement)
 	if err != nil {
 		logrus.WithError(err).Debugln("Failed to extract WHERE clauses")
 		return nil
 	}
-	// ...and find all eligible comparison expressions in them.
+
 	var exprs []*sqlparser.ComparisonExpr
 	for _, whereExpr := range whereExprs {
-		comparisonExprs, err := getEqualComparisonExprs(whereExpr)
+		comparisonExprs, err := filter.getEqualComparisonExprs(whereExpr, defaultTable, aliasedTables)
 		if err != nil {
 			logrus.WithError(err).Debugln("Failed to extract comparison expressions")
 			return nil
 		}
+
 		exprs = append(exprs, comparisonExprs...)
 	}
-	return exprs
-}
 
-func (filter *SearchableQueryFilter) filterComparisons(exprs []*sqlparser.ComparisonExpr, defaultTable *AliasedTableName, aliasedTables AliasToTableMap) []SearchableExprItem {
-	filtered := make([]SearchableExprItem, 0, len(exprs))
+	filtered := make([]SearchableExprItem, 0)
 	for _, expr := range exprs {
 		// Leave out comparisons of columns which do not have a schema after alias resolution.
 		column := expr.Left.(*sqlparser.ColName)
-		schema := filter.getTableSchemaOfColumn(column, defaultTable, aliasedTables)
-		if schema == nil {
-			continue
-		}
-		// Also leave out those columns which are not searchable.
-		columnName := column.Name.String()
-		encryptionSetting := schema.GetColumnEncryptionSettings(columnName)
 
+		encryptionSetting := filter.getColumnSetting(column, defaultTable, aliasedTables)
 		if encryptionSetting == nil {
 			continue
 		}
@@ -178,11 +179,22 @@ func (filter *SearchableQueryFilter) filterComparisons(exprs []*sqlparser.Compar
 			filtered = append(filtered, SearchableExprItem{Expr: expr, Setting: encryptionSetting})
 		}
 	}
+
 	return filtered
 }
 
+func (filter *SearchableQueryFilter) getColumnSetting(column *sqlparser.ColName, defaultTable *AliasedTableName, aliasedTables AliasToTableMap) config.ColumnEncryptionSetting {
+	schema := filter.getTableSchemaOfColumn(column, defaultTable, aliasedTables)
+	if schema == nil {
+		return nil
+	}
+	// Also leave out those columns which are not searchable.
+	columnName := column.Name.String()
+	return schema.GetColumnEncryptionSettings(columnName)
+}
+
 func (filter *SearchableQueryFilter) getTableSchemaOfColumn(column *sqlparser.ColName, defaultTable *AliasedTableName, aliasedTables AliasToTableMap) config.TableSchema {
-	if column.Qualifier.Qualifier.IsEmpty() {
+	if column.Qualifier.Qualifier.IsEmpty() && column.Qualifier.Name.IsEmpty() {
 		return filter.schemaStore.GetTableSchema(defaultTable.TableName.Name.String())
 	}
 	tableName := aliasedTables[column.Qualifier.Name.String()]
@@ -192,9 +204,14 @@ func (filter *SearchableQueryFilter) getTableSchemaOfColumn(column *sqlparser.Co
 func getWhereStatements(stmt sqlparser.Statement) ([]*sqlparser.Where, error) {
 	var whereStatements []*sqlparser.Where
 	err := sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
-		where, ok := node.(*sqlparser.Where)
-		if ok {
-			whereStatements = append(whereStatements, where)
+		switch nodeType := node.(type) {
+		case *sqlparser.Where:
+			whereStatements = append(whereStatements, nodeType)
+		case sqlparser.JoinCondition:
+			whereStatements = append(whereStatements, &sqlparser.Where{
+				Type: "on",
+				Expr: nodeType.On,
+			})
 		}
 		return true, nil
 	}, stmt)
@@ -210,10 +227,37 @@ func isSupportedSQLVal(val *sqlparser.SQLVal) bool {
 }
 
 // getEqualComparisonExprs return only <ColName> = <VALUE> or <ColName> != <VALUE> or <ColName> <=> <VALUE> expressions
-func getEqualComparisonExprs(stmt sqlparser.SQLNode) ([]*sqlparser.ComparisonExpr, error) {
+
+func (filter *SearchableQueryFilter) getEqualComparisonExprs(stmt sqlparser.SQLNode, defaultTable *AliasedTableName, aliasedTables AliasToTableMap) ([]*sqlparser.ComparisonExpr, error) {
 	var exprs []*sqlparser.ComparisonExpr
 	err := sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
 		if comparisonExpr, ok := node.(*sqlparser.ComparisonExpr); ok {
+			lColumn := comparisonExpr.Left.(*sqlparser.ColName)
+
+			lColumnSetting := filter.getColumnSetting(lColumn, defaultTable, aliasedTables)
+			if lColumnSetting == nil {
+				return true, nil
+			}
+
+			// check if left column isSearchable or consistent tokenized and right column is sqlparser.ColName
+			// we want to log the warn message that searchable tokenization/encryption can work only with <ColName> = <VALUE> statements
+			// however, there is one exception - for searchable encryption it can be the scenario where we have:  join table1 t1 on t1.surname = t2.surname
+			// and if t1 and t2 are tables from encryptor_config and t1.surname and t2.surname are searchable, we want to have: join table1 t1 on substr(t1.surname, ...) = substr(t2.surname, ...)
+			if lColumnSetting.IsSearchable() || lColumnSetting.IsConsistentTokenization() {
+				if rColumn, ok := comparisonExpr.Right.(*sqlparser.ColName); ok {
+					// get right columnSetting to check weather it is searchable too
+					rColumnSetting := filter.getColumnSetting(rColumn, defaultTable, aliasedTables)
+					if rColumnSetting != nil {
+						if rColumnSetting.IsSearchable() {
+							exprs = append(exprs, comparisonExpr)
+							return true, nil
+						}
+					}
+
+					logrus.Infoln("Searchable encryption/tokenization support equal comparison only by SQLVal but no by ColName")
+				}
+			}
+
 			if sqlVal, ok := comparisonExpr.Right.(*sqlparser.SQLVal); ok && isSupportedSQLVal(sqlVal) {
 				if comparisonExpr.Operator == sqlparser.EqualStr || comparisonExpr.Operator == sqlparser.NotEqualStr || comparisonExpr.Operator == sqlparser.NullSafeEqualStr {
 					if _, ok := comparisonExpr.Left.(*sqlparser.ColName); ok {
