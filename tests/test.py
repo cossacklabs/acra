@@ -10361,7 +10361,7 @@ class TestPostgresqlConnectWithTLSPrefer(BaseTestCase):
             # which would ask for ssl connection first.
             # And then after receiving a deny, it would ask for a plain connection
             conn = await asyncpg.connect(
-                host=DB_HOST, port=self.ACRASERVER_PORT, database=DB_NAME,
+                host='localhost', port=self.ACRASERVER_PORT, database=DB_NAME,
                 user=DB_USER, password=DB_USER_PASSWORD,
                 ssl='prefer',
                 **asyncpg_connect_args
