@@ -976,9 +976,6 @@ class AsyncpgExecutor(QueryExecutor):
     TextFormat = 'text'
     BinaryFormat = 'binary'
 
-    def _connect(self, loop):
-        return loop.run_until_complete(self.connect())
-
     async def connect(self):
         ssl_context = ssl.create_default_context(cafile=self.connection_args.ssl_ca)
         ssl_context.load_cert_chain(self.connection_args.ssl_cert, self.connection_args.ssl_key)
@@ -990,55 +987,53 @@ class AsyncpgExecutor(QueryExecutor):
                 ssl=ssl_context,
             **asyncpg_connect_args)
 
-    def _set_text_format(self, conn):
+    async def _set_text_format(self, conn):
         """Force text format to numeric types."""
-        loop = asyncio.get_event_loop()
         for pg_type in ['int2', 'int4', 'int8']:
-            loop.run_until_complete(
-                conn.set_type_codec(pg_type,
+          await conn.set_type_codec(pg_type,
                     schema='pg_catalog',
                     encoder=str,
                     decoder=int,
                     format='text')
-            )
         for pg_type in ['float4', 'float8']:
-            loop.run_until_complete(
-                conn.set_type_codec(pg_type,
+            await conn.set_type_codec(pg_type,
                     schema='pg_catalog',
                     encoder=str,
                     decoder=float,
                     format='text')
-            )
 
     def execute_prepared_statement(self, query, args=None):
+        async def _execute_prepared_statement():
+            conn = await self.connect()
+            try:
+                if self.connection_args.format == self.TextFormat:
+                    await self._set_text_format(conn)
+                stmt = await conn.prepare(query, timeout=STATEMENT_TIMEOUT)
+                result = await stmt.fetch(*args, timeout=STATEMENT_TIMEOUT)
+                return result
+            finally:
+                await conn.close()
         if not args:
             args = []
-        loop = asyncio.get_event_loop()
-        conn = self._connect(loop)
-        if self.connection_args.format == self.TextFormat:
-            self._set_text_format(conn)
-        try:
-            stmt = loop.run_until_complete(
-                conn.prepare(query, timeout=STATEMENT_TIMEOUT))
-            result = loop.run_until_complete(
-                stmt.fetch(*args, timeout=STATEMENT_TIMEOUT))
+        with contextlib.closing(asyncio.new_event_loop()) as loop:
+            result = loop.run_until_complete(_execute_prepared_statement())
             return result
-        finally:
-            conn.terminate()
 
     def execute(self, query, args=None):
+        async def _execute():
+            conn = await self.connect()
+            try:
+                if self.connection_args.format == self.TextFormat:
+                    await self._set_text_format(conn)
+                result = await conn.fetch(query, *args, timeout=STATEMENT_TIMEOUT)
+                return result
+            finally:
+                await conn.close()
         if not args:
             args = []
-        loop = asyncio.get_event_loop()
-        conn = self._connect(loop)
-        if self.connection_args.format == self.TextFormat:
-            self._set_text_format(conn)
-        try:
-            result = loop.run_until_complete(
-                conn.fetch(query, *args, timeout=STATEMENT_TIMEOUT))
+        with contextlib.closing(asyncio.new_event_loop()) as loop:
+            result = loop.run_until_complete(_execute())
             return result
-        finally:
-            loop.run_until_complete(conn.close(timeout=STATEMENT_TIMEOUT))
 
 
 class Psycopg2Executor(QueryExecutor):
@@ -7579,9 +7574,9 @@ class TestTokenizationWithoutZone(BaseTokenization):
         self.insert_via_1_bulk(default_client_id_table.insert(), values)
 
         # expect that data was encrypted with client_id which used to insert (client_id==TEST_TLS_CLIENT_CERT)
-        source_data = self.fetch_from_1(sa.select([default_client_id_table]))
+        source_data = self.fetch_from_1(sa.select([default_client_id_table]).order_by(default_client_id_table.c.id))
 
-        hidden_data = self.fetch_from_2(sa.select([default_client_id_table]))
+        hidden_data = self.fetch_from_2(sa.select([default_client_id_table]).order_by(default_client_id_table.c.id))
 
         if len(source_data) != len(hidden_data):
             self.fail('incorrect len of result data')
