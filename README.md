@@ -19,8 +19,9 @@
 </p>
 <br>
 
-| [Acra Engineering Examples](https://github.com/cossacklabs/acra-engineering-demo) | [Documentation and tutorials](https://docs.cossacklabs.com/acra/) | [Installation](https://github.com/cossacklabs/acra#installation-and-launch) |
-| ---- | ---- | ---- |
+
+| [Acra Engineering Examples](https://github.com/cossacklabs/acra-engineering-demo) | [Documentation and tutorials](https://docs.cossacklabs.com/acra/) | [Installation](https://github.com/cossacklabs/acra#installation-and-launch) | [Acra feedback](#acra-feedback) |
+| ---- | ---- | ---- | ---- |
 
 
 ## What is Acra
@@ -283,6 +284,9 @@ It takes more than just getting cryptographic code to compile to secure the sens
 
 If you’d like to contribute your code or provide any other kind of input to Acra, you’re very welcome. Your starting point for contributing [is here](https://docs.cossacklabs.com/acra/contributing-and-community/).
 
+## Acra feedback
+
+If you are an Acra user, please leave a [short feedback](https://bit.ly/acra-feedback).
 
 ## License
 
