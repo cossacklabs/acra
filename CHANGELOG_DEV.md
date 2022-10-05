@@ -1,4 +1,8 @@
 # 0.94.0 - 2022-09-21
+- Refactored integration tests. Improved finalizing socket connections in AsyncpgExecutor. Allow to run tests with databases accessible via domain name not only localhost.
+- Added additional certificates for integration tests in buildbot runner.
+
+# 0.94.0 - 2022-09-21
 - Implemented searchable tokenization for PostgreSQL/MySQL for text/binary protocols
 
 # 0.94.0 - 2022-09-19
