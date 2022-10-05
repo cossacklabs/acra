@@ -2844,6 +2844,8 @@ else_expression_opt:
     $$ = $2
   }
 
+// column_name_ext is the same as column_name type but have DOUBLE_QUOTE_STRING as first
+// to capture double quoted strings as ColumnName for PostgreSQL
 column_name_ext:
   DOUBLE_QUOTE_STRING
   {
@@ -2854,13 +2856,9 @@ column_name_ext:
 
     $$ = &ColName{Name:NewColIdentWithQuotes(string($1), '"')}
   }
-| ID
+| sql_id
   {
-    $$ = &ColName{Name:NewColIdent(string($1))}
-  }
-| non_reserved_keyword
-  {
-    $$ = &ColName{Name:NewColIdent(string($1))}
+    $$ = &ColName{Name: $1}
   }
 | table_id '.' reserved_sql_id
   {
