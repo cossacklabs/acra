@@ -212,6 +212,10 @@ var (
 		// mysql allow to use single quote for column/table aliases
 		dialect: mysql.NewMySQLDialect(),
 	}, {
+		input: `select * from mytable where "AGE" = 1 and "TEST" = 'test'`,
+		// postgres allow to use double quote string for columns
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
 		input:  "select /* string table alias without as */ 1 from t 't1'",
 		output: "select /* string table alias without as */ 1 from t as 't1'",
 		// mysql allow to use single quote for column/table aliases
@@ -1322,11 +1326,17 @@ var (
 )
 
 func TestValid(t *testing.T) {
+	var testDialect dialect.Dialect
 	for i, tcase := range validSQL {
 		if tcase.output == "" {
 			tcase.output = tcase.input
 		}
-		tree, err := New(ModeStrict).Parse(tcase.input)
+
+		testDialect = tcase.dialect
+		if tcase.dialect == nil {
+			testDialect = mysql.NewMySQLDialect()
+		}
+		tree, err := ParseWithDialect(testDialect, tcase.input)
 		if err != nil {
 			t.Errorf("Parse(%q) err: %v, want nil", tcase.input, err)
 			continue
@@ -1655,6 +1665,9 @@ func TestConvert(t *testing.T) {
 	}, {
 		input:  "select convert('abc', decimal(4+9)) from t",
 		output: "syntax error at position 33",
+	}, {
+		input:  `select * from mytable where "AGE" = 1 and "TEST" = 'test'`,
+		output: "MySQL don't support double quoted column_name at position 36",
 	},
 	}
 
