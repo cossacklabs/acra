@@ -43,12 +43,13 @@ var ErrRemoveFromEmptyPendingList = errors.New("removing from empty pending list
 func (packets *pendingPacketsList) Add(packet interface{}) error {
 	switch packet.(type) {
 	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription:
-		packetList, ok := packets.lists[reflect.TypeOf(packet)]
+		packetType := reflect.TypeOf(packet)
+		packetList, ok := packets.lists[packetType]
 		if !ok {
 			packetList = list.New()
 			packets.lists[reflect.TypeOf(packet)] = packetList
 		}
-		log.WithField("packet", packet).Debugln("Add pending packet")
+		log.WithField("packet", packetType).Debugln("Add pending packet")
 		packetList.PushBack(packet)
 		return nil
 	}
@@ -59,7 +60,8 @@ func (packets *pendingPacketsList) Add(packet interface{}) error {
 func (packets *pendingPacketsList) RemoveNextPendingPacket(packet interface{}) error {
 	switch packet.(type) {
 	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription:
-		packetList, ok := packets.lists[reflect.TypeOf(packet)]
+		packetType := reflect.TypeOf(packet)
+		packetList, ok := packets.lists[packetType]
 		if !ok {
 			return ErrRemoveFromEmptyPendingList
 		}
@@ -67,7 +69,7 @@ func (packets *pendingPacketsList) RemoveNextPendingPacket(packet interface{}) e
 		if currentElement == nil {
 			return nil
 		}
-		log.WithField("packet", currentElement.Value).Debugln("Remove pending packet")
+		log.WithField("packet", packetType).Debugln("Remove pending packet")
 		packetList.Remove(currentElement)
 		return nil
 	}
@@ -93,7 +95,8 @@ func (packets *pendingPacketsList) RemoveAll(packet interface{}) error {
 func (packets *pendingPacketsList) GetPendingPacket(packet interface{}) (interface{}, error) {
 	switch packet.(type) {
 	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription:
-		packetList, ok := packets.lists[reflect.TypeOf(packet)]
+		packetType := reflect.TypeOf(packet)
+		packetList, ok := packets.lists[packetType]
 		if !ok {
 			return nil, nil
 		}
@@ -101,7 +104,7 @@ func (packets *pendingPacketsList) GetPendingPacket(packet interface{}) (interfa
 		if currentElement == nil {
 			return nil, nil
 		}
-		log.WithField("packet", currentElement.Value).Debugln("Return pending packet")
+		log.WithField("packet", packetType).Debugln("Return pending packet")
 		return currentElement.Value, nil
 	}
 	return nil, ErrUnsupportedPendingPacketType
@@ -111,7 +114,8 @@ func (packets *pendingPacketsList) GetPendingPacket(packet interface{}) (interfa
 func (packets *pendingPacketsList) GetLastPending(packet interface{}) (interface{}, error) {
 	switch packet.(type) {
 	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription:
-		packetList, ok := packets.lists[reflect.TypeOf(packet)]
+		packetType := reflect.TypeOf(packet)
+		packetList, ok := packets.lists[packetType]
 		if !ok {
 			return nil, nil
 		}
@@ -119,7 +123,7 @@ func (packets *pendingPacketsList) GetLastPending(packet interface{}) (interface
 		if currentElement == nil {
 			return nil, nil
 		}
-		log.WithField("packet", currentElement.Value).Debugln("Return last added packet")
+		log.WithField("packet", packetType).Debugln("Return last added packet")
 		return currentElement.Value, nil
 	}
 	return nil, ErrUnsupportedPendingPacketType

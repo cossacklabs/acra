@@ -6774,6 +6774,9 @@ class BaseSearchableTransparentEncryption(TestTransparentEncryption):
                 self.insertRow(temp_context)
                 count -= 1
 
+    def execute_via_2(self, query, parameters):
+        return self.engine2.execute(query, parameters)
+
     def executeSelect2(self, query, parameters):
         """Execute a SELECT query with parameters via AcraServer for "keypair2"."""
         return self.engine2.execute(query, parameters).fetchall()
@@ -6788,6 +6791,10 @@ class BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin(BaseBinaryPostgre
         query, parameters = self.compileQuery(query, parameters)
         return self.executor2.execute_prepared_statement(query, parameters)
 
+    def execute_via_2(self, query, values):
+        query, parameters = self.compileQuery(query, values)
+        return self.executor2.execute_prepared_statement(query, parameters)
+
     def executeBulkInsert(self, query, values):
         """Execute a Bulk Insert query with list of values via AcraServer for "TEST_TLS_CLIENT_2_CERT"."""
         query, parameters = self.compileBulkInsertQuery(query.values(values), values)
@@ -6798,6 +6805,10 @@ class BaseSearchableTransparentEncryptionBinaryMySQLMixin(BaseBinaryMySQLTestCas
     def executeSelect2(self, query, parameters):
         query, parameters = self.compileQuery(query, parameters)
         return self.executor2.execute_prepared_statement(query, parameters)
+
+    def execute_via_2(self, query, parameters):
+        query, parameters = self.compileQuery(query, parameters)
+        return self.executor2.execute_prepared_statement_no_result(query, parameters)
 
     def executeBulkInsert(self, query, values):
         """Execute a Bulk Insert query with list of values via AcraServer for "TEST_TLS_CLIENT_2_CERT"."""
@@ -6823,6 +6834,83 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
 
         self.checkDefaultIdEncryption(**context)
         self.assertEqual(rows[0]['searchable'], search_term)
+
+    def testExtendedSyntaxSearch(self):
+        context = self.get_context_data()
+        search_term = context['searchable']
+
+        # Insert searchable data and some additional different rows
+        self.insertRow(context)
+        self.insertDifferentRows(context, count=5)
+
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
+            {'searchable': search_term},
+            )
+        self.assertEqual(len(rows), 1)
+
+        self.checkDefaultIdEncryption(**context)
+        self.assertEqual(rows[0]['searchable'], search_term)
+
+        new_token_i32 = random.randint(0, 2 ** 16)
+        update_data = {
+            'token_i32': new_token_i32,
+            'b_searchable': search_term
+        }
+
+        # test searchable tokenization in update where statements
+        query = sa.update(self.encryptor_table).where(self.encryptor_table.c.searchable == sa.bindparam('b_searchable')).values(token_i32=new_token_i32)
+        self.execute_via_2(query, update_data)
+
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
+            {'searchable': search_term},
+            )
+        self.assertEqual(len(rows), 1)
+
+        self.checkDefaultIdEncryption(**context)
+        self.assertEqual(rows[0]['searchable'], search_term)
+        self.assertEqual(rows[0]['token_i32'], new_token_i32)
+
+
+        row_id = get_random_id()
+        insert_data = {
+            'param_1': row_id,
+            'b_searchable': search_term
+        }
+
+        select_columns = ['id', 'default_client_id', 'number', 'zone_id', 'specified_client_id', 'raw_data', 'searchable', 'searchable_acrablock', 'empty',
+                          'nullable', 'masking', 'token_bytes', 'token_email', 'token_str', 'token_i32', 'token_i64']
+
+        select_query = sa.select(
+            sa.literal(row_id).label('id'), sa.column('default_client_id'), sa.column('number'), sa.column('zone_id'), sa.column('specified_client_id'),
+            sa.column('raw_data'), sa.column('searchable'), sa.column('searchable_acrablock'), sa.column('empty'), sa.column('nullable'),
+            sa.column('masking'), sa.column('token_bytes'), sa.column('token_email'), sa.column('token_str'), sa.column('token_i32'), sa.column('token_i64')). \
+            where(self.encryptor_table.c.searchable == sa.bindparam('b_searchable'))
+
+        query = sa.insert(self.encryptor_table).from_select(select_columns, select_query)
+        self.execute_via_2(query, insert_data)
+
+        # after insert there 2 rows should be present in DB
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
+            {'searchable': search_term},
+            )
+        self.assertEqual(len(rows), 2)
+
+        # test searchable encryption in delete statements
+        query = sa.delete(self.encryptor_table).where(self.encryptor_table.c.searchable == sa.bindparam('b_searchable'))
+        self.execute_via_2(query, update_data)
+
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
+            {'searchable': search_term},
+            )
+        self.assertEqual(len(rows), 0)
 
     def testHashValidation(self):
         context = self.get_context_data()
