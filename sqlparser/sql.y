@@ -1,12 +1,9 @@
 /*
 Copyright 2017 Google Inc.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
     http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -238,7 +235,7 @@ func forceEOF(yylex interface{}) {
 %type <boolVal> boolean_value
 %type <str> compare
 %type <ins> insert_data
-%type <expr> value value_expression num_val
+%type <expr> value value_expression num_val column_name_expression
 %type <expr> function_call_keyword function_call_nonkeyword function_call_generic function_call_conflict
 %type <str> is_suffix
 %type <colTuple> col_tuple
@@ -247,7 +244,7 @@ func forceEOF(yylex interface{}) {
 %type <valTuple> row_tuple tuple_or_empty
 %type <expr> tuple_expression
 %type <subquery> subquery
-%type <colName> column_name
+%type <colName> column_name column_name_ext
 %type <whens> when_expression_list
 %type <when> when_expression
 %type <expr> expression_opt else_expression_opt
@@ -2130,7 +2127,7 @@ boolean_value:
   }
 
 condition:
-  value_expression compare value_expression
+  column_name_expression compare value_expression
   {
     $$ = &ComparisonExpr{Left: $1, Operator: $2, Right: $3}
   }
@@ -2265,6 +2262,140 @@ expression_list:
   {
     $$ = append($1, $3)
   }
+
+// column_name_expression represent almost the same rules as value_expression has but with only one exception
+// column_name_ext was used instead of column_name to track DOUBLE_QUOTED_STRING as ColName for PostgreSQL dialect
+column_name_expression:
+column_name_ext
+  {
+    $$ = $1
+  }
+| value
+  {
+    $$ = $1
+  }
+| boolean_value
+  {
+    $$ = $1
+  }
+| tuple_expression
+  {
+    $$ = $1
+  }
+| subquery
+  {
+    $$ = $1
+  }
+| value_expression '&' value_expression
+  {
+    $$ = &BinaryExpr{Left: $1, Operator: BitAndStr, Right: $3}
+  }
+| value_expression '|' value_expression
+  {
+    $$ = &BinaryExpr{Left: $1, Operator: BitOrStr, Right: $3}
+  }
+| value_expression '^' value_expression
+  {
+    $$ = &BinaryExpr{Left: $1, Operator: BitXorStr, Right: $3}
+  }
+| value_expression '+' value_expression
+  {
+    $$ = &BinaryExpr{Left: $1, Operator: PlusStr, Right: $3}
+  }
+| value_expression '-' value_expression
+  {
+    $$ = &BinaryExpr{Left: $1, Operator: MinusStr, Right: $3}
+  }
+| value_expression '*' value_expression
+  {
+    $$ = &BinaryExpr{Left: $1, Operator: MultStr, Right: $3}
+  }
+| value_expression '/' value_expression
+  {
+    $$ = &BinaryExpr{Left: $1, Operator: DivStr, Right: $3}
+  }
+| value_expression DIV value_expression
+  {
+    $$ = &BinaryExpr{Left: $1, Operator: IntDivStr, Right: $3}
+  }
+| value_expression '%' value_expression
+  {
+    $$ = &BinaryExpr{Left: $1, Operator: ModStr, Right: $3}
+  }
+| value_expression MOD value_expression
+  {
+    $$ = &BinaryExpr{Left: $1, Operator: ModStr, Right: $3}
+  }
+| value_expression SHIFT_LEFT value_expression
+  {
+    $$ = &BinaryExpr{Left: $1, Operator: ShiftLeftStr, Right: $3}
+  }
+| value_expression SHIFT_RIGHT value_expression
+  {
+    $$ = &BinaryExpr{Left: $1, Operator: ShiftRightStr, Right: $3}
+  }
+| column_name JSON_EXTRACT_OP value
+  {
+    $$ = &BinaryExpr{Left: $1, Operator: JSONExtractOp, Right: $3}
+  }
+| column_name JSON_UNQUOTE_EXTRACT_OP value
+  {
+    $$ = &BinaryExpr{Left: $1, Operator: JSONUnquoteExtractOp, Right: $3}
+  }
+| value_expression COLLATE charset
+  {
+    $$ = &CollateExpr{Expr: $1, Charset: $3}
+  }
+| BINARY value_expression %prec UNARY
+  {
+    $$ = &UnaryExpr{Operator: BinaryStr, Expr: $2}
+  }
+| UNDERSCORE_BINARY value_expression %prec UNARY
+  {
+    $$ = &UnaryExpr{Operator: UBinaryStr, Expr: $2}
+  }
+| '+'  value_expression %prec UNARY
+  {
+    if num, ok := $2.(*SQLVal); ok && num.Type == IntVal {
+      $$ = num
+    } else {
+      $$ = &UnaryExpr{Operator: UPlusStr, Expr: $2}
+    }
+  }
+| '-'  value_expression %prec UNARY
+  {
+    if num, ok := $2.(*SQLVal); ok && num.Type == IntVal {
+      // Handle double negative
+      if num.Val[0] == '-' {
+        num.Val = num.Val[1:]
+        $$ = num
+      } else {
+        $$ = NewIntVal(append([]byte("-"), num.Val...))
+      }
+    } else {
+      $$ = &UnaryExpr{Operator: UMinusStr, Expr: $2}
+    }
+  }
+| '~'  value_expression
+  {
+    $$ = &UnaryExpr{Operator: TildaStr, Expr: $2}
+  }
+| '!' value_expression %prec UNARY
+  {
+    $$ = &UnaryExpr{Operator: BangStr, Expr: $2}
+  }
+| mysql_interval
+{
+$$ = $1
+}
+| postgresql_interval
+{
+$$ = $1
+}
+| function_call_generic
+| function_call_keyword
+| function_call_nonkeyword
+| function_call_conflict
 
 value_expression:
 // due to conflict of <column_name> and <value> because both work with STRING place <column_name> first to prioritize <column_name>
@@ -2711,6 +2842,33 @@ else_expression_opt:
 | ELSE expression
   {
     $$ = $2
+  }
+
+column_name_ext:
+  DOUBLE_QUOTE_STRING
+  {
+    if yylex.(*Tokenizer).IsMySQL(){
+      yylex.Error("MySQL don't support double quoted column_name")
+      return 1
+    }
+
+    $$ = &ColName{Name:NewColIdentWithQuotes(string($1), '"')}
+  }
+| ID
+  {
+    $$ = &ColName{Name:NewColIdent(string($1))}
+  }
+| non_reserved_keyword
+  {
+    $$ = &ColName{Name:NewColIdent(string($1))}
+  }
+| table_id '.' reserved_sql_id
+  {
+    $$ = &ColName{Qualifier: TableName{Name: $1}, Name: $3}
+  }
+| table_id '.' reserved_table_id '.' reserved_sql_id
+  {
+    $$ = &ColName{Qualifier: TableName{Qualifier: $1, Name: $3}, Name: $5}
   }
 
 column_name:
@@ -3259,11 +3417,9 @@ interval_units:
 
 /*
   These are not all necessarily reserved in MySQL, but some are.
-
   These are more importantly reserved because they may conflict with our grammar.
   If you want to move one that is not reserved in MySQL (i.e. ESCAPE) to the
   non_reserved_keywords, you'll need to deal with any conflicts.
-
   Sorted alphabetically
 */
 reserved_keyword:
@@ -3364,7 +3520,6 @@ reserved_keyword:
   These are non-reserved Vitess, because they don't cause conflicts in the grammar.
   Some of them may be reserved in MySQL. The good news is we backtick quote them
   when we rewrite the query, so no issue should arise.
-
   Sorted alphabetically
 */
 non_reserved_keyword:
