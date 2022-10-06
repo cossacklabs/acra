@@ -2852,12 +2852,12 @@ else_expression_opt:
 column_name_ext:
   DOUBLE_QUOTE_STRING
   {
-    if yylex.(*Tokenizer).IsMySQL(){
-      yylex.Error("MySQL don't support double quoted column_name")
-      return 1
-    }
-
-    $$ = &ColName{Name:NewColIdentWithQuotes(string($1), '"')}
+   //mysql in ANSI mod doesnt support DOUBLE_QUOTE_STRING columns names
+   if yylex.(*Tokenizer).IsMySQL() && !yylex.(*Tokenizer).dialect.(*mysql.MySQLDialect).IsModeANSIOn() {
+   	$$ = &ColName{Name:NewColIdentWithQuotes(string($1), '\'')}
+   } else {
+   	$$ = &ColName{Name:NewColIdentWithQuotes(string($1), '"')}
+   }
   }
 | sql_id
   {

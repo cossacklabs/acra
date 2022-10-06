@@ -216,6 +216,12 @@ var (
 		// postgres allow to use double quote string for columns
 		dialect: postgresql.NewPostgreSQLDialect(),
 	}, {
+		input:  `select * from mytable where "test" = "test"`,
+		output: `select * from mytable where 'test' = 'test'`,
+	}, {
+		input:  `select * from mytable where "test" = 1 and 'value' = 'value'`,
+		output: `select * from mytable where 'test' = 1 and 'value' = 'value'`,
+	}, {
 		input:  "select /* string table alias without as */ 1 from t 't1'",
 		output: "select /* string table alias without as */ 1 from t as 't1'",
 		// mysql allow to use single quote for column/table aliases
@@ -1665,9 +1671,6 @@ func TestConvert(t *testing.T) {
 	}, {
 		input:  "select convert('abc', decimal(4+9)) from t",
 		output: "syntax error at position 33",
-	}, {
-		input:  `select * from mytable where "AGE" = 1 and "TEST" = 'test'`,
-		output: "MySQL don't support double quoted column_name at position 36",
 	},
 	}
 
