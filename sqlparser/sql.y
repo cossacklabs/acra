@@ -2100,7 +2100,9 @@ expression:
   {
     $$ = &IsExpr{Operator: $3, Expr: $1}
   }
-| value_expression
+// latest fix regarding double quoted column names in select, in such case its working good for PostgreSQL
+// but some test fails for MySQL
+| column_name_expression
   {
     $$ = $1
   }
