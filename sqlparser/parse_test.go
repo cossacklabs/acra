@@ -1687,6 +1687,9 @@ func TestConvert(t *testing.T) {
 		input:  "select convert('abc', decimal(4+9)) from t",
 		output: "syntax error at position 33",
 	},
+	// TODO: added test cases to cover errors for MySQL ANSI mode
+	// `insert into table (id, name) values (125, "data")` currently, in ANSI mod its valid query with contains
+	// Rows {SQLVal(125), ColName("data")} - but it should fail with error
 	}
 
 	var dialect dialect.Dialect
