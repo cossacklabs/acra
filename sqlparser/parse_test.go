@@ -216,6 +216,8 @@ var (
 		// postgres allow to use double quote string for columns
 		dialect: postgresql.NewPostgreSQLDialect(),
 	}, {
+		// this is valid query ONLY for MySQL in default mode, for now,
+		// but invalid for PostgreSQL and MySQL in ANSI mode and maybe be changed in future
 		input:  `insert into some_table(id, data) VALUES (10918, "test")`,
 		output: `insert into some_table(id, data) values (10918, 'test')`,
 	}, {
