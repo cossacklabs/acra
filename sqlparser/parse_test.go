@@ -222,6 +222,10 @@ var (
 		input:  `select * from mytable where "test" = 1 and 'value' = 'value'`,
 		output: `select * from mytable where 'test' = 1 and 'value' = 'value'`,
 	}, {
+		input:   `SELECT "id", "landline_number" AS "landlineNumber", "removal" FROM "users" AS "User" where "User"."is_active"`,
+		output:  `select "id", "landline_number" as "landlineNumber", "removal" from "users" as "User" where "User"."is_active"`,
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
 		input:  "select /* string table alias without as */ 1 from t 't1'",
 		output: "select /* string table alias without as */ 1 from t as 't1'",
 		// mysql allow to use single quote for column/table aliases
