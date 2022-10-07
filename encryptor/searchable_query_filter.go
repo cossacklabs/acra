@@ -94,7 +94,7 @@ func (filter *SearchableQueryFilter) filterInterestingTables(fromExp sqlparser.T
 	// And even then, we can work only with tables that we have an encryption schema for.
 	var encryptableTables []*AliasedTableName
 	for _, table := range tables {
-		if v := filter.schemaStore.GetTableSchema(table.TableName.Name.String()); v != nil {
+		if v := filter.schemaStore.GetTableSchema(table.TableName.Name.ValueForConfig()); v != nil {
 			encryptableTables = append(encryptableTables, table)
 		}
 	}
@@ -174,9 +174,9 @@ func (filter *SearchableQueryFilter) filterComparisons(exprs []*sqlparser.Compar
 
 func (filter *SearchableQueryFilter) getTableSchemaOfColumn(column *sqlparser.ColName, defaultTable *AliasedTableName, aliasedTables AliasToTableMap) config.TableSchema {
 	if column.Qualifier.Qualifier.IsEmpty() {
-		return filter.schemaStore.GetTableSchema(defaultTable.TableName.Name.String())
+		return filter.schemaStore.GetTableSchema(defaultTable.TableName.Name.ValueForConfig())
 	}
-	tableName := aliasedTables[column.Qualifier.Name.String()]
+	tableName := aliasedTables[column.Qualifier.Name.ValueForConfig()]
 	return filter.schemaStore.GetTableSchema(tableName)
 }
 
