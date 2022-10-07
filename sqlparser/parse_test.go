@@ -216,6 +216,11 @@ var (
 		// postgres allow to use double quote string for columns
 		dialect: postgresql.NewPostgreSQLDialect(),
 	}, {
+		input:  `insert into some_table(id, data) VALUES (10918, "test")`,
+		output: `insert into some_table(id, data) values (10918, 'test')`,
+	}, {
+		input: `insert into some_table(id, data) values (10918, 'test')`,
+	}, {
 		input:  `select * from mytable where "test" = "test"`,
 		output: `select * from mytable where 'test' = 'test'`,
 	}, {
@@ -224,6 +229,12 @@ var (
 	}, {
 		input:   `SELECT "id", "landline_number" AS "landlineNumber", "removal" FROM "users" AS "User" where "User"."is_active"`,
 		output:  `select "id", "landline_number" as "landlineNumber", "removal" from "users" as "User" where "User"."is_active"`,
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
+		input:   `select "id" from "users" as "User" where "User"."AGE" = 123`,
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
+		input:   `select "id" from "users" as "User" where "AGE" = '123'`,
 		dialect: postgresql.NewPostgreSQLDialect(),
 	}, {
 		input:  "select /* string table alias without as */ 1 from t 't1'",
