@@ -541,11 +541,7 @@ func TestTableIdentValueForConfig(t *testing.T) {
 		quote: 34,
 		v:     "table",
 	}
-	b, err := json.Marshal(str)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := string(b)
+	got := String(str)
 	want := `"table"`
 	if got != want {
 		t.Errorf("json.Marshal()= %s, want %s", got, want)

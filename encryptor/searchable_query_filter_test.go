@@ -1,23 +1,22 @@
 package encryptor
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
 )
 
-func TestGetTableSchemaOfColumnMatchConfiTable(t *testing.T) {
-	tableName := "some_table"
-	configStr := fmt.Sprintf(`
+func TestGetTableSchemaOfColumnMatchConfigTable(t *testing.T) {
+	tableNameUpperCase := "SomeTableInUpperCase"
+	configStr := `
 schemas:
-  - table: %s
+  - table: sometableinuppercase
     encrypted: 
       - column: "default_client_id"
       - column: specified_client_id
         client_id: specified_client_id
-`, tableName)
+`
 	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr))
 	if err != nil {
 		t.Fatalf("Can't parse config: %s", err.Error())
@@ -27,7 +26,7 @@ schemas:
 		schemaStore: schemaStore,
 	}
 
-	tableNamesWithQuotes := sqlparser.NewTableIdentWithQuotes(tableName, '"')
+	tableNamesWithQuotes := sqlparser.NewTableIdentWithQuotes(tableNameUpperCase, '"')
 	schemaTable := searchableQueryFilter.getTableSchemaOfColumn(&sqlparser.ColName{}, &AliasedTableName{
 		TableName: sqlparser.TableName{
 			Name: tableNamesWithQuotes,
@@ -40,15 +39,15 @@ schemas:
 }
 
 func TestFilterInterestingTables(t *testing.T) {
-	tableName := "some_table"
-	configStr := fmt.Sprintf(`
+	tableNameUpperCase := "SomeTableInUpperCase"
+	configStr := `
 schemas:
-  - table: %s
+  - table: sometableinuppercase
     encrypted: 
       - column: "default_client_id"
       - column: specified_client_id
         client_id: specified_client_id
-`, tableName)
+`
 	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr))
 	if err != nil {
 		t.Fatalf("Can't parse config: %s", err.Error())
@@ -58,7 +57,7 @@ schemas:
 		schemaStore: schemaStore,
 	}
 
-	tableNamesWithQuotes := sqlparser.NewTableIdentWithQuotes(tableName, '"')
+	tableNamesWithQuotes := sqlparser.NewTableIdentWithQuotes(tableNameUpperCase, '"')
 
 	aliasedTable, _ := searchableQueryFilter.filterInterestingTables(sqlparser.TableExprs{
 		&sqlparser.AliasedTableExpr{
