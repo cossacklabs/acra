@@ -7246,6 +7246,45 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         self.assertEqual(rows[0]['searchable_acrablock'][33:33+4], encrypted_term[:4])
 
 
+class TestSearchableTransparentEncryptionDoubleQuotedTables(BaseSearchableTransparentEncryption):
+    def setUp(self):
+        super().setUp()
+
+        if TEST_MYSQL:
+            self.skipTest("useful only for postgresql")
+            # TODO: double quoted tables can be used in MySQL only with ANSI mode but currently ACRA doest have proper configuration
+            # to use MySQL dialect with ANSI mode
+            # self.sql_mode_wo_ansi = self.engine2.execute('SELECT @@SESSION.sql_mode;').fetchone()[0]
+            # self.set_ansi_mode(True)
+
+    def testEncryptedInsert(self):
+        pass
+
+    def testSearchDoubleQuotedTable(self):
+        context = self.get_context_data()
+        search_term = context['searchable']
+
+        # Insert searchable data and some additional different rows
+        self.insertRow(context)
+        self.insertDifferentRows(context, count=5)
+
+        query = 'SELECT * FROM "test_searchable_transparent_encryption" WHERE "searchable" = :searchable'
+        rows = self.executeSelect2(sa.text(query), {'searchable': search_term})
+        self.assertEqual(len(rows), 1)
+
+        self.checkDefaultIdEncryption(**context)
+
+    # def set_ansi_mode(self, set_ansi):
+    #     query = "SET SESSION sql_mode = '{}'".format(self.sql_mode_wo_ansi)
+    #     if set_ansi:
+    #         query = "SET SESSION sql_mode = '{}'".format(self.sql_mode_wo_ansi + ",ANSI")
+    #     self.engine2.execute(query)
+
+    # def tearDown(self):
+    #     super().tearDown()
+    #     self.set_ansi_mode(False)
+
+
 class TestSearchableTransparentEncryptionWithDefaultsAcraBlockBinaryPostgreSQL(BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin, TestSearchableTransparentEncryption):
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_defaults_with_searchable_config.yaml')
 

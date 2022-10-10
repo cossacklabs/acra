@@ -359,7 +359,7 @@ func mapColumnsToAliases(selectQuery *sqlparser.Select) ([]*columnInfo, error) {
 		if ok {
 			if len(joinTables) > 0 {
 				if !starExpr.TableName.Name.IsEmpty() {
-					joinTable, ok := joinAliases[starExpr.TableName.Name.String()]
+					joinTable, ok := joinAliases[starExpr.TableName.Name.ValueForConfig()]
 					if !ok {
 						return nil, errUnsupportedExpression
 					}
