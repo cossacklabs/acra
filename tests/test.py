@@ -7272,7 +7272,7 @@ class TestSearchableTransparentEncryptionDoubleQuotedTables(BaseSearchableTransp
         self.insertRow(context)
         self.insertDifferentRows(context, count=5)
 
-        query = 'SELECT * FROM "test_searchable_transparent_encryption" WHERE searchable = :searchable'
+        query = 'SELECT * FROM "test_searchable_transparent_encryption" WHERE "searchable" = :searchable'
         rows = self.executeSelect2(sa.text(query), {'searchable': search_term})
         self.assertEqual(len(rows), 1)
 
