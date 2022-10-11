@@ -212,6 +212,33 @@ var (
 		// mysql allow to use single quote for column/table aliases
 		dialect: mysql.NewMySQLDialect(),
 	}, {
+		input: `select * from mytable where "AGE" = 1 and "TEST" = 'test'`,
+		// postgres allow to use double quote string for columns
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
+		// this is valid query ONLY for MySQL in default mode, for now,
+		// but invalid for PostgreSQL and MySQL in ANSI mode and maybe be changed in future
+		input:  `insert into some_table(id, data) VALUES (10918, "test")`,
+		output: `insert into some_table(id, data) values (10918, 'test')`,
+	}, {
+		input: `insert into some_table(id, data) values (10918, 'test')`,
+	}, {
+		input:  `select * from mytable where "test" = "test"`,
+		output: `select * from mytable where 'test' = 'test'`,
+	}, {
+		input:  `select * from mytable where "test" = 1 and 'value' = 'value'`,
+		output: `select * from mytable where 'test' = 1 and 'value' = 'value'`,
+	}, {
+		input:   `SELECT "id", "landline_number" AS "landlineNumber", "removal" FROM "users" AS "User" where "User"."is_active"`,
+		output:  `select "id", "landline_number" as "landlineNumber", "removal" from "users" as "User" where "User"."is_active"`,
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
+		input:   `select "id" from "users" as "User" where "User"."AGE" = 123`,
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
+		input:   `select "id" from "users" as "User" where "AGE" = '123'`,
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
 		input:  "select /* string table alias without as */ 1 from t 't1'",
 		output: "select /* string table alias without as */ 1 from t as 't1'",
 		// mysql allow to use single quote for column/table aliases
@@ -1322,11 +1349,17 @@ var (
 )
 
 func TestValid(t *testing.T) {
+	var testDialect dialect.Dialect
 	for i, tcase := range validSQL {
 		if tcase.output == "" {
 			tcase.output = tcase.input
 		}
-		tree, err := New(ModeStrict).Parse(tcase.input)
+
+		testDialect = tcase.dialect
+		if tcase.dialect == nil {
+			testDialect = mysql.NewMySQLDialect()
+		}
+		tree, err := ParseWithDialect(testDialect, tcase.input)
 		if err != nil {
 			t.Errorf("Parse(%q) err: %v, want nil", tcase.input, err)
 			continue
@@ -1656,6 +1689,9 @@ func TestConvert(t *testing.T) {
 		input:  "select convert('abc', decimal(4+9)) from t",
 		output: "syntax error at position 33",
 	},
+	// TODO: added test cases to cover errors for MySQL ANSI mode
+	// `insert into table (id, name) values (125, "data")` currently, in ANSI mod its valid query with contains
+	// Rows {SQLVal(125), ColName("data")} - but it should fail with error
 	}
 
 	var dialect dialect.Dialect

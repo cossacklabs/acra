@@ -103,7 +103,7 @@ func (filter *SearchableQueryFilter) filterInterestingTables(fromExp sqlparser.T
 	// And even then, we can work only with tables that we have an encryption schema for.
 	var encryptableTables []*AliasedTableName
 	for _, table := range tables {
-		if v := filter.schemaStore.GetTableSchema(table.TableName.Name.String()); v != nil {
+		if v := filter.schemaStore.GetTableSchema(table.TableName.Name.ValueForConfig()); v != nil {
 			encryptableTables = append(encryptableTables, table)
 		}
 	}
@@ -114,34 +114,25 @@ func (filter *SearchableQueryFilter) filterInterestingTables(fromExp sqlparser.T
 }
 
 func (filter *SearchableQueryFilter) filterTableExpressions(statement sqlparser.Statement) (sqlparser.TableExprs, error) {
-	if filter.mode == QueryFilterModeConsistentTokenization {
-		switch query := statement.(type) {
-		case *sqlparser.Select:
-			return query.From, nil
-		case *sqlparser.Update:
-			return query.TableExprs, nil
-		case *sqlparser.Delete:
-			return query.TableExprs, nil
-		case *sqlparser.Insert:
-			// only support INSERT INTO table2 SELECT * FROM test_table WHERE data1='somedata' syntax for INSERTs
-			if selectInInsert, ok := query.Rows.(*sqlparser.Select); ok {
-				return selectInInsert.From, nil
-			}
-			return nil, ErrUnsupportedQueryType
-		default:
-			return nil, ErrUnsupportedQueryType
+	switch query := statement.(type) {
+	case *sqlparser.Select:
+		return query.From, nil
+	case *sqlparser.Update:
+		return query.TableExprs, nil
+	case *sqlparser.Delete:
+		return query.TableExprs, nil
+	case *sqlparser.Insert:
+		// only support INSERT INTO table2 SELECT * FROM test_table WHERE data1='somedata' syntax for INSERTs
+		if selectInInsert, ok := query.Rows.(*sqlparser.Select); ok {
+			return selectInInsert.From, nil
 		}
+		return nil, ErrUnsupportedQueryType
+	default:
+		return nil, ErrUnsupportedQueryType
 	}
-
-	// TODO: extend with more query types for support for searchable encryption
-	selectStatement, ok := statement.(*sqlparser.Select)
-	if ok {
-		return selectStatement.From, nil
-	}
-	return nil, ErrUnsupportedQueryType
 }
 
-func (filter *SearchableQueryFilter) filterComparisons(statement sqlparser.Statement, defaultTable *AliasedTableName, aliasedTables AliasToTableMap) []SearchableExprItem {
+func (filter *SearchableQueryFilter) filterComparisonExprs(statement sqlparser.Statement) []*sqlparser.ComparisonExpr {
 	// Walk through WHERE clauses of a SELECT statements...
 	whereExprs, err := getWhereStatements(statement)
 	if err != nil {
@@ -195,9 +186,9 @@ func (filter *SearchableQueryFilter) getColumnSetting(column *sqlparser.ColName,
 
 func (filter *SearchableQueryFilter) getTableSchemaOfColumn(column *sqlparser.ColName, defaultTable *AliasedTableName, aliasedTables AliasToTableMap) config.TableSchema {
 	if column.Qualifier.Qualifier.IsEmpty() && column.Qualifier.Name.IsEmpty() {
-		return filter.schemaStore.GetTableSchema(defaultTable.TableName.Name.String())
+		return filter.schemaStore.GetTableSchema(defaultTable.TableName.Name.ValueForConfig())
 	}
-	tableName := aliasedTables[column.Qualifier.Name.String()]
+	tableName := aliasedTables[column.Qualifier.Name.ValueForConfig()]
 	return filter.schemaStore.GetTableSchema(tableName)
 }
 

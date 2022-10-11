@@ -238,7 +238,7 @@ func forceEOF(yylex interface{}) {
 %type <boolVal> boolean_value
 %type <str> compare
 %type <ins> insert_data
-%type <expr> value value_expression num_val
+%type <expr> value value_expression num_val column_name_value_expr
 %type <expr> function_call_keyword function_call_nonkeyword function_call_generic function_call_conflict
 %type <str> is_suffix
 %type <colTuple> col_tuple
@@ -2267,12 +2267,7 @@ expression_list:
   }
 
 value_expression:
-// due to conflict of <column_name> and <value> because both work with STRING place <column_name> first to prioritize <column_name>
-column_name
-  {
-    $$ = $1
-  }
-| value
+column_name_value_expr
   {
     $$ = $1
   }
@@ -2713,6 +2708,25 @@ else_expression_opt:
     $$ = $2
   }
 
+column_name_value_expr:
+ DOUBLE_QUOTE_STRING
+  {
+    if yylex.(*Tokenizer).IsMySQL() && !yylex.(*Tokenizer).dialect.(*mysql.MySQLDialect).IsModeANSIOn() {
+       $$ = NewStrVal($1)
+   } else {
+     $$ = &ColName{Name:NewColIdentWithQuotes(string($1), '"')}
+   }
+  }
+// due to conflict of <column_name> and <value> because both work with STRING place <column_name> first to prioritize <column_name>
+| column_name
+  {
+    $$ = $1
+  }
+| value
+  {
+    $$ = $1
+  }
+
 column_name:
   sql_id
   {
@@ -2726,6 +2740,21 @@ column_name:
   {
     $$ = &ColName{Qualifier: TableName{Qualifier: $1, Name: $3}, Name: $5}
   }
+
+sql_id:
+  DOUBLE_QUOTE_STRING
+  {
+    $$ = NewColIdentWithQuotes(string($1), '"')
+  }
+| ID
+  {
+    $$ = NewColIdent(string($1))
+  }
+| non_reserved_keyword
+  {
+    $$ = NewColIdent(string($1))
+  }
+
 
 value:
   SINGLE_QUOTE_STRING
@@ -3174,19 +3203,6 @@ using_opt:
 | USING sql_id
   { $$ = $2 }
 
-sql_id:
-  DOUBLE_QUOTE_STRING
-  {
-    $$ = NewColIdentWithQuotes(string($1), '"')
-  }
-| ID
-  {
-    $$ = NewColIdent(string($1))
-  }
-| non_reserved_keyword
-  {
-    $$ = NewColIdent(string($1))
-  }
 
 reserved_sql_id:
   sql_id

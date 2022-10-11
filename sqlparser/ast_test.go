@@ -23,6 +23,7 @@ import (
 	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
 	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"unsafe"
@@ -532,6 +533,31 @@ func TestTableIdentMarshal(t *testing.T) {
 	}
 	if !reflect.DeepEqual(out, str) {
 		t.Errorf("Unmarshal: %v, want %v", out, str)
+	}
+}
+
+func TestTableIdentValueForConfig(t *testing.T) {
+	str := TableIdent{
+		quote: 34,
+		v:     "table",
+	}
+	got := String(str)
+	want := `"table"`
+	if got != want {
+		t.Errorf("json.Marshal()= %s, want %s", got, want)
+	}
+	tableForConfig := str.ValueForConfig()
+	if tableForConfig == got {
+		t.Errorf("ValueForConfig should not be equal with init %s, want %s", got, want)
+	}
+
+	unquoted, err := strconv.Unquote(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if tableForConfig != unquoted {
+		t.Errorf("ValueForConfig should be equal with unquoted value %s, want %s", got, want)
 	}
 }
 
