@@ -227,7 +227,6 @@ func isSupportedSQLVal(val *sqlparser.SQLVal) bool {
 }
 
 // getEqualComparisonExprs return only <ColName> = <VALUE> or <ColName> != <VALUE> or <ColName> <=> <VALUE> expressions
-
 func (filter *SearchableQueryFilter) getEqualComparisonExprs(stmt sqlparser.SQLNode, defaultTable *AliasedTableName, aliasedTables AliasToTableMap) ([]*sqlparser.ComparisonExpr, error) {
 	var exprs []*sqlparser.ComparisonExpr
 	err := sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
@@ -254,7 +253,7 @@ func (filter *SearchableQueryFilter) getEqualComparisonExprs(stmt sqlparser.SQLN
 						}
 					}
 
-					logrus.Infoln("Searchable encryption/tokenization support equal comparison only by SQLVal but no by ColName")
+					logrus.Infoln("Searchable encryption/tokenization support equal comparison only by SQLVal but not by ColName")
 				}
 			}
 

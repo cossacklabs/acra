@@ -99,6 +99,15 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObjec
 			To:   sqlparser.NewIntVal(hashSize),
 		}
 
+		if rColName, ok := item.Expr.Right.(*sqlparser.ColName); ok {
+			item.Expr.Right = &sqlparser.SubstrExpr{
+				Name: rColName,
+				From: sqlparser.NewIntVal([]byte{'1'}),
+				To:   sqlparser.NewIntVal(hashSize),
+			}
+			continue
+		}
+
 		// substring(column, 1, <HMAC_size>) = 'value' ===> substring(column, 1, <HMAC_size>) = <HMAC('value')>
 		// substring(column, 1, <HMAC_size>) = $1      ===> no changes
 		err := queryEncryptor.UpdateExpressionValue(ctx, item.Expr.Right, encryptor.coder, encryptor.calculateHmac)
