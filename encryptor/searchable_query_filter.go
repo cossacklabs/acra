@@ -18,6 +18,7 @@ package encryptor
 
 import (
 	"errors"
+
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/sirupsen/logrus"
@@ -55,7 +56,7 @@ func NewSearchableQueryFilter(schemaStore config.TableSchemaStore, mode Searchab
 }
 
 // FilterSearchableComparisons filter search comparisons from statement
-func (filter *SearchableQueryFilter) FilterSearchableComparisons(statement sqlparser.Statement) []SearchableExprItem {
+func (filter *SearchableQueryFilter) FilterSearchableComparisons(statement sqlparser.Statement) map[string]SearchableExprItem {
 	tableExps, err := filter.filterTableExpressions(statement)
 	if err != nil {
 		logrus.Debugln("Unsupported search query")
@@ -72,7 +73,7 @@ func (filter *SearchableQueryFilter) FilterSearchableComparisons(statement sqlpa
 	for _, defaultTable := range defaultTables {
 		// And among those expressions, not all may refer to columns with searchable encryption/tokenization
 		// enabled for them. Leave only those expressions which are searchable.
-		filteredExprs := filter.filterComparisons(statement, defaultTable, aliasedTables)
+		filteredExprs := filter.filterComparisonExprs(statement, defaultTable, aliasedTables)
 		if len(filteredExprs) == 0 {
 			logrus.Debugln("No searchable comparisons in search query")
 			return nil
@@ -86,12 +87,7 @@ func (filter *SearchableQueryFilter) FilterSearchableComparisons(statement sqlpa
 		}
 	}
 
-	res := make([]SearchableExprItem, 0, len(searchableExprs))
-	for _, expr := range searchableExprs {
-		res = append(res, expr)
-	}
-
-	return res
+	return searchableExprs
 }
 
 func (filter *SearchableQueryFilter) filterInterestingTables(fromExp sqlparser.TableExprs) ([]*AliasedTableName, AliasToTableMap) {
@@ -132,7 +128,7 @@ func (filter *SearchableQueryFilter) filterTableExpressions(statement sqlparser.
 	}
 }
 
-func (filter *SearchableQueryFilter) filterComparisonExprs(statement sqlparser.Statement) []*sqlparser.ComparisonExpr {
+func (filter *SearchableQueryFilter) filterComparisonExprs(statement sqlparser.Statement, defaultTable *AliasedTableName, aliasedTables AliasToTableMap) []SearchableExprItem {
 	// Walk through WHERE clauses of a SELECT statements...
 	whereExprs, err := getWhereStatements(statement)
 	if err != nil {
