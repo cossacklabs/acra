@@ -512,10 +512,15 @@ func writeParameterArray(buf *bytes.Buffer, parameters [][]byte) (int, error) {
 	}
 	binary.BigEndian.PutUint16(tmp[0:2], uint16(len(parameters)))
 	buf.Write(tmp[0:2])
-
 	for _, parameter := range parameters {
 		if len(parameter) > math.MaxUint32 {
 			return 0, ErrArrayTooBig
+		}
+		if parameter == nil {
+			// -1 is NULL value, 0xffffff is -1 in uint32
+			binary.BigEndian.PutUint32(tmp[0:4], math.MaxUint32)
+			buf.Write(tmp[0:4])
+			continue
 		}
 		binary.BigEndian.PutUint32(tmp[0:4], uint32(len(parameter)))
 		buf.Write(tmp[0:4])

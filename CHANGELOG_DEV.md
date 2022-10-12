@@ -1,3 +1,6 @@
+# 0.94.0 - 2022-10-13
+- Improve handling binary format of prepared statements for PostgreSQL with null values in Bind packets.
+
 # 0.94.0 - 2022-10-05
 - Refactored integration tests. Improved finalizing socket connections in AsyncpgExecutor. Allow to run tests with databases accessible via domain name not only localhost.
 - Added additional certificates for integration tests in buildbot runner.
