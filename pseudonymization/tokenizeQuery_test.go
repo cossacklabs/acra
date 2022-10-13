@@ -172,3 +172,119 @@ schemas:
 		}
 	}
 }
+
+func TestSearchableTokenizationWithDefaultTablesTextFormat(t *testing.T) {
+	tokenStorage, err := storage.NewMemoryTokenStorage()
+	assert.NoError(t, err)
+
+	anonymizer, err := NewPseudoanonymizer(tokenStorage)
+	assert.NoError(t, err)
+
+	tokenizer, err := NewDataTokenizer(anonymizer)
+	assert.NoError(t, err)
+
+	tokenEncryptor, err := NewTokenEncryptor(tokenizer)
+	assert.NoError(t, err)
+
+	clientSession := &mocks.ClientSession{}
+	sessionData := make(map[string]interface{}, 2)
+	clientSession.On("GetData", mock.Anything).Return(func(key string) interface{} {
+		return sessionData[key]
+	}, func(key string) bool {
+		_, ok := sessionData[key]
+		return ok
+	})
+	clientSession.On("DeleteData", mock.Anything).Run(func(args mock.Arguments) {
+		delete(sessionData, args[0].(string))
+	})
+	clientSession.On("SetData", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		sessionData[args[0].(string)] = args[1]
+	})
+
+	schemaConfig := `schemas:
+  - table: test_table
+    columns:
+      - data1
+    encrypted:
+      - column: data1
+        token_type: str
+        consistent_tokenization: true
+        client_id: client_test_table		
+
+  - table: test_table_2
+    columns:
+      - data1
+    encrypted:
+      - column: data1
+        token_type: str
+        consistent_tokenization: true
+        client_id: client_test_table_2		
+`
+	ctx := base.SetClientSessionToContext(context.Background(), clientSession)
+	ctx = base.SetAccessContextToContext(ctx, base.NewAccessContext())
+
+	type testcase struct {
+		Query    string
+		ClientID []byte
+	}
+
+	clientIdTestTable := []byte("client_test_table")
+	clientIdTestTable2 := []byte("client_test_table_2")
+
+	dataToTokenize := []byte("some_data")
+	testcases := []testcase{
+		// check matching with default table test_table_2 present in config, table1 with alias not in config
+		{ClientID: clientIdTestTable2, Query: "SELECT * FROM test_table_2 inner join table1 t2 on data1='%s'"},
+		// check matching with default table test_table default present in config, test_table_2 in the config too, but hash alias
+		{ClientID: clientIdTestTable, Query: "SELECT * FROM test_table inner join test_table_2 t2 on data1='%s'"},
+		{ClientID: clientIdTestTable2, Query: "SELECT value1 FROM test_table t1, test_table_2 where data1='%s'"},
+		{ClientID: clientIdTestTable, Query: "SELECT value1 FROM test as tt, test_table_2 t2, test_table where data1='%s'"},
+	}
+
+	parser := sqlparser.New(sqlparser.ModeDefault)
+
+	for _, tcase := range testcases {
+		schema, err := config.MapTableSchemaStoreFromConfig([]byte(schemaConfig))
+		assert.NoError(t, err)
+
+		encryptor := NewPostgresqlTokenizeQuery(schema, tokenEncryptor)
+
+		setting := config.BasicColumnEncryptionSetting{
+			TokenType:              "str",
+			ConsistentTokenization: true,
+		}
+		anonymized, err := tokenizer.Tokenize(dataToTokenize, common.TokenContext{ClientID: tcase.ClientID}, &setting)
+		assert.NoError(t, err)
+
+		newQuery, ok, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(fmt.Sprintf(tcase.Query, dataToTokenize), parser))
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		stmt, err := newQuery.Statement()
+		assert.NoError(t, err)
+
+		var whereExps = make([]*sqlparser.Where, 0)
+		err = sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
+			switch nodeType := node.(type) {
+			case *sqlparser.Where:
+				whereExps = append(whereExps, nodeType)
+			case sqlparser.JoinCondition:
+				whereExps = append(whereExps, &sqlparser.Where{
+					Type: "on",
+					Expr: nodeType.On,
+				})
+			}
+			return true, nil
+		}, stmt)
+
+		for _, whereExp := range whereExps {
+			if whereExp == nil {
+				continue
+			}
+			comparisonExpr, ok := whereExp.Expr.(*sqlparser.ComparisonExpr)
+			assert.True(t, ok)
+
+			assert.Equal(t, comparisonExpr.Right.(*sqlparser.SQLVal).Val, anonymized)
+		}
+	}
+}

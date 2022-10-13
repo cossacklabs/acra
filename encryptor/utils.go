@@ -183,7 +183,7 @@ func getNonAliasedName(aliased *sqlparser.AliasedTableExpr) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	return tableName.Name.RawValue(), true
+	return tableName.Name.ValueForConfig(), true
 }
 
 func getTableNameWithoutAliases(expr sqlparser.TableExpr) (string, error) {

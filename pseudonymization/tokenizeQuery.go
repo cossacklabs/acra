@@ -179,17 +179,24 @@ func (encryptor *TokenizeQuery) replaceValuesWithTokenizedData(ctx context.Conte
 
 func (encryptor *TokenizeQuery) getTokenizerDataWithSetting(setting config.ColumnEncryptionSetting) func(ctx context.Context, dataToTokenize []byte) (tokenized []byte, err error) {
 	return func(ctx context.Context, dataToTokenize []byte) (tokenized []byte, err error) {
+		logger := logrus.WithFields(logrus.Fields{"column": setting.ColumnName()})
+		logger.Debugln("Searchable TokenizeQuery")
+
 		accessContext := base.AccessContextFromContext(ctx)
 
 		if accessContext.IsWithZone() {
 			tokenized, err = encryptor.tokenEncryptor.EncryptWithZoneID(accessContext.GetZoneID(), dataToTokenize, setting)
 		} else {
-			tokenized, err = encryptor.tokenEncryptor.EncryptWithClientID(accessContext.GetClientID(), dataToTokenize, setting)
+			clientID := setting.ClientID()
+			if len(clientID) > 0 {
+				logger.WithField("client_id", string(clientID)).Debugln("Tokenize with specific ClientID for column")
+			} else {
+				logger.WithField("client_id", string(accessContext.GetClientID())).Debugln("Tokenize with ClientID from connection")
+				clientID = accessContext.GetClientID()
+			}
+			tokenized, err = encryptor.tokenEncryptor.EncryptWithClientID(clientID, dataToTokenize, setting)
 		}
-		if err != nil {
-			logrus.WithError(err).Debugln("Failed to tokenize value")
-			return nil, err
-		}
+
 		return
 	}
 }

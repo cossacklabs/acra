@@ -234,6 +234,7 @@ func TestSearchableWithJoinsWithTextFormat(t *testing.T) {
   - table: test_table_2
     columns:
       - data1
+      - data2
     encrypted:
       - column: data1
         searchable: true
@@ -252,6 +253,7 @@ func TestSearchableWithJoinsWithTextFormat(t *testing.T) {
 		{Query: "SELECT * FROM test_table as t1 join some_table_1 join some_table_2 join test_table_2 on t1.data1=test_table_2.data1"},
 		{Query: "SELECT * FROM table1 t1 inner join test_table_2 t3 on t3.data1='some_data'"},
 		{Query: "SELECT * FROM test_table_2 inner join table1 t2 on data2='some_data'"},
+		{Query: "SELECT * FROM test_table inner join test_table_2 t2 on data1='some_data'"},
 		{Query: "SELECT value1 FROM test_table t1, test_table_2 where data1='some_data'"},
 		{Query: "SELECT value1 FROM test as tt, test_table_2 t2, test_table where data1='some_data'"},
 	}
@@ -300,7 +302,7 @@ func TestSearchableWithJoinsWithTextFormat(t *testing.T) {
 				switch expr := expr.Right.(type) {
 				case *sqlparser.SQLVal:
 					// if RightExpr is SQLVal check weather its hash
-					assert.True(t, len(expr.Val) == 68)
+					assert.True(t, len(expr.Val) == 68, "expect replacing value on substring with hash `%s`", queryObj.Query())
 				case *sqlparser.SubstrExpr:
 					assert.Equal(t, sqlparser.String(expr.Name.Name), "data1")
 				}

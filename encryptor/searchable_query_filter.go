@@ -92,7 +92,7 @@ func (filter *SearchableQueryFilter) filterInterestingTables(fromExp sqlparser.T
 		return nil, nil
 	}
 
-	var defaultTable = tables[0]
+	var defaultTable *AliasedTableName
 	var defaultTableName string
 	// if query contains table without alias we need to detect default table
 	// if no, we can ignore default table and AliasToTableMap will be used to map ColName with encryptor_config
