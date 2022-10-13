@@ -228,17 +228,17 @@ func TestSearchableTokenizationWithDefaultTablesTextFormat(t *testing.T) {
 		ClientID []byte
 	}
 
-	clientIdTestTable := []byte("client_test_table")
-	clientIdTestTable2 := []byte("client_test_table_2")
+	clientIDTestTable := []byte("client_test_table")
+	clientIDTestTable2 := []byte("client_test_table_2")
 
 	dataToTokenize := []byte("some_data")
 	testcases := []testcase{
 		// check matching with default table test_table_2 present in config, table1 with alias not in config
-		{ClientID: clientIdTestTable2, Query: "SELECT * FROM test_table_2 inner join table1 t2 on data1='%s'"},
+		{ClientID: clientIDTestTable2, Query: "SELECT * FROM test_table_2 inner join table1 t2 on data1='%s'"},
 		// check matching with default table test_table default present in config, test_table_2 in the config too, but hash alias
-		{ClientID: clientIdTestTable, Query: "SELECT * FROM test_table inner join test_table_2 t2 on data1='%s'"},
-		{ClientID: clientIdTestTable2, Query: "SELECT value1 FROM test_table t1, test_table_2 where data1='%s'"},
-		{ClientID: clientIdTestTable, Query: "SELECT value1 FROM test as tt, test_table_2 t2, test_table where data1='%s'"},
+		{ClientID: clientIDTestTable, Query: "SELECT * FROM test_table inner join test_table_2 t2 on data1='%s'"},
+		{ClientID: clientIDTestTable2, Query: "SELECT value1 FROM test_table t1, test_table_2 where data1='%s'"},
+		{ClientID: clientIDTestTable, Query: "SELECT value1 FROM test as tt, test_table_2 t2, test_table where data1='%s'"},
 	}
 
 	parser := sqlparser.New(sqlparser.ModeDefault)
