@@ -237,6 +237,8 @@ func TestSearchableWithJoinsWithTextFormat(t *testing.T) {
     encrypted:
       - column: data1
         searchable: true
+      - column: data2
+        searchable: true
 `
 
 	type testcase struct {
@@ -245,7 +247,13 @@ func TestSearchableWithJoinsWithTextFormat(t *testing.T) {
 
 	testcases := []testcase{
 		{Query: "SELECT * FROM table1 t1 inner join test_table t2 inner join test_table_2 t3 on t2.data1=t3.data1"},
+		{Query: "SELECT * FROM table1 inner join test_table inner join test_table_2 on test_table.data1=test_table_2.data1"},
+		{Query: "SELECT * FROM table1 inner join test_table t1 inner join test_table_2 on t1.data1=test_table_2.data1"},
+		{Query: "SELECT * FROM test_table as t1 join some_table_1 join some_table_2 join test_table_2 on t1.data1=test_table_2.data1"},
 		{Query: "SELECT * FROM table1 t1 inner join test_table_2 t3 on t3.data1='some_data'"},
+		{Query: "SELECT * FROM test_table_2 inner join table1 t2 on data2='some_data'"},
+		{Query: "SELECT value1 FROM test_table t1, test_table_2 where data1='some_data'"},
+		{Query: "SELECT value1 FROM test as tt, test_table_2 t2, test_table where data1='some_data'"},
 	}
 
 	for _, tcase := range testcases {
@@ -294,7 +302,7 @@ func TestSearchableWithJoinsWithTextFormat(t *testing.T) {
 					// if RightExpr is SQLVal check weather its hash
 					assert.True(t, len(expr.Val) == 68)
 				case *sqlparser.SubstrExpr:
-					assert.Equal(t, sqlparser.String(expr.Name), "t3.data1")
+					assert.Equal(t, sqlparser.String(expr.Name.Name), "data1")
 				}
 			}
 		}
