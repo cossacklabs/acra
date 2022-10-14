@@ -25,3 +25,35 @@ schemas:
       - column: token_email
         token_type: email
         consistent_tokenization: true
+
+  - table: test_tokenization_specific_client_id
+    columns:
+      - id
+      - nullable
+      - empty
+      - token_i32
+      - token_i64
+      - token_str
+      - token_bytes
+      - token_email
+    encrypted:
+      - column: token_i32
+        token_type: int32
+        client_id: 5c51c6171837ddc54dc570c823db579831aa1c85203d638c38b90a59b226a788689329a695483dacbd2d4f3ec9515bb029de51e076be36eb43b0894cbbc725d3
+        consistent_tokenization: true
+      - column: token_i64
+        token_type: int64
+        client_id: 5c51c6171837ddc54dc570c823db579831aa1c85203d638c38b90a59b226a788689329a695483dacbd2d4f3ec9515bb029de51e076be36eb43b0894cbbc725d3
+        consistent_tokenization: true
+      - column: token_str
+        token_type: str
+        client_id: 5c51c6171837ddc54dc570c823db579831aa1c85203d638c38b90a59b226a788689329a695483dacbd2d4f3ec9515bb029de51e076be36eb43b0894cbbc725d3
+        consistent_tokenization: true
+      - column: token_bytes
+        token_type: bytes
+        client_id: 5c51c6171837ddc54dc570c823db579831aa1c85203d638c38b90a59b226a788689329a695483dacbd2d4f3ec9515bb029de51e076be36eb43b0894cbbc725d3
+        consistent_tokenization: true
+      - column: token_email
+        token_type: email
+        client_id: 5c51c6171837ddc54dc570c823db579831aa1c85203d638c38b90a59b226a788689329a695483dacbd2d4f3ec9515bb029de51e076be36eb43b0894cbbc725d3
+        consistent_tokenization: true
