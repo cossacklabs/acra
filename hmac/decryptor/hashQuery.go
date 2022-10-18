@@ -108,7 +108,11 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObjec
 			continue
 		}
 
-		// TODO: left comment
+		// MySQL have ambiguous behaviour with filtering over search data
+		// query like `select table1.value, table2.value from table1 join table2 on substr(table1.searchable, 1, 33) = substr(table2.searchable, 1, 33)
+		// where substr(table1.searchable, 1, 33) = X'7f6002a9335e723661b917736c3d253c07c65750839b9952801ab7f6e2a4982792'`
+		// doesnt return any record, but it does work separately (with just single where search or with join over search data)
+		// to escape from this ambiguity added explicit casting search hash to bytes
 		if _, ok := encryptor.coder.(*queryEncryptor.MysqlDBDataCoder); ok {
 			if rVal, ok := item.Expr.Right.(*sqlparser.SQLVal); ok && rVal.Type != sqlparser.ValArg {
 				item.Expr.Left = &sqlparser.ConvertExpr{
