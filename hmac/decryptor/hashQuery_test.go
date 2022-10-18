@@ -242,6 +242,15 @@ func TestSearchableWithJoinsWithTextFormat(t *testing.T) {
         searchable: true
 `
 
+	keyStore := &mocks2.ServerKeyStore{}
+	keyStore.On("GetHMACSecretKey", mock.Anything).Return([]byte(`some key`), nil)
+	registryHandler := crypto.NewRegistryHandler(nil)
+
+	schema, err := config.MapTableSchemaStoreFromConfig([]byte(schemaConfig))
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	type testcase struct {
 		Query string
 	}
@@ -258,53 +267,56 @@ func TestSearchableWithJoinsWithTextFormat(t *testing.T) {
 		{Query: "SELECT value1 FROM test as tt, test_table_2 t2, test_table where data1='some_data'"},
 	}
 
-	for _, tcase := range testcases {
-		schema, err := config.MapTableSchemaStoreFromConfig([]byte(schemaConfig))
-		if err != nil {
-			t.Fatal(err)
-		}
-		ctx := base.SetClientSessionToContext(context.Background(), clientSession)
-		parser := sqlparser.New(sqlparser.ModeDefault)
-		keyStore := &mocks2.ServerKeyStore{}
-		keyStore.On("GetHMACSecretKey", mock.Anything).Return([]byte(`some key`), nil)
-		registryHandler := crypto.NewRegistryHandler(nil)
-		encryptor := NewPostgresqlHashQuery(keyStore, schema, registryHandler)
+	encryptors := []*HashQuery{NewMysqlHashQuery(keyStore, schema, registryHandler)}
+	for _, encryptor := range encryptors {
+		for _, tcase := range testcases {
+			ctx := base.SetClientSessionToContext(context.Background(), clientSession)
+			parser := sqlparser.New(sqlparser.ModeDefault)
 
-		queryObj := base.NewOnQueryObjectFromQuery(tcase.Query, parser)
-		queryObj, _, err = encryptor.OnQuery(ctx, queryObj)
-		assert.NoError(t, err)
+			queryObj := base.NewOnQueryObjectFromQuery(tcase.Query, parser)
+			queryObj, _, err = encryptor.OnQuery(ctx, queryObj)
+			assert.NoError(t, err)
 
-		stmt, err := queryObj.Statement()
-		assert.NoError(t, err)
+			stmt, err := queryObj.Statement()
+			assert.NoError(t, err)
 
-		var whereExps = make([]*sqlparser.Where, 0)
-		err = sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
-			switch nodeType := node.(type) {
-			case *sqlparser.Where:
-				whereExps = append(whereExps, nodeType)
-			case sqlparser.JoinCondition:
-				whereExps = append(whereExps, &sqlparser.Where{
-					Type: "on",
-					Expr: nodeType.On,
-				})
-			}
-			return true, nil
-		}, stmt)
+			var whereExps = make([]*sqlparser.Where, 0)
+			err = sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
+				switch nodeType := node.(type) {
+				case *sqlparser.Where:
+					whereExps = append(whereExps, nodeType)
+				case sqlparser.JoinCondition:
+					whereExps = append(whereExps, &sqlparser.Where{
+						Type: "on",
+						Expr: nodeType.On,
+					})
+				}
+				return true, nil
+			}, stmt)
 
-		for _, whereExp := range whereExps {
-			if whereExp == nil {
-				continue
-			}
+			for _, whereExp := range whereExps {
+				if whereExp == nil {
+					continue
+				}
 
-			switch expr := whereExp.Expr.(type) {
-			case *sqlparser.ComparisonExpr:
+				switch expr := whereExp.Expr.(type) {
+				case *sqlparser.ComparisonExpr:
 
-				switch expr := expr.Right.(type) {
-				case *sqlparser.SQLVal:
-					// if RightExpr is SQLVal check weather its hash
-					assert.True(t, len(expr.Val) == 68, "expect replacing value on substring with hash `%s`", queryObj.Query())
-				case *sqlparser.SubstrExpr:
-					assert.Equal(t, sqlparser.String(expr.Name.Name), "data1")
+					if _, ok := encryptor.coder.(*encryptor2.MysqlDBDataCoder); ok && whereExp.Type == sqlparser.WhereStr {
+						convertExpr, ok := expr.Left.(*sqlparser.ConvertExpr)
+						assert.True(t, ok)
+
+						_, ok = convertExpr.Expr.(*sqlparser.SubstrExpr)
+						assert.True(t, ok)
+					}
+
+					switch expr := expr.Right.(type) {
+					case *sqlparser.SQLVal:
+						// if RightExpr is SQLVal check weather its hash
+						assert.True(t, len(expr.Val) == 68, "expect replacing value on substring with hash `%s`", queryObj.Query())
+					case *sqlparser.SubstrExpr:
+						assert.Equal(t, sqlparser.String(expr.Name.Name), "data1")
+					}
 				}
 			}
 		}

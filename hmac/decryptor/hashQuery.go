@@ -108,6 +108,20 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObjec
 			continue
 		}
 
+		// TODO: left comment
+		if _, ok := encryptor.coder.(*queryEncryptor.MysqlDBDataCoder); ok {
+			if rVal, ok := item.Expr.Right.(*sqlparser.SQLVal); ok && rVal.Type != sqlparser.ValArg {
+				item.Expr.Left = &sqlparser.ConvertExpr{
+					Expr: item.Expr.Left,
+					Type: &sqlparser.ConvertType{
+						Type: "binary",
+					},
+				}
+
+				rVal.Type = sqlparser.HexNum
+			}
+		}
+
 		// substring(column, 1, <HMAC_size>) = 'value' ===> substring(column, 1, <HMAC_size>) = <HMAC('value')>
 		// substring(column, 1, <HMAC_size>) = $1      ===> no changes
 		err := queryEncryptor.UpdateExpressionValue(ctx, item.Expr.Right, encryptor.coder, encryptor.calculateHmac)
