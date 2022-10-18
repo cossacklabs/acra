@@ -62,3 +62,59 @@ func TestParseCommand(t *testing.T) {
 		t.Fatal("parsed and marshaled data not equal")
 	}
 }
+
+func TestWriteParameterArrayEmptyString(t *testing.T) {
+	buffer := bytes.Buffer{}
+	bindValue, err := hex.DecodeString(`0000000100000001000000000000`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bindPacket, err := NewBindPacket(bindValue)
+	if err != nil {
+		t.Fatal(err)
+	}
+	length, err := writeParameterArray(&buffer, bindPacket.paramValues)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if length != 6 {
+		t.Fatal(err)
+	}
+	// 1 parameter
+	if !bytes.Equal(buffer.Bytes()[:2], []byte{0, 1}) {
+		t.Fatal("Unexpected length of parameters")
+	}
+
+	// one parameter with empty string
+	if !bytes.Equal(buffer.Bytes()[2:], []byte{0, 0, 0, 0}) {
+		t.Fatal("Empty")
+	}
+}
+
+func TestWriteParameterArrayNullValue(t *testing.T) {
+	buffer := bytes.Buffer{}
+	bindValue, err := hex.DecodeString(`0000000100000001ffffffff0000`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bindPacket, err := NewBindPacket(bindValue)
+	if err != nil {
+		t.Fatal(err)
+	}
+	length, err := writeParameterArray(&buffer, bindPacket.paramValues)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if length != 6 {
+		t.Fatal(err)
+	}
+	// 1 parameter
+	if !bytes.Equal(buffer.Bytes()[:2], []byte{0, 1}) {
+		t.Fatal("Unexpected length of parameters")
+	}
+
+	// one parameter with null value as -1 or 0xffffffff
+	if !bytes.Equal(buffer.Bytes()[2:], []byte{255, 255, 255, 255}) {
+		t.Fatal("Empty")
+	}
+}

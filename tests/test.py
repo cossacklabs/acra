@@ -9447,6 +9447,7 @@ class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(BaseTransparentEnc
                 continue
             if 'empty' in column:
                 self.assertEqual(row[column], '')
+                self.assertEqual(row[column], data[column])
                 continue
             self.assertNotEqual(data[column], row[column])
             if column in ('value_int32', 'value_int64'):
@@ -9607,21 +9608,18 @@ class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults(
             .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
         row = self.executor1.execute_prepared_statement(query, args)[0]
         for column in columns:
-            if 'null' in column:
-                # asyncpg decodes None values as empty str/bytes value
-                self.assertFalse(row[column])
-                continue
             self.assertEqual(data[column], row[column])
             self.assertIsInstance(row[column], type(data[column]))
 
         row = self.executor2.execute_prepared_statement(query, args)[0]
         for column in columns:
             if 'null' in column:
-                # asyncpg decodes None values as empty str/bytes value
-                self.assertFalse(row[column])
+                self.assertIsNone(row[column])
+                self.assertIsNone(data[column])
                 continue
             if 'empty' in column:
                 self.assertEqual(data[column], row[column])
+                self.assertEqual(data[column], '')
             else:
                 self.assertNotEqual(data[column], row[column])
                 self.assertEqual(row[column], default_expected_values[column])
@@ -9629,9 +9627,13 @@ class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults(
 
         row = self.executor2.execute_prepared_statement(query, args)[0]
         for column in columns:
-            if 'null' in column or 'empty' in column:
-                # asyncpg decodes None values as empty str/bytes value
-                self.assertFalse(row[column])
+            if 'null' in column:
+                self.assertIsNone(row[column])
+                self.assertEqual(data[column], row[column])
+                continue
+            if 'empty' in column:
+                self.assertEqual(row[column], '')
+                self.assertEqual(row[column], data[column])
                 continue
             self.assertNotEqual(data[column], row[column])
 
@@ -9684,9 +9686,12 @@ class TestMySQLBinaryFormatTypeAwareDecryptionWithDefaults(TestMySQLTextFormatTy
 
         for column in columns:
             if 'empty' in column:
-                self.assertEqual(data[column], row[column])
+                self.assertEqual(row[column], '')
+                self.assertEqual(row[column], data[column])
+                continue
             elif 'null' in column:
                 self.assertEqual(data[column], row[column])
+                self.assertIsNone(data[column])
             else:
                 self.assertNotEqual(data[column], row[column])
                 self.assertEqual(default_expected_values[column], row[column])
@@ -9760,11 +9765,14 @@ class TestPostgresqlTextTypeAwareDecryptionWithoutDefaults(BaseTransparentEncryp
                 .where(self.test_table.c.id == data['id']))
         row = result.fetchone()
         for column in columns:
-            if 'null' in column or 'empty' in column:
-                # asyncpg decodes None values as empty str/bytes value
-                self.assertFalse(row[column])
+            if 'null' in column:
+                self.assertIsNone(row[column])
+                self.assertEqual(row[column], data[column])
                 continue
             value = utils.memoryview_to_bytes(row[column])
+            if 'empty' in column:
+                self.assertEqual(value, b'')
+                continue
             self.assertIsInstance(value, bytes, column)
             self.assertNotEqual(data[column], value, column)
 
@@ -9924,13 +9932,17 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithoutDefaults(TestPostgresqlBinar
 
         row = self.raw_executor.execute_prepared_statement(query, args)[0]
         for column in columns:
-            if 'null' in column or 'empty' in column:
-                # asyncpg decodes None values as empty str/bytes value
-                self.assertFalse(row[column])
+            if 'null' in column:
+                self.assertIsNone(row[column])
+                self.assertEqual(row[column], data[column])
                 continue
             value = utils.memoryview_to_bytes(row[column])
+            if 'empty' in column:
+                self.assertEqual(value, b'')
+                continue
             self.assertIsInstance(value, bytes, column)
             self.assertNotEqual(data[column], value, column)
+
 
 class TestPostgresqlBinaryTypeAwareDecryptionWithError(TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults):
     # test table used for queries and data mapping into python types
@@ -10002,11 +10014,14 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithError(TestPostgresqlBinaryForma
 
         row = self.raw_executor.execute_prepared_statement(query, args)[0]
         for column in columns:
-            if 'null' in column or 'empty' in column:
-                # asyncpg decodes None values as empty str/bytes value
-                self.assertFalse(row[column])
+            if 'null' in column:
+                self.assertIsNone(row[column])
+                self.assertEqual(row[column], data[column])
                 continue
             value = utils.memoryview_to_bytes(row[column])
+            if 'empty' in column:
+                self.assertEqual(value, b'')
+                continue
             self.assertIsInstance(value, bytes, column)
             self.assertNotEqual(data[column], value, column)
 
@@ -10079,11 +10094,14 @@ class TestPostgresqlTextTypeAwareDecryptionWithError(BaseTransparentEncryption):
                 .where(self.test_table.c.id == data['id']))
         row = result.fetchone()
         for column in columns:
-            if 'null' in column or 'empty' in column:
-                # asyncpg decodes None values as empty str/bytes value
-                self.assertFalse(row[column])
+            if 'null' in column:
+                self.assertIsNone(row[column])
+                self.assertEqual(row[column], data[column])
                 continue
             value = utils.memoryview_to_bytes(row[column])
+            if 'empty' in column:
+                self.assertEqual(value, b'')
+                continue
             self.assertIsInstance(value, bytes, column)
             self.assertNotEqual(data[column], value, column)
 
@@ -10157,13 +10175,17 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithCiphertext(TestPostgresqlBinary
 
         row = self.raw_executor.execute_prepared_statement(query, args)[0]
         for column in columns:
-            if 'null' in column or 'empty' in column:
-                # asyncpg decodes None values as empty str/bytes value
-                self.assertFalse(row[column])
+            if 'null' in column:
+                self.assertIsNone(row[column])
+                self.assertEqual(row[column], data[column])
                 continue
             value = utils.memoryview_to_bytes(row[column])
+            if 'empty' in column:
+                self.assertEqual(value, b'')
+                continue
             self.assertIsInstance(value, bytes, column)
             self.assertNotEqual(data[column], value, column)
+
 
 # `response_on_fail` is `ciphertext` if not defined. That's why the code is
 # exactly the same as inTestPostgresqlTextTypeAwareDecryptionWithoutDefaults
@@ -10233,11 +10255,14 @@ class TestPostgresqlTextTypeAwareDecryptionWithCiphertext(BaseTransparentEncrypt
                 .where(self.test_table.c.id == data['id']))
         row = result.fetchone()
         for column in columns:
-            if 'null' in column or 'empty' in column:
-                # asyncpg decodes None values as empty str/bytes value
-                self.assertFalse(row[column])
+            if 'null' in column:
+                self.assertIsNone(row[column])
+                self.assertEqual(row[column], data[column])
                 continue
             value = utils.memoryview_to_bytes(row[column])
+            if 'empty' in column:
+                self.assertEqual(value, b'')
+                continue
             self.assertIsInstance(value, bytes, column)
             self.assertNotEqual(data[column], value, column)
 
