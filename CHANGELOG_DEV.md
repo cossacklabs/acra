@@ -1,3 +1,6 @@
+# 0.94.0 - 2022-10-18
+- Extend SQL syntax for searchable encryption with support JOINs query. 
+
 # 0.94.0 - 2022-10-13
 - Improve handling binary format of prepared statements for PostgreSQL with null values in Bind packets.
 
