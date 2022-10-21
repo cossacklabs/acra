@@ -16,7 +16,7 @@ func Test_mapEncryptedTypeToOID(t *testing.T) {
 		want  uint32
 		want1 bool
 	}{
-		{"string", args{common.EncryptedType_String}, pgtype.TextOID, true},
+		{"string", args{common.EncryptedType_String}, pgtype.VarcharOID, true},
 		{"bytes", args{common.EncryptedType_Bytes}, pgtype.ByteaOID, true},
 		{"int32", args{common.EncryptedType_Int32}, pgtype.Int4OID, true},
 		{"int64", args{common.EncryptedType_Int64}, pgtype.Int8OID, true},

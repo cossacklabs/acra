@@ -9211,7 +9211,7 @@ class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(BaseTransparentEnc
         # use new object of metadata to avoid name conflict
         'test_type_aware_decryption_with_defaults', sa.MetaData(),
         sa.Column('id', sa.Integer, primary_key=True),
-        sa.Column('value_str', sa.Text),
+        sa.Column('value_str', sa.VARCHAR(length=300)),
         sa.Column('value_bytes', sa.LargeBinary),
         sa.Column('value_int32', sa.Integer),
         sa.Column('value_int64', sa.BigInteger),
@@ -9314,7 +9314,7 @@ class TestMySQLTextFormatTypeAwareDecryptionWithDefaults(BaseBinaryMySQLTestCase
         # use new object of metadata to avoid name conflict
         'test_type_aware_decryption_with_defaults', sa.MetaData(),
         sa.Column('id', sa.Integer, primary_key=True),
-        sa.Column('value_str', sa.Text),
+        sa.Column('value_str', sa.VARCHAR(length=300)),
         sa.Column('value_bytes', sa.LargeBinary),
         sa.Column('value_int32', sa.Integer),
         sa.Column('value_int64', sa.BigInteger),
@@ -9540,7 +9540,7 @@ class TestPostgresqlTextTypeAwareDecryptionWithoutDefaults(BaseTransparentEncryp
         # use new object of metadata to avoid name conflict
         'test_type_aware_decryption_without_defaults', sa.MetaData(),
         sa.Column('id', sa.Integer, primary_key=True),
-        sa.Column('value_str', sa.Text),
+        sa.Column('value_str', sa.VARCHAR(length=300)),
         sa.Column('value_bytes', sa.LargeBinary),
         sa.Column('value_int32', sa.Integer),
         sa.Column('value_int64', sa.BigInteger),
@@ -9619,7 +9619,7 @@ class TestMySQLTextTypeAwareDecryptionWithoutDefaults(BaseBinaryMySQLTestCase, B
         # use new object of metadata to avoid name conflict
         'test_type_aware_decryption_without_defaults', sa.MetaData(),
         sa.Column('id', sa.Integer, primary_key=True),
-        sa.Column('value_str', sa.Text),
+        sa.Column('value_str', sa.VARCHAR(length=300)),
         sa.Column('value_bytes', sa.LargeBinary),
         sa.Column('value_int32', sa.Integer),
         sa.Column('value_int64', sa.BigInteger),
@@ -9707,7 +9707,7 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithoutDefaults(TestPostgresqlBinar
         # use new object of metadata to avoid name conflict
         'test_type_aware_decryption_without_defaults', sa.MetaData(),
         sa.Column('id', sa.Integer, primary_key=True),
-        sa.Column('value_str', sa.Text),
+        sa.Column('value_str', sa.VARCHAR(length=300)),
         sa.Column('value_bytes', sa.LargeBinary),
         sa.Column('value_int32', sa.Integer),
         sa.Column('value_int64', sa.BigInteger),
@@ -9786,7 +9786,7 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithError(TestPostgresqlBinaryForma
         # use new object of metadata to avoid name conflict
         'test_type_aware_decryption_with_error', sa.MetaData(),
         sa.Column('id', sa.Integer, primary_key=True),
-        sa.Column('value_str', sa.Text),
+        sa.Column('value_str', sa.VARCHAR(length=300)),
         sa.Column('value_bytes', sa.LargeBinary),
         sa.Column('value_int32', sa.Integer),
         sa.Column('value_int64', sa.BigInteger),
@@ -9868,7 +9868,7 @@ class TestPostgresqlTextTypeAwareDecryptionWithError(BaseTransparentEncryption):
         # use new object of metadata to avoid name conflict
         'test_type_aware_decryption_with_error', sa.MetaData(),
         sa.Column('id', sa.Integer, primary_key=True),
-        sa.Column('value_str', sa.Text),
+        sa.Column('value_str', sa.VARCHAR(length=300)),
         sa.Column('value_bytes', sa.LargeBinary),
         sa.Column('value_int32', sa.Integer),
         sa.Column('value_int64', sa.BigInteger),
@@ -9950,7 +9950,7 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithCiphertext(TestPostgresqlBinary
         # use new object of metadata to avoid name conflict
         'test_type_aware_decryption_without_defaults', sa.MetaData(),
         sa.Column('id', sa.Integer, primary_key=True),
-        sa.Column('value_str', sa.Text),
+        sa.Column('value_str', sa.VARCHAR(length=300)),
         sa.Column('value_bytes', sa.LargeBinary),
         sa.Column('value_int32', sa.Integer),
         sa.Column('value_int64', sa.BigInteger),
@@ -10031,7 +10031,7 @@ class TestPostgresqlTextTypeAwareDecryptionWithCiphertext(BaseTransparentEncrypt
         # use new object of metadata to avoid name conflict
         'test_type_aware_decryption_with_ciphertext', sa.MetaData(),
         sa.Column('id', sa.Integer, primary_key=True),
-        sa.Column('value_str', sa.Text),
+        sa.Column('value_str', sa.VARCHAR(length=300)),
         sa.Column('value_bytes', sa.LargeBinary),
         sa.Column('value_int32', sa.Integer),
         sa.Column('value_int64', sa.BigInteger),
@@ -10156,7 +10156,7 @@ class TestMySQLTextTypeAwareDecryptionWithCiphertext(BaseBinaryMySQLTestCase, Ba
         # use new object of metadata to avoid name conflict
         'test_type_aware_decryption_with_ciphertext', sa.MetaData(),
         sa.Column('id', sa.Integer, primary_key=True),
-        sa.Column('value_str', sa.Text),
+        sa.Column('value_str', sa.VARCHAR(length=300)),
         sa.Column('value_bytes', sa.LargeBinary),
         sa.Column('value_int32', sa.Integer),
         sa.Column('value_int64', sa.BigInteger),
@@ -10291,7 +10291,7 @@ class TestMySQLTextTypeAwareDecryptionWithError(BaseBinaryMySQLTestCase, BaseTra
         # use new object of metadata to avoid name conflict
         'test_type_aware_decryption_with_error', sa.MetaData(),
         sa.Column('id', sa.Integer, primary_key=True),
-        sa.Column('value_str', sa.Text),
+        sa.Column('value_str', sa.VARCHAR(length=300)),
         sa.Column('value_bytes', sa.LargeBinary),
         sa.Column('value_int32', sa.Integer),
         sa.Column('value_int64', sa.BigInteger),

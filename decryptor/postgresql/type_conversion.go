@@ -8,7 +8,7 @@ import (
 func mapEncryptedTypeToOID(dataType common.EncryptedType) (uint32, bool) {
 	switch dataType {
 	case common.EncryptedType_String:
-		return pgtype.TextOID, true
+		return pgtype.VarcharOID, true
 	case common.EncryptedType_Int32:
 		return pgtype.Int4OID, true
 	case common.EncryptedType_Int64:
