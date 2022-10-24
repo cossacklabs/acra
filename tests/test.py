@@ -1400,7 +1400,7 @@ class ConsulClient:
         return self.url.geturl()
     def set(self, key, value):
         self.client.kv.put(key, value)
-    
+
 
 class AWSKMSClient:
     def __init__(self):
@@ -5831,9 +5831,12 @@ class TestTransparentEncryption(BaseTransparentEncryption):
         self.assertNotEqual(row['zone_id'], zone_id)
         self.assertEqual(row['empty'], b'')
 
-    def insertRow(self, data):
+    def insertRow(self, data, query=None,):
+        insert_query = self.encryptor_table.insert()
+        if query is not None:
+            insert_query = query
         # send through acra-server that authenticates as client_id=keypair2
-        self.engine2.execute(self.encryptor_table.insert(), data)
+        self.engine2.execute(insert_query, data)
 
     def check_all_decryptions(self, **context):
         self.checkDefaultIdEncryption(**context)
@@ -6762,7 +6765,7 @@ class BaseSearchableTransparentEncryption(TestTransparentEncryption):
         }
         return context
 
-    def insertDifferentRows(self, context, count, search_term=None, search_field='searchable'):
+    def insertDifferentRows(self, context, count, query=None, search_term=None, search_field='searchable'):
         if not search_term:
             search_term = context[search_field]
         temp_context = context.copy()
@@ -6771,7 +6774,7 @@ class BaseSearchableTransparentEncryption(TestTransparentEncryption):
             if new_data != search_term:
                 temp_context[search_field] = new_data
                 temp_context['id'] = context['id'] + count
-                self.insertRow(temp_context)
+                self.insertRow(temp_context, query=query)
                 count -= 1
 
     def execute_via_2(self, query, parameters):
@@ -7246,6 +7249,127 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         self.assertEqual(rows[0]['searchable_acrablock'][33:33+4], encrypted_term[:4])
 
 
+class TestSearchableTransparentEncryptionWithJOINs(BaseSearchableTransparentEncryption):
+    encryptor_table_join = sa.Table(
+        'test_searchable_transparent_encryption_join', metadata,
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('specified_client_id',
+                  sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+        sa.Column('default_client_id',
+                  sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+
+        sa.Column('number', sa.Integer),
+        sa.Column('zone_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+        sa.Column('raw_data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+        sa.Column('nullable', sa.Text, nullable=True),
+        sa.Column('searchable', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+        sa.Column('searchable_acrablock', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+        sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('token_i32', sa.Integer(), nullable=False, default=1),
+        sa.Column('token_i64', sa.BigInteger(), nullable=False, default=1),
+        sa.Column('token_str', sa.Text, nullable=False, default=''),
+        sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('token_email', sa.Text, nullable=False, default=''),
+    )
+
+    def setUp(self):
+        super().setUp()
+        self.engine1.execute(self.encryptor_table_join.delete())
+
+    def testSearchWithJoinedTable(self):
+        context = self.get_context_data()
+        search_term = context['searchable']
+
+        # Insert searchable data and some additional different rows
+        self.insertRow(context)
+        self.insertDifferentRows(context, count=5)
+
+        # Insert the same data into encryptor_table_join table
+        self.insertRow(context, query=self.encryptor_table_join.insert())
+        self.insertDifferentRows(context, count=5, query=self.encryptor_table_join.insert())
+
+        rows = self.executeSelect2(
+            sa.select(
+                self.encryptor_table.c.number,
+                self.encryptor_table_join.c.searchable,
+                self.encryptor_table_join.c.default_client_id,
+                self.encryptor_table_join.c.raw_data,
+                self.encryptor_table_join.c.specified_client_id,
+                self.encryptor_table_join.c.zone_id,
+                self.encryptor_table_join.c.empty,
+            ).
+            join(self.encryptor_table_join, self.encryptor_table_join.c.searchable==sa.bindparam('searchable')).
+            where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
+            {'searchable': search_term})
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+
+        self.assertEqual(row[0], context['number'])
+        self.assertEqual(row[1], search_term)
+
+        # should be decrypted
+        self.assertEqual(row['default_client_id'], context['default_client_id'])
+        # should be as is
+        self.assertEqual(row['raw_data'], context['raw_data'])
+        # other data should be encrypted
+        self.assertNotEqual(row['specified_client_id'], context['specified_client_id'])
+        self.assertNotEqual(row['zone_id'], context['zone_id'])
+        self.assertEqual(row['empty'], b'')
+
+        # test with invalid search_term
+        rows = self.executeSelect2(
+            sa.select(
+                self.encryptor_table.c.number,
+                self.encryptor_table_join.c.searchable,
+            ).
+            join(self.encryptor_table_join, self.encryptor_table_join.c.searchable==sa.bindparam('searchable')).
+            where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
+            {'searchable': get_pregenerated_random_data().encode('utf-8')})
+        self.assertEqual(len(rows), 0)
+
+        rows = self.executeSelect2(
+            sa.select(
+                self.encryptor_table.c.number,
+                self.encryptor_table_join.c.searchable,
+            ).join(self.encryptor_table_join, self.encryptor_table_join.c.searchable==sa.bindparam('searchable')),
+            {'searchable': search_term})
+
+        self.assertEqual(len(rows), 6)
+        self.assertEqual(rows[0][1], search_term)
+
+        # test join with on table1.searchable = table2.searchable
+        rows = self.executeSelect2(
+            sa.select(self.encryptor_table.c.number, self.encryptor_table_join.c.searchable).
+            where(self.encryptor_table.c.searchable == sa.bindparam('searchable')).
+            join(self.encryptor_table_join, self.encryptor_table.c.searchable==self.encryptor_table_join.c.searchable),
+            {'searchable': search_term})
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][0], context['number'])
+        self.assertEqual(rows[0][1], search_term)
+
+    def testSearchWithDefaultTable(self):
+        context = self.get_context_data()
+        search_term = context['searchable']
+
+        # Insert searchable data and some additional different rows
+        self.insertRow(context)
+        self.insertDifferentRows(context, count=5)
+
+        search_term_join = get_pregenerated_random_data().encode('ascii')
+        context['searchable'] = search_term_join
+
+        # Insert the same data into encryptor_table_join table with different search term
+        self.insertRow(context, query=self.encryptor_table_join.insert())
+        self.insertDifferentRows(context, count=5, query=self.encryptor_table_join.insert())
+
+        query = 'SELECT masking, tj.searchable FROM test_searchable_transparent_encryption ' \
+                'JOIN test_searchable_transparent_encryption_join tj ON tj.searchable = :search_term_join ' \
+                'WHERE test_searchable_transparent_encryption.searchable = :searchable'
+        rows = self.executeSelect2(sa.text(query), {'searchable': search_term, 'search_term_join': search_term_join})
+        self.assertEqual(len(rows), 1)
+
+
 class TestSearchableTransparentEncryptionDoubleQuotedTables(BaseSearchableTransparentEncryption):
     def setUp(self):
         super().setUp()
@@ -7361,7 +7485,7 @@ class BaseTokenization(BaseTestCase):
         """Execute SQLAlchemy SELECT query via AcraServer with "TEST_TLS_CLIENT_CERT"."""
         return self.engine1.execute(query).fetchall()
 
-    def fetch_from_2(self, query):
+    def fetch_from_2(self, query, parameters={}, literal_binds=True):
         """Execute SQLAlchemy SELECT query via AcraServer with "TEST_TLS_CLIENT_2_CERT"."""
         return self.engine2.execute(query).fetchall()
 
@@ -7417,8 +7541,8 @@ class BaseTokenizationWithBinaryBindMySQL(BaseTokenization, BaseBinaryMySQLTestC
         query, parameters = self.compileQuery(query, parameters=parameters, literal_binds=literal_binds)
         return self.executor1.execute_prepared_statement(query, parameters)
 
-    def fetch_from_2(self, query):
-        query, parameters = self.compileQuery(query, literal_binds=True)
+    def fetch_from_2(self, query, parameters={}, literal_binds=True):
+        query, parameters = self.compileQuery(query, parameters=parameters, literal_binds=literal_binds)
         return self.executor2.execute_prepared_statement(query, parameters)
 
 
@@ -7448,8 +7572,8 @@ class BaseTokenizationWithBinaryPostgreSQL(BaseTokenization, BaseBinaryPostgreSQ
         query, parameters = self.compileQuery(query, parameters=parameters, literal_binds=literal_binds)
         return self.executor1.execute_prepared_statement(query, parameters)
 
-    def fetch_from_2(self, query):
-        query, parameters = self.compileQuery(query, literal_binds=True)
+    def fetch_from_2(self, query, parameters={}, literal_binds=True):
+        query, parameters = self.compileQuery(query, parameters=parameters, literal_binds=literal_binds)
         return self.executor2.execute_prepared_statement(query, parameters)
 
 
@@ -7612,6 +7736,126 @@ class TestSearchableTokenizationWithoutZone(BaseTokenization):
 
         source_data = self.fetch_from_1(sa.select([default_client_id_table]))
         self.assertEqual(0, len(source_data))
+
+    def testSearchableTokenizationWithJOINs(self):
+        default_client_id_table = sa.Table(
+            'test_tokenization_default_client_id', metadata,
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('nullable_column', sa.Text, nullable=True),
+            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_i32', sa.Integer()),
+            sa.Column('token_i64', sa.BigInteger()),
+            sa.Column('token_str', sa.Text),
+            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_email', sa.Text),
+            extend_existing=True,
+        )
+        default_client_id_table_join = sa.Table(
+            'test_tokenization_default_client_id_join', metadata,
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('nullable_column', sa.Text, nullable=True),
+            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_i32', sa.Integer()),
+            sa.Column('token_i64', sa.BigInteger()),
+            sa.Column('token_str', sa.Text),
+            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_email', sa.Text),
+            extend_existing=True,
+        )
+        metadata.create_all(self.engine_raw, [default_client_id_table, default_client_id_table_join])
+        self.engine1.execute(default_client_id_table.delete())
+        self.engine1.execute(default_client_id_table_join.delete())
+
+        row_id = 1
+        data = {
+            'id': row_id,
+            'nullable_column': None,
+            'empty': b'',
+            'token_i32': random_int32(),
+            'token_i64': random_int64(),
+            'token_str': random_str(),
+            'token_bytes': random_bytes(),
+            'token_email': random_email(),
+        }
+
+        # insert data data
+        self.insert_via_1(default_client_id_table.insert(), data)
+        self.insert_via_1(default_client_id_table_join.insert(), data)
+
+        columns = {
+            'id': default_client_id_table_join.c.id,
+            'token_i32': default_client_id_table_join.c.token_i32,
+            'token_i64': default_client_id_table_join.c.token_i64,
+            'token_str': default_client_id_table_join.c.token_str,
+            'token_bytes': default_client_id_table_join.c.token_bytes,
+            'token_email': default_client_id_table_join.c.token_email,
+        }
+        # data owner take source data
+        for key in columns:
+            query = sa.select(
+                default_client_id_table.c.token_i32,
+                default_client_id_table.c.token_str,
+                default_client_id_table_join.c.token_i64,
+                default_client_id_table_join.c.token_email,
+            ).join(default_client_id_table_join, columns[key] == data[key])
+
+            parameters = {key: data[key]}
+            source_data = self.fetch_from_1(query, parameters, literal_binds=False)
+            for k in ('token_i32', 'token_i64', 'token_str', 'token_email'):
+                if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+                    self.assertEqual(source_data[0][k], data[k].encode('utf-8'))
+                else:
+                    self.assertEqual(source_data[0][k], data[k])
+
+    def testSearchableTokenizationSpecificClientID(self):
+        specific_client_id_table = sa.Table(
+            'test_tokenization_specific_client_id', metadata,
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('nullable_column', sa.Text, nullable=True),
+            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_i32', sa.Integer()),
+            sa.Column('token_i64', sa.BigInteger()),
+            sa.Column('token_str', sa.Text),
+            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_email', sa.Text),
+            extend_existing=True,
+        )
+
+        data = {
+            'id': 1,
+            'nullable_column': None,
+            'empty': b'',
+            'token_i32': random_int32(),
+            'token_i64': random_int64(),
+            'token_str': random_str(),
+            'token_bytes': random_bytes(),
+            'token_email': random_email(),
+        }
+        metadata.create_all(self.engine_raw, [specific_client_id_table])
+        self.engine1.execute(specific_client_id_table.delete())
+
+        # insert data data using client_id==TEST_TLS_CLIENT_CERT
+        self.insert_via_1(specific_client_id_table.insert(), data)
+
+        columns = {
+            'id': specific_client_id_table.c.id,
+            'token_i32': specific_client_id_table.c.token_i32,
+            'token_i64': specific_client_id_table.c.token_i64,
+            'token_str': specific_client_id_table.c.token_str,
+            'token_bytes': specific_client_id_table.c.token_bytes,
+            'token_email': specific_client_id_table.c.token_email,
+        }
+        # data owner take source data
+        for key in columns:
+            parameters = {key: data[key]}
+            query = sa.select(specific_client_id_table).where(columns[key] == data[key])
+
+            source_data = self.fetch_from_2(query, parameters, literal_binds=False)
+            for k in ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email'):
+                if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+                    self.assertEqual(source_data[0][k], data[k].encode('utf-8'))
+                else:
+                    self.assertEqual(source_data[0][k], data[k])
 
 
 class TestTokenizationWithoutZone(BaseTokenization):
