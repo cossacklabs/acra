@@ -1,11 +1,15 @@
 package encryptor
 
 import (
+	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
+	"testing"
+
 	"github.com/cossacklabs/acra/decryptor/base/mocks"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
+	"github.com/cossacklabs/acra/sqlparser/dialect"
+	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
 	"github.com/stretchr/testify/mock"
-	"testing"
 )
 
 func TestGetFirstTableWithoutAlias(t *testing.T) {
@@ -100,6 +104,64 @@ inner join table6 on table6.col1=t1.col1
 
 			if *column != expectedValues[i] {
 				t.Fatalf("[%d] Column info is not equal to expected - %+v, actual - %+v", i, expectedValues[i], *column)
+			}
+		}
+	})
+	t.Run("with aliased table and non-aliased colum name", func(t *testing.T) {
+		testcases := []struct {
+			query   string
+			dialect dialect.Dialect
+		}{
+			{
+				query:   `SELECT "id", "email", "mobile_number" AS "mobileNumber" FROM "users" AS "User" where "User"."is_active"`,
+				dialect: postgresql.NewPostgreSQLDialect(),
+			},
+			{
+				query:   `SELECT id, email, mobile_number FROM table1 AS alias where alias.is_active`,
+				dialect: mysql.NewMySQLDialect(),
+			},
+		}
+
+		expectedValues := [][]columnInfo{
+			{
+				{Alias: "User", Table: "users", Name: "id"},
+				{Alias: "User", Table: "users", Name: "email"},
+				{Alias: "User", Table: "users", Name: "mobile_number"},
+			},
+			{
+				{Alias: "alias", Table: "table1", Name: "id"},
+				{Alias: "alias", Table: "table1", Name: "email"},
+				{Alias: "alias", Table: "table1", Name: "mobile_number"},
+			},
+		}
+
+		for i, tcase := range testcases {
+			sqlparser.SetDefaultDialect(tcase.dialect)
+
+			parsed, err := parser.Parse(tcase.query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			selectExpr, ok := parsed.(*sqlparser.Select)
+			if !ok {
+				t.Fatal("Test query should be Select expression")
+			}
+			columns, err := mapColumnsToAliases(selectExpr)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(columns) != len(expectedValues[i]) {
+				t.Fatal("Returned incorrect length of values")
+			}
+
+			for y, column := range columns {
+				if column == nil {
+					t.Fatalf("[%d] Column info not found", i)
+				}
+
+				if *column != expectedValues[i][y] {
+					t.Fatalf("[%d] Column info is not equal to expected - %+v, actual - %+v", i, expectedValues[i], *column)
+				}
 			}
 		}
 	})

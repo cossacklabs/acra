@@ -96,7 +96,7 @@ func (filter *SearchableQueryFilter) filterInterestingTables(fromExp sqlparser.T
 	var defaultTableName string
 	// if query contains table without alias we need to detect default table
 	// if no, we can ignore default table and AliasToTableMap will be used to map ColName with encryptor_config
-	if filter.hasTablesWithoutAliases(fromExp) {
+	if hasTablesWithoutAliases(fromExp) {
 		var err error
 		defaultTableName, err = getFirstTableWithoutAlias(fromExp)
 		if err != nil {
@@ -232,23 +232,6 @@ func isSupportedSQLVal(val *sqlparser.SQLVal) bool {
 		return true
 	}
 	return false
-}
-
-func (filter *SearchableQueryFilter) hasTablesWithoutAliases(stmt sqlparser.SQLNode) bool {
-	var hasTableWithoutAlias bool
-	err := sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
-		if tableExpr, ok := node.(*sqlparser.AliasedTableExpr); ok {
-			if tableExpr.As.IsEmpty() {
-				hasTableWithoutAlias = true
-			}
-		}
-		return true, nil
-	}, stmt)
-	if err != nil {
-		return false
-	}
-
-	return hasTableWithoutAlias
 }
 
 // getEqualComparisonExprs return only <ColName> = <VALUE> or <ColName> != <VALUE> or <ColName> <=> <VALUE> expressions
