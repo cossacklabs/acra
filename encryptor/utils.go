@@ -29,6 +29,7 @@ import (
 
 var errNotFoundtable = errors.New("not found table for alias")
 var errNotSupported = errors.New("not supported type of sql node")
+var errTableAlreadyMatched = errors.New("aliased table name already matched")
 
 type columnInfo struct {
 	Name  string
@@ -175,22 +176,53 @@ func getFirstTableWithoutAlias(fromExpr sqlparser.TableExprs) (string, error) {
 	return name, nil
 }
 
-func getFirstAliasedTable(fromExpr sqlparser.TableExprs) (string, error) {
-	if len(fromExpr) != 1 {
+func getMatchedAliasedTable(fromExpr sqlparser.TableExprs, colName *sqlparser.ColName, tableSchemaStore config.TableSchemaStore) (string, error) {
+	if len(fromExpr) == 0 {
 		return "", errEmptyTableExprs
 	}
 
-	aliased, ok := fromExpr[0].(*sqlparser.AliasedTableExpr)
-	if !ok {
-		return "", errUnsupportedExpression
+	isTableColumn := func(tableSchema config.TableSchema, colName *sqlparser.ColName) bool {
+		for _, column := range tableSchema.Columns() {
+			if column == colName.Name.ValueForConfig() {
+				return true
+			}
+		}
+		return false
 	}
 
-	tName, ok := getAliasedName(aliased)
-	if !ok {
-		return "", errors.New("aliased table not found")
+	var alisedName string
+	for _, exp := range fromExpr {
+		aliased, ok := exp.(*sqlparser.AliasedTableExpr)
+		if !ok {
+			return "", errUnsupportedExpression
+		}
+
+		tableName, ok := aliased.Expr.(sqlparser.TableName)
+		if !ok {
+			return "", errUnsupportedExpression
+		}
+
+		tableSchema := tableSchemaStore.GetTableSchema(tableName.Name.ValueForConfig())
+		if tableSchema == nil {
+			continue
+		}
+
+		if isTableColumn(tableSchema, colName) {
+			tName, ok := getAliasedName(aliased)
+			if !ok {
+				return "", errUnsupportedExpression
+			}
+
+			if alisedName != "" {
+				logrus.WithField("alias", alisedName).Infoln(errTableAlreadyMatched.Error())
+				return "", errTableAlreadyMatched
+			}
+
+			alisedName = tName
+		}
 	}
 
-	return tName, nil
+	return alisedName, nil
 }
 
 func getAliasedName(aliased *sqlparser.AliasedTableExpr) (string, bool) {
@@ -322,7 +354,7 @@ func findTableName(alias, columnName string, expr sqlparser.SQLNode) (columnInfo
 	return columnInfo{}, errNotFoundtable
 }
 
-func mapColumnsToAliases(selectQuery *sqlparser.Select) ([]*columnInfo, error) {
+func mapColumnsToAliases(selectQuery *sqlparser.Select, tableSchemaStore config.mapColumnsToAliases) ([]*columnInfo, error) {
 	out := make([]*columnInfo, 0, len(selectQuery.SelectExprs))
 	var joinTables []string
 	var joinAliases map[string]string
@@ -339,10 +371,7 @@ func mapColumnsToAliases(selectQuery *sqlparser.Select) ([]*columnInfo, error) {
 	// from DB prospective its valid to have columns without aliases in select but do have alias on table
 	// SELECT "id", "email", "mobile_number" AS "mobileNumber" FROM "users" AS "User""
 	// in such case Acra should consider aliased table as default table
-	var getDefaultTableFromNonAliasedColumn = getFirstAliasedTable
-	if hasTablesWithoutAliases(selectQuery.From) {
-		getDefaultTableFromNonAliasedColumn = getFirstTableWithoutAlias
-	}
+	hasTablesWithoutAliases := hasTablesWithoutAliases(selectQuery.From)
 
 	for _, expr := range selectQuery.SelectExprs {
 		aliased, ok := expr.(*sqlparser.AliasedExpr)
@@ -360,7 +389,7 @@ func mapColumnsToAliases(selectQuery *sqlparser.Select) ([]*columnInfo, error) {
 						return nil, errUnsupportedExpression
 					}
 
-					subColumn, err := mapColumnsToAliases(subSelect)
+					subColumn, err := mapColumnsToAliases(subSelect, tableSchemaStore)
 					if err != nil {
 						return nil, err
 					}
@@ -372,7 +401,13 @@ func mapColumnsToAliases(selectQuery *sqlparser.Select) ([]*columnInfo, error) {
 			colName, ok := aliased.Expr.(*sqlparser.ColName)
 			if ok {
 				if colName.Qualifier.Name.IsEmpty() {
-					columnTable, err := getDefaultTableFromNonAliasedColumn(selectQuery.From)
+					var columnTable string
+					var err error
+					if hasTablesWithoutAliases {
+						columnTable, err = getFirstTableWithoutAlias(selectQuery.From)
+					} else {
+						columnTable, err = getMatchedAliasedTable(selectQuery.From, colName, tableSchemaStore)
+					}
 					if err != nil {
 						out = append(out, nil)
 						continue
