@@ -354,7 +354,7 @@ func findTableName(alias, columnName string, expr sqlparser.SQLNode) (columnInfo
 	return columnInfo{}, errNotFoundtable
 }
 
-func mapColumnsToAliases(selectQuery *sqlparser.Select, tableSchemaStore config.mapColumnsToAliases) ([]*columnInfo, error) {
+func mapColumnsToAliases(selectQuery *sqlparser.Select, tableSchemaStore config.TableSchemaStore) ([]*columnInfo, error) {
 	out := make([]*columnInfo, 0, len(selectQuery.SelectExprs))
 	var joinTables []string
 	var joinAliases map[string]string
