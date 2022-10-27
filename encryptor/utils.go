@@ -214,7 +214,7 @@ func getMatchedAliasedTable(fromExpr sqlparser.TableExprs, colName *sqlparser.Co
 			}
 
 			if alisedName != "" {
-				logrus.WithField("alias", alisedName).Infoln(errTableAlreadyMatched.Error())
+				logrus.WithField("alias", alisedName).Infoln("Ambiguous column found, several tables contain the same column")
 				return "", errTableAlreadyMatched
 			}
 
