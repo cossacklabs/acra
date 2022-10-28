@@ -20,5 +20,5 @@ unittest-xml-reporting==3.0.4
 cryptography==3.4.7
 redis==4.0.1
 hiredis==2.0.0
-boto3==1.24.23
+boto3==1.23.10
 python-consul==1.1.0
