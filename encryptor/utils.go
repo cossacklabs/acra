@@ -29,6 +29,7 @@ import (
 
 var errNotFoundtable = errors.New("not found table for alias")
 var errNotSupported = errors.New("not supported type of sql node")
+var errTableAlreadyMatched = errors.New("aliased table name already matched")
 
 type columnInfo struct {
 	Name  string
@@ -175,6 +176,67 @@ func getFirstTableWithoutAlias(fromExpr sqlparser.TableExprs) (string, error) {
 	return name, nil
 }
 
+func getMatchedAliasedTable(fromExpr sqlparser.TableExprs, colName *sqlparser.ColName, tableSchemaStore config.TableSchemaStore) (string, error) {
+	if len(fromExpr) == 0 {
+		return "", errEmptyTableExprs
+	}
+
+	isTableColumn := func(tableSchema config.TableSchema, colName *sqlparser.ColName) bool {
+		for _, column := range tableSchema.Columns() {
+			if column == colName.Name.ValueForConfig() {
+				return true
+			}
+		}
+		return false
+	}
+
+	var alisedName string
+	for _, exp := range fromExpr {
+		aliased, ok := exp.(*sqlparser.AliasedTableExpr)
+		if !ok {
+			return "", errUnsupportedExpression
+		}
+
+		tableName, ok := aliased.Expr.(sqlparser.TableName)
+		if !ok {
+			return "", errUnsupportedExpression
+		}
+
+		tableSchema := tableSchemaStore.GetTableSchema(tableName.Name.ValueForConfig())
+		if tableSchema == nil {
+			continue
+		}
+
+		if isTableColumn(tableSchema, colName) {
+			tName, ok := getAliasedName(aliased)
+			if !ok {
+				return "", errUnsupportedExpression
+			}
+
+			if alisedName != "" {
+				logrus.WithField("alias", alisedName).Infoln("Ambiguous column found, several tables contain the same column")
+				return "", errTableAlreadyMatched
+			}
+
+			alisedName = tName
+		}
+	}
+
+	return alisedName, nil
+}
+
+func getAliasedName(aliased *sqlparser.AliasedTableExpr) (string, bool) {
+	if _, ok := aliased.Expr.(sqlparser.TableName); !ok {
+		return "", false
+	}
+
+	if aliased.As.IsEmpty() {
+		return "", false
+	}
+
+	return aliased.As.ValueForConfig(), true
+}
+
 func getNonAliasedName(aliased *sqlparser.AliasedTableExpr) (string, bool) {
 	if !aliased.As.IsEmpty() {
 		return "", false
@@ -292,7 +354,7 @@ func findTableName(alias, columnName string, expr sqlparser.SQLNode) (columnInfo
 	return columnInfo{}, errNotFoundtable
 }
 
-func mapColumnsToAliases(selectQuery *sqlparser.Select) ([]*columnInfo, error) {
+func mapColumnsToAliases(selectQuery *sqlparser.Select, tableSchemaStore config.TableSchemaStore) ([]*columnInfo, error) {
 	out := make([]*columnInfo, 0, len(selectQuery.SelectExprs))
 	var joinTables []string
 	var joinAliases map[string]string
@@ -305,6 +367,11 @@ func mapColumnsToAliases(selectQuery *sqlparser.Select) ([]*columnInfo, error) {
 			return nil, errUnsupportedExpression
 		}
 	}
+
+	// from DB prospective its valid to have columns without aliases in select but do have alias on table
+	// SELECT "id", "email", "mobile_number" AS "mobileNumber" FROM "users" AS "User""
+	// in such case Acra should consider aliased table as default table
+	hasTablesWithoutAliases := hasTablesWithoutAliases(selectQuery.From)
 
 	for _, expr := range selectQuery.SelectExprs {
 		aliased, ok := expr.(*sqlparser.AliasedExpr)
@@ -322,7 +389,7 @@ func mapColumnsToAliases(selectQuery *sqlparser.Select) ([]*columnInfo, error) {
 						return nil, errUnsupportedExpression
 					}
 
-					subColumn, err := mapColumnsToAliases(subSelect)
+					subColumn, err := mapColumnsToAliases(subSelect, tableSchemaStore)
 					if err != nil {
 						return nil, err
 					}
@@ -334,14 +401,21 @@ func mapColumnsToAliases(selectQuery *sqlparser.Select) ([]*columnInfo, error) {
 			colName, ok := aliased.Expr.(*sqlparser.ColName)
 			if ok {
 				if colName.Qualifier.Name.IsEmpty() {
-					firstTable, err := getFirstTableWithoutAlias(selectQuery.From)
+					var columnTable string
+					var err error
+					if hasTablesWithoutAliases {
+						columnTable, err = getFirstTableWithoutAlias(selectQuery.From)
+					} else {
+						columnTable, err = getMatchedAliasedTable(selectQuery.From, colName, tableSchemaStore)
+					}
 					if err != nil {
 						out = append(out, nil)
 						continue
 					}
-					info, err := findTableName(firstTable, colName.Name.String(), selectQuery.From)
+
+					info, err := findTableName(columnTable, colName.Name.String(), selectQuery.From)
 					if err == nil {
-						info.Alias = firstTable
+						info.Alias = columnTable
 						out = append(out, &info)
 						continue
 					}
@@ -396,6 +470,23 @@ func mapColumnsToAliases(selectQuery *sqlparser.Select) ([]*columnInfo, error) {
 		out = append(out, nil)
 	}
 	return out, nil
+}
+
+func hasTablesWithoutAliases(stmt sqlparser.SQLNode) bool {
+	var hasTableWithoutAlias bool
+	err := sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
+		if tableExpr, ok := node.(*sqlparser.AliasedTableExpr); ok {
+			if tableExpr.As.IsEmpty() {
+				hasTableWithoutAlias = true
+			}
+		}
+		return true, nil
+	}, stmt)
+	if err != nil {
+		return false
+	}
+
+	return hasTableWithoutAlias
 }
 
 // InvalidPlaceholderIndex value that represent invalid index for sql placeholders

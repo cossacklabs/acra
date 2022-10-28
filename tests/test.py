@@ -7483,7 +7483,7 @@ class BaseTokenization(BaseTestCase):
 
     def fetch_from_1(self, query, parameters={}, literal_binds=True):
         """Execute SQLAlchemy SELECT query via AcraServer with "TEST_TLS_CLIENT_CERT"."""
-        return self.engine1.execute(query).fetchall()
+        return self.engine1.execute(query, parameters).fetchall()
 
     def fetch_from_2(self, query, parameters={}, literal_binds=True):
         """Execute SQLAlchemy SELECT query via AcraServer with "TEST_TLS_CLIENT_2_CERT"."""
@@ -7633,7 +7633,7 @@ class BaseTokenizationWithBinaryMySQL(BaseTokenization):
         return result
 
 
-class TestSearchableTokenizationWithoutZone(BaseTokenization):
+class TestSearchableTokenizationWithoutZone(AcraCatchLogsMixin, BaseTokenization):
     ZONE = False
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_searchable_tokenization_config.yaml')
 
@@ -7806,6 +7806,72 @@ class TestSearchableTokenizationWithoutZone(BaseTokenization):
                     self.assertEqual(source_data[0][k], data[k].encode('utf-8'))
                 else:
                     self.assertEqual(source_data[0][k], data[k])
+
+    def testSearchWithDefaultTableWithAlias(self):
+        default_client_id_table = sa.Table(
+            'test_tokenization_default_client_id', metadata,
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('nullable_column', sa.Text, nullable=True),
+            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_i32', sa.Integer()),
+            sa.Column('token_i64', sa.BigInteger()),
+            sa.Column('token_str', sa.Text),
+            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_email', sa.Text),
+            extend_existing=True,
+        )
+
+        default_client_id_table_join = sa.Table(
+            'test_tokenization_default_client_id_join', metadata,
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('nullable_column', sa.Text, nullable=True),
+            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_i32', sa.Integer()),
+            sa.Column('token_i64', sa.BigInteger()),
+            sa.Column('token_str', sa.Text),
+            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_email', sa.Text),
+            extend_existing=True,
+        )
+
+        metadata.create_all(self.engine_raw, [default_client_id_table, default_client_id_table_join])
+        self.engine1.execute(default_client_id_table.delete())
+        self.engine1.execute(default_client_id_table_join.delete())
+
+        row_id = 1
+        data = {
+            'id': row_id,
+            'nullable_column': None,
+            'empty': b'',
+            'token_i32': random_int32(),
+            'token_i64': random_int64(),
+            'token_str': random_str(),
+            'token_bytes': random_bytes(),
+            'token_email': random_email(),
+        }
+
+        # insert data data
+        self.insert_via_1(default_client_id_table.insert(), data)
+        self.insert_via_1(default_client_id_table_join.insert(), data)
+
+        query = 'SELECT id, token_i32, token_i64, token_str, token_email FROM test_tokenization_default_client_id as test_table WHERE test_table.token_i64 = :token_i64'
+        parameters = {'token_i64': data['token_i64']}
+
+        source_data = self.fetch_from_1(sa.text(query), parameters, literal_binds=False)
+        for k in ('token_i32', 'token_i64', 'token_str', 'token_email'):
+            if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+                self.assertEqual(source_data[0][k], data[k].encode('utf-8'))
+            else:
+                self.assertEqual(source_data[0][k], data[k])
+
+        # expect fail this query in DB, we need to check corresponding log message from Acra
+        query = 'SELECT id, token_i32, token_i64 FROM test_tokenization_default_client_id as test_table, test_tokenization_default_client_id_join as test_table_join'
+        try:
+            self.engine1.execute(query)
+        except (sa.exc.OperationalError, sa.exc.ProgrammingError) as e:
+            self.assertIn("ambiguous", str(e))
+            self.assertIn("Ambiguous column found, several tables contain the same column", self.read_log(self.acra))
+            pass
 
     def testSearchableTokenizationSpecificClientID(self):
         specific_client_id_table = sa.Table(

@@ -352,7 +352,7 @@ func (encryptor *QueryDataEncryptor) OnColumn(ctx context.Context, data []byte) 
 const allColumnsName = "*"
 
 func (encryptor *QueryDataEncryptor) onSelect(ctx context.Context, statement *sqlparser.Select) (bool, error) {
-	columns, err := mapColumnsToAliases(statement)
+	columns, err := mapColumnsToAliases(statement, encryptor.schemaStore)
 	if err != nil {
 		logrus.WithError(err).Errorln("Can't extract columns from SELECT statement")
 		return false, err
