@@ -24,14 +24,14 @@ require (
 	github.com/onsi/ginkgo v1.10.2 // indirect
 	github.com/prometheus/client_golang v1.7.1
 	github.com/sirupsen/logrus v1.6.0
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.8.0
 	github.com/swaggo/files v0.0.0-20190704085106-630677cd5c14
 	github.com/swaggo/gin-swagger v1.3.0
 	github.com/swaggo/swag v1.7.9
 	github.com/tinylib/msgp v1.1.6
 	go.etcd.io/bbolt v1.3.6
 	go.opencensus.io v0.22.4
-	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
+	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90
 	golang.org/x/net v0.0.0-20221019024206-cb67ada4b0ad
 	google.golang.org/grpc v1.42.0
 	google.golang.org/protobuf v1.27.1
@@ -94,6 +94,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.10 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.3 // indirect
+	github.com/kr/pretty v0.3.0 // indirect
 	github.com/leodido/go-urn v1.2.0 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/mattn/go-colorable v0.1.6 // indirect
@@ -115,18 +116,20 @@ require (
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.11.1 // indirect
 	github.com/prometheus/procfs v0.1.3 // indirect
+	github.com/rogpeppe/go-internal v1.9.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
-	github.com/stretchr/objx v0.2.0 // indirect
+	github.com/stretchr/objx v0.4.0 // indirect
 	github.com/uber/jaeger-client-go v2.25.0+incompatible // indirect
 	github.com/ugorji/go/codec v1.1.13 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4 // indirect
 	golang.org/x/sys v0.1.0 // indirect
-	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/text v0.3.8 // indirect
 	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1 // indirect
 	golang.org/x/tools v0.1.12 // indirect
 	google.golang.org/api v0.29.0 // indirect
 	google.golang.org/genproto v0.0.0-20211118181313-81c1377c94b1 // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/square/go-jose.v2 v2.5.1 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -18,13 +18,14 @@ package encryptor
 
 import (
 	"errors"
+	"strconv"
+	"strings"
+	"sync"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/sirupsen/logrus"
-	"strconv"
-	"strings"
-	"sync"
 )
 
 var errNotFoundtable = errors.New("not found table for alias")

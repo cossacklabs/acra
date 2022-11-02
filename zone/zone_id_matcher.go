@@ -19,6 +19,7 @@ package zone
 import (
 	"bytes"
 	"context"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/sirupsen/logrus"
 )

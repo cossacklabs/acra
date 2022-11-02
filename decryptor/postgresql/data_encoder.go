@@ -3,12 +3,15 @@ package postgresql
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/base/type_awerness"
+	_ "github.com/cossacklabs/acra/decryptor/postgresql/types"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
-	common2 "github.com/cossacklabs/acra/encryptor/config/common"
+	"github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
@@ -36,7 +39,7 @@ func (p *PgSQLDataEncoderProcessor) encodeToValue(ctx context.Context, data []by
 	}
 	dataType := setting.GetEncryptedDataType()
 	switch dataType {
-	case common2.EncryptedType_String:
+	case common.EncryptedType_String:
 		if !base.IsDecryptedFromContext(ctx) {
 			value, err := base.EncodeOnFail(setting, &postgresValueFactory{}, logger)
 			if err != nil {
@@ -47,7 +50,7 @@ func (p *PgSQLDataEncoderProcessor) encodeToValue(ctx context.Context, data []by
 		}
 		// decrypted values return as is, without any encoding
 		return ctx, valueFactory.NewStringValue(data), nil
-	case common2.EncryptedType_Bytes:
+	case common.EncryptedType_Bytes:
 		if !base.IsDecryptedFromContext(ctx) {
 			value, err := base.EncodeOnFail(setting, &postgresValueFactory{}, logger)
 			if err != nil {
@@ -57,14 +60,14 @@ func (p *PgSQLDataEncoderProcessor) encodeToValue(ctx context.Context, data []by
 			}
 		}
 		return ctx, valueFactory.NewBytesValue(data), nil
-	case common2.EncryptedType_Int32, common2.EncryptedType_Int64:
+	case common.EncryptedType_Int32, common.EncryptedType_Int64:
 
 		// convert back from text to binary
 		strValue := string(data)
 		// if it's valid string literal and decrypted, return as is
 		value, err := strconv.ParseInt(strValue, 10, 64)
 		if err == nil {
-			if dataType == common2.EncryptedType_Int32 {
+			if dataType == common.EncryptedType_Int32 {
 				return ctx, valueFactory.NewInt32Value(int32(value), data), nil
 			}
 			return ctx, valueFactory.NewInt64Value(value, data), nil
@@ -88,14 +91,13 @@ func (p *PgSQLDataEncoderProcessor) encodeToValue(ctx context.Context, data []by
 	}
 	// If it wasn't decrypted (due to inappropriate keys or not AcraStructs as payload) then we return it in same way
 	// as it come to us.
-	encodedValue, ok := getEncodedValueFromContext(ctx)
+	encodedValue, ok := base.GetEncodedValueFromContext(ctx)
 	if ok {
 		return ctx, valueFactory.NewStringValue(encodedValue), nil
 	}
 	return ctx, valueFactory.NewStringValue(data), nil
 }
 
-// OnColumn encode binary value to text and back. Should be before and after tokenizer processor
 func (p *PgSQLDataEncoderProcessor) OnColumn(ctx context.Context, data []byte) (context.Context, []byte, error) {
 	columnSetting, ok := encryptor.EncryptionSettingFromContext(ctx)
 	if !ok {
@@ -122,6 +124,63 @@ func (p *PgSQLDataEncoderProcessor) OnColumn(ctx context.Context, data []byte) (
 	return ctx, value.AsText(), nil
 }
 
+//// OnColumn encode binary value to text and back. Should be before and after tokenizer processor
+//func (p *PgSQLDataEncoderProcessor) OnColumn(ctx context.Context, data []byte) (context.Context, []byte, error) {
+//	columnSetting, ok := encryptor.EncryptionSettingFromContext(ctx)
+//	if !ok {
+//		// for case when data encrypted with acrastructs on app's side and used without any encryption setting
+//		columnSetting = &config.BasicColumnEncryptionSetting{}
+//	}
+//	logger := logging.GetLoggerFromContext(ctx).WithField("column", columnSetting.ColumnName())
+//	columnInfo, ok := base.ColumnInfoFromContext(ctx)
+//	if !ok {
+//		logger.WithField("processor", "PgSQLDataEncoderProcessor").Warningln("No column info in ctx")
+//		// we can't do anything
+//		return ctx, data, nil
+//	}
+//
+//	logger = logger.WithField("column", columnSetting.ColumnName()).WithField("decrypted", base.IsDecryptedFromContext(ctx))
+//	if len(data) == 0 {
+//		return ctx, data, nil
+//	}
+//
+//	dataTypesEncoders := type_awerness.GetPostgreSQLDataTypeIDEncoders()
+//	dataTypeIDEncoder, ok := dataTypesEncoders[columnSetting.GetDBDataTypeID()]
+//	if !ok {
+//		return ctx, data, nil
+//	}
+//
+//	if !base.IsDecryptedFromContext(ctx) {
+//		ctx, value, err := EncodeOnFail(ctx, columnSetting, columnInfo)
+//		if err != nil {
+//			return ctx, nil, err
+//		} else if value != nil {
+//			return ctx, value, nil
+//		}
+//	}
+//
+//	ctx, data, err := dataTypeIDEncoder.Encode(ctx, data, NewPostgreSQLDataTypeFormat(columnInfo, columnSetting))
+//	if err == nil {
+//		return ctx, data, nil
+//	}
+//
+//	// here we process AcraStruct/AcraBlock decryption without any encryptor config that defines data_type/token_type
+//	// values. If it was decrypted then we return it as valid bytea value
+//	if base.IsDecryptedFromContext(ctx) {
+//		if columnInfo.IsBinaryFormat() {
+//			return ctx, data, nil
+//		}
+//		return ctx, utils.PgEncodeToHex(data), nil
+//	}
+//	// If it wasn't decrypted (due to inappropriate keys or not AcraStructs as payload) then we return it in same way
+//	// as it come to us.
+//	encodedValue, ok := base.GetEncodedValueFromContext(ctx)
+//	if ok {
+//		return ctx, encodedValue, nil
+//	}
+//	return ctx, data, nil
+//}
+
 // PgSQLDataDecoderProcessor implements processor and decode binary/text values from DB
 type PgSQLDataDecoderProcessor struct{}
 
@@ -139,7 +198,7 @@ func (p *PgSQLDataDecoderProcessor) decodeBinary(ctx context.Context, data []byt
 	var newData [8]byte
 	// convert from binary to text literal because tokenizer expects int value as string literal
 	switch setting.GetEncryptedDataType() {
-	case common2.EncryptedType_Int32, common2.EncryptedType_Int64:
+	case common.EncryptedType_Int32, common.EncryptedType_Int64:
 		// We decode only tokenized data because it should be valid 4/8 byte values
 		// If it is encrypted integers then we will see here encrypted blob that cannot be decoded and should be decrypted
 		// in next handlers. So we return value as is
@@ -172,47 +231,26 @@ func (p *PgSQLDataDecoderProcessor) decodeBinary(ctx context.Context, data []byt
 
 // decodeText converts data from text format for decryptors/de-tokenizers according to ColumnEncryptionSetting
 // hex/octal binary -> raw binary data
-func (p *PgSQLDataDecoderProcessor) decodeText(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
-	if config.IsBinaryDataOperation(setting) {
-		// decryptor operates over blobs so all data types will be encrypted as hex/octal string values that we should
-		// decode before decryption
-		decodedData, err := utils.DecodeEscaped(data)
-		if err != nil {
-			if err == utils.ErrDecodeOctalString {
-				return ctx, data, nil
-			}
-			logger.WithError(err).Errorln("Can't decode binary data for decryption")
-			return ctx, data, err
-		}
-		// save encoded value on successful decoding to return it as same value if decoded value wasn't need
-		// or cannot be decrypted. Due to in some cases we cannot guess what type is it (if not matched any encryptor_config
-		// setting) we should store it.
-		return encodedValueContext(ctx, data), decodedData, nil
-	}
-	// all other non-binary data should be valid SQL literals like integers or strings and Acra works with them as is
-	return ctx, data, nil
-}
-
-type decodedValueKey struct{}
-
-// encodedValueContext save encoded value in the context. Can be used to save encoded value before decoding from database
-// to return as is on decryption failures
-func encodedValueContext(ctx context.Context, value []byte) context.Context {
-	return context.WithValue(ctx, decodedValueKey{}, value)
-}
-
-// getEncodedValueFromContext returns encoded value and true if it was saved, otherwise returns nil, false
-func getEncodedValueFromContext(ctx context.Context) ([]byte, bool) {
-	value := ctx.Value(decodedValueKey{})
-	if value == nil {
-		return nil, false
-	}
-	val, ok := value.([]byte)
-	if !ok {
-		return nil, false
-	}
-	return val, true
-}
+//func (p *PgSQLDataDecoderProcessor) decodeText(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
+//	if config.IsBinaryDataOperation(setting) {
+//		// decryptor operates over blobs so all data types will be encrypted as hex/octal string values that we should
+//		// decode before decryption
+//		decodedData, err := utils.DecodeEscaped(data)
+//		if err != nil {
+//			if err == utils.ErrDecodeOctalString {
+//				return ctx, data, nil
+//			}
+//			logger.WithError(err).Errorln("Can't decode binary data for decryption")
+//			return ctx, data, err
+//		}
+//		// save encoded value on successful decoding to return it as same value if decoded value wasn't need
+//		// or cannot be decrypted. Due to in some cases we cannot guess what type is it (if not matched any encryptor_config
+//		// setting) we should store it.
+//		return base.EncodedValueContext(ctx, data), decodedData, nil
+//	}
+//	// all other non-binary data should be valid SQL literals like integers or strings and Acra works with them as is
+//	return ctx, data, nil
+//}
 
 // OnColumn encode binary value to text and back. Should be before and after tokenizer processor
 func (p *PgSQLDataDecoderProcessor) OnColumn(ctx context.Context, data []byte) (context.Context, []byte, error) {
@@ -228,11 +266,52 @@ func (p *PgSQLDataDecoderProcessor) OnColumn(ctx context.Context, data []byte) (
 		// we can't do anything
 		return ctx, data, nil
 	}
-	if columnInfo.IsBinaryFormat() {
-		return p.decodeBinary(ctx, data, columnSetting, columnInfo, logger)
+
+	dataTypesEncoders := type_awerness.GetPostgreSQLDataTypeIDEncoders()
+	dataTypeIDEncoder, ok := dataTypesEncoders[columnSetting.GetDBDataTypeID()]
+	if ok {
+		return dataTypeIDEncoder.Decode(ctx, data, NewPostgreSQLDataTypeFormat(columnInfo, columnSetting))
 	}
-	return p.decodeText(ctx, data, columnSetting, columnInfo, logger)
+
+	if config.IsBinaryDataOperation(columnSetting) {
+		// decryptor operates over blobs so all data types will be encrypted as hex/octal string values that we should
+		// decode before decryption
+		decodedData, err := utils.DecodeEscaped(data)
+		if err != nil {
+			if err == utils.ErrDecodeOctalString {
+				return ctx, data, nil
+			}
+			logger.WithError(err).Errorln("Can't decode binary data for decryption")
+			return ctx, data, err
+		}
+		// save encoded value on successful decoding to return it as same value if decoded value wasn't need
+		// or cannot be decrypted. Due to in some cases we cannot guess what type is it (if not matched any encryptor_config
+		// setting) we should store it.
+		return base.EncodedValueContext(ctx, data), decodedData, nil
+	}
+	// all other non-binary data should be valid SQL literals like integers or strings and Acra works with them as is
+	return ctx, data, nil
 }
+
+// OnColumn encode binary value to text and back. Should be before and after tokenizer processor
+//func (p *PgSQLDataDecoderProcessor) OnColumn(ctx context.Context, data []byte) (context.Context, []byte, error) {
+//	columnSetting, ok := encryptor.EncryptionSettingFromContext(ctx)
+//	if !ok {
+//		// for case when data encrypted with acrastructs on app's side and used without any encryption setting
+//		columnSetting = &config.BasicColumnEncryptionSetting{}
+//	}
+//	logger := logging.GetLoggerFromContext(ctx).WithField("column", columnSetting.ColumnName())
+//	columnInfo, ok := base.ColumnInfoFromContext(ctx)
+//	if !ok {
+//		logger.WithField("processor", "PgSQLDataDecoderProcessor").Warningln("No column info in ctx")
+//		// we can't do anything
+//		return ctx, data, nil
+//	}
+//	if columnInfo.IsBinaryFormat() {
+//		return p.decodeBinary(ctx, data, columnSetting, columnInfo, logger)
+//	}
+//	return p.decodeText(ctx, data, columnSetting, columnInfo, logger)
+//}
 
 // bytesValue is an EncodingValue that represents byte array
 type bytesValue struct {
@@ -317,4 +396,39 @@ func (*postgresValueFactory) NewInt32Value(intVal int32, strVal []byte) base.Enc
 // NewInt64Value creates a value that encodes as int64
 func (*postgresValueFactory) NewInt64Value(intVal int64, strVal []byte) base.EncodingValue {
 	return &intValue{size: 8, intValue: intVal, strValue: strVal}
+}
+
+// EncodeDefault returns wrapped default value from settings ready for encoding
+// returns nil if something went wrong, which in many cases indicates that the
+// original value should be returned as it is
+func EncodeDefault(ctx context.Context, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo) (context.Context, []byte, error) {
+	strValue := setting.GetDefaultDataValue()
+	if strValue == nil {
+		logrus.Errorln("Default value is not specified")
+		return ctx, nil, nil
+	}
+
+	dataTypesEncoders := type_awerness.GetPostgreSQLDataTypeIDEncoders()
+	dataTypeIDEncoder := dataTypesEncoders[setting.GetDBDataTypeID()]
+
+	return dataTypeIDEncoder.EncodeDefault(ctx, []byte(*strValue), NewPostgreSQLDataTypeFormat(columnInfo, setting))
+}
+
+// EncodeOnFail returns either an error, which should be returned, or value, which
+// should be encoded, because there is some problem with original, or `nil`
+// which indicates that original value should be returned as is.
+func EncodeOnFail(ctx context.Context, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo) (context.Context, []byte, error) {
+	action := setting.GetResponseOnFail()
+	switch action {
+	case common.ResponseOnFailEmpty, common.ResponseOnFailCiphertext:
+		return ctx, nil, nil
+
+	case common.ResponseOnFailDefault:
+		return EncodeDefault(ctx, setting, columnInfo)
+
+	case common.ResponseOnFailError:
+		return nil, nil, fmt.Errorf("encoding error in column %q", setting.ColumnName())
+	}
+
+	return ctx, nil, fmt.Errorf("unknown action: %q", action)
 }

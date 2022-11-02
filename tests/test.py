@@ -9613,6 +9613,11 @@ class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(BaseTransparentEnc
                 self.assertTrue(len(utils.memoryview_to_bytes(row[column])) > len(data[column]))
 
 
+class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaultsAndDataTypeIDs(TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption_with_data_type_id.yaml')
+    pass
+
+
 class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaultsWithConsulEncryptorConfigLoader(HashicorpConsulEncryptorConfigLoaderMixin,
                                                                                              TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults):
     pass
@@ -9782,6 +9787,11 @@ class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults(
                 self.assertEqual(row[column], data[column])
                 continue
             self.assertNotEqual(data[column], row[column])
+
+
+class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaultsAndDataTypeIDs(TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption_with_data_type_id.yaml')
+    pass
 
 
 class TestMySQLBinaryFormatTypeAwareDecryptionWithDefaults(TestMySQLTextFormatTypeAwareDecryptionWithDefaults):

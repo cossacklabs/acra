@@ -53,7 +53,7 @@ func main() {
 		panic(err)
 	}
 
-	db, err := sql.Open(driver, connectionString)
+	db, err := pgx.Connect(context.Background(), connectionString)
 	if err != nil {
 		log.Fatal(err)
 	}

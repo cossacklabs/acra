@@ -6,9 +6,9 @@ import (
 	"strconv"
 
 	"github.com/cossacklabs/acra/encryptor/config"
-	"github.com/sirupsen/logrus"
-
 	"github.com/cossacklabs/acra/encryptor/config/common"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/net/context"
 )
 
 // EncodingError is returned from encoding handlers when some failure occurs.
@@ -58,6 +58,27 @@ type EncodingValueFactory interface {
 	NewInt32Value(intVal int32, strVal []byte) EncodingValue
 	// NewInt64Value creates a value that encodes as int64
 	NewInt64Value(intVal int64, strVal []byte) EncodingValue
+}
+
+type decodedValueKey struct{}
+
+// EncodedValueContext save encoded value in the context. Can be used to save encoded value before decoding from database
+// to return as is on decryption failures
+func EncodedValueContext(ctx context.Context, value []byte) context.Context {
+	return context.WithValue(ctx, decodedValueKey{}, value)
+}
+
+// GetEncodedValueFromContext returns encoded value and true if it was saved, otherwise returns nil, false
+func GetEncodedValueFromContext(ctx context.Context) ([]byte, bool) {
+	value := ctx.Value(decodedValueKey{})
+	if value == nil {
+		return nil, false
+	}
+	val, ok := value.([]byte)
+	if !ok {
+		return nil, false
+	}
+	return val, true
 }
 
 // EncodeDefault returns wrapped default value from settings ready for encoding

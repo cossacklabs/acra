@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/cossacklabs/acra/decryptor/base/type_awerness"
+	"github.com/jackc/pgx/pgtype"
+	"github.com/stretchr/testify/assert"
 	"testing"
 
 	common2 "github.com/cossacklabs/acra/encryptor/config/common"
@@ -28,7 +31,7 @@ schemas:
       - column: data3
         crypto_envelope: acrastruct
 `
-	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig))
+	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +70,7 @@ schemas:
       - column: data3
         crypto_envelope: acrastruct
 `
-	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig))
+	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +111,7 @@ schemas:
       - column: data3
         reencrypting_to_acrablocks: true
 `
-	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig))
+	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +150,7 @@ schemas:
       - column: data3
         reencrypting_to_acrablocks: false
 `
-	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig))
+	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -710,7 +713,7 @@ schemas:
 	}
 
 	for _, tcase := range testcases {
-		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), false)
 		u, ok := err.(interface {
 			Unwrap() error
 		})
@@ -838,7 +841,7 @@ schemas:
 			ErrInvalidEncryptorConfig},
 	}
 	for i, tcase := range testcases {
-		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), false)
 		u, ok := err.(interface {
 			Unwrap() error
 		})
@@ -978,7 +981,7 @@ schemas:
 	}
 
 	for _, tcase := range testcases {
-		config, err := MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		config, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), false)
 
 		if err != nil {
 			t.Fatalf("[%s] error=%s\n", tcase.name, err)
@@ -1055,7 +1058,7 @@ schemas:
 	}
 
 	for _, tcase := range testcases {
-		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), false)
 
 		if err == nil {
 			t.Fatalf("[%s] expected error, found nil\n", tcase.name)
@@ -1079,7 +1082,7 @@ schemas:
         tokenized: true
         token_type: %s
 `, token)
-		_, err := MapTableSchemaStoreFromConfig([]byte(config))
+		_, err := MapTableSchemaStoreFromConfig([]byte(config), false)
 		if err != nil {
 			t.Fatalf("[tokenize: true, token_type: %s] %s", token, err)
 		}
@@ -1093,7 +1096,7 @@ schemas:
       - column: data
         token_type: %s
 `, token)
-		_, err = MapTableSchemaStoreFromConfig([]byte(config))
+		_, err = MapTableSchemaStoreFromConfig([]byte(config), false)
 		if err != nil {
 			t.Fatalf("[token_type: %s] %s", token, err)
 		}
@@ -1108,7 +1111,7 @@ schemas:
         consistent_tokenization: true
         token_type: %s
 `, token)
-		_, err = MapTableSchemaStoreFromConfig([]byte(config))
+		_, err = MapTableSchemaStoreFromConfig([]byte(config), false)
 		if err != nil {
 			t.Fatalf("[consistent_tokenization: true, token_type: %s] %s", token, err)
 		}
@@ -1157,7 +1160,7 @@ schemas:
 	}
 
 	for _, tcase := range testcases {
-		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), false)
 
 		if err == nil {
 			t.Fatalf("[%s] expected error, found nil\n", tcase.name)
@@ -1178,7 +1181,7 @@ func TestTokenizedDeprecationWarning(t *testing.T) {
 
 	buff := bytes.NewBuffer([]byte{})
 	log.SetOutput(buff)
-	_, err := MapTableSchemaStoreFromConfig([]byte(config))
+	_, err := MapTableSchemaStoreFromConfig([]byte(config), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1187,5 +1190,57 @@ func TestTokenizedDeprecationWarning(t *testing.T) {
 	msg := "Setting `tokenized` flag is not necessary anymore and will be ignored"
 	if !bytes.Contains(output, []byte(msg)) {
 		t.Fatal("warning is not found but expected")
+	}
+}
+
+func TestWithDataTypeIDOption(t *testing.T) {
+	type testcase struct {
+		name   string
+		config string
+	}
+	testcases := []testcase{
+		{
+			name: "Schema store with data_type_db_identifier",
+			config: `
+schemas:
+  - table: test_type_aware_decryption_with_defaults
+    columns:
+      - id
+      - value_str
+    
+    encrypted:
+      - column: value_str
+        data_type_db_identifier: 25
+`,
+		},
+		{
+			name: "Schema store with data_type_db_identifier and on_fail options",
+			config: `
+schemas:
+  - table: test_type_aware_decryption_with_defaults
+    columns:
+      - id
+      - value_str
+
+    encrypted:
+      - column: value_str
+        data_type_db_identifier: 25
+        response_on_fail: default_value
+        default_data_value: "value_str"
+`,
+		},
+	}
+
+	type_awerness.RegisterPostgreSQLDataTypeIDEncoder(pgtype.TextOID, nil)
+
+	for _, tcase := range testcases {
+		schemaStore, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), false)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		dataTypeID := schemaStore.GetTableSchema("test_type_aware_decryption_with_defaults").
+			GetColumnEncryptionSettings("value_str").GetDBDataTypeID()
+		assert.Equal(t, dataTypeID, uint32(25))
 	}
 }

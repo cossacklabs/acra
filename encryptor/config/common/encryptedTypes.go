@@ -3,6 +3,7 @@ package common
 import (
 	"errors"
 	"fmt"
+	"github.com/jackc/pgx/pgtype"
 	"strconv"
 	"unicode/utf8"
 
@@ -31,6 +32,27 @@ const (
 	// to a client
 	ResponseOnFailError ResponseOnFail = "error"
 )
+
+//var MySQLEncryptedTypeDataTypeIDs = map[EncryptedType]uint32{
+//	EncryptedType_Int32:  mysql.TypeLong,
+//	EncryptedType_Int64:  mysql.TypeLongLong,
+//	EncryptedType_String: mysql.TypeString,
+//	EncryptedType_Bytes:  mysql.TypeBlob,
+//}
+
+var PostgreSQLEncryptedTypeDataTypeIDs = map[EncryptedType]uint32{
+	EncryptedType_Int32:  pgtype.Int4OID,
+	EncryptedType_Int64:  pgtype.Int8OID,
+	EncryptedType_String: pgtype.TextOID,
+	EncryptedType_Bytes:  pgtype.ByteaOID,
+}
+
+var PostgreSQLDataTypeIDEncryptedType = map[uint32]string{
+	pgtype.Int4OID:  "int32",
+	pgtype.Int8OID:  "int64",
+	pgtype.TextOID:  "str",
+	pgtype.ByteaOID: "bytes",
+}
 
 // ParseStringEncryptedType parse string value to EncryptedType value
 func ParseStringEncryptedType(value string) (EncryptedType, error) {
@@ -76,7 +98,9 @@ func (x EncryptedType) ToConfigString() (val string, err error) {
 // Validation errors
 var (
 	ErrUnknownEncryptedType     = errors.New("unknown token type")
+	ErrUnsupportedDBDataTypeID  = errors.New("unsupported DB data type id")
 	ErrUnsupportedEncryptedType = errors.New("data type not supported")
+	ErrDataTypeWithDataTypeID   = errors.New("data_type can`t be used along with data_type_db_identifier option")
 )
 
 // ValidateEncryptedType return true if value is supported EncryptedType
