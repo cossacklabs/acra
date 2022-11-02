@@ -3,10 +3,10 @@ package types
 import (
 	"context"
 	"encoding/binary"
-	"github.com/cossacklabs/acra/decryptor/base/type_awerness"
 	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/base/type_awerness"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/jackc/pgx/pgtype"
 	log "github.com/sirupsen/logrus"

@@ -3,11 +3,11 @@ package common
 import (
 	"errors"
 	"fmt"
-	"github.com/jackc/pgx/pgtype"
 	"strconv"
 	"unicode/utf8"
 
 	"github.com/cossacklabs/acra/pseudonymization/common"
+	"github.com/jackc/pgx/pgtype"
 )
 
 // ResponseOnFail represents possible values for `response_on_fail` field
