@@ -2,9 +2,11 @@ package types
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
+	"github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/jackc/pgx/pgtype"
 	log "github.com/sirupsen/logrus"
@@ -16,7 +18,7 @@ type TextDataType struct{}
 // Encode implementation of Encode method of DataTypeEncoder interface for textOID
 func (t *TextDataType) Encode(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	if !base.IsDecryptedFromContext(ctx) {
-		ctx, value, err := EncodeOnFail(ctx, format)
+		ctx, value, err := t.EncodeOnFail(ctx, format)
 		if err != nil {
 			return ctx, nil, err
 		} else if value != nil {
@@ -54,9 +56,26 @@ func (t *TextDataType) Decode(ctx context.Context, data []byte, format type_awar
 	return ctx, data, nil
 }
 
-// EncodeDefault implementation of EncodeDefault method of DataTypeEncoder interface for textOID
-func (t *TextDataType) EncodeDefault(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
-	return ctx, data, nil
+// EncodeOnFail implementation of EncodeOnFail method of DataTypeEncoder interface for int4OID
+func (t *TextDataType) EncodeOnFail(ctx context.Context, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
+	action := format.GetResponseOnFail()
+	switch action {
+	case common.ResponseOnFailEmpty, common.ResponseOnFailCiphertext:
+		return ctx, nil, nil
+
+	case common.ResponseOnFailDefault:
+		strValue := format.GetDefaultDataValue()
+		if strValue == nil {
+			log.Errorln("Default value is not specified")
+			return ctx, nil, nil
+		}
+		return ctx, []byte(*strValue), nil
+
+	case common.ResponseOnFailError:
+		return nil, nil, base.NewEncodingError(format.GetColumnName())
+	}
+
+	return ctx, nil, fmt.Errorf("unknown action: %q", action)
 }
 
 func init() {

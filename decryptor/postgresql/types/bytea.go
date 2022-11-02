@@ -3,10 +3,12 @@ package types
 import (
 	"context"
 	"encoding/base64"
-	"github.com/cossacklabs/acra/logging"
+	"fmt"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
+	"github.com/cossacklabs/acra/encryptor/config/common"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/jackc/pgx/pgtype"
 	log "github.com/sirupsen/logrus"
@@ -23,7 +25,7 @@ func NewByteaDataTypeEncoder() *ByteaDataTypeEncoder {
 // Encode implementation of Encode method of DataTypeEncoder interface for byteaOID
 func (t *ByteaDataTypeEncoder) Encode(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	if !base.IsDecryptedFromContext(ctx) {
-		ctx, value, err := EncodeOnFail(ctx, format)
+		ctx, value, err := t.EncodeOnFail(ctx, format)
 		if err != nil {
 			return ctx, nil, err
 		} else if value != nil {
@@ -64,8 +66,30 @@ func (t *ByteaDataTypeEncoder) Decode(ctx context.Context, data []byte, format t
 	return ctx, data, nil
 }
 
+// EncodeOnFail implementation of EncodeOnFail method of DataTypeEncoder interface for int4OID
+func (t *ByteaDataTypeEncoder) EncodeOnFail(ctx context.Context, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
+	action := format.GetResponseOnFail()
+	switch action {
+	case common.ResponseOnFailEmpty, common.ResponseOnFailCiphertext:
+		return ctx, nil, nil
+
+	case common.ResponseOnFailDefault:
+		strValue := format.GetDefaultDataValue()
+		if strValue == nil {
+			log.Errorln("Default value is not specified")
+			return ctx, nil, nil
+		}
+		return t.encodeDefault(ctx, []byte(*strValue), format)
+
+	case common.ResponseOnFailError:
+		return nil, nil, base.NewEncodingError(format.GetColumnName())
+	}
+
+	return ctx, nil, fmt.Errorf("unknown action: %q", action)
+}
+
 // EncodeDefault implementation of EncodeDefault method of DataTypeEncoder interface for byteaOID
-func (t *ByteaDataTypeEncoder) EncodeDefault(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
+func (t *ByteaDataTypeEncoder) encodeDefault(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	binValue, err := base64.StdEncoding.DecodeString(string(data))
 	if err != nil {
 		logging.GetLoggerFromContext(ctx).WithError(err).Errorln("Can't decode base64 default value")

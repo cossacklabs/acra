@@ -3,10 +3,12 @@ package types
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
+	"github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/jackc/pgx/pgtype"
 	log "github.com/sirupsen/logrus"
@@ -31,7 +33,7 @@ func (t *Int8DataTypeEncoder) Encode(ctx context.Context, data []byte, format ty
 	}
 
 	if !base.IsDecryptedFromContext(ctx) {
-		ctx, value, err := EncodeOnFail(ctx, format)
+		ctx, value, err := t.EncodeOnFail(ctx, format)
 		if err != nil {
 			return ctx, nil, err
 		} else if value != nil {
@@ -79,8 +81,30 @@ func (t *Int8DataTypeEncoder) Decode(ctx context.Context, data []byte, format ty
 	return ctx, data, nil
 }
 
-// EncodeDefault implementation of EncodeDefault method of DataTypeEncoder interface for int8OID
-func (t *Int8DataTypeEncoder) EncodeDefault(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
+// EncodeOnFail implementation of EncodeOnFail method of DataTypeEncoder interface for int4OID
+func (t *Int8DataTypeEncoder) EncodeOnFail(ctx context.Context, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
+	action := format.GetResponseOnFail()
+	switch action {
+	case common.ResponseOnFailEmpty, common.ResponseOnFailCiphertext:
+		return ctx, nil, nil
+
+	case common.ResponseOnFailDefault:
+		strValue := format.GetDefaultDataValue()
+		if strValue == nil {
+			log.Errorln("Default value is not specified")
+			return ctx, nil, nil
+		}
+		return t.encodeDefault(ctx, []byte(*strValue), format)
+
+	case common.ResponseOnFailError:
+		return nil, nil, base.NewEncodingError(format.GetColumnName())
+	}
+
+	return ctx, nil, fmt.Errorf("unknown action: %q", action)
+}
+
+// encodeDefault implementation of EncodeDefault method of DataTypeEncoder interface for int8OID
+func (t *Int8DataTypeEncoder) encodeDefault(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	value, err := strconv.ParseInt(string(data), 10, 64)
 	if err != nil {
 		log.WithError(err).Errorln("Can't parse default integer value")

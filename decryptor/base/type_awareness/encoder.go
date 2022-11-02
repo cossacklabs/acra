@@ -21,7 +21,7 @@ type DataTypeFormat interface {
 // DataTypeEncoder main interface for encoding DB related types
 type DataTypeEncoder interface {
 	Encode(ctx context.Context, data []byte, format DataTypeFormat) (context.Context, []byte, error)
-	EncodeDefault(ctx context.Context, data []byte, format DataTypeFormat) (context.Context, []byte, error)
+	EncodeOnFail(ctx context.Context, format DataTypeFormat) (context.Context, []byte, error)
 	Decode(ctx context.Context, data []byte, format DataTypeFormat) (context.Context, []byte, error)
 }
 
