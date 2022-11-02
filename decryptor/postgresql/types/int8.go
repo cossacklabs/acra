@@ -6,15 +6,17 @@ import (
 	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/decryptor/base/type_awerness"
+	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/jackc/pgx/pgtype"
 	log "github.com/sirupsen/logrus"
 )
 
+// Int8DataTypeEncoder is encoder of int8OID type in PostgreSQL
 type Int8DataTypeEncoder struct{}
 
-func (t *Int8DataTypeEncoder) Encode(ctx context.Context, data []byte, format type_awerness.DataTypeFormat) (context.Context, []byte, error) {
+// Encode implementation of Encode method of DataTypeEncoder interface for int8OID
+func (t *Int8DataTypeEncoder) Encode(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	// convert back from text to binary
 	strValue := string(data)
 	// if it's valid string literal and decrypted, return as is
@@ -25,12 +27,23 @@ func (t *Int8DataTypeEncoder) Encode(ctx context.Context, data []byte, format ty
 			binary.BigEndian.PutUint64(newData, uint64(value))
 			return ctx, newData, nil
 		}
+		return ctx, data, nil
+	}
+
+	if !base.IsDecryptedFromContext(ctx) {
+		ctx, value, err := EncodeOnFail(ctx, format)
+		if err != nil {
+			return ctx, nil, err
+		} else if value != nil {
+			return ctx, value, nil
+		}
 	}
 
 	return ctx, data, nil
 }
 
-func (t *Int8DataTypeEncoder) Decode(ctx context.Context, data []byte, format type_awerness.DataTypeFormat) (context.Context, []byte, error) {
+// Decode implementation of Decode method of DataTypeEncoder interface for int8OID
+func (t *Int8DataTypeEncoder) Decode(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	if format.IsBinaryFormat() {
 		var newData [8]byte
 		// We decode only tokenized data because it should be valid 4/8 byte values
@@ -66,7 +79,8 @@ func (t *Int8DataTypeEncoder) Decode(ctx context.Context, data []byte, format ty
 	return ctx, data, nil
 }
 
-func (t *Int8DataTypeEncoder) EncodeDefault(ctx context.Context, data []byte, format type_awerness.DataTypeFormat) (context.Context, []byte, error) {
+// EncodeDefault implementation of EncodeDefault method of DataTypeEncoder interface for int8OID
+func (t *Int8DataTypeEncoder) EncodeDefault(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	value, err := strconv.ParseInt(string(data), 10, 64)
 	if err != nil {
 		log.WithError(err).Errorln("Can't parse default integer value")
@@ -74,13 +88,13 @@ func (t *Int8DataTypeEncoder) EncodeDefault(ctx context.Context, data []byte, fo
 	}
 
 	if format.IsBinaryFormat() {
-		newData := make([]byte, 4)
-		binary.BigEndian.PutUint32(newData, uint32(value))
+		newData := make([]byte, 8)
+		binary.BigEndian.PutUint64(newData, uint64(value))
 		return ctx, newData, nil
 	}
 	return ctx, data, nil
 }
 
 func init() {
-	type_awerness.RegisterPostgreSQLDataTypeIDEncoder(pgtype.Int8OID, &Int8DataTypeEncoder{})
+	type_awareness.RegisterPostgreSQLDataTypeIDEncoder(pgtype.Int8OID, &Int8DataTypeEncoder{})
 }

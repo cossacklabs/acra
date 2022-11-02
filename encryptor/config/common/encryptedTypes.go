@@ -40,6 +40,7 @@ const (
 //	EncryptedType_Bytes:  mysql.TypeBlob,
 //}
 
+// PostgreSQLEncryptedTypeDataTypeIDs used for mapping EncryptedType with PostgreSQL OIDs
 var PostgreSQLEncryptedTypeDataTypeIDs = map[EncryptedType]uint32{
 	EncryptedType_Int32:  pgtype.Int4OID,
 	EncryptedType_Int64:  pgtype.Int8OID,
@@ -47,6 +48,7 @@ var PostgreSQLEncryptedTypeDataTypeIDs = map[EncryptedType]uint32{
 	EncryptedType_Bytes:  pgtype.ByteaOID,
 }
 
+// PostgreSQLDataTypeIDEncryptedType used for mapping PostgreSQL OIDs with DataType
 var PostgreSQLDataTypeIDEncryptedType = map[uint32]string{
 	pgtype.Int4OID:  "int32",
 	pgtype.Int8OID:  "int64",

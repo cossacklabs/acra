@@ -3,24 +3,42 @@ package types
 import (
 	"context"
 	"encoding/base64"
+	"github.com/cossacklabs/acra/logging"
 
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/decryptor/base/type_awerness"
+	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/jackc/pgx/pgtype"
 	log "github.com/sirupsen/logrus"
 )
 
+// ByteaDataTypeEncoder is encoder of byteaOID type in PostgreSQL
 type ByteaDataTypeEncoder struct{}
 
-func (t *ByteaDataTypeEncoder) Encode(ctx context.Context, data []byte, format type_awerness.DataTypeFormat) (context.Context, []byte, error) {
+// NewByteaDataTypeEncoder create new ByteaDataTypeEncoder
+func NewByteaDataTypeEncoder() *ByteaDataTypeEncoder {
+	return &ByteaDataTypeEncoder{}
+}
+
+// Encode implementation of Encode method of DataTypeEncoder interface for byteaOID
+func (t *ByteaDataTypeEncoder) Encode(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
+	if !base.IsDecryptedFromContext(ctx) {
+		ctx, value, err := EncodeOnFail(ctx, format)
+		if err != nil {
+			return ctx, nil, err
+		} else if value != nil {
+			return ctx, value, nil
+		}
+	}
+
 	if format.IsBinaryFormat() {
 		return ctx, data, nil
 	}
 	return ctx, utils.PgEncodeToHex(data), nil
 }
 
-func (t *ByteaDataTypeEncoder) Decode(ctx context.Context, data []byte, format type_awerness.DataTypeFormat) (context.Context, []byte, error) {
+// Decode implementation of Decode method of DataTypeEncoder interface for byteaOID
+func (t *ByteaDataTypeEncoder) Decode(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	if format.IsBinaryFormat() {
 		return ctx, data, nil
 	}
@@ -46,15 +64,19 @@ func (t *ByteaDataTypeEncoder) Decode(ctx context.Context, data []byte, format t
 	return ctx, data, nil
 }
 
-func (t *ByteaDataTypeEncoder) EncodeDefault(ctx context.Context, data []byte, format type_awerness.DataTypeFormat) (context.Context, []byte, error) {
+// EncodeDefault implementation of EncodeDefault method of DataTypeEncoder interface for byteaOID
+func (t *ByteaDataTypeEncoder) EncodeDefault(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	binValue, err := base64.StdEncoding.DecodeString(string(data))
 	if err != nil {
-		log.WithError(err).Errorln("Can't decode base64 default value")
-		return ctx, nil, err
+		logging.GetLoggerFromContext(ctx).WithError(err).Errorln("Can't decode base64 default value")
+		return ctx, nil, nil
 	}
-	return t.Encode(ctx, binValue, format)
+	if format.IsBinaryFormat() {
+		return ctx, binValue, nil
+	}
+	return ctx, utils.PgEncodeToHex(binValue), nil
 }
 
 func init() {
-	type_awerness.RegisterPostgreSQLDataTypeIDEncoder(pgtype.ByteaOID, &ByteaDataTypeEncoder{})
+	type_awareness.RegisterPostgreSQLDataTypeIDEncoder(pgtype.ByteaOID, &ByteaDataTypeEncoder{})
 }

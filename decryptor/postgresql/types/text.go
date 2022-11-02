@@ -2,21 +2,33 @@ package types
 
 import (
 	"context"
-	"github.com/cossacklabs/acra/decryptor/base/type_awerness"
 
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/jackc/pgx/pgtype"
 	log "github.com/sirupsen/logrus"
 )
 
+// TextDataType is encoder of textOID type in PostgreSQL
 type TextDataType struct{}
 
-func (t *TextDataType) Encode(ctx context.Context, data []byte, format type_awerness.DataTypeFormat) (context.Context, []byte, error) {
+// Encode implementation of Encode method of DataTypeEncoder interface for textOID
+func (t *TextDataType) Encode(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
+	if !base.IsDecryptedFromContext(ctx) {
+		ctx, value, err := EncodeOnFail(ctx, format)
+		if err != nil {
+			return ctx, nil, err
+		} else if value != nil {
+			return ctx, value, nil
+		}
+	}
+
 	return ctx, data, nil
 }
 
-func (t *TextDataType) Decode(ctx context.Context, data []byte, format type_awerness.DataTypeFormat) (context.Context, []byte, error) {
+// Decode implementation of Decode method of DataTypeEncoder interface for textOID
+func (t *TextDataType) Decode(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	if format.IsBinaryFormat() {
 		return ctx, data, nil
 	}
@@ -42,10 +54,11 @@ func (t *TextDataType) Decode(ctx context.Context, data []byte, format type_awer
 	return ctx, data, nil
 }
 
-func (t *TextDataType) EncodeDefault(ctx context.Context, data []byte, format type_awerness.DataTypeFormat) (context.Context, []byte, error) {
-	return t.Encode(ctx, data, format)
+// EncodeDefault implementation of EncodeDefault method of DataTypeEncoder interface for textOID
+func (t *TextDataType) EncodeDefault(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
+	return ctx, data, nil
 }
 
 func init() {
-	type_awerness.RegisterPostgreSQLDataTypeIDEncoder(pgtype.TextOID, &TextDataType{})
+	type_awareness.RegisterPostgreSQLDataTypeIDEncoder(pgtype.TextOID, &TextDataType{})
 }

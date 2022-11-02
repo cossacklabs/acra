@@ -42,7 +42,7 @@ func TestSearchablePreparedStatementsWithTextFormat(t *testing.T) {
       - column: data1
         searchable: true`
 
-	schema, err := config.MapTableSchemaStoreFromConfig([]byte(schemaConfig))
+	schema, err := config.MapTableSchemaStoreFromConfig([]byte(schemaConfig), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestSearchableWithTextFormat(t *testing.T) {
       - column: data1
         searchable: true`
 
-	schema, err := config.MapTableSchemaStoreFromConfig([]byte(schemaConfig))
+	schema, err := config.MapTableSchemaStoreFromConfig([]byte(schemaConfig), false)
 	assert.NoError(t, err)
 
 	ctx := base.SetClientSessionToContext(context.Background(), clientSession)
@@ -246,7 +246,7 @@ func TestSearchableWithJoinsWithTextFormat(t *testing.T) {
 	keyStore.On("GetHMACSecretKey", mock.Anything).Return([]byte(`some key`), nil)
 	registryHandler := crypto.NewRegistryHandler(nil)
 
-	schema, err := config.MapTableSchemaStoreFromConfig([]byte(schemaConfig))
+	schema, err := config.MapTableSchemaStoreFromConfig([]byte(schemaConfig), false)
 	if err != nil {
 		t.Fatal(err)
 	}

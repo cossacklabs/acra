@@ -134,7 +134,7 @@ schemas:
     encrypted:
       - column: id_tmp
 `
-		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(testConfig))
+		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(testConfig), false)
 		if err != nil {
 			t.Fatal(err)
 		}

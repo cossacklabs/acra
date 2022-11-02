@@ -7,24 +7,48 @@ import (
 	"github.com/jackc/pgx/pgtype"
 )
 
-type PostgreSQLDataTypeFormat struct {
+// DataTypeFormat implementation of type_awareness.DataTypeFormat for PostgreSQL
+type DataTypeFormat struct {
 	columnInfo    base.ColumnInfo
 	columnSetting config.ColumnEncryptionSetting
 }
 
-func NewPostgreSQLDataTypeFormat(columnInfo base.ColumnInfo, columnSetting config.ColumnEncryptionSetting) *PostgreSQLDataTypeFormat {
-	return &PostgreSQLDataTypeFormat{
+// NewDataTypeFormat create new DataTypeFormat from ColumnInfo and ColumnEncryptionSetting
+func NewDataTypeFormat(columnInfo base.ColumnInfo, columnSetting config.ColumnEncryptionSetting) *DataTypeFormat {
+	return &DataTypeFormat{
 		columnInfo:    columnInfo,
 		columnSetting: columnSetting,
 	}
 }
 
-func (p *PostgreSQLDataTypeFormat) IsBinaryFormat() bool {
+// IsBinaryFormat check if columnInfo is binary
+func (p *DataTypeFormat) IsBinaryFormat() bool {
 	return p.columnInfo.IsBinaryFormat()
 }
 
-func (p *PostgreSQLDataTypeFormat) IsBinaryDataOperation() bool {
+// IsBinaryDataOperation check from columnSetting if binaryOperation
+func (p *DataTypeFormat) IsBinaryDataOperation() bool {
 	return config.IsBinaryDataOperation(p.columnSetting)
+}
+
+// GetDefaultDataValue return DefaultDataValue
+func (p *DataTypeFormat) GetDefaultDataValue() *string {
+	return p.columnSetting.GetDefaultDataValue()
+}
+
+// GetDBDataTypeID return DBDataTypeID
+func (p *DataTypeFormat) GetDBDataTypeID() uint32 {
+	return p.columnSetting.GetDBDataTypeID()
+}
+
+// GetResponseOnFail return ResponseOnFail
+func (p *DataTypeFormat) GetResponseOnFail() common.ResponseOnFail {
+	return p.columnSetting.GetResponseOnFail()
+}
+
+// GetColumnName return ColumnName
+func (p *DataTypeFormat) GetColumnName() string {
+	return p.columnSetting.ColumnName()
 }
 
 func mapEncryptedTypeToOID(dataType common.EncryptedType) (uint32, bool) {

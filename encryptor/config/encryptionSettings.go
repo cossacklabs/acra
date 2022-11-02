@@ -20,7 +20,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/cossacklabs/acra/decryptor/base/type_awerness"
+	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
 	"github.com/cossacklabs/acra/encryptor/config/common"
 	maskingCommon "github.com/cossacklabs/acra/masking/common"
 	tokenizationCommon "github.com/cossacklabs/acra/pseudonymization/common"
@@ -374,7 +374,7 @@ func (s *BasicColumnEncryptionSetting) Init(useMySQL bool) (err error) {
 	if s.DataTypeID != 0 {
 		s.settingMask |= SettingDataTypeIDFlag
 
-		var dataTypeIDEncoders = type_awerness.GetPostgreSQLDataTypeIDEncoders()
+		var dataTypeIDEncoders = type_awareness.GetPostgreSQLDataTypeIDEncoders()
 		if useMySQL {
 			//dataTypeIDEncoders = base.GetMySQLDataTypeIDEncoders()
 		}
@@ -577,6 +577,7 @@ func HasTypeAwareSupport(setting ColumnEncryptionSetting) bool {
 	return setting.OnlyEncryption() || setting.IsSearchable() || maskingSupport
 }
 
+// GetDBDataTypeID returns the DataTypeID of corresponded DB got from `data_type_db_identifier` encryptor config option
 func (s *BasicColumnEncryptionSetting) GetDBDataTypeID() uint32 {
 	return s.DataTypeID
 }

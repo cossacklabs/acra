@@ -6,15 +6,18 @@ import (
 	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/decryptor/base/type_awerness"
+	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/jackc/pgx/pgtype"
 	log "github.com/sirupsen/logrus"
 )
 
+// Int4DataTypeEncoder is encoder of int4OID type in PostgreSQL
 type Int4DataTypeEncoder struct{}
 
-func (t *Int4DataTypeEncoder) Encode(ctx context.Context, data []byte, format type_awerness.DataTypeFormat) (context.Context, []byte, error) {
+// Encode implementation of Encode method of DataTypeEncoder interface for int4OID
+func (t *Int4DataTypeEncoder) Encode(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	// convert back from text to binary
 	strValue := string(data)
 	// if it's valid string literal and decrypted, return as is
@@ -25,12 +28,24 @@ func (t *Int4DataTypeEncoder) Encode(ctx context.Context, data []byte, format ty
 			binary.BigEndian.PutUint32(newData, uint32(value))
 			return ctx, newData, nil
 		}
+		return ctx, data, nil
 	}
 
+	if !base.IsDecryptedFromContext(ctx) {
+		ctx, value, err := EncodeOnFail(ctx, format)
+		if err != nil {
+			return ctx, nil, err
+		} else if value != nil {
+			return ctx, value, nil
+		}
+	}
+
+	logging.GetLoggerFromContext(ctx).Warningln("Can't decode int value and no default value")
 	return ctx, data, nil
 }
 
-func (t *Int4DataTypeEncoder) Decode(ctx context.Context, data []byte, format type_awerness.DataTypeFormat) (context.Context, []byte, error) {
+// Decode implementation of Decode method of DataTypeEncoder interface for int4OID
+func (t *Int4DataTypeEncoder) Decode(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	if format.IsBinaryFormat() {
 		var newData [8]byte
 		// We decode only tokenized data because it should be valid 4/8 byte values
@@ -81,7 +96,8 @@ func (t *Int4DataTypeEncoder) Decode(ctx context.Context, data []byte, format ty
 	return ctx, data, nil
 }
 
-func (t *Int4DataTypeEncoder) EncodeDefault(ctx context.Context, data []byte, format type_awerness.DataTypeFormat) (context.Context, []byte, error) {
+// EncodeDefault implementation of EncodeDefault method of DataTypeEncoder interface for int4OID
+func (t *Int4DataTypeEncoder) EncodeDefault(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	value, err := strconv.ParseInt(string(data), 10, 32)
 	if err != nil {
 		log.WithError(err).Errorln("Can't parse default integer value")
@@ -97,5 +113,5 @@ func (t *Int4DataTypeEncoder) EncodeDefault(ctx context.Context, data []byte, fo
 }
 
 func init() {
-	type_awerness.RegisterPostgreSQLDataTypeIDEncoder(pgtype.Int4OID, &Int4DataTypeEncoder{})
+	type_awareness.RegisterPostgreSQLDataTypeIDEncoder(pgtype.Int4OID, &Int4DataTypeEncoder{})
 }

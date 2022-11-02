@@ -179,7 +179,7 @@ schemas:
       - column: zone_id
         zone_id: %s
 `, clientIDStr, zoneIDStr, clientIDStr, zoneIDStr)
-	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr))
+	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr), false)
 	if err != nil {
 		t.Fatalf("Can't parse config: %s", err.Error())
 	}
@@ -496,7 +496,7 @@ schemas:
       - column: zone_id
         zone_id: %s
 `, clientIDStr, zoneIDStr, clientIDStr, zoneIDStr)
-	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr))
+	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr), false)
 	if err != nil {
 		t.Fatalf("Can't parse config: %s", err.Error())
 	}
@@ -635,7 +635,7 @@ schemas:
       - column: zone_id
         zone_id: %s
 `, clientIDStr, zoneIDStr)
-	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr))
+	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr), false)
 	if err != nil {
 		t.Fatalf("Can't parse config: %s", err.Error())
 	}
@@ -719,7 +719,7 @@ schemas:
       - column: zone_id
         zone_id: %s
 `, clientIDStr, zoneIDStr, clientIDStr, zoneIDStr)
-	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr))
+	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr), false)
 	if err != nil {
 		t.Fatalf("Can't parse config: %s", err.Error())
 	}
@@ -818,7 +818,7 @@ schemas:
       - column: zone_id
         zone_id: %s
 `, clientIDStr, zoneIDStr)
-	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr))
+	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr), false)
 	if err != nil {
 		t.Fatalf("Can't parse config: %s", err.Error())
 	}
@@ -1087,7 +1087,7 @@ func TestEncryptionSettingCollection(t *testing.T) {
 	}
 	for i, tcase := range testcases {
 		t.Logf("Test tcase %d\n", i)
-		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(tcase.config), false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1166,7 +1166,7 @@ func TestEncryptionSettingCollectionFailures(t *testing.T) {
 	}
 	for i, tcase := range testcases {
 		t.Logf("Test tcase %d\n", i)
-		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(tcase.config), false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1246,7 +1246,7 @@ func TestInsertWithIncorrectPlaceholdersAmount(t *testing.T) {
 	for i, tcase := range testcases {
 		outBuffer.Reset()
 		t.Logf("Test tcase %d\n", i)
-		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(tcase.config), false)
 		if err != nil {
 			t.Fatal(err)
 		}

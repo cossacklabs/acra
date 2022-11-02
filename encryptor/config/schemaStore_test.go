@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/cossacklabs/acra/decryptor/base/type_awerness"
+	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
 	common2 "github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/cossacklabs/acra/masking/common"
 	"github.com/jackc/pgx/pgtype"
@@ -1231,7 +1231,7 @@ schemas:
 		},
 	}
 
-	type_awerness.RegisterPostgreSQLDataTypeIDEncoder(pgtype.TextOID, nil)
+	type_awareness.RegisterPostgreSQLDataTypeIDEncoder(pgtype.TextOID, nil)
 
 	for _, tcase := range testcases {
 		schemaStore, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), false)
