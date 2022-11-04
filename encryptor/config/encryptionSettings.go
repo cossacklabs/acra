@@ -381,7 +381,7 @@ func (s *BasicColumnEncryptionSetting) Init(useMySQL bool) (err error) {
 
 		_, ok := dataTypeIDEncoders[s.DataTypeID]
 		if !ok {
-			return fmt.Errorf("%d: %w", s.DataTypeID, common.ErrUnsupportedDBDataTypeID)
+			return common.ErrUnsupportedDataTypeID
 		}
 
 		if useMySQL {

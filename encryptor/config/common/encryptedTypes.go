@@ -103,6 +103,7 @@ var (
 	ErrUnsupportedDBDataTypeID  = errors.New("unsupported DB data type id")
 	ErrUnsupportedEncryptedType = errors.New("data type not supported")
 	ErrDataTypeWithDataTypeID   = errors.New("data_type can`t be used along with data_type_db_identifier option")
+	ErrUnsupportedDataTypeID    = errors.New("unsupported data_type_db_identifier option")
 )
 
 // ValidateEncryptedType return true if value is supported EncryptedType

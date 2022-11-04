@@ -7,14 +7,11 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
 	"github.com/cossacklabs/acra/decryptor/postgresql/types"
-	_ "github.com/cossacklabs/acra/decryptor/postgresql/types"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 )
-
-var valueFactory base.EncodingValueFactory = &postgresValueFactory{}
 
 // PgSQLDataEncoderProcessor implements processor and encode binary/text values before sending to app
 type PgSQLDataEncoderProcessor struct{}

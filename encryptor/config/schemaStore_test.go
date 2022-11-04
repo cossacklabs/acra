@@ -31,7 +31,7 @@ schemas:
       - column: data3
         crypto_envelope: acrastruct
 `
-	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig), false)
+	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig), UseMySQL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ schemas:
       - column: data3
         crypto_envelope: acrastruct
 `
-	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig), false)
+	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig), UseMySQL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ schemas:
       - column: data3
         reencrypting_to_acrablocks: true
 `
-	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig), false)
+	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig), UseMySQL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +150,7 @@ schemas:
       - column: data3
         reencrypting_to_acrablocks: false
 `
-	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig), false)
+	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig), UseMySQL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -713,7 +713,7 @@ schemas:
 	}
 
 	for _, tcase := range testcases {
-		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), false)
+		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), UseMySQL)
 		u, ok := err.(interface {
 			Unwrap() error
 		})
@@ -841,7 +841,7 @@ schemas:
 			ErrInvalidEncryptorConfig},
 	}
 	for i, tcase := range testcases {
-		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), false)
+		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), UseMySQL)
 		u, ok := err.(interface {
 			Unwrap() error
 		})
@@ -981,7 +981,7 @@ schemas:
 	}
 
 	for _, tcase := range testcases {
-		config, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), false)
+		config, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), UseMySQL)
 
 		if err != nil {
 			t.Fatalf("[%s] error=%s\n", tcase.name, err)
@@ -1058,7 +1058,7 @@ schemas:
 	}
 
 	for _, tcase := range testcases {
-		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), false)
+		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), UseMySQL)
 
 		if err == nil {
 			t.Fatalf("[%s] expected error, found nil\n", tcase.name)
@@ -1082,7 +1082,7 @@ schemas:
         tokenized: true
         token_type: %s
 `, token)
-		_, err := MapTableSchemaStoreFromConfig([]byte(config), false)
+		_, err := MapTableSchemaStoreFromConfig([]byte(config), UseMySQL)
 		if err != nil {
 			t.Fatalf("[tokenize: true, token_type: %s] %s", token, err)
 		}
@@ -1096,7 +1096,7 @@ schemas:
       - column: data
         token_type: %s
 `, token)
-		_, err = MapTableSchemaStoreFromConfig([]byte(config), false)
+		_, err = MapTableSchemaStoreFromConfig([]byte(config), UseMySQL)
 		if err != nil {
 			t.Fatalf("[token_type: %s] %s", token, err)
 		}
@@ -1111,7 +1111,7 @@ schemas:
         consistent_tokenization: true
         token_type: %s
 `, token)
-		_, err = MapTableSchemaStoreFromConfig([]byte(config), false)
+		_, err = MapTableSchemaStoreFromConfig([]byte(config), UseMySQL)
 		if err != nil {
 			t.Fatalf("[consistent_tokenization: true, token_type: %s] %s", token, err)
 		}
@@ -1160,7 +1160,7 @@ schemas:
 	}
 
 	for _, tcase := range testcases {
-		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), false)
+		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), UseMySQL)
 
 		if err == nil {
 			t.Fatalf("[%s] expected error, found nil\n", tcase.name)
@@ -1181,7 +1181,7 @@ func TestTokenizedDeprecationWarning(t *testing.T) {
 
 	buff := bytes.NewBuffer([]byte{})
 	log.SetOutput(buff)
-	_, err := MapTableSchemaStoreFromConfig([]byte(config), false)
+	_, err := MapTableSchemaStoreFromConfig([]byte(config), UseMySQL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1234,7 +1234,7 @@ schemas:
 	type_awareness.RegisterPostgreSQLDataTypeIDEncoder(pgtype.TextOID, nil)
 
 	for _, tcase := range testcases {
-		schemaStore, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), false)
+		schemaStore, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), UseMySQL)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1242,5 +1242,59 @@ schemas:
 		dataTypeID := schemaStore.GetTableSchema("test_type_aware_decryption_with_defaults").
 			GetColumnEncryptionSettings("value_str").GetDBDataTypeID()
 		assert.Equal(t, dataTypeID, uint32(25))
+	}
+}
+
+func TestInvalidWithDataTypeIDOption(t *testing.T) {
+	type testcase struct {
+		name          string
+		config        string
+		expectedError error
+	}
+	testcases := []testcase{
+		{
+			name:          "Schema store with data_type_db_identifier and data_type options",
+			expectedError: common2.ErrDataTypeWithDataTypeID,
+			config: `
+schemas:
+  - table: test_type_aware_decryption_with_defaults
+    columns:
+      - id
+      - value_str
+    
+    encrypted:
+      - column: value_str
+        data_type: str
+        data_type_db_identifier: 25
+`,
+		},
+		{
+			name: "Schema store with not supported data_type options",
+			config: `
+schemas:
+  - table: test_type_aware_decryption_with_defaults
+    columns:
+      - id
+      - value_str
+    
+    encrypted:
+      - column: value_str
+        data_type_db_identifier: 10
+`,
+			expectedError: common2.ErrUnsupportedDataTypeID,
+		},
+	}
+
+	type_awareness.RegisterPostgreSQLDataTypeIDEncoder(pgtype.TextOID, nil)
+
+	for _, tcase := range testcases {
+		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), UsePostgreSQL)
+		if err == nil {
+			t.Fatalf("expected got error on invalid config - %s", tcase.name)
+		}
+
+		if err != tcase.expectedError {
+			t.Fatalf("expected got error %s - but found %s", tcase.expectedError.Error(), err.Error())
+		}
 	}
 }

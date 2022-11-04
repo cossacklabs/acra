@@ -64,7 +64,7 @@ schemas:
       - column: id
         data_type: "str"
 `
-	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(testConfig), false)
+	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(testConfig), config.UseMySQL)
 	if err != nil {
 		t.Fatal(err)
 	}

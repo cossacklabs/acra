@@ -20,6 +20,11 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+const (
+	UseMySQL      = false
+	UsePostgreSQL = true
+)
+
 // TableSchemaStore fetches schema for encryptable tables in the database.
 type TableSchemaStore interface {
 	GetDatabaseSettings() DatabaseSettings

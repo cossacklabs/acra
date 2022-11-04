@@ -17,7 +17,7 @@ schemas:
       - column: specified_client_id
         client_id: specified_client_id
 `
-	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr), false)
+	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr), config.UseMySQL)
 	if err != nil {
 		t.Fatalf("Can't parse config: %s", err.Error())
 	}
@@ -48,7 +48,7 @@ schemas:
       - column: specified_client_id
         client_id: specified_client_id
 `
-	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr), false)
+	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr), config.UseMySQL)
 	if err != nil {
 		t.Fatalf("Can't parse config: %s", err.Error())
 	}
