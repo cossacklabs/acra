@@ -1,6 +1,7 @@
 pythemis
 psycopg2==2.8.6
-psycopg==3.0.13
+# only this supported on centos 7 due to problems with version of libpq
+psycopg[binary]==3.0.18
 asyncpg==0.23.0
 SQLAlchemy==1.4.15
 PyMySQL==1.0.2
