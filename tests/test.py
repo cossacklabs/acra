@@ -7324,7 +7324,7 @@ class TestSearchableTransparentEncryptionWithJOINs(BaseSearchableTransparentEncr
             ).
             join(self.encryptor_table_join, self.encryptor_table_join.c.searchable==sa.bindparam('searchable')).
             where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
-            {'searchable': get_pregenerated_random_data().encode('utf-8')})
+            {'searchable': 'invalid-search-term'.encode('utf-8')})
         self.assertEqual(len(rows), 0)
 
         rows = self.executeSelect2(
