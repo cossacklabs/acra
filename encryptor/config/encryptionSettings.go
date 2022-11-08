@@ -218,7 +218,9 @@ type BasicColumnEncryptionSetting struct {
 	TokenType              string `yaml:"token_type"`
 
 	// Searchable encryption
-	Searchable bool `yaml:"searchable"`
+	Searchable       bool  `yaml:"searchable"`
+	SearchablePrefix uint8 `yaml:"searchable_prefix"`
+
 	// Data masking
 	MaskingPattern           string                      `yaml:"masking"`
 	PartialPlaintextLenBytes int                         `yaml:"plaintext_length"`
@@ -438,6 +440,11 @@ func (s *BasicColumnEncryptionSetting) GetTokenType() common.TokenType {
 // IsSearchable returns true if column should be searchable.
 func (s *BasicColumnEncryptionSetting) IsSearchable() bool {
 	return s.Searchable
+}
+
+// GetSearchablePrefix returns length of searchable prefix if provided
+func (s *BasicColumnEncryptionSetting) GetSearchablePrefix() uint8 {
+	return s.SearchablePrefix
 }
 
 // GetMaskingPattern returns string which should be used to mask AcraStruct data.

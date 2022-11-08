@@ -73,7 +73,21 @@ func (e *SearchableDataEncryptor) EncryptWithClientID(clientID, data []byte, set
 			}
 			hash = GenerateHMAC(key, data)
 		} else {
-			hash = GenerateHMAC(key, data)
+
+			var hashData = data
+			if searchPrefix := setting.GetSearchablePrefix(); searchPrefix > 0 {
+				logrus.WithField("searchable_prefix", searchPrefix).
+					Infoln("Insert data with searchable_prefix")
+
+				if len(data) > int(searchPrefix) {
+					hashData = data[:searchPrefix]
+				} else {
+					logrus.WithField("data_length", len(data)).WithField("searchable_prefix", searchPrefix).
+						Warningln("Data is less than search_prefix")
+				}
+			}
+
+			hash = GenerateHMAC(key, hashData)
 			encryptedData, err = e.dataEncryptor.EncryptWithClientID(clientID, data, setting)
 			if err != nil {
 				return nil, err

@@ -23,6 +23,7 @@ import (
 	acrastruct2 "github.com/cossacklabs/acra/acrastruct"
 	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -81,6 +82,12 @@ func (p *Processor) OnColumn(ctx context.Context, data []byte) (context.Context,
 // Process HMAC DataProcessor implementation
 func (p *Processor) Process(data []byte, ctx *base.DataProcessorContext) ([]byte, error) {
 	accessContext := base.AccessContextFromContext(ctx.Context)
+
+	columnSetting, ok := encryptor.EncryptionSettingFromContext(ctx.Context)
+	if ok && columnSetting.GetSearchablePrefix() > 0 && len(data) > int(columnSetting.GetSearchablePrefix()) {
+		data = data[:columnSetting.GetSearchablePrefix()]
+	}
+
 	if p.hashData != nil && !p.matchedHash.IsEqual(data, accessContext.GetClientID(), p.hmacStore) {
 		return data, ErrHMACNotMatch
 	}

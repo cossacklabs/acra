@@ -13,6 +13,7 @@
 # limitations under the License.
 # coding: utf-8
 import asyncio
+import base64
 import collections
 import collections.abc
 import contextlib
@@ -29,8 +30,6 @@ import socket
 import ssl
 import stat
 import subprocess
-
-import consul
 import sys
 import tempfile
 import time
@@ -44,7 +43,7 @@ from urllib.request import urlopen
 
 import asyncpg
 import boto3
-import base64
+import consul
 import grpc
 import mysql.connector
 import psycopg as psycopg3
@@ -7247,6 +7246,81 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         self.assertNotEqual(rows[0]['searchable_acrablock'][:8], encrypted_term[:8])
         # skip 33 bytes of hash
         self.assertEqual(rows[0]['searchable_acrablock'][33:33+4], encrypted_term[:4])
+
+
+class TestSearchableTransparentEncryptionWithSearchPrefix(AcraCatchLogsMixin, BaseSearchableTransparentEncryption):
+    SEARCH_PREFIX = 5
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_encryptor_config_with_search_prefix.yaml')
+
+    def testSearch(self):
+        context = self.get_context_data()
+        search_term = context['searchable']
+
+        # Insert searchable data and some additional different rows
+        self.insertRow(context)
+        self.insertDifferentRows(context, count=5)
+
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
+            {'searchable': search_term[:self.SEARCH_PREFIX]},
+            )
+        self.assertEqual(len(rows), 1)
+
+        self.checkDefaultIdEncryption(**context)
+        self.assertEqual(rows[0]['searchable'], search_term)
+
+        # search by full term expect not found any rows
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
+            {'searchable': search_term},
+            )
+        self.assertEqual(len(rows), 0)
+
+        # search by less prefix number - expected no rows found
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
+            {'searchable':  search_term[:self.SEARCH_PREFIX-1]},
+            )
+        self.assertEqual(len(rows), 0)
+
+        # prepare new row with the same prefix in search column
+        new_search_term =  get_pregenerated_random_data().encode('ascii')
+        new_search_term = new_search_term.replace(new_search_term[:self.SEARCH_PREFIX], search_term[:self.SEARCH_PREFIX])
+
+        context['searchable'] = new_search_term
+        context['id'] = get_random_id()
+
+        self.insertRow(context)
+
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
+            {'searchable': search_term[:self.SEARCH_PREFIX]},
+            )
+        self.assertEqual(len(rows), 2)
+
+    def testSearchWithLessPrefix(self):
+        context = self.get_context_data()
+        search_term = context['searchable']
+
+        context['searchable'] = search_term[:self.SEARCH_PREFIX-1]
+
+        # Insert searchable data and some additional different rows
+        self.insertRow(context)
+        self.assertIn("Data is less than search_prefix", self.read_log(self.acra))
+
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
+            {'searchable': search_term[:self.SEARCH_PREFIX-1]},
+            )
+        self.assertEqual(len(rows), 1)
+
+        self.checkDefaultIdEncryption(**context)
+        self.assertEqual(rows[0]['searchable'], search_term[:self.SEARCH_PREFIX-1])
 
 
 class TestSearchableTransparentEncryptionWithJOINs(BaseSearchableTransparentEncryption):

@@ -51,6 +51,8 @@ type ColumnEncryptionSetting interface {
 
 	// Searchable encryption
 	IsSearchable() bool
+	GetSearchablePrefix() uint8
+
 	// Data masking
 	GetMaskingPattern() string
 	GetPartialPlaintextLen() int
