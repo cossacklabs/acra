@@ -81,6 +81,11 @@ func TestAcrawriterDataEncryptor_EncryptWithClientID(t *testing.T) {
 
 type emptyEncryptionSetting struct{}
 
+func (s *emptyEncryptionSetting) GetSearchablePrefix() uint8 {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (s *emptyEncryptionSetting) GetEncryptedDataType() common2.EncryptedType {
 	panic("implement me")
 }
