@@ -202,6 +202,7 @@ if TEST_MYSQL or TEST_MARIADB:
     TEST_MYSQL = True
     connect_args = {
         'user': DB_USER, 'password': DB_USER_PASSWORD,
+        'database': DB_NAME,
         'read_timeout': SOCKET_CONNECT_TIMEOUT,
         'write_timeout': SOCKET_CONNECT_TIMEOUT,
     }
@@ -764,6 +765,7 @@ def drop_tables():
                 '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
                 connect_args=connect_args)
     metadata.drop_all(engine_raw)
+    engine_raw.dispose()
 
 
 # Set this to False to not rebuild binaries on setup.
@@ -2605,11 +2607,11 @@ class TestConnectionClosing(BaseTestCase):
 
     def getActiveConnectionCount(self, cursor):
         if TEST_MYSQL:
-            query = "SHOW STATUS WHERE `variable_name` = 'Threads_connected';"
-            cursor.execute(query)
-            return int(cursor.fetchone()[1])
+            query = "select count(*) from information_schema.processlist where db=%s;"
+            cursor.execute(query, [DB_NAME])
+            return int(cursor.fetchone()[0])
         else:
-            cursor.execute('select count(*) from pg_stat_activity;')
+            cursor.execute('SELECT numbackends FROM pg_stat_database where datname=%s;', [DB_NAME])
             return int(cursor.fetchone()[0])
 
     def getConnectionLimit(self, connection=None):
@@ -2705,7 +2707,6 @@ class TestConnectionClosing(BaseTestCase):
             connection.autocommit = True
             with TestConnectionClosing.mysql_closing(connection.cursor()) as cursor:
                 current_connection_count = self.getActiveConnectionCount(cursor)
-
                 with self.get_connection():
                     self.assertEqual(self.getActiveConnectionCount(cursor),
                                      current_connection_count+1)
