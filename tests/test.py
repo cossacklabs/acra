@@ -7487,6 +7487,10 @@ class TestSearchableTransparentEncryptionWithDefaultsAcraBlockBinaryPostgreSQL(B
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_defaults_with_searchable_config.yaml')
 
 
+class TestSearchableTransparentEncryptionWithSearchPrefixBinaryPostgreSQL(BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin, TestSearchableTransparentEncryptionWithSearchPrefix):
+    pass
+
+
 class TestSearchableTransparentEncryptionWithDefaultsAcraBlockBinaryPostgreSQLWithConsulEncryptorConfigLoader(HashicorpConsulEncryptorConfigLoaderMixin, BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin, TestSearchableTransparentEncryption):
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_defaults_with_searchable_config.yaml')
 
