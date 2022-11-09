@@ -10815,7 +10815,7 @@ class TestPostgresqlConnectWithTLSPrefer(BaseTestCase):
 
     def testPlainConnectionAfterDeny(self):
         async def _testPlainConnectionAfterDeny():
-            # We use raw connecitons to specify ssl='prefer'
+            # We use raw connections to specify ssl='prefer'
             # which would ask for ssl connection first.
             # And then after receiving a deny, it would ask for a plain connection
             conn = await asyncpg.connect(
@@ -10825,6 +10825,7 @@ class TestPostgresqlConnectWithTLSPrefer(BaseTestCase):
                 **asyncpg_connect_args
             )
             await conn.fetch('SELECT 1', timeout=STATEMENT_TIMEOUT)
+            await conn.close()
 
         loop = asyncio.new_event_loop()  # create new to avoid concurrent usage of the loop in the current thread and allow parallel execution in the future
         loop.run_until_complete(_testPlainConnectionAfterDeny())
@@ -11026,6 +11027,7 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
             await conn.execute(insert_query, data['id'], data['value_bytes'])
             row = await conn.fetchrow(select_query, data['id'])
             self.assertEqual(data['value_bytes'], row['value_bytes'])
+            await conn.close()
 
         loop = asyncio.new_event_loop()
         loop.run_until_complete(test())
@@ -11078,6 +11080,7 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
             # that our data is not saved due to the rollback.
             row = await conn.fetchrow(select_query, data['id'])
             self.assertEqual(row, None)
+            await conn.close()
 
         loop = asyncio.new_event_loop()
         loop.run_until_complete(test())
@@ -11144,6 +11147,7 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
 
             row = await conn.fetchrow(select_query, data['id'])
             self.assertEqual(row, None)
+            await conn.close()
 
         loop = asyncio.new_event_loop()
         loop.run_until_complete(test())
