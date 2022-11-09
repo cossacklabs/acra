@@ -7398,7 +7398,7 @@ class TestSearchableTransparentEncryptionWithJOINs(BaseSearchableTransparentEncr
             ).
             join(self.encryptor_table_join, self.encryptor_table_join.c.searchable==sa.bindparam('searchable')).
             where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
-            {'searchable': get_pregenerated_random_data().encode('utf-8')})
+            {'searchable': 'invalid-search-term'.encode('utf-8')})
         self.assertEqual(len(rows), 0)
 
         rows = self.executeSelect2(
@@ -11544,7 +11544,10 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
 
     def copy_keystore(self):
         new_keystore = tempfile.mkdtemp()
-        return shutil.copytree(KEYS_FOLDER.name, new_keystore, dirs_exist_ok=True)
+        # we don't use shutil.copytree(..., dirs_exist_ok=True) due to unsupported in default python on centos 7, 8
+        # so we remove folder and then copy
+        shutil.rmtree(new_keystore)
+        return shutil.copytree(KEYS_FOLDER.name, new_keystore)
 
     def find_forked_pid(self, filepath):
         with open(filepath, 'r') as f:
