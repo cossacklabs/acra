@@ -152,7 +152,7 @@ func (filter *SearchableQueryFilter) filterComparisonExprs(statement sqlparser.S
 	// ...and find all eligible comparison expressions in them.
 	var exprs []*sqlparser.ComparisonExpr
 	for _, whereExpr := range whereExprs {
-		comparisonExprs, err := filter.getEqualComparisonExprs(whereExpr, defaultTable, aliasedTables)
+		comparisonExprs, err := filter.getColumnEqualComparisonExprs(whereExpr, defaultTable, aliasedTables)
 		if err != nil {
 			logrus.WithError(err).Debugln("Failed to extract comparison expressions")
 			return nil
@@ -234,12 +234,15 @@ func isSupportedSQLVal(val *sqlparser.SQLVal) bool {
 	return false
 }
 
-// getEqualComparisonExprs return only <ColName> = <VALUE> or <ColName> != <VALUE> or <ColName> <=> <VALUE> expressions
-func (filter *SearchableQueryFilter) getEqualComparisonExprs(stmt sqlparser.SQLNode, defaultTable *AliasedTableName, aliasedTables AliasToTableMap) ([]*sqlparser.ComparisonExpr, error) {
+// getColumnEqualComparisonExprs return only <ColName> = <VALUE> or <ColName> != <VALUE> or <ColName> <=> <VALUE> expressions
+func (filter *SearchableQueryFilter) getColumnEqualComparisonExprs(stmt sqlparser.SQLNode, defaultTable *AliasedTableName, aliasedTables AliasToTableMap) ([]*sqlparser.ComparisonExpr, error) {
 	var exprs []*sqlparser.ComparisonExpr
 	err := sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
 		if comparisonExpr, ok := node.(*sqlparser.ComparisonExpr); ok {
-			lColumn := comparisonExpr.Left.(*sqlparser.ColName)
+			lColumn, ok := comparisonExpr.Left.(*sqlparser.ColName)
+			if !ok {
+				return true, nil
+			}
 
 			lColumnSetting := filter.getColumnSetting(lColumn, defaultTable, aliasedTables)
 			if lColumnSetting == nil {

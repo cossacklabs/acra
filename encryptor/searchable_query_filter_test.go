@@ -71,3 +71,35 @@ schemas:
 		t.Fatalf("Expect not nil aliasedTable, matched with config")
 	}
 }
+
+func Test_getColumnEqualComparisonExprs_NotColumnComparisonQueries(t *testing.T) {
+	searchableQueryFilter := SearchableQueryFilter{}
+
+	queries := []string{
+		`select * from mytable where substring(name, 1, 33) = '\x7F08FFD5012B0A7659EABE5758009178A2713749B1200C0BFD505B02D4FA26B08F';`,
+		`select * from mytable where encode('é', 'hex') = 'c3a9'`,
+	}
+
+	parser := sqlparser.New(sqlparser.ModeStrict)
+
+	for _, query := range queries {
+		statement, err := parser.Parse(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		whereStatements, err := getWhereStatements(statement)
+		if err != nil {
+			t.Fatalf("expected no error on parsing valid WHERE clause query - %s", err.Error())
+		}
+
+		compExprs, err := searchableQueryFilter.getColumnEqualComparisonExprs(whereStatements[0], nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if compExprs != nil {
+			t.Fatalf("expected nil compExprs")
+		}
+	}
+}
