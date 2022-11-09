@@ -62,6 +62,8 @@ func (encryptor *HashQuery) ID() string {
 	return "HashQuery"
 }
 
+type searchPrefixCtxKey struct{}
+
 // OnQuery processes query text before database sees it.
 //
 // Searchable encryption rewrites WHERE clauses with equality comparisons like this:
@@ -126,6 +128,10 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObjec
 
 				rVal.Type = sqlparser.HexNum
 			}
+		}
+
+		if item.Setting.GetSearchablePrefix() > 0 {
+			ctx = context.WithValue(ctx, searchPrefixCtxKey{}, item.Setting)
 		}
 
 		// substring(column, 1, <HMAC_size>) = 'value' ===> substring(column, 1, <HMAC_size>) = <HMAC('value')>
@@ -215,6 +221,10 @@ func (encryptor *HashQuery) replaceValuesWithHMACs(ctx context.Context, values [
 			}
 		}
 
+		if encryptionSetting.GetSearchablePrefix() > 0 {
+			ctx = context.WithValue(ctx, searchPrefixCtxKey{}, encryptionSetting)
+		}
+
 		data, err := values[valueIndex].GetData(encryptionSetting)
 		if err != nil {
 			return values, false, err
@@ -240,6 +250,13 @@ func (encryptor *HashQuery) calculateHmac(ctx context.Context, data []byte) ([]b
 			logrus.WithError(err).Debugln("Can't load key for hmac")
 			return nil, err
 		}
+
+		value := ctx.Value(searchPrefixCtxKey{})
+		columnSetting, ok := value.(config.ColumnEncryptionSetting)
+		if ok && columnSetting.GetSearchablePrefix() > 0 && len(data) > int(columnSetting.GetSearchablePrefix()) {
+			data = data[:columnSetting.GetSearchablePrefix()]
+		}
+
 		logrus.Debugln("Searchable column with raw data, replace with HMAC")
 		return hmac.GenerateHMAC(key, data), nil
 	}

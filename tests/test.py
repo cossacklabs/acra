@@ -7270,13 +7270,13 @@ class TestSearchableTransparentEncryptionWithSearchPrefix(AcraCatchLogsMixin, Ba
         self.checkDefaultIdEncryption(**context)
         self.assertEqual(rows[0]['searchable'], search_term)
 
-        # search by full term expect not found any rows
+        # search by full prefix should return find the data
         rows = self.executeSelect2(
             sa.select([self.encryptor_table])
             .where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
             {'searchable': search_term},
             )
-        self.assertEqual(len(rows), 0)
+        self.assertEqual(len(rows), 1)
 
         # search by less prefix number - expected no rows found
         rows = self.executeSelect2(
