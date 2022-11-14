@@ -2,7 +2,6 @@ package postgresql
 
 import (
 	"context"
-	"encoding/binary"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
@@ -117,89 +116,4 @@ func (p *PgSQLDataDecoderProcessor) OnColumn(ctx context.Context, data []byte) (
 	}
 	// all other non-binary data should be valid SQL literals like integers or strings and Acra works with them as is
 	return ctx, data, nil
-}
-
-// bytesValue is an EncodingValue that represents byte array
-type bytesValue struct {
-	bytes []byte
-}
-
-// AsBinary returns value encoded in postgres binary format
-// For a byte sequence value this is an identity operation
-func (v *bytesValue) AsBinary() []byte {
-	return v.bytes
-}
-
-// AsText returns value encoded in postgres text format
-// For a byte sequence value this is a hex encoded string
-func (v *bytesValue) AsText() []byte {
-	// all bytes should be encoded as valid bytea value
-	return utils.PgEncodeToHex(v.bytes)
-}
-
-// intValue represents a {size*8}-bit integer ready for encoding
-type intValue struct {
-	size     int
-	intValue int64
-	strValue []byte
-}
-
-// AsBinary returns value encoded in postgres binary format
-// For an int value it is a big endian encoded integer
-func (v *intValue) AsBinary() []byte {
-	newData := make([]byte, v.size)
-	switch v.size {
-	case 4:
-		binary.BigEndian.PutUint32(newData, uint32(v.intValue))
-	case 8:
-		binary.BigEndian.PutUint64(newData, uint64(v.intValue))
-	}
-	return newData
-}
-
-// AsText returns value encoded in postgres text format
-// For an int this means returning textual representation of the integer
-func (v *intValue) AsText() []byte {
-	return v.strValue
-}
-
-// stringValue is an EncodingValue that encodes data into string format
-type stringValue struct {
-	data []byte
-}
-
-// AsBinary returns value encoded in postgres binary format
-// In other words, it returns data as it is
-func (v *stringValue) AsBinary() []byte {
-	return v.data
-}
-
-// AsText returns value encoded in postgres text format
-// In other words, it returns data as it is
-func (v *stringValue) AsText() []byte {
-	return v.data
-}
-
-// postgresValueFactory is a factory that produces values that can encode into
-// postgres format
-type postgresValueFactory struct{}
-
-// NewStringValue creates a value that encodes as a str
-func (*postgresValueFactory) NewStringValue(str []byte) base.EncodingValue {
-	return &stringValue{data: str}
-}
-
-// NewBytesValue creates a value that encodes as bytes
-func (*postgresValueFactory) NewBytesValue(bytes []byte) base.EncodingValue {
-	return &bytesValue{bytes}
-}
-
-// NewInt32Value creates a value that encodes as int32
-func (*postgresValueFactory) NewInt32Value(intVal int32, strVal []byte) base.EncodingValue {
-	return &intValue{size: 4, intValue: int64(intVal), strValue: strVal}
-}
-
-// NewInt64Value creates a value that encodes as int64
-func (*postgresValueFactory) NewInt64Value(intVal int64, strVal []byte) base.EncodingValue {
-	return &intValue{size: 8, intValue: intVal, strValue: strVal}
 }

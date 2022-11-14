@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/mysql/types/mysql"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/logging"
@@ -86,7 +87,7 @@ func (s *PreparedStatement) QueryText() string {
 }
 
 type mysqlBoundValue struct {
-	paramType Type
+	paramType mysql.Type
 	data      []byte
 	format    base.BoundValueFormat
 }
@@ -97,7 +98,7 @@ func (m *mysqlBoundValue) GetType() byte {
 }
 
 // NewMysqlCopyTextBoundValue create base.BoundValue with copied input data
-func NewMysqlCopyTextBoundValue(data []byte, format base.BoundValueFormat, paramType Type) base.BoundValue {
+func NewMysqlCopyTextBoundValue(data []byte, format base.BoundValueFormat, paramType mysql.Type) base.BoundValue {
 	var newData []byte
 	if data != nil {
 		newData = make([]byte, len(data))
@@ -108,9 +109,9 @@ func NewMysqlCopyTextBoundValue(data []byte, format base.BoundValueFormat, param
 }
 
 // NewMysqlBoundValue create base.BoundValue implementation object based on provided data and paramType
-func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType Type) (base.BoundValue, int, error) {
+func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType mysql.Type) (base.BoundValue, int, error) {
 	// if we cant find amount of stored bytes for the paramType assume that it is length encoded string
-	storageBytes, ok := NumericTypesStorageBytes[paramType]
+	storageBytes, ok := mysql.NumericTypesStorageBytes[paramType]
 	if !ok {
 		value, n, err := LengthEncodedString(data)
 		if err != nil {
@@ -123,10 +124,10 @@ func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType Typ
 	}
 
 	switch paramType {
-	case TypeNull:
+	case mysql.TypeNull:
 		// do nothing
 		return &mysqlBoundValue{data: nil, format: format, paramType: paramType}, int(storageBytes), nil
-	case TypeTiny:
+	case mysql.TypeTiny:
 		var numericValue int8
 		err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &numericValue)
 		if err != nil {
@@ -134,7 +135,7 @@ func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType Typ
 		}
 		value := []byte(strconv.FormatInt(int64(numericValue), 10))
 		return &mysqlBoundValue{data: value, format: format, paramType: paramType}, int(storageBytes), nil
-	case TypeShort, TypeYear:
+	case mysql.TypeShort, mysql.TypeYear:
 		var numericValue int16
 		err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &numericValue)
 		if err != nil {
@@ -142,7 +143,7 @@ func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType Typ
 		}
 		value := []byte(strconv.FormatInt(int64(numericValue), 10))
 		return &mysqlBoundValue{data: value, format: format, paramType: paramType}, int(storageBytes), nil
-	case TypeInt24, TypeLong:
+	case mysql.TypeInt24, mysql.TypeLong:
 		var numericValue int32
 		err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &numericValue)
 		if err != nil {
@@ -150,7 +151,7 @@ func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType Typ
 		}
 		value := []byte(strconv.FormatInt(int64(numericValue), 10))
 		return &mysqlBoundValue{data: value, format: format, paramType: paramType}, int(storageBytes), nil
-	case TypeLongLong:
+	case mysql.TypeLongLong:
 		var numericValue int64
 		err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &numericValue)
 		if err != nil {
@@ -158,7 +159,7 @@ func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType Typ
 		}
 		value := []byte(strconv.FormatInt(numericValue, 10))
 		return &mysqlBoundValue{data: value, format: format, paramType: paramType}, int(storageBytes), nil
-	case TypeFloat:
+	case mysql.TypeFloat:
 		var numericValue float32
 		err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &numericValue)
 		if err != nil {
@@ -166,7 +167,7 @@ func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType Typ
 		}
 		value := []byte(strconv.FormatFloat(float64(numericValue), 'G', -1, 32))
 		return &mysqlBoundValue{data: value, format: format, paramType: paramType}, int(storageBytes), nil
-	case TypeDouble:
+	case mysql.TypeDouble:
 		var numericValue float64
 		err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &numericValue)
 		if err != nil {
@@ -194,7 +195,7 @@ func (m *mysqlBoundValue) Copy() base.BoundValue {
 func (m *mysqlBoundValue) SetData(newData []byte, setting config.ColumnEncryptionSetting) error {
 	// means that we set encrypted data
 	if !bytes.Equal(m.data, newData) {
-		m.paramType = TypeBlob
+		m.paramType = mysql.TypeBlob
 		m.data = newData
 	}
 
@@ -209,9 +210,9 @@ func (m *mysqlBoundValue) SetData(newData []byte, setting config.ColumnEncryptio
 	case base.BinaryFormat:
 		switch setting.GetTokenType() {
 		case tokens.TokenType_Int32:
-			m.paramType = TypeLong
+			m.paramType = mysql.TypeLong
 		case tokens.TokenType_Int64:
-			m.paramType = TypeLongLong
+			m.paramType = mysql.TypeLongLong
 		}
 	}
 	return nil
@@ -224,7 +225,7 @@ func (m *mysqlBoundValue) GetData(_ config.ColumnEncryptionSetting) ([]byte, err
 
 // Encode format result BoundValue data
 func (m *mysqlBoundValue) Encode() (encoded []byte, err error) {
-	storageBytes, ok := NumericTypesStorageBytes[m.paramType]
+	storageBytes, ok := mysql.NumericTypesStorageBytes[m.paramType]
 	if !ok {
 		return PutLengthEncodedString(m.data), nil
 	}
@@ -234,45 +235,45 @@ func (m *mysqlBoundValue) Encode() (encoded []byte, err error) {
 	var outErr error
 	encoded = make([]byte, storageBytes)
 	switch m.paramType {
-	case TypeNull:
+	case mysql.TypeNull:
 		if m.data != nil {
 			outErr = errors.New("NULL not kept NULL")
 		}
-	case TypeTiny:
+	case mysql.TypeTiny:
 		intValue, err := strconv.ParseInt(utils.BytesToString(m.data), 10, 8)
 		if err != nil {
 			return nil, err
 		}
 		outErr = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int8(intValue))
-	case TypeShort, TypeYear:
+	case mysql.TypeShort, mysql.TypeYear:
 		intValue, err := strconv.ParseInt(utils.BytesToString(m.data), 10, 16)
 		if err != nil {
 			return nil, err
 		}
 		outErr = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int16(intValue))
 
-	case TypeInt24, TypeLong:
+	case mysql.TypeInt24, mysql.TypeLong:
 		intValue, err := strconv.ParseInt(utils.BytesToString(m.data), 10, 32)
 		if err != nil {
 			return nil, err
 		}
 		outErr = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int32(intValue))
 
-	case TypeLongLong:
+	case mysql.TypeLongLong:
 		intValue, err := strconv.ParseInt(utils.BytesToString(m.data), 10, 64)
 		if err != nil {
 			return nil, err
 		}
 		outErr = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, intValue)
 
-	case TypeFloat:
+	case mysql.TypeFloat:
 		floatValue, err := strconv.ParseFloat(utils.BytesToString(m.data), 32)
 		if err != nil {
 			return nil, err
 		}
 		outErr = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, float32(floatValue))
 
-	case TypeDouble:
+	case mysql.TypeDouble:
 		floatValue, err := strconv.ParseFloat(utils.BytesToString(m.data), 64)
 		if err != nil {
 			return nil, err
@@ -338,10 +339,10 @@ func (p *PreparedStatementFieldTracker) ParamsTrackHandler(ctx context.Context, 
 
 	setting, ok := items[p.paramsCounter]
 	if ok {
-		newFieldType, ok := mapEncryptedTypeToField(setting.GetEncryptedDataType())
+		newFieldType, ok := mapEncryptedTypeToField(setting.GetDBDataTypeID())
 		if ok {
 			field.originType = field.Type
-			field.Type = Type(newFieldType)
+			field.Type = mysql.Type(newFieldType)
 			field.changed = true
 		}
 	}

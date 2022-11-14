@@ -376,7 +376,7 @@ func (s *BasicColumnEncryptionSetting) Init(useMySQL bool) (err error) {
 
 		var dataTypeIDEncoders = type_awareness.GetPostgreSQLDataTypeIDEncoders()
 		if useMySQL {
-			//dataTypeIDEncoders = base.GetMySQLDataTypeIDEncoders()
+			dataTypeIDEncoders = type_awareness.GetMySQLDataTypeIDEncoders()
 		}
 
 		_, ok := dataTypeIDEncoders[s.DataTypeID]
@@ -385,7 +385,7 @@ func (s *BasicColumnEncryptionSetting) Init(useMySQL bool) (err error) {
 		}
 
 		if useMySQL {
-			//s.DataType = base.MySQLEncryptedTypeDataTypeIDs[dataType]
+			s.DataType = common.MySQLDataTypeIDEncryptedType[s.DataTypeID]
 		} else {
 			s.DataType = common.PostgreSQLDataTypeIDEncryptedType[s.DataTypeID]
 		}
@@ -394,7 +394,7 @@ func (s *BasicColumnEncryptionSetting) Init(useMySQL bool) (err error) {
 
 	if s.DataTypeID == 0 && s.DataType != "" {
 		if useMySQL {
-			//s.DataTypeID = base.MySQLEncryptedTypeDataTypeIDs[dataType]
+			s.DataTypeID = common.MySQLEncryptedTypeDataTypeIDs[dataType]
 		} else {
 			s.DataTypeID = common.PostgreSQLEncryptedTypeDataTypeIDs[dataType]
 		}
@@ -567,10 +567,7 @@ func (s *BasicColumnEncryptionSetting) GetResponseOnFail() common.ResponseOnFail
 // HasTypeAwareSupport return true if setting configured for decryption with type awareness
 func HasTypeAwareSupport(setting ColumnEncryptionSetting) bool {
 	maskingSupport := setting.GetMaskingPattern() != ""
-	switch setting.GetEncryptedDataType() {
-	case common.EncryptedType_String, common.EncryptedType_Bytes, common.EncryptedType_Int32, common.EncryptedType_Int64:
-		break
-	default:
+	if setting.GetDBDataTypeID() == 0 {
 		// intX not supported masking with type awareness
 		maskingSupport = false
 	}

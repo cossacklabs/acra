@@ -2,9 +2,9 @@ package postgresql
 
 import (
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/encryptor/config/common"
-	"github.com/jackc/pgx/pgtype"
 )
 
 // DataTypeFormat implementation of type_awareness.DataTypeFormat for PostgreSQL
@@ -51,16 +51,11 @@ func (p *DataTypeFormat) GetColumnName() string {
 	return p.columnSetting.ColumnName()
 }
 
-func mapEncryptedTypeToOID(dataType common.EncryptedType) (uint32, bool) {
-	switch dataType {
-	case common.EncryptedType_String:
-		return pgtype.TextOID, true
-	case common.EncryptedType_Int32:
-		return pgtype.Int4OID, true
-	case common.EncryptedType_Int64:
-		return pgtype.Int8OID, true
-	case common.EncryptedType_Bytes:
-		return pgtype.ByteaOID, true
+func mapEncryptedTypeToOID(dataTypeID uint32) (uint32, bool) {
+	pgsqlEncoders := type_awareness.GetPostgreSQLDataTypeIDEncoders()
+	if _, ok := pgsqlEncoders[dataTypeID]; !ok {
+		return 0, false
 	}
-	return 0, false
+
+	return dataTypeID, true
 }

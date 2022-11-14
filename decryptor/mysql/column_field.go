@@ -19,6 +19,8 @@ package mysql
 import (
 	"encoding/binary"
 	"errors"
+
+	"github.com/cossacklabs/acra/decryptor/mysql/types/mysql"
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
 )
@@ -26,7 +28,7 @@ import (
 // ColumnDescription https://dev.mysql.com/doc/internals/en/com-query-response.html#packet-Protocol::ColumnDefinition41
 type ColumnDescription struct {
 	changed    bool
-	originType Type
+	originType mysql.Type
 	// field as byte slice
 	data         []byte
 	header       []byte
@@ -37,7 +39,7 @@ type ColumnDescription struct {
 	OrgName      []byte
 	Charset      uint16
 	ColumnLength uint32
-	Type         Type
+	Type         mysql.Type
 	Flag         uint16
 	Decimal      uint8
 
@@ -165,7 +167,7 @@ func ParseResultField(packet *Packet) (*ColumnDescription, error) {
 	pos += 4
 
 	//type
-	field.Type = Type(packet.data[pos])
+	field.Type = mysql.Type(packet.data[pos])
 	pos++
 
 	//flag

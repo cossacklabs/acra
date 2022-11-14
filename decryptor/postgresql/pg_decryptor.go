@@ -809,7 +809,7 @@ func (proxy *PgProxy) handleParameterDescription(ctx context.Context, packet *Pa
 			continue
 		}
 		if config.HasTypeAwareSupport(setting) {
-			newOID, ok := mapEncryptedTypeToOID(setting.GetEncryptedDataType())
+			newOID, ok := mapEncryptedTypeToOID(setting.GetDBDataTypeID())
 			if ok {
 				parameterDescription.ParameterOIDs[i] = newOID
 				changed = true
@@ -855,7 +855,7 @@ func (proxy *PgProxy) handleRowDescription(ctx context.Context, packet *PacketHa
 			continue
 		}
 		if config.HasTypeAwareSupport(setting.Setting()) {
-			newOID, ok := mapEncryptedTypeToOID(setting.Setting().GetEncryptedDataType())
+			newOID, ok := mapEncryptedTypeToOID(setting.Setting().GetDBDataTypeID())
 			if ok {
 				rowDescription.Fields[i].DataTypeOID = newOID
 				changed = true

@@ -48,3 +48,11 @@ func RegisterPostgreSQLDataTypeIDEncoder(dataTypeID uint32, encoder DataTypeEnco
 	lock.Unlock()
 	logrus.WithField("data-type-id", dataTypeID).Debug("Registered config DataTypeEncoder")
 }
+
+// RegisterMySQLDataTypeIDEncoder register new DataTypeEncoder for MySQL in mySQLDataTypeIDEncoders map
+func RegisterMySQLDataTypeIDEncoder(dataTypeID uint32, encoder DataTypeEncoder) {
+	lock.Lock()
+	mySQLDataTypeIDEncoders[dataTypeID] = encoder
+	lock.Unlock()
+	logrus.WithField("data-type-id", dataTypeID).Debug("Registered config DataTypeEncoder")
+}

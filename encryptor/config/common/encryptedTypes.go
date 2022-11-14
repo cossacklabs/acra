@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"unicode/utf8"
 
+	"github.com/cossacklabs/acra/decryptor/mysql/types/mysql"
 	"github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/jackc/pgx/pgtype"
 )
@@ -33,12 +34,13 @@ const (
 	ResponseOnFailError ResponseOnFail = "error"
 )
 
-//var MySQLEncryptedTypeDataTypeIDs = map[EncryptedType]uint32{
-//	EncryptedType_Int32:  mysql.TypeLong,
-//	EncryptedType_Int64:  mysql.TypeLongLong,
-//	EncryptedType_String: mysql.TypeString,
-//	EncryptedType_Bytes:  mysql.TypeBlob,
-//}
+// MySQLEncryptedTypeDataTypeIDs used for mapping EncryptedType with MySQL Types
+var MySQLEncryptedTypeDataTypeIDs = map[EncryptedType]uint32{
+	EncryptedType_Int32:  uint32(mysql.TypeLong),
+	EncryptedType_Int64:  uint32(mysql.TypeLongLong),
+	EncryptedType_String: uint32(mysql.TypeString),
+	EncryptedType_Bytes:  uint32(mysql.TypeBlob),
+}
 
 // PostgreSQLEncryptedTypeDataTypeIDs used for mapping EncryptedType with PostgreSQL OIDs
 var PostgreSQLEncryptedTypeDataTypeIDs = map[EncryptedType]uint32{
@@ -46,6 +48,14 @@ var PostgreSQLEncryptedTypeDataTypeIDs = map[EncryptedType]uint32{
 	EncryptedType_Int64:  pgtype.Int8OID,
 	EncryptedType_String: pgtype.TextOID,
 	EncryptedType_Bytes:  pgtype.ByteaOID,
+}
+
+// MySQLDataTypeIDEncryptedType used for mapping MySQL Types OIDs with DataType
+var MySQLDataTypeIDEncryptedType = map[uint32]string{
+	pgtype.Int4OID:  "int32",
+	pgtype.Int8OID:  "int64",
+	pgtype.TextOID:  "str",
+	pgtype.ByteaOID: "bytes",
 }
 
 // PostgreSQLDataTypeIDEncryptedType used for mapping PostgreSQL OIDs with DataType
