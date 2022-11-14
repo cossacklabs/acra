@@ -6,8 +6,7 @@ import (
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
-	decryptor_mysql "github.com/cossacklabs/acra/decryptor/mysql"
-	"github.com/cossacklabs/acra/decryptor/mysql/types/mysql"
+	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
 	"github.com/cossacklabs/acra/encryptor/config/common"
 	log "github.com/sirupsen/logrus"
 )
@@ -24,10 +23,10 @@ func (t *StringDataTypeEncoder) Encode(ctx context.Context, data []byte, format 
 		} else if value != nil {
 			return ctx, value, nil
 		}
-		return ctx, nil, decryptor_mysql.ErrConvertToDataType
+		return ctx, nil, base_mysql.ErrConvertToDataType
 	}
 
-	return ctx, decryptor_mysql.PutLengthEncodedString(data), nil
+	return ctx, base_mysql.PutLengthEncodedString(data), nil
 }
 
 // Decode implementation of Decode method of DataTypeEncoder interface for byteaOID
@@ -59,9 +58,9 @@ func (t *StringDataTypeEncoder) EncodeOnFail(ctx context.Context, format type_aw
 
 // EncodeDefault implementation of EncodeDefault method of DataTypeEncoder interface for byteaOID
 func (t *StringDataTypeEncoder) encodeDefault(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
-	return ctx, decryptor_mysql.PutLengthEncodedString(data), nil
+	return ctx, base_mysql.PutLengthEncodedString(data), nil
 }
 
 func init() {
-	type_awareness.RegisterMySQLDataTypeIDEncoder(uint32(mysql.TypeString), &StringDataTypeEncoder{})
+	type_awareness.RegisterMySQLDataTypeIDEncoder(uint32(base_mysql.TypeString), &StringDataTypeEncoder{})
 }

@@ -3,10 +3,10 @@ package common
 import (
 	"errors"
 	"fmt"
+	"github.com/cossacklabs/acra/decryptor/mysql/base"
 	"strconv"
 	"unicode/utf8"
 
-	"github.com/cossacklabs/acra/decryptor/mysql/types/mysql"
 	"github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/jackc/pgx/pgtype"
 )
@@ -36,10 +36,10 @@ const (
 
 // MySQLEncryptedTypeDataTypeIDs used for mapping EncryptedType with MySQL Types
 var MySQLEncryptedTypeDataTypeIDs = map[EncryptedType]uint32{
-	EncryptedType_Int32:  uint32(mysql.TypeLong),
-	EncryptedType_Int64:  uint32(mysql.TypeLongLong),
-	EncryptedType_String: uint32(mysql.TypeString),
-	EncryptedType_Bytes:  uint32(mysql.TypeBlob),
+	EncryptedType_Int32:  uint32(base.TypeLong),
+	EncryptedType_Int64:  uint32(base.TypeLongLong),
+	EncryptedType_String: uint32(base.TypeString),
+	EncryptedType_Bytes:  uint32(base.TypeBlob),
 }
 
 // PostgreSQLEncryptedTypeDataTypeIDs used for mapping EncryptedType with PostgreSQL OIDs

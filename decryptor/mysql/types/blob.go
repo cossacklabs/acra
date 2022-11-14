@@ -4,11 +4,10 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
-	decryptor_mysql "github.com/cossacklabs/acra/decryptor/mysql"
-	"github.com/cossacklabs/acra/decryptor/mysql/types/mysql"
 	"github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
@@ -26,10 +25,10 @@ func (t *BlobDataTypeEncoder) Encode(ctx context.Context, data []byte, format ty
 		} else if value != nil {
 			return ctx, value, nil
 		}
-		return ctx, nil, decryptor_mysql.ErrConvertToDataType
+		return ctx, nil, base_mysql.ErrConvertToDataType
 	}
 
-	return ctx, decryptor_mysql.PutLengthEncodedString(data), nil
+	return ctx, base_mysql.PutLengthEncodedString(data), nil
 }
 
 // Decode implementation of Decode method of DataTypeEncoder interface for byteaOID
@@ -66,9 +65,9 @@ func (t *BlobDataTypeEncoder) encodeDefault(ctx context.Context, data []byte, fo
 		logging.GetLoggerFromContext(ctx).WithError(err).Errorln("Can't decode base64 default value")
 		return ctx, nil, nil
 	}
-	return ctx, decryptor_mysql.PutLengthEncodedString(binValue), nil
+	return ctx, base_mysql.PutLengthEncodedString(binValue), nil
 }
 
 func init() {
-	type_awareness.RegisterMySQLDataTypeIDEncoder(uint32(mysql.TypeBlob), &BlobDataTypeEncoder{})
+	type_awareness.RegisterMySQLDataTypeIDEncoder(uint32(base_mysql.TypeBlob), &BlobDataTypeEncoder{})
 }

@@ -10,7 +10,7 @@ import (
 	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/decryptor/mysql/types/mysql"
+	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/logging"
@@ -22,7 +22,7 @@ import (
 // ErrStatementNotFound Err returned by prepared statement registry.
 var ErrStatementNotFound = errors.New("no prepared statement with given statement-id")
 
-// PreparedStatementRegistry is a MySQL PreparedStatementRegistry.
+// PreparedStatementRegistry is a base_mysql.PreparedStatementRegistry.
 type PreparedStatementRegistry struct {
 	statements map[string]base.PreparedStatement
 }
@@ -48,7 +48,7 @@ func (r *PreparedStatementRegistry) AddStatement(statement base.PreparedStatemen
 	r.statements[statement.Name()] = statement
 }
 
-// PreparedStatement is a MySQL PreparedStatement.
+// PreparedStatement is a base_mysql.PreparedStatement.
 type PreparedStatement struct {
 	name         string
 	sqlString    string
@@ -87,7 +87,7 @@ func (s *PreparedStatement) QueryText() string {
 }
 
 type mysqlBoundValue struct {
-	paramType mysql.Type
+	paramType base_mysql.Type
 	data      []byte
 	format    base.BoundValueFormat
 }
@@ -98,7 +98,7 @@ func (m *mysqlBoundValue) GetType() byte {
 }
 
 // NewMysqlCopyTextBoundValue create base.BoundValue with copied input data
-func NewMysqlCopyTextBoundValue(data []byte, format base.BoundValueFormat, paramType mysql.Type) base.BoundValue {
+func NewMysqlCopyTextBoundValue(data []byte, format base.BoundValueFormat, paramType base_mysql.Type) base.BoundValue {
 	var newData []byte
 	if data != nil {
 		newData = make([]byte, len(data))
@@ -109,11 +109,11 @@ func NewMysqlCopyTextBoundValue(data []byte, format base.BoundValueFormat, param
 }
 
 // NewMysqlBoundValue create base.BoundValue implementation object based on provided data and paramType
-func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType mysql.Type) (base.BoundValue, int, error) {
+func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType base_mysql.Type) (base.BoundValue, int, error) {
 	// if we cant find amount of stored bytes for the paramType assume that it is length encoded string
-	storageBytes, ok := mysql.NumericTypesStorageBytes[paramType]
+	storageBytes, ok := base_mysql.NumericTypesStorageBytes[paramType]
 	if !ok {
-		value, n, err := LengthEncodedString(data)
+		value, n, err := base_mysql.LengthEncodedString(data)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -124,10 +124,10 @@ func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType mys
 	}
 
 	switch paramType {
-	case mysql.TypeNull:
+	case base_mysql.TypeNull:
 		// do nothing
 		return &mysqlBoundValue{data: nil, format: format, paramType: paramType}, int(storageBytes), nil
-	case mysql.TypeTiny:
+	case base_mysql.TypeTiny:
 		var numericValue int8
 		err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &numericValue)
 		if err != nil {
@@ -135,7 +135,7 @@ func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType mys
 		}
 		value := []byte(strconv.FormatInt(int64(numericValue), 10))
 		return &mysqlBoundValue{data: value, format: format, paramType: paramType}, int(storageBytes), nil
-	case mysql.TypeShort, mysql.TypeYear:
+	case base_mysql.TypeShort, base_mysql.TypeYear:
 		var numericValue int16
 		err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &numericValue)
 		if err != nil {
@@ -143,7 +143,7 @@ func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType mys
 		}
 		value := []byte(strconv.FormatInt(int64(numericValue), 10))
 		return &mysqlBoundValue{data: value, format: format, paramType: paramType}, int(storageBytes), nil
-	case mysql.TypeInt24, mysql.TypeLong:
+	case base_mysql.TypeInt24, base_mysql.TypeLong:
 		var numericValue int32
 		err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &numericValue)
 		if err != nil {
@@ -151,7 +151,7 @@ func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType mys
 		}
 		value := []byte(strconv.FormatInt(int64(numericValue), 10))
 		return &mysqlBoundValue{data: value, format: format, paramType: paramType}, int(storageBytes), nil
-	case mysql.TypeLongLong:
+	case base_mysql.TypeLongLong:
 		var numericValue int64
 		err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &numericValue)
 		if err != nil {
@@ -159,7 +159,7 @@ func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType mys
 		}
 		value := []byte(strconv.FormatInt(numericValue, 10))
 		return &mysqlBoundValue{data: value, format: format, paramType: paramType}, int(storageBytes), nil
-	case mysql.TypeFloat:
+	case base_mysql.TypeFloat:
 		var numericValue float32
 		err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &numericValue)
 		if err != nil {
@@ -167,7 +167,7 @@ func NewMysqlBoundValue(data []byte, format base.BoundValueFormat, paramType mys
 		}
 		value := []byte(strconv.FormatFloat(float64(numericValue), 'G', -1, 32))
 		return &mysqlBoundValue{data: value, format: format, paramType: paramType}, int(storageBytes), nil
-	case mysql.TypeDouble:
+	case base_mysql.TypeDouble:
 		var numericValue float64
 		err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &numericValue)
 		if err != nil {
@@ -195,7 +195,7 @@ func (m *mysqlBoundValue) Copy() base.BoundValue {
 func (m *mysqlBoundValue) SetData(newData []byte, setting config.ColumnEncryptionSetting) error {
 	// means that we set encrypted data
 	if !bytes.Equal(m.data, newData) {
-		m.paramType = mysql.TypeBlob
+		m.paramType = base_mysql.TypeBlob
 		m.data = newData
 	}
 
@@ -204,15 +204,15 @@ func (m *mysqlBoundValue) SetData(newData []byte, setting config.ColumnEncryptio
 	}
 
 	// In case of tokenization happened, even if the driver sent value as Tiny
-	// we need to update mysql types in the result packet to Long/LongLong as Acra supports only int32/int64 tokenization
-	// also mysql cast less sized type to higher one automatically.
+	// we need to update base_mysql.types in the result packet to Long/LongLong as Acra supports only int32/int64 tokenization
+	// also base_mysql.cast less sized type to higher one automatically.
 	switch m.format {
 	case base.BinaryFormat:
 		switch setting.GetTokenType() {
 		case tokens.TokenType_Int32:
-			m.paramType = mysql.TypeLong
+			m.paramType = base_mysql.TypeLong
 		case tokens.TokenType_Int64:
-			m.paramType = mysql.TypeLongLong
+			m.paramType = base_mysql.TypeLongLong
 		}
 	}
 	return nil
@@ -225,9 +225,9 @@ func (m *mysqlBoundValue) GetData(_ config.ColumnEncryptionSetting) ([]byte, err
 
 // Encode format result BoundValue data
 func (m *mysqlBoundValue) Encode() (encoded []byte, err error) {
-	storageBytes, ok := mysql.NumericTypesStorageBytes[m.paramType]
+	storageBytes, ok := base_mysql.NumericTypesStorageBytes[m.paramType]
 	if !ok {
-		return PutLengthEncodedString(m.data), nil
+		return base_mysql.PutLengthEncodedString(m.data), nil
 	}
 	// separate error variable for output error from case statements
 	// to not overlap with new err variables inside
@@ -235,45 +235,45 @@ func (m *mysqlBoundValue) Encode() (encoded []byte, err error) {
 	var outErr error
 	encoded = make([]byte, storageBytes)
 	switch m.paramType {
-	case mysql.TypeNull:
+	case base_mysql.TypeNull:
 		if m.data != nil {
 			outErr = errors.New("NULL not kept NULL")
 		}
-	case mysql.TypeTiny:
+	case base_mysql.TypeTiny:
 		intValue, err := strconv.ParseInt(utils.BytesToString(m.data), 10, 8)
 		if err != nil {
 			return nil, err
 		}
 		outErr = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int8(intValue))
-	case mysql.TypeShort, mysql.TypeYear:
+	case base_mysql.TypeShort, base_mysql.TypeYear:
 		intValue, err := strconv.ParseInt(utils.BytesToString(m.data), 10, 16)
 		if err != nil {
 			return nil, err
 		}
 		outErr = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int16(intValue))
 
-	case mysql.TypeInt24, mysql.TypeLong:
+	case base_mysql.TypeInt24, base_mysql.TypeLong:
 		intValue, err := strconv.ParseInt(utils.BytesToString(m.data), 10, 32)
 		if err != nil {
 			return nil, err
 		}
 		outErr = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int32(intValue))
 
-	case mysql.TypeLongLong:
+	case base_mysql.TypeLongLong:
 		intValue, err := strconv.ParseInt(utils.BytesToString(m.data), 10, 64)
 		if err != nil {
 			return nil, err
 		}
 		outErr = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, intValue)
 
-	case mysql.TypeFloat:
+	case base_mysql.TypeFloat:
 		floatValue, err := strconv.ParseFloat(utils.BytesToString(m.data), 32)
 		if err != nil {
 			return nil, err
 		}
 		outErr = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, float32(floatValue))
 
-	case mysql.TypeDouble:
+	case base_mysql.TypeDouble:
 		floatValue, err := strconv.ParseFloat(utils.BytesToString(m.data), 64)
 		if err != nil {
 			return nil, err
@@ -281,7 +281,7 @@ func (m *mysqlBoundValue) Encode() (encoded []byte, err error) {
 		outErr = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, floatValue)
 
 	default:
-		outErr = fmt.Errorf("found unknown Type in MySQL response packet")
+		outErr = fmt.Errorf("found unknown Type in base_mysql.response packet")
 	}
 
 	return encoded, outErr
@@ -319,7 +319,7 @@ func (p *PreparedStatementFieldTracker) ParamsTrackHandler(ctx context.Context, 
 	if packet.IsEOF() {
 		p.proxyHandler.resetQueryHandler()
 		// if columns_num > 0 column definition block will follow
-		// https://dev.mysql.com/doc/internals/en/com-stmt-prepare-response.html
+		// https://dev.base_mysql.com/doc/internals/en/com-stmt-prepare-response.html
 		if p.columnsNum > 0 {
 			p.proxyHandler.setQueryHandler(p.ColumnsTrackHandler)
 		}
@@ -342,7 +342,7 @@ func (p *PreparedStatementFieldTracker) ParamsTrackHandler(ctx context.Context, 
 		newFieldType, ok := mapEncryptedTypeToField(setting.GetDBDataTypeID())
 		if ok {
 			field.originType = field.Type
-			field.Type = mysql.Type(newFieldType)
+			field.Type = base_mysql.Type(newFieldType)
 			field.changed = true
 		}
 	}

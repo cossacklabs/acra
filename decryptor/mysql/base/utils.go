@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package mysql
+package base
 
 import (
 	"errors"
@@ -22,6 +22,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"io"
 )
+
+// ErrConvertToDataType error that indicates if data type conversion was failed
+var ErrConvertToDataType = errors.New("error on converting to data type")
 
 // ErrMalformPacket if packet parsing failed
 var ErrMalformPacket = errors.New("malform packet error")

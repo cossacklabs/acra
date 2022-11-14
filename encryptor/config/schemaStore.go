@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	UseMySQL      = false
-	UsePostgreSQL = true
+	UseMySQL      = true
+	UsePostgreSQL = false
 )
 
 // TableSchemaStore fetches schema for encryptable tables in the database.

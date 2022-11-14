@@ -1234,7 +1234,7 @@ schemas:
 	type_awareness.RegisterPostgreSQLDataTypeIDEncoder(pgtype.TextOID, nil)
 
 	for _, tcase := range testcases {
-		schemaStore, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), UseMySQL)
+		schemaStore, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), UsePostgreSQL)
 		if err != nil {
 			t.Fatal(err)
 		}

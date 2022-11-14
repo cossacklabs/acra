@@ -21,12 +21,12 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/cossacklabs/acra/decryptor/mysql/types/mysql"
 	"io"
 	"net"
 	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
+	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
 )
 
 // MySQL protocol capability flags https://dev.mysql.com/doc/internals/en/capability-flags.html
@@ -137,7 +137,7 @@ func (packet *Packet) GetBindParameters(paramNum int) ([]base.BoundValue, error)
 	}
 
 	for i := 0; i < paramNum; i++ {
-		boundValue, n, err := NewMysqlBoundValue(packet.data[pos:], base.BinaryFormat, mysql.Type(paramTypes[i]))
+		boundValue, n, err := NewMysqlBoundValue(packet.data[pos:], base.BinaryFormat, base_mysql.Type(paramTypes[i]))
 		if err != nil {
 			return nil, err
 		}
@@ -181,8 +181,8 @@ func (packet *Packet) SetParameters(values []base.BoundValue) (err error) {
 
 		// potential tokenization happened before
 		// and we need to get result tokenization value to set signed/unsigned byte
-		switch mysql.Type(boundType) {
-		case mysql.TypeLong, mysql.TypeLongLong:
+		switch base_mysql.Type(boundType) {
+		case base_mysql.TypeLong, base_mysql.TypeLongLong:
 			data, err := values[i].GetData(nil)
 			if err != nil {
 				return err

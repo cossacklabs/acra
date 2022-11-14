@@ -9,16 +9,14 @@ import (
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
-	"github.com/cossacklabs/acra/decryptor/mysql/types/mysql"
+	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
+	_ "github.com/cossacklabs/acra/decryptor/mysql/types"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
 )
-
-// ErrConvertToDataType error that indicates if data type conversion was failed
-var ErrConvertToDataType = errors.New("error on converting to data type")
 
 // BaseMySQLDataProcessor implements processor and encode/decode binary intX values to text format which acceptable by Tokenizer
 type BaseMySQLDataProcessor struct{}
@@ -69,7 +67,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 
 	if len(data) == 0 {
 		// we still need to encode result data as it might be null field in db
-		return ctx, PutLengthEncodedString(data), nil
+		return ctx, base_mysql.PutLengthEncodedString(data), nil
 	}
 
 	var err error
@@ -78,7 +76,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 
 		var encoded []byte
 		ctx, encoded, err = dataTypeIDEncoder.Encode(ctx, data, NewDataTypeFormat(columnInfo, setting))
-		if err != nil && err != ErrConvertToDataType {
+		if err != nil && err != base_mysql.ErrConvertToDataType {
 			return nil, nil, err
 		}
 
@@ -89,7 +87,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 
 	var columnType = columnInfo.DataBinaryType()
 	// in case of error on converting to defined type we should roll back field type and encode it as it was originally
-	if err == ErrConvertToDataType {
+	if err == base_mysql.ErrConvertToDataType {
 		ctx = base.MarkErrorConvertedDataTypeContext(ctx)
 		columnType = columnInfo.OriginBinaryType()
 	}
@@ -97,13 +95,13 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 	var encoded []byte
 	// After processing, parse the value back and reencode it. Take care for the format to match.
 	// The result must have exact same format as it had. Overflows are unacceptable.
-	switch mysql.Type(columnType) {
-	case mysql.TypeNull:
+	switch base_mysql.Type(columnType) {
+	case base_mysql.TypeNull:
 		if data != nil {
 			return nil, nil, errors.New("NULL not kept NULL")
 		}
 
-	case mysql.TypeTiny:
+	case base_mysql.TypeTiny:
 		encoded = make([]byte, 1)
 		intValue, err := strconv.ParseInt(utils.BytesToString(data), 10, 8)
 		if err != nil {
@@ -112,7 +110,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int8(intValue))
 		return ctx, encoded, err
 
-	case mysql.TypeShort, mysql.TypeYear:
+	case base_mysql.TypeShort, base_mysql.TypeYear:
 		encoded = make([]byte, 2)
 		intValue, err := strconv.ParseInt(utils.BytesToString(data), 10, 16)
 		if err != nil {
@@ -121,7 +119,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int16(intValue))
 		return ctx, encoded, err
 
-	case mysql.TypeInt24, mysql.TypeLong:
+	case base_mysql.TypeInt24, base_mysql.TypeLong:
 		encoded = make([]byte, 4)
 		intValue, err := strconv.ParseInt(utils.BytesToString(data), 10, 32)
 		if err != nil {
@@ -130,7 +128,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int32(intValue))
 		return ctx, encoded, err
 
-	case mysql.TypeLongLong:
+	case base_mysql.TypeLongLong:
 		encoded = make([]byte, 8)
 		intValue, err := strconv.ParseInt(utils.BytesToString(data), 10, 64)
 		if err != nil {
@@ -139,7 +137,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int64(intValue))
 		return ctx, encoded, err
 
-	case mysql.TypeFloat:
+	case base_mysql.TypeFloat:
 		encoded = make([]byte, 4)
 		floatValue, err := strconv.ParseFloat(utils.BytesToString(data), 32)
 		if err != nil {
@@ -148,7 +146,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, float32(floatValue))
 		return ctx, encoded, err
 
-	case mysql.TypeDouble:
+	case base_mysql.TypeDouble:
 		encoded = make([]byte, 8)
 		floatValue, err := strconv.ParseFloat(utils.BytesToString(data), 64)
 		if err != nil {
@@ -158,7 +156,7 @@ func (p *BaseMySQLDataProcessor) encodeBinary(ctx context.Context, data []byte, 
 		return ctx, encoded, err
 	}
 
-	return ctx, PutLengthEncodedString(data), nil
+	return ctx, base_mysql.PutLengthEncodedString(data), nil
 }
 
 func (p *BaseMySQLDataProcessor) encodeText(ctx context.Context, data []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
@@ -166,17 +164,17 @@ func (p *BaseMySQLDataProcessor) encodeText(ctx context.Context, data []byte, se
 	logger.Debugln("Encode text")
 	if len(data) == 0 {
 		// we still need to encode result data as it might be null field in db
-		return ctx, PutLengthEncodedString(data), nil
+		return ctx, base_mysql.PutLengthEncodedString(data), nil
 	}
 
 	dataTypesEncoders := type_awareness.GetMySQLDataTypeIDEncoders()
 	dataTypeIDEncoder, ok := dataTypesEncoders[setting.GetDBDataTypeID()]
 	if !ok {
-		return ctx, PutLengthEncodedString(data), nil
+		return ctx, base_mysql.PutLengthEncodedString(data), nil
 	}
 
 	ctx, encoded, err := dataTypeIDEncoder.Encode(ctx, data, NewDataTypeFormat(columnInfo, setting))
-	if err != nil && err != ErrConvertToDataType {
+	if err != nil && err != base_mysql.ErrConvertToDataType {
 		return nil, nil, err
 	}
 
@@ -184,11 +182,11 @@ func (p *BaseMySQLDataProcessor) encodeText(ctx context.Context, data []byte, se
 		return ctx, encoded, nil
 	}
 	// in case of error on converting to defined type we should roll back field type and encode it as it was originally
-	if err == ErrConvertToDataType {
+	if err == base_mysql.ErrConvertToDataType {
 		ctx = base.MarkErrorConvertedDataTypeContext(ctx)
 	}
 
-	return ctx, PutLengthEncodedString(data), nil
+	return ctx, base_mysql.PutLengthEncodedString(data), nil
 }
 
 func (p *BaseMySQLDataProcessor) decodeBinary(ctx context.Context, encoded []byte, setting config.ColumnEncryptionSetting, columnInfo base.ColumnInfo, logger *logrus.Entry) (context.Context, []byte, error) {
@@ -198,11 +196,11 @@ func (p *BaseMySQLDataProcessor) decodeBinary(ctx context.Context, encoded []byt
 		columnType = originType
 	}
 
-	switch mysql.Type(columnType) {
-	case mysql.TypeNull:
+	switch base_mysql.Type(columnType) {
+	case base_mysql.TypeNull:
 		// do nothing
 
-	case mysql.TypeTiny:
+	case base_mysql.TypeTiny:
 		var numericValue int8
 		err := binary.Read(bytes.NewReader(encoded), binary.LittleEndian, &numericValue)
 		if err != nil {
@@ -210,7 +208,7 @@ func (p *BaseMySQLDataProcessor) decodeBinary(ctx context.Context, encoded []byt
 		}
 		return ctx, strconv.AppendInt(nil, int64(numericValue), 10), nil
 
-	case mysql.TypeShort, mysql.TypeYear:
+	case base_mysql.TypeShort, base_mysql.TypeYear:
 		var numericValue int16
 		err := binary.Read(bytes.NewReader(encoded), binary.LittleEndian, &numericValue)
 		if err != nil {
@@ -218,7 +216,7 @@ func (p *BaseMySQLDataProcessor) decodeBinary(ctx context.Context, encoded []byt
 		}
 		return ctx, strconv.AppendInt(nil, int64(numericValue), 10), nil
 
-	case mysql.TypeInt24, mysql.TypeLong:
+	case base_mysql.TypeInt24, base_mysql.TypeLong:
 		var numericValue int32
 		err := binary.Read(bytes.NewReader(encoded), binary.LittleEndian, &numericValue)
 		if err != nil {
@@ -226,7 +224,7 @@ func (p *BaseMySQLDataProcessor) decodeBinary(ctx context.Context, encoded []byt
 		}
 		return ctx, strconv.AppendInt(nil, int64(numericValue), 10), nil
 
-	case mysql.TypeLongLong:
+	case base_mysql.TypeLongLong:
 		var numericValue int64
 		err := binary.Read(bytes.NewReader(encoded), binary.LittleEndian, &numericValue)
 		if err != nil {
@@ -234,7 +232,7 @@ func (p *BaseMySQLDataProcessor) decodeBinary(ctx context.Context, encoded []byt
 		}
 		return ctx, strconv.AppendInt(nil, int64(numericValue), 10), nil
 
-	case mysql.TypeFloat:
+	case base_mysql.TypeFloat:
 		var numericValue float32
 		err := binary.Read(bytes.NewReader(encoded), binary.LittleEndian, &numericValue)
 		if err != nil {
@@ -242,7 +240,7 @@ func (p *BaseMySQLDataProcessor) decodeBinary(ctx context.Context, encoded []byt
 		}
 		return ctx, strconv.AppendFloat(nil, float64(numericValue), 'G', -1, 32), nil
 
-	case mysql.TypeDouble:
+	case base_mysql.TypeDouble:
 		var numericValue float64
 		err := binary.Read(bytes.NewReader(encoded), binary.LittleEndian, &numericValue)
 		if err != nil {

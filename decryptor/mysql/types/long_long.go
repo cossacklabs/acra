@@ -8,8 +8,7 @@ import (
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
-	decryptor_mysql "github.com/cossacklabs/acra/decryptor/mysql"
-	"github.com/cossacklabs/acra/decryptor/mysql/types/mysql"
+	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
 	"github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
@@ -29,7 +28,7 @@ func (t *LongLongDataTypeEncoder) Encode(ctx context.Context, data []byte, forma
 			binary.LittleEndian.PutUint64(newData, uint64(intValue))
 			return ctx, newData, nil
 		}
-		return ctx, decryptor_mysql.PutLengthEncodedString(data), nil
+		return ctx, base_mysql.PutLengthEncodedString(data), nil
 	}
 	// if it's encrypted binary, then it is binary array that is invalid int literal
 	if !base.IsDecryptedFromContext(ctx) {
@@ -39,7 +38,7 @@ func (t *LongLongDataTypeEncoder) Encode(ctx context.Context, data []byte, forma
 		} else if value != nil {
 			return ctx, value, nil
 		}
-		return ctx, nil, decryptor_mysql.ErrConvertToDataType
+		return ctx, nil, base_mysql.ErrConvertToDataType
 	}
 
 	return ctx, nil, nil
@@ -85,9 +84,9 @@ func (t *LongLongDataTypeEncoder) encodeDefault(ctx context.Context, data []byte
 		binary.LittleEndian.PutUint64(newData, uint64(value))
 		return ctx, newData, nil
 	}
-	return ctx, decryptor_mysql.PutLengthEncodedString(data), nil
+	return ctx, base_mysql.PutLengthEncodedString(data), nil
 }
 
 func init() {
-	type_awareness.RegisterMySQLDataTypeIDEncoder(uint32(mysql.TypeLongLong), &LongLongDataTypeEncoder{})
+	type_awareness.RegisterMySQLDataTypeIDEncoder(uint32(base_mysql.TypeLongLong), &LongLongDataTypeEncoder{})
 }

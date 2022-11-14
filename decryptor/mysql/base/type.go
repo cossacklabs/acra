@@ -1,4 +1,4 @@
-package mysql
+package base
 
 // Type used for defining MySQL types
 type Type byte

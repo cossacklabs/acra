@@ -51,7 +51,6 @@ import (
 	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/mysql"
-	_ "github.com/cossacklabs/acra/decryptor/mysql/types"
 	"github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/encryptor/config_loader"
 	"github.com/cossacklabs/acra/keystore"

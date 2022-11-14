@@ -3,7 +3,7 @@ package mysql
 import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
-	"github.com/cossacklabs/acra/decryptor/mysql/types/mysql"
+	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/encryptor/config/common"
 )
@@ -63,7 +63,7 @@ func updateFieldEncodedType(field *ColumnDescription, schemaStore config.TableSc
 		newFieldType, ok := mapEncryptedTypeToField(setting.GetDBDataTypeID())
 		if ok {
 			field.originType = field.Type
-			field.Type = mysql.Type(newFieldType)
+			field.Type = base_mysql.Type(newFieldType)
 			field.changed = true
 		}
 	}
