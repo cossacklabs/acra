@@ -20,6 +20,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// UseMySQL represent constant for switching mode of encryptor config
 const (
 	UseMySQL      = true
 	UsePostgreSQL = false
