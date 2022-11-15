@@ -26,7 +26,7 @@ import (
 // VERSION is current Acra suite version
 // store it as string instead initialized struct value to easy change/grep/sed/replace value via scripts or with
 // -ldflags "-X github.com/cossacklabs/acra/utils.VERSION=X.X.X"
-var VERSION = "0.93.0"
+var VERSION = "0.94.0"
 
 // Version store version info
 type Version struct {
