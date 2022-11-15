@@ -18,9 +18,10 @@ package base
 
 import (
 	"errors"
+	"io"
+
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
-	"io"
 )
 
 // ErrConvertToDataType error that indicates if data type conversion was failed

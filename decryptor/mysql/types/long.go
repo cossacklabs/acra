@@ -89,7 +89,7 @@ func (t *LongDataTypeEncoder) encodeDefault(ctx context.Context, data []byte, fo
 
 // ValidateDefaultValue implementation of ValidateDefaultValue method of DataTypeEncoder interface for TypeLong
 func (t *LongDataTypeEncoder) ValidateDefaultValue(value *string) error {
-	_, err := strconv.ParseInt(*value, 10, 64)
+	_, err := strconv.ParseInt(*value, 10, 32)
 	return err
 }
 

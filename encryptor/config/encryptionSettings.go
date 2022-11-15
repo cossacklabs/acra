@@ -371,11 +371,10 @@ func (s *BasicColumnEncryptionSetting) Init(useMySQL bool) (err error) {
 		}
 	}
 
-	var dataTypeIDEncoders map[uint32]type_awareness.DataTypeEncoder
 	if s.DataTypeID != 0 {
 		s.settingMask |= SettingDataTypeIDFlag
 
-		dataTypeIDEncoders = type_awareness.GetPostgreSQLDataTypeIDEncoders()
+		dataTypeIDEncoders := type_awareness.GetPostgreSQLDataTypeIDEncoders()
 		if useMySQL {
 			dataTypeIDEncoders = type_awareness.GetMySQLDataTypeIDEncoders()
 		}
@@ -408,6 +407,11 @@ func (s *BasicColumnEncryptionSetting) Init(useMySQL bool) (err error) {
 		s.settingMask |= SettingDefaultDataValueFlag
 		if s.ResponseOnFail != common.ResponseOnFailDefault {
 			return fmt.Errorf("default data value is defined, but `response_on_fail` operation is not \"default\" (%s)", s.ResponseOnFail)
+		}
+
+		dataTypeIDEncoders := type_awareness.GetPostgreSQLDataTypeIDEncoders()
+		if useMySQL {
+			dataTypeIDEncoders = type_awareness.GetMySQLDataTypeIDEncoders()
 		}
 
 		dataTypeEncoder := dataTypeIDEncoders[s.DataTypeID]

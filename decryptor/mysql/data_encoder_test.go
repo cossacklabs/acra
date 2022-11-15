@@ -5,6 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
+	"math"
+	"strconv"
 	"testing"
 
 	"github.com/cossacklabs/acra/decryptor/base"
@@ -256,5 +259,48 @@ func TestFailingBinaryEncodingWithEncodingError(t *testing.T) {
 		if !errors.Is(err, expectedError) {
 			t.Fatalf("expected error %q, but found %q", expectedError, err)
 		}
+	}
+}
+
+func TestValidateDefaultValue(t *testing.T) {
+	type args struct {
+		value      *string
+		dataTypeID uint32
+	}
+	var (
+		emptyString = ""
+		int32String = strconv.FormatUint(math.MaxInt32, 10)
+		int64String = strconv.FormatUint(math.MaxInt64, 10)
+		// use max uint64 as value for int64 that should overflow
+		invalidInt64String = strconv.FormatUint(math.MaxUint64, 10)
+		// valid ASCII [0, 127]. All greater values validated as UTF8
+		invalidString = string([]byte{128, 129})
+		someString    = "some string"
+	)
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{"invalid string", args{&invalidString, uint32(base_mysql.TypeString)}, true},
+		{"valid bytes", args{&invalidString, uint32(base_mysql.TypeBlob)}, true},
+		{"empty string", args{&emptyString, uint32(base_mysql.TypeString)}, false},
+		{"empty bytes", args{&emptyString, uint32(base_mysql.TypeBlob)}, false},
+		{"int32 string", args{&int32String, uint32(base_mysql.TypeString)}, false},
+		{"invalid integer int32 string", args{&int64String, uint32(base_mysql.TypeLong)}, true},
+		{"invalid non-integer int32 string", args{&someString, uint32(base_mysql.TypeLong)}, true},
+		{"int64 string", args{&int64String, uint32(base_mysql.TypeLongLong)}, false},
+		{"invalid int64 string", args{&invalidInt64String, uint32(base_mysql.TypeLongLong)}, true},
+		{"invalid non-integer int64 string", args{&someString, uint32(base_mysql.TypeLongLong)}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dataTypeIDEncoders := type_awareness.GetMySQLDataTypeIDEncoders()
+			encoder := dataTypeIDEncoders[tt.args.dataTypeID]
+
+			if err := encoder.ValidateDefaultValue(tt.args.value); (err != nil) != tt.wantErr {
+				t.Errorf("ValidateDefaultValue() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
 	}
 }

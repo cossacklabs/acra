@@ -2,11 +2,13 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
+	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
 	common2 "github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/cossacklabs/acra/masking/common"
 	"github.com/jackc/pgx/pgtype"
@@ -175,6 +177,8 @@ schemas:
 }
 
 func TestInvalidMasking(t *testing.T) {
+	registerMySQLDummyEncoders()
+
 	type testcase struct {
 		name   string
 		config string
@@ -1231,7 +1235,7 @@ schemas:
 		},
 	}
 
-	type_awareness.RegisterPostgreSQLDataTypeIDEncoder(pgtype.TextOID, nil)
+	type_awareness.RegisterPostgreSQLDataTypeIDEncoder(pgtype.TextOID, &dummyDataTypeEncoder{})
 
 	for _, tcase := range testcases {
 		schemaStore, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), UsePostgreSQL)
@@ -1297,4 +1301,38 @@ schemas:
 			t.Fatalf("expected got error %s - but found %s", tcase.expectedError.Error(), err.Error())
 		}
 	}
+}
+
+func registerMySQLDummyEncoders() {
+	type_awareness.RegisterMySQLDataTypeIDEncoder(uint32(base_mysql.TypeBlob), &dummyDataTypeEncoder{})
+	type_awareness.RegisterMySQLDataTypeIDEncoder(uint32(base_mysql.TypeString), &dummyDataTypeEncoder{})
+	type_awareness.RegisterMySQLDataTypeIDEncoder(uint32(base_mysql.TypeLong), &dummyDataTypeEncoder{})
+	type_awareness.RegisterMySQLDataTypeIDEncoder(uint32(base_mysql.TypeLongLong), &dummyDataTypeEncoder{})
+}
+
+type dummyDataTypeEncoder struct{}
+
+// Encode implementation of Encode method of DataTypeEncoder interface for TypeLong
+func (t *dummyDataTypeEncoder) Encode(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
+	return nil, nil, nil
+}
+
+// Decode implementation of Decode method of DataTypeEncoder interface for TypeLong
+func (t *dummyDataTypeEncoder) Decode(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
+	return nil, nil, nil
+}
+
+// EncodeOnFail implementation of EncodeOnFail method of DataTypeEncoder interface for TypeLong
+func (t *dummyDataTypeEncoder) EncodeOnFail(ctx context.Context, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
+	return nil, nil, nil
+}
+
+// EncodeDefault implementation of EncodeDefault method of DataTypeEncoder interface for TypeLong
+func (t *dummyDataTypeEncoder) encodeDefault(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
+	return nil, nil, nil
+}
+
+// ValidateDefaultValue implementation of ValidateDefaultValue method of DataTypeEncoder interface for TypeLong
+func (t *dummyDataTypeEncoder) ValidateDefaultValue(value *string) error {
+	return nil
 }

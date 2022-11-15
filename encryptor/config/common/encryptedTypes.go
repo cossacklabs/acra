@@ -3,6 +3,7 @@ package common
 import (
 	"errors"
 	"fmt"
+
 	"github.com/cossacklabs/acra/decryptor/mysql/base"
 	"github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/jackc/pgx/pgtype"
