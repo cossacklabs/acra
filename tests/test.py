@@ -11518,6 +11518,8 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
 
             result = test_engine.execute('select 1').fetchone()
             self.assertEqual(1, result[0])
+            # close current connections
+            test_engine.dispose()
 
             # use another keystore and delete previous
             shutil.rmtree(temp_keystore)
@@ -11530,8 +11532,6 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
             config['incoming_connection_string'] = connection_string
             dump_yaml_config(config, temp_config.name)
             acra.send_signal(signal.SIGHUP)
-            # close current connections
-            test_engine.dispose()
 
             connect_str = get_engine_connection_string(
                 self.get_acraserver_connection_string(self.ACRASERVER_PORT), DB_NAME)
