@@ -31,7 +31,7 @@ func (t Type) IsBinaryType() bool {
 	return isString || isBlob || t == TypeVarchar
 }
 
-// Binary ColumnTypes https://dev.mysql.com/doc/internals/en/com-query-response.html#column-type
+// Binary ColumnTypes https://dev.mysql.com/doc/dev/mysql-server/latest/namespaceclassic__protocol_1_1field__type.html
 const (
 	TypeDecimal Type = iota
 	TypeTiny

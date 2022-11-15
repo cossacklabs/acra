@@ -9614,7 +9614,7 @@ class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(BaseTransparentEnc
 
 
 class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaultsAndDataTypeIDs(TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption_with_data_type_id.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption_postgres_with_data_type_id.yaml')
     pass
 
 
@@ -9790,7 +9790,7 @@ class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults(
 
 
 class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaultsAndDataTypeIDs(TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption_with_data_type_id.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption_postgres_with_data_type_id.yaml')
     pass
 
 

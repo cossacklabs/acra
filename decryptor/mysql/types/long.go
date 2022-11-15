@@ -20,7 +20,7 @@ type LongDataTypeEncoder struct{}
 // Encode implementation of Encode method of DataTypeEncoder interface for TypeLong
 func (t *LongDataTypeEncoder) Encode(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	strValue := utils.BytesToString(data)
-	intValue, err := strconv.ParseInt(strValue, 10, 64)
+	intValue, err := strconv.ParseInt(strValue, 10, 32)
 	// if it's valid string literal and decrypted, return as is
 	if err == nil {
 		if format.IsBinaryFormat() {

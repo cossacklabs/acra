@@ -23,7 +23,7 @@ func (t *Int4DataTypeEncoder) Encode(ctx context.Context, data []byte, format ty
 	// convert back from text to binary
 	strValue := string(data)
 	// if it's valid string literal and decrypted, return as is
-	value, err := strconv.ParseInt(strValue, 10, 64)
+	value, err := strconv.ParseInt(strValue, 10, 32)
 	if err == nil {
 		if format.IsBinaryFormat() {
 			newData := make([]byte, 4)

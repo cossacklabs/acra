@@ -10,6 +10,7 @@ schemas:
       - value_null_int32
       - value_empty_str
 
+    #MySQL available types https://dev.mysql.com/doc/dev/mysql-server/latest/namespaceclassic__protocol_1_1field__type.html
     encrypted:
       - column: value_str
         data_type_db_identifier: 254
