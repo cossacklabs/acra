@@ -4,28 +4,31 @@
 
 _Core_:
 
-In this release we deprecated all features related to [Zones](https://docs.cossacklabs.com/acra/security-controls/zones/) and warn about future deletion of all CLI args, features and mentions in the next release. Acra will support keys linked to `ClientIDs` and allow to manage key switching via [TLS certificates](https://docs.cossacklabs.com/acra/guides/integrating-acra-server-into-infrastructure/client_id/#tls-certificate) or [SQL variables](https://docs.cossacklabs.com/acra/security-controls/client-id-sql-detection/) at the runtime ([AcraEE](https://docs.cossacklabs.com/acra/enterprise-edition/) only).
+In this release we deprecated [Zones functionality](https://docs.cossacklabs.com/acra/security-controls/zones/) and all flags and CLI parameters related to it. These flags will be removed in the next versions. Acra will warn about deprecations.
+Acra Community Edition supports separate encryption keys linked to the `ClientIDs` and allows to manage key switching via [TLS certificates](https://docs.cossacklabs.com/acra/guides/integrating-acra-server-into-infrastructure/client_id/#tls-certificate).
+[Acra Enterprise Edition](https://docs.cossacklabs.com/acra/enterprise-edition/) supports more flexible mapping between users/apps and encryption keys via [SQL variables](https://docs.cossacklabs.com/acra/security-controls/client-id-sql-detection/).
 
 - **AcraServer, AcraTranslator, AcraKeymaker, AcraKeys, AcraRotate, AcraAddZone, AcraBackup, AcraLogVerifier, AcraPoisonRecordMaker, AcraRollback**:
-  - New CLI flags related to KMS support ([documentation page](https://docs.cossacklabs.com/acra/configuring-maintaining/key-storing/kms-integration/#aws-kms), [#552](https://github.com/cossacklabs/acra/pull/552), [#553](https://github.com/cossacklabs/acra/pull/553), [#554](https://github.com/cossacklabs/acra/pull/554)):
+  - Added new CLI flags for better KMS support ([documentation page](https://docs.cossacklabs.com/acra/configuring-maintaining/key-storing/kms-integration/#aws-kms), [#552](https://github.com/cossacklabs/acra/pull/552), [#553](https://github.com/cossacklabs/acra/pull/553), [#554](https://github.com/cossacklabs/acra/pull/554)):
     - `--kms_credentials_path=<filepath>` - path to configuration file specific for KMS type
     - `--kms_type=[aws]` - type of KMS provider
-  - Supports master key encryption with AWS KMS key. [AWS KMS documentation page](https://docs.cossacklabs.com/acra/configuring-maintaining/key-storing/kms-integration/#aws-kms), [#552](https://github.com/cossacklabs/acra/pull/552).
-  - Support several encryption strategies for keys in the keystore ([#556](https://github.com/cossacklabs/acra/pull/556)) and added new CLI flag:
+  - Added support of encrypting the Acra Master Key using AWS KMS key (key wrapping technique). [AWS KMS documentation page](https://docs.cossacklabs.com/acra/configuring-maintaining/key-storing/kms-integration/#aws-kms), [#552](https://github.com/cossacklabs/acra/pull/552).
+  - Added support of the several encryption strategies for keys in the keystore ([#556](https://github.com/cossacklabs/acra/pull/556)) and added new CLI flag:
       - `--keystore_encryption_type` - specifies type of keys encryption for keystore. Accepts `env_master_key`, `vault_master_key`, `kms_encrypted_master_key`, `kms_per_client`. Read description of types on documentation pages of appropriate tools, for example [AcraKeymaker](https://docs.cossacklabs.com/acra/configuring-maintaining/general-configuration/acra-keymaker/#keystore).
-  - Extended configuration with TLS options for HashiCorp Vault ACRA_MASTER_KEY storage. Added 12 flags related to OCSP/CRL support. You can find all of these flags in documentation on pages related to appropriate tool, for example [AcraKeymaker](https://docs.cossacklabs.com/acra/configuring-maintaining/general-configuration/acra-keymaker/#hashicorp-vault). [#578](https://github.com/cossacklabs/acra/pull/578) 
+  - Extended configuration of TLS options when storing ACRA_MASTER_KEY in HashiCorp Vault. [#578](https://github.com/cossacklabs/acra/pull/578)
+  - Added 12 flags related to OCSP/CRL support. You can find all of these flags in documentation on pages related to appropriate tool, for example [AcraKeymaker](https://docs.cossacklabs.com/acra/configuring-maintaining/general-configuration/acra-keymaker/#hashicorp-vault). 
 - **AcraServer, AcraTranslator, AcraKeymaker, AcraKeys, AcraRotate, AcraAddZone, AcraTokens**:
-  - Added TLS support for Redis storage for Keystore. Were added new 15 CLI flags related to TLS configuration. Read more on appropriate tool's page, for example [AcraKeymaker](https://docs.cossacklabs.com/acra/configuring-maintaining/general-configuration/acra-keymaker/#redis). [#556](https://github.com/cossacklabs/acra/pull/566), [#565](https://github.com/cossacklabs/acra/pull/565)
+  - Added TLS support for Redis storage for Keystore. Added new 15 CLI flags related to TLS configuration. Read more on appropriate tool's page, for example [AcraKeymaker](https://docs.cossacklabs.com/acra/configuring-maintaining/general-configuration/acra-keymaker/#redis). [#566](https://github.com/cossacklabs/acra/pull/566), [#565](https://github.com/cossacklabs/acra/pull/565)
 - **AcraServer, AcraTranslator, AcraKeymaker, AcraKeys, AcraRotate, AcraAddZone, AcraRollback**:
   - Deprecated all Zones related CLI flags and API descriptions [#577](https://github.com/cossacklabs/acra/pull/577)
-- *AcraServer, AcraTranslator**:
-  - In-memory cache for keystore now uses randomly generated symmetric key for key encryption instead of ACRA_MASTER_KEY. [#555](https://github.com/cossacklabs/acra/pull/555)
+- **AcraServer, AcraTranslator**:
+  - Improved resistance against memory leakage: in-memory cache for keystore now uses randomly generated symmetric key for key encryption instead of ACRA_MASTER_KEY. [#555](https://github.com/cossacklabs/acra/pull/555)
   - Improved reloading on SIGHUP signals. [#557](https://github.com/cossacklabs/acra/pull/557)
 - **AcraServer**: 
-  - Supports [HashiCorp Consul](https://www.consul.io/) as configuration source for encryptor config. Acra can load configuration from the Consul instead of file. Were added new CLI flag (`--encryptor_config_storage_type=[filesystem|consul]`) to switch source and Consul specific flags. Read more on [documentation page](https://docs.cossacklabs.com/acra/configuring-maintaining/general-configuration/acra-server/encryptor-config/) about encryptor config and acra-server's [configuration description](https://docs.cossacklabs.com/acra/configuring-maintaining/general-configuration/acra-server/#hashicorp-consul). [#568](https://github.com/cossacklabs/acra/pull/568)
-  - Supports searchable tokenization. AcraServer captures `SELECT` queries and update `WHERE` clauses to add support of filtering with consistent tokenization. [#581](https://github.com/cossacklabs/acra/pull/581)
+  - Added support of [HashiCorp Consul](https://www.consul.io/) as a configuration source for encryptor config. Acra can load configuration from the Consul instead of file. Added new CLI flag (`--encryptor_config_storage_type=[filesystem|consul]`) to switch source and Consul specific flags. Read more on [documentation page](https://docs.cossacklabs.com/acra/configuring-maintaining/general-configuration/acra-server/encryptor-config/) about encryptor config and acra-server's [configuration description](https://docs.cossacklabs.com/acra/configuring-maintaining/general-configuration/acra-server/#hashicorp-consul). [#568](https://github.com/cossacklabs/acra/pull/568)
+  - Improved support of searchable tokenization. AcraServer captures `SELECT` queries and update `WHERE` clauses to add support of filtering with consistent tokenization. [#581](https://github.com/cossacklabs/acra/pull/581)
   - Improved searchable encryption with more complex queries. [#586](https://github.com/cossacklabs/acra/pull/586), [#592](https://github.com/cossacklabs/acra/pull/592), [#598](https://github.com/cossacklabs/acra/pull/598), [#599](https://github.com/cossacklabs/acra/pull/599), [#594](https://github.com/cossacklabs/acra/pull/594).
-  - Improved sqlparser:
+  - Improved SQL parser (better compatibility across different SQL databases):
     - Added support of `NULLS FIRST`/`NULLS LAST` ordering clauses, joins with subqueries [#547](https://github.com/cossacklabs/acra/pull/547)
     - Added support of `RETURNING` clauses. [#584](https://github.com/cossacklabs/acra/pull/584)
   - Improved processing prepared statement. [#580](https://github.com/cossacklabs/acra/pull/580), [#593](https://github.com/cossacklabs/acra/pull/593)
@@ -42,9 +45,9 @@ In this release we deprecated all features related to [Zones](https://docs.cossa
     Case-insensitive means the identifier is converted to lowercase before comparing with values from encryptor config, encryptor config should contain lowercase version of column/table name.
     Case-sensitive means identifiers are compared with values from encryptor config "as is", encryptor config should contain exactly the same identifier as in database schema.
   - Removed deprecated `--tls_db_sni` flag. Now only `--tls_database_sni` is available. [#564](https://github.com/cossacklabs/acra/pull/564)
-  - Supports separate configuration and specifying of CRL/OCSP settings for connections from database and applications. Were added flags: `--tls_ocsp_[database|client]_required`, `--tls_[ocsp|crl]_[database|client]_check_only_leaf_certificate`, `--tls_[ocsp|crl]_[database|client]_from_cert`, `--tls_[ocsp|crl]_[database|client}_cache_size`, `--tls_[ocsp|crl]_[database|client}_cache_time`, `--tls_[ocsp|crl]_[database|client}_cache_size` [#564](https://github.com/cossacklabs/acra/pull/564). 
+  - Added support of separate configuration and specifying of CRL/OCSP settings for connections from database and applications. Added flags: `--tls_ocsp_[database|client]_required`, `--tls_[ocsp|crl]_[database|client]_check_only_leaf_certificate`, `--tls_[ocsp|crl]_[database|client]_from_cert`, `--tls_[ocsp|crl]_[database|client}_cache_size`, `--tls_[ocsp|crl]_[database|client}_cache_time`, `--tls_[ocsp|crl]_[database|client}_cache_size` [#564](https://github.com/cossacklabs/acra/pull/564). 
 - **AcraTranslator**:
-  - Refactored HTTP processing core. Now AcraTranslator uses golang's [HTTP server](https://pkg.go.dev/net/http) with [gin](https://github.com/gin-gonic/gin) router [#550](https://github.com/cossacklabs/acra/pull/550). Was added support of:
+  - Improved HTTP API performance. Refactored HTTP processing core. Now AcraTranslator uses golang's [HTTP server](https://pkg.go.dev/net/http) with [gin](https://github.com/gin-gonic/gin) router [#550](https://github.com/cossacklabs/acra/pull/550). Added support of:
     - HTTP 2.0 connections additionally to HTTP 1.1
     - Keep alive connections
   - Added TLS support for HTTP API:
