@@ -1,6 +1,6 @@
 # Acra ChangeLog
 
-## [0.94.0](https://github.com/cossacklabs/acra/releases/tag/0.94.0), November 15th 2021
+## [0.94.0](https://github.com/cossacklabs/acra/releases/tag/0.94.0), November 16th 2022
 
 _Core_:
 
@@ -56,7 +56,7 @@ Acra Community Edition supports separate encryption keys linked to the `ClientID
 _Example projects and demos_:
 - [Python examples](https://github.com/cossacklabs/acra/tree/0.94.0/examples/python): updated to show searchable encryption feature. [#548](https://github.com/cossacklabs/acra/pull/548)
 
-## [0.93.0](https://github.com/cossacklabs/acra/releases/tag/0.93.0), May 27th 2021
+## [0.93.0](https://github.com/cossacklabs/acra/releases/tag/0.93.0), May 27th 2022
 This release brings type awareness which improves transparent encryption on AcraServer. Type awareness means that it's possible to tell AcraServer what are the original data types for fields. During decryption, AcraServer will convert decrypted fields to their original data types. No need to change client application code to work with "binary data".
 
 It's also possible to choose a default value for each data field if its decryption failed. AcraServer can send a a default value like "<encrypted data>" instead of decryption errors, making developers' and users' life easier.
