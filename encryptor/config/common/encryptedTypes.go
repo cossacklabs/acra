@@ -50,10 +50,10 @@ var PostgreSQLEncryptedTypeDataTypeIDs = map[EncryptedType]uint32{
 
 // MySQLDataTypeIDEncryptedType used for mapping MySQL Types OIDs with DataType
 var MySQLDataTypeIDEncryptedType = map[uint32]string{
-	pgtype.Int4OID:  "int32",
-	pgtype.Int8OID:  "int64",
-	pgtype.TextOID:  "str",
-	pgtype.ByteaOID: "bytes",
+	uint32(base.TypeLong):     "int32",
+	uint32(base.TypeLongLong): "int64",
+	uint32(base.TypeString):   "str",
+	uint32(base.TypeBlob):     "bytes",
 }
 
 // PostgreSQLDataTypeIDEncryptedType used for mapping PostgreSQL OIDs with DataType
