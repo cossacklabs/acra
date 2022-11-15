@@ -48,7 +48,7 @@ func (r *PreparedStatementRegistry) AddStatement(statement base.PreparedStatemen
 	r.statements[statement.Name()] = statement
 }
 
-// PreparedStatement is a base_mysql.PreparedStatement.
+// PreparedStatement is a MySQL PreparedStatement.
 type PreparedStatement struct {
 	name         string
 	sqlString    string
@@ -204,8 +204,8 @@ func (m *mysqlBoundValue) SetData(newData []byte, setting config.ColumnEncryptio
 	}
 
 	// In case of tokenization happened, even if the driver sent value as Tiny
-	// we need to update base_mysql.types in the result packet to Long/LongLong as Acra supports only int32/int64 tokenization
-	// also base_mysql.cast less sized type to higher one automatically.
+	// we need to update mysql types in the result packet to Long/LongLong as Acra supports only int32/int64 tokenization
+	// also mysql cast less sized type to higher one automatically.
 	switch m.format {
 	case base.BinaryFormat:
 		switch setting.GetTokenType() {
@@ -319,7 +319,7 @@ func (p *PreparedStatementFieldTracker) ParamsTrackHandler(ctx context.Context, 
 	if packet.IsEOF() {
 		p.proxyHandler.resetQueryHandler()
 		// if columns_num > 0 column definition block will follow
-		// https://dev.base_mysql.com/doc/internals/en/com-stmt-prepare-response.html
+		// https://dev.mysql.com/doc/internals/en/com-stmt-prepare-response.html
 		if p.columnsNum > 0 {
 			p.proxyHandler.setQueryHandler(p.ColumnsTrackHandler)
 		}
