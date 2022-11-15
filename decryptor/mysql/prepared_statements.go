@@ -22,7 +22,7 @@ import (
 // ErrStatementNotFound Err returned by prepared statement registry.
 var ErrStatementNotFound = errors.New("no prepared statement with given statement-id")
 
-// PreparedStatementRegistry is a base_mysql.PreparedStatementRegistry.
+// PreparedStatementRegistry is a MySQL PreparedStatementRegistry.
 type PreparedStatementRegistry struct {
 	statements map[string]base.PreparedStatement
 }
