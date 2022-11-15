@@ -14,10 +14,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// LongDataTypeEncoder is encoder of TypeBlob in MySQL
+// LongDataTypeEncoder is encoder of TypeLong in MySQL
 type LongDataTypeEncoder struct{}
 
-// Encode implementation of Encode method of DataTypeEncoder interface for byteaOID
+// Encode implementation of Encode method of DataTypeEncoder interface for TypeLong
 func (t *LongDataTypeEncoder) Encode(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	strValue := utils.BytesToString(data)
 	intValue, err := strconv.ParseInt(strValue, 10, 64)
@@ -44,12 +44,12 @@ func (t *LongDataTypeEncoder) Encode(ctx context.Context, data []byte, format ty
 	return ctx, nil, nil
 }
 
-// Decode implementation of Decode method of DataTypeEncoder interface for byteaOID
+// Decode implementation of Decode method of DataTypeEncoder interface for TypeLong
 func (t *LongDataTypeEncoder) Decode(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	return nil, nil, nil
 }
 
-// EncodeOnFail implementation of EncodeOnFail method of DataTypeEncoder interface for int4OID
+// EncodeOnFail implementation of EncodeOnFail method of DataTypeEncoder interface for TypeLong
 func (t *LongDataTypeEncoder) EncodeOnFail(ctx context.Context, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	action := format.GetResponseOnFail()
 	switch action {
@@ -71,7 +71,7 @@ func (t *LongDataTypeEncoder) EncodeOnFail(ctx context.Context, format type_awar
 	return ctx, nil, fmt.Errorf("unknown action: %q", action)
 }
 
-// EncodeDefault implementation of EncodeDefault method of DataTypeEncoder interface for byteaOID
+// EncodeDefault implementation of EncodeDefault method of DataTypeEncoder interface for TypeLong
 func (t *LongDataTypeEncoder) encodeDefault(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	value, err := strconv.ParseInt(string(data), 10, 32)
 	if err != nil {
@@ -85,6 +85,12 @@ func (t *LongDataTypeEncoder) encodeDefault(ctx context.Context, data []byte, fo
 		return ctx, newData, nil
 	}
 	return ctx, base_mysql.PutLengthEncodedString(data), nil
+}
+
+// ValidateDefaultValue implementation of ValidateDefaultValue method of DataTypeEncoder interface for TypeLong
+func (t *LongDataTypeEncoder) ValidateDefaultValue(value *string) error {
+	_, err := strconv.ParseInt(*value, 10, 64)
+	return err
 }
 
 func init() {

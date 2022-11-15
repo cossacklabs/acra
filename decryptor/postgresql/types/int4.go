@@ -135,6 +135,12 @@ func (t *Int4DataTypeEncoder) encodeDefault(ctx context.Context, data []byte, fo
 	return ctx, data, nil
 }
 
+// ValidateDefaultValue implementation of ValidateDefaultValue method of DataTypeEncoder interface for int4OID
+func (t *Int4DataTypeEncoder) ValidateDefaultValue(value *string) error {
+	_, err := strconv.ParseInt(*value, 10, 32)
+	return err
+}
+
 func init() {
 	type_awareness.RegisterPostgreSQLDataTypeIDEncoder(pgtype.Int4OID, &Int4DataTypeEncoder{})
 }

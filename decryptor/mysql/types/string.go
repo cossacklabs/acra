@@ -3,6 +3,7 @@ package types
 import (
 	"context"
 	"fmt"
+	"unicode/utf8"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
@@ -11,10 +12,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// StringDataTypeEncoder is encoder of TypeBlob in MySQL
+// StringDataTypeEncoder is encoder of TypeString in MySQL
 type StringDataTypeEncoder struct{}
 
-// Encode implementation of Encode method of DataTypeEncoder interface for byteaOID
+// Encode implementation of Encode method of DataTypeEncoder interface for TypeString
 func (t *StringDataTypeEncoder) Encode(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	if !base.IsDecryptedFromContext(ctx) {
 		ctx, value, err := t.EncodeOnFail(ctx, format)
@@ -29,12 +30,12 @@ func (t *StringDataTypeEncoder) Encode(ctx context.Context, data []byte, format 
 	return ctx, base_mysql.PutLengthEncodedString(data), nil
 }
 
-// Decode implementation of Decode method of DataTypeEncoder interface for byteaOID
+// Decode implementation of Decode method of DataTypeEncoder interface for TypeString
 func (t *StringDataTypeEncoder) Decode(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	return nil, nil, nil
 }
 
-// EncodeOnFail implementation of EncodeOnFail method of DataTypeEncoder interface for int4OID
+// EncodeOnFail implementation of EncodeOnFail method of DataTypeEncoder interface for TypeString
 func (t *StringDataTypeEncoder) EncodeOnFail(ctx context.Context, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	action := format.GetResponseOnFail()
 	switch action {
@@ -56,9 +57,17 @@ func (t *StringDataTypeEncoder) EncodeOnFail(ctx context.Context, format type_aw
 	return ctx, nil, fmt.Errorf("unknown action: %q", action)
 }
 
-// EncodeDefault implementation of EncodeDefault method of DataTypeEncoder interface for byteaOID
+// EncodeDefault implementation of EncodeDefault method of DataTypeEncoder interface for TypeString
 func (t *StringDataTypeEncoder) encodeDefault(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	return ctx, base_mysql.PutLengthEncodedString(data), nil
+}
+
+// ValidateDefaultValue implementation of ValidateDefaultValue method of DataTypeEncoder interface for TypeString
+func (t *StringDataTypeEncoder) ValidateDefaultValue(value *string) error {
+	if !utf8.ValidString(*value) {
+		return fmt.Errorf("invalid utf8 string")
+	}
+	return nil
 }
 
 func init() {

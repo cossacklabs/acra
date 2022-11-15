@@ -23,6 +23,7 @@ type DataTypeEncoder interface {
 	Encode(ctx context.Context, data []byte, format DataTypeFormat) (context.Context, []byte, error)
 	EncodeOnFail(ctx context.Context, format DataTypeFormat) (context.Context, []byte, error)
 	Decode(ctx context.Context, data []byte, format DataTypeFormat) (context.Context, []byte, error)
+	ValidateDefaultValue(value *string) error
 }
 
 var (

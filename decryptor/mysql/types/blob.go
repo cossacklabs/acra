@@ -16,7 +16,7 @@ import (
 // BlobDataTypeEncoder is encoder of TypeBlob in MySQL
 type BlobDataTypeEncoder struct{}
 
-// Encode implementation of Encode method of DataTypeEncoder interface for byteaOID
+// Encode implementation of Encode method of DataTypeEncoder interface for TypeBlob
 func (t *BlobDataTypeEncoder) Encode(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	if !base.IsDecryptedFromContext(ctx) {
 		ctx, value, err := t.EncodeOnFail(ctx, format)
@@ -31,12 +31,12 @@ func (t *BlobDataTypeEncoder) Encode(ctx context.Context, data []byte, format ty
 	return ctx, base_mysql.PutLengthEncodedString(data), nil
 }
 
-// Decode implementation of Decode method of DataTypeEncoder interface for byteaOID
+// Decode implementation of Decode method of DataTypeEncoder interface for TypeBlob
 func (t *BlobDataTypeEncoder) Decode(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	return nil, nil, nil
 }
 
-// EncodeOnFail implementation of EncodeOnFail method of DataTypeEncoder interface for int4OID
+// EncodeOnFail implementation of EncodeOnFail method of DataTypeEncoder interface for TypeBlob
 func (t *BlobDataTypeEncoder) EncodeOnFail(ctx context.Context, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	action := format.GetResponseOnFail()
 	switch action {
@@ -58,7 +58,7 @@ func (t *BlobDataTypeEncoder) EncodeOnFail(ctx context.Context, format type_awar
 	return ctx, nil, fmt.Errorf("unknown action: %q", action)
 }
 
-// EncodeDefault implementation of EncodeDefault method of DataTypeEncoder interface for byteaOID
+// EncodeDefault implementation of EncodeDefault method of DataTypeEncoder interface for TypeBlob
 func (t *BlobDataTypeEncoder) encodeDefault(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
 	binValue, err := base64.StdEncoding.DecodeString(string(data))
 	if err != nil {
@@ -66,6 +66,12 @@ func (t *BlobDataTypeEncoder) encodeDefault(ctx context.Context, data []byte, fo
 		return ctx, nil, nil
 	}
 	return ctx, base_mysql.PutLengthEncodedString(binValue), nil
+}
+
+// ValidateDefaultValue implementation of ValidateDefaultValue method of DataTypeEncoder interface for TypeBlob
+func (t *BlobDataTypeEncoder) ValidateDefaultValue(value *string) error {
+	_, err := base64.StdEncoding.DecodeString(*value)
+	return err
 }
 
 func init() {

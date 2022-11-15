@@ -4,14 +4,13 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"strconv"
-
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
 	"github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/jackc/pgx/pgtype"
 	log "github.com/sirupsen/logrus"
+	"strconv"
 )
 
 // Int8DataTypeEncoder is encoder of int8OID type in PostgreSQL
@@ -117,6 +116,12 @@ func (t *Int8DataTypeEncoder) encodeDefault(ctx context.Context, data []byte, fo
 		return ctx, newData, nil
 	}
 	return ctx, data, nil
+}
+
+// ValidateDefaultValue implementation of ValidateDefaultValue method of DataTypeEncoder interface for int8OID
+func (t *Int8DataTypeEncoder) ValidateDefaultValue(value *string) error {
+	_, err := strconv.ParseInt(*value, 10, 64)
+	return err
 }
 
 func init() {

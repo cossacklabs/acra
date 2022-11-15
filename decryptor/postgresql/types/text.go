@@ -3,6 +3,7 @@ package types
 import (
 	"context"
 	"fmt"
+	"unicode/utf8"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
@@ -76,6 +77,14 @@ func (t *TextDataType) EncodeOnFail(ctx context.Context, format type_awareness.D
 	}
 
 	return ctx, nil, fmt.Errorf("unknown action: %q", action)
+}
+
+// ValidateDefaultValue implementation of ValidateDefaultValue method of DataTypeEncoder interface for textOID
+func (t *TextDataType) ValidateDefaultValue(value *string) error {
+	if !utf8.ValidString(*value) {
+		return fmt.Errorf("invalid utf8 string")
+	}
+	return nil
 }
 
 func init() {

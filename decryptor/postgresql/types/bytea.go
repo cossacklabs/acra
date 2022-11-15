@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
 	"github.com/cossacklabs/acra/encryptor/config/common"
@@ -99,6 +98,12 @@ func (t *ByteaDataTypeEncoder) encodeDefault(ctx context.Context, data []byte, f
 		return ctx, binValue, nil
 	}
 	return ctx, utils.PgEncodeToHex(binValue), nil
+}
+
+// ValidateDefaultValue implementation of ValidateDefaultValue method of DataTypeEncoder interface for byteaOID
+func (t *ByteaDataTypeEncoder) ValidateDefaultValue(value *string) error {
+	_, err := base64.StdEncoding.DecodeString(*value)
+	return err
 }
 
 func init() {

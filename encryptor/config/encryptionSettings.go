@@ -371,10 +371,11 @@ func (s *BasicColumnEncryptionSetting) Init(useMySQL bool) (err error) {
 		}
 	}
 
+	var dataTypeIDEncoders map[uint32]type_awareness.DataTypeEncoder
 	if s.DataTypeID != 0 {
 		s.settingMask |= SettingDataTypeIDFlag
 
-		var dataTypeIDEncoders = type_awareness.GetPostgreSQLDataTypeIDEncoders()
+		dataTypeIDEncoders = type_awareness.GetPostgreSQLDataTypeIDEncoders()
 		if useMySQL {
 			dataTypeIDEncoders = type_awareness.GetMySQLDataTypeIDEncoders()
 		}
@@ -401,16 +402,18 @@ func (s *BasicColumnEncryptionSetting) Init(useMySQL bool) (err error) {
 	}
 
 	if s.DefaultDataValue != nil {
-		if dataType == common.EncryptedType_Unknown {
-			return errors.New("default_data_value used without data_type")
+		if s.DataTypeID == 0 {
+			return errors.New("default_data_value used without data_type_id")
 		}
 		s.settingMask |= SettingDefaultDataValueFlag
 		if s.ResponseOnFail != common.ResponseOnFailDefault {
 			return fmt.Errorf("default data value is defined, but `response_on_fail` operation is not \"default\" (%s)", s.ResponseOnFail)
 		}
-	}
-	if err = common.ValidateDefaultValue(s.DefaultDataValue, dataType); err != nil {
-		return fmt.Errorf("invalid default value: %w", err)
+
+		dataTypeEncoder := dataTypeIDEncoders[s.DataTypeID]
+		if err = dataTypeEncoder.ValidateDefaultValue(s.DefaultDataValue); err != nil {
+			return fmt.Errorf("invalid default value: %w", err)
+		}
 	}
 
 	if s.TokenType != "" {
