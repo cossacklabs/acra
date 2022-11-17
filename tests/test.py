@@ -227,6 +227,7 @@ else:
         'connect_timeout': SOCKET_CONNECT_TIMEOUT,
         'user': DB_USER, 'password': DB_USER_PASSWORD,
         "options": "-c statement_timeout={}".format(STATEMENT_TIMEOUT),
+        'database': DB_NAME,
         'sslmode': 'disable',
         'application_name': 'acra-tests'
     }
@@ -2614,34 +2615,6 @@ class TestConnectionClosing(BaseTestCase):
             cursor.execute('SELECT numbackends FROM pg_stat_database where datname=%s;', [DB_NAME])
             return int(cursor.fetchone()[0])
 
-    def getConnectionLimit(self, connection=None):
-        created_connection = False
-        if connection is None:
-            connection = self.get_connection()
-            created_connection = True
-
-        if TEST_MYSQL:
-            query = "SHOW VARIABLES WHERE `variable_name` = 'max_connections';"
-            with connection.cursor() as cursor:
-                cursor.execute(query)
-                return int(cursor.fetchone()[1])
-
-        else:
-            with TestConnectionClosing.mysql_closing(connection.cursor()) as cursor:
-                try:
-                    cursor.execute('select setting from pg_settings where name=\'max_connections\';')
-                    pg_max_connections = int(cursor.fetchone()[0])
-                    cursor.execute('select rolconnlimit from pg_roles where rolname = current_user;')
-                    pg_rolconnlimit = int(cursor.fetchone()[0])
-                    cursor.close()
-                    if pg_rolconnlimit <= 0:
-                        return pg_max_connections
-                    return min(pg_max_connections, pg_rolconnlimit)
-                except:
-                    if created_connection:
-                        connection.close()
-                    raise
-
     def check_count(self, cursor, expected):
         # give a time to close connections via postgresql
         # because performance where tests will run not always constant,
@@ -2659,47 +2632,11 @@ class TestConnectionClosing(BaseTestCase):
                 # some wait for closing. chosen manually
                 time.sleep(step)
 
-    def checkConnectionLimit(self, connection_limit):
+    def getPoolConnections(self):
+        connection_limit = 10
         connections = []
-        try:
-            exception = None
-            try:
-                for i in range(connection_limit):
-                    connections.append(self.get_connection())
-            except Exception as exc:
-                exception = exc
-
-            self.assertIsNotNone(exception)
-
-            is_correct_exception_message = False
-            if TEST_MYSQL:
-                exception_type = pymysql.err.OperationalError
-                correct_messages = [
-                    'Too many connections'
-                ]
-                for message in correct_messages:
-                    if exception.args[0] in [1203, 1040] and message in exception.args[1]:
-                        is_correct_exception_message = True
-                        break
-            else:
-                exception_type = psycopg2.OperationalError
-                # exception doesn't has any related code, only text messages
-                correct_messages = [
-                    'FATAL:  too many connections for role',
-                    'FATAL:  sorry, too many clients already',
-                    'FATAL:  remaining connection slots are reserved for non-replication superuser connections'
-                ]
-                for message in correct_messages:
-                    if message in exception.args[0]:
-                        is_correct_exception_message = True
-                        break
-
-            self.assertIsInstance(exception, exception_type)
-            self.assertTrue(is_correct_exception_message)
-        except:
-            for connection in connections:
-                connection.close()
-            raise
+        for i in range(connection_limit):
+            connections.append(self.get_connection())
         return connections
 
     def testClosingConnectionsWithDB(self):
@@ -2710,15 +2647,11 @@ class TestConnectionClosing(BaseTestCase):
                 with self.get_connection():
                     self.assertEqual(self.getActiveConnectionCount(cursor),
                                      current_connection_count+1)
-                    connection_limit = self.getConnectionLimit(connection)
-
-                    created_connections = self.checkConnectionLimit(
-                        connection_limit)
+                    created_connections = self.getPoolConnections()
                     for conn in created_connections:
                         conn.close()
 
                 self.check_count(cursor, current_connection_count)
-
                 # try create new connection
                 with self.get_connection():
                     self.check_count(cursor, current_connection_count + 1)
