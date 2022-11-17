@@ -82,7 +82,7 @@ func (config *Config) SetDBConnectionSettings(host string, port int) {
 }
 
 // LoadMapTableSchemaConfig load table schemas from config file
-func (config *Config) LoadMapTableSchemaConfig(storageType string) error {
+func (config *Config) LoadMapTableSchemaConfig(storageType string, useMySQL bool) error {
 	encryptorConfigLoader, err := config_loader.NewConfigLoader(storageType, flag.CommandLine, "")
 	if err != nil {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).WithError(err).Errorln("Can't init encryptor config loader")
@@ -94,7 +94,7 @@ func (config *Config) LoadMapTableSchemaConfig(storageType string) error {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).WithError(err).Errorln("Can't read config for encryptor")
 		return err
 	}
-	schema, err := encryptorConfig.MapTableSchemaStoreFromConfig(mapConfig)
+	schema, err := encryptorConfig.MapTableSchemaStoreFromConfig(mapConfig, useMySQL)
 	if err != nil {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).WithError(err).Errorln("Can't parse table schemas from config")
 		return err

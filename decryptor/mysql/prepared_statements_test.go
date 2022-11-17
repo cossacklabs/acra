@@ -4,21 +4,23 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/decryptor/base/mocks"
-	"github.com/cossacklabs/acra/encryptor/config"
-	"github.com/cossacklabs/acra/sqlparser"
 	"net"
 	"reflect"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/base/mocks"
+	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
+	"github.com/cossacklabs/acra/encryptor/config"
+	"github.com/cossacklabs/acra/sqlparser"
 )
 
 func TestNewMysqlCopyTextBoundValue(t *testing.T) {
 	t.Run("textData not equals - success", func(t *testing.T) {
 		sourceData := []byte("test-data")
-		boundValue := NewMysqlCopyTextBoundValue(sourceData, base.BinaryFormat, TypeBlob)
+		boundValue := NewMysqlCopyTextBoundValue(sourceData, base.BinaryFormat, base_mysql.TypeBlob)
 
 		sourceData[0] = 22
 
@@ -32,7 +34,7 @@ func TestNewMysqlCopyTextBoundValue(t *testing.T) {
 	})
 
 	t.Run("nil data provided", func(t *testing.T) {
-		boundValue := NewMysqlCopyTextBoundValue(nil, base.BinaryFormat, TypeBlob)
+		boundValue := NewMysqlCopyTextBoundValue(nil, base.BinaryFormat, base_mysql.TypeBlob)
 		value, err := boundValue.GetData(nil)
 		if err != nil {
 			t.Fatal(err)
@@ -64,7 +66,7 @@ schemas:
       - column: id
         data_type: "str"
 `
-	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(testConfig))
+	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(testConfig), config.UseMySQL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,8 +108,8 @@ schemas:
 			t.Fatal(err)
 		}
 
-		if resDesc.Type != TypeString {
-			t.Fatalf("result packet type should be %d (string) but was %d", TypeString, resDesc.Type)
+		if resDesc.Type != base_mysql.TypeString {
+			t.Fatalf("result packet type should be %d (string) but was %d", base_mysql.TypeString, resDesc.Type)
 		}
 	}()
 
@@ -169,15 +171,15 @@ func TestParamsTrackHandler(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if resField.Type != TypeLong {
-				t.Fatalf("result packet type should be %d (int32) but was %d", TypeLong, resField.Type)
+			if resField.Type != base_mysql.TypeLong {
+				t.Fatalf("result packet type should be %d (int32) but was %d", base_mysql.TypeLong, resField.Type)
 			}
 		}()
 
 		clientSession := &mocks.ClientSession{}
 		sessionData := make(map[int]config.ColumnEncryptionSetting, 2)
 		sessionData[0] = &config.BasicColumnEncryptionSetting{
-			DataType: "int32",
+			DataTypeID: uint32(base_mysql.TypeLong),
 		}
 		clientSession.On("GetData", "bind_encryption_settings").Return(sessionData, true)
 

@@ -9614,6 +9614,11 @@ class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(BaseTransparentEnc
                 self.assertTrue(len(utils.memoryview_to_bytes(row[column])) > len(data[column]))
 
 
+class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaultsAndDataTypeIDs(TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption_postgres_with_data_type_id.yaml')
+    pass
+
+
 class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaultsWithConsulEncryptorConfigLoader(HashicorpConsulEncryptorConfigLoaderMixin,
                                                                                              TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults):
     pass
@@ -9783,6 +9788,11 @@ class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults(
                 self.assertEqual(row[column], data[column])
                 continue
             self.assertNotEqual(data[column], row[column])
+
+
+class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaultsAndDataTypeIDs(TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption_postgres_with_data_type_id.yaml')
+    pass
 
 
 class TestMySQLBinaryFormatTypeAwareDecryptionWithDefaults(TestMySQLTextFormatTypeAwareDecryptionWithDefaults):
@@ -10010,6 +10020,11 @@ class TestMySQLTextTypeAwareDecryptionWithoutDefaults(BaseBinaryMySQLTestCase, B
             value = utils.memoryview_to_bytes(row[column])
             self.assertIsInstance(value, bytes, column)
             self.assertNotEqual(data[column], value, column)
+
+
+class TestMySQLTextTypeAwareDecryptionWithoutDefaultsAndDataTypeIDs(TestMySQLTextTypeAwareDecryptionWithoutDefaults):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption_mysql_with_data_type_id.yaml')
+    pass
 
 
 class TestPostgresqlBinaryTypeAwareDecryptionWithoutDefaults(TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults):
@@ -10549,6 +10564,11 @@ class TestMySQLTextTypeAwareDecryptionWithCiphertext(BaseBinaryMySQLTestCase, Ba
             self.assertNotEqual(data[column], value, column)
 
 
+class TestMySQLTextTypeAwareDecryptionWithCiphertextWithDataTypeIDs(TestMySQLTextTypeAwareDecryptionWithCiphertext):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption_mysql_with_data_type_id.yaml')
+    pass
+
+
 class TestMySQLBinaryTypeAwareDecryptionWithCiphertext(TestMySQLTextTypeAwareDecryptionWithCiphertext):
     def checkSkip(self):
         if not (TEST_MYSQL and TEST_WITH_TLS):
@@ -10594,6 +10614,11 @@ class TestMySQLBinaryTypeAwareDecryptionWithCiphertext(TestMySQLTextTypeAwareDec
             value = utils.memoryview_to_bytes(row[column])
             self.assertIsInstance(value, bytearray, column)
             self.assertNotEqual(data[column], value, column)
+
+
+class TestMySQLBinaryTypeAwareDecryptionWithCiphertextWithDataTypeIDs(TestMySQLBinaryTypeAwareDecryptionWithCiphertext):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption_mysql_with_data_type_id.yaml')
+    pass
 
 
 class TestMySQLTextTypeAwareDecryptionWithError(BaseBinaryMySQLTestCase, BaseTransparentEncryption):
@@ -10672,6 +10697,12 @@ class TestMySQLTextTypeAwareDecryptionWithError(BaseBinaryMySQLTestCase, BaseTra
         self.assertEqual('encoding error in column "value_str"', ex.exception.msg)
         self.assertEqual(ex.exception.errno, MYSQL_ERR_QUERY_INTERRUPTED_CODE)
 
+
+class TestMySQLTextTypeAwareDecryptionWithErrorWithDataTypeIDs(TestMySQLTextTypeAwareDecryptionWithError):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption_mysql_with_data_type_id.yaml')
+    pass
+
+
 class TestMySQLBinaryTypeAwareDecryptionWithError(TestMySQLTextTypeAwareDecryptionWithError):
     def checkSkip(self):
         if not (TEST_MYSQL and TEST_WITH_TLS):
@@ -10712,6 +10743,11 @@ class TestMySQLBinaryTypeAwareDecryptionWithError(TestMySQLTextTypeAwareDecrypti
 
         self.assertEqual('encoding error in column "value_str"', ex.exception.msg)
         self.assertEqual(ex.exception.errno, MYSQL_ERR_QUERY_INTERRUPTED_CODE)
+
+
+class TestMySQLBinaryTypeAwareDecryptionWithErrorWithDataTypeIDs(TestMySQLBinaryTypeAwareDecryptionWithError):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption_mysql_with_data_type_id.yaml')
+    pass
 
 
 class TestMySQLTextCharsetLiterals(TestMySQLTextTypeAwareDecryptionWithoutDefaults):

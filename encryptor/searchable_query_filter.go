@@ -23,6 +23,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// ErrUnsupportedQueryType represent error related unsupported Query type
 var ErrUnsupportedQueryType = errors.New("unsupported Query type")
 
 // SearchableQueryFilterMode represent the mode work of SearchableQueryFilter

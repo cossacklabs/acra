@@ -18,8 +18,8 @@ package base
 
 import (
 	"context"
-	"github.com/cossacklabs/acra/encryptor/config"
 
+	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/sirupsen/logrus"

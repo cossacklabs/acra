@@ -19,6 +19,7 @@ package common
 import (
 	"errors"
 	"fmt"
+
 	"github.com/cossacklabs/acra/encryptor/config/common"
 )
 

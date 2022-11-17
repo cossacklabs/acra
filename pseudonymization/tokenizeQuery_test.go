@@ -108,7 +108,7 @@ schemas:
 	}
 
 	for _, tcase := range testcases {
-		schema, err := config.MapTableSchemaStoreFromConfig([]byte(fmt.Sprintf(schemaConfigTemplate, tcase.TokenType, tcase.TokenType, tcase.TokenType)))
+		schema, err := config.MapTableSchemaStoreFromConfig([]byte(fmt.Sprintf(schemaConfigTemplate, tcase.TokenType, tcase.TokenType, tcase.TokenType)), config.UseMySQL)
 		assert.NoError(t, err)
 
 		encryptor := NewPostgresqlTokenizeQuery(schema, tokenEncryptor)
@@ -244,7 +244,7 @@ func TestSearchableTokenizationWithDefaultTablesTextFormat(t *testing.T) {
 	parser := sqlparser.New(sqlparser.ModeDefault)
 
 	for _, tcase := range testcases {
-		schema, err := config.MapTableSchemaStoreFromConfig([]byte(schemaConfig))
+		schema, err := config.MapTableSchemaStoreFromConfig([]byte(schemaConfig), config.UseMySQL)
 		assert.NoError(t, err)
 
 		encryptor := NewPostgresqlTokenizeQuery(schema, tokenEncryptor)
