@@ -1045,8 +1045,7 @@ class Psycopg2Executor(QueryExecutor):
             self.fail("<args> param for executor {} not supported now".format(self.__class__))
         connection_args = get_connect_args(self.connection_args.port)
         with psycopg2.connect(
-                host=self.connection_args.host,
-                dbname=self.connection_args.dbname, **connection_args) as connection:
+                host=self.connection_args.host, **connection_args) as connection:
             with connection.cursor(
                     cursor_factory=psycopg2.extras.DictCursor) as cursor:
                 cursor.execute(query, args)
@@ -1059,8 +1058,7 @@ class Psycopg2Executor(QueryExecutor):
             self.fail("<args> param for executor {} not supported now".format(self.__class__))
         kwargs = get_connect_args(self.connection_args.port)
         with psycopg2.connect(
-                host=self.connection_args.host,
-                dbname=self.connection_args.dbname, **kwargs) as connection:
+                host=self.connection_args.host, **kwargs) as connection:
             with connection.cursor(
                     cursor_factory=psycopg2.extras.DictCursor) as cursor:
                 cursor.execute("prepare test_statement as {}".format(query))
@@ -1091,8 +1089,9 @@ class Psycopg3Executor(QueryExecutor):
         connection_args['sslkey'] = self.connection_args.ssl_key
         connection_args['sslcert'] = self.connection_args.ssl_cert
         connection_args['host'] = self.connection_args.host
-        connection_args['dbname'] = self.connection_args.dbname
-
+        dbname = connection_args.pop('database')
+        # psycopg2 accepts only dbname parameter instead of datbaase
+        connection_args['dbname'] = dbname
         with psycopg3.connect(**connection_args) as conn:
             with conn.cursor(
                     row_factory=psycopg3.rows.dict_row) as cursor:
