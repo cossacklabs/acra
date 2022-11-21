@@ -5,10 +5,10 @@ import (
 
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
+	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
 )
 
 func TestGetTableSchemaOfColumnMatchConfigTable(t *testing.T) {
-	tableNameUpperCase := "SomeTableInUpperCase"
 	configStr := `
 schemas:
   - table: sometableinuppercase
@@ -22,53 +22,29 @@ schemas:
 		t.Fatalf("Can't parse config: %s", err.Error())
 	}
 
+	query := `SELECT * from SomeTableInUpperCase WHERE default_client_id = 'value'`
+
+	stmt, err := sqlparser.ParseWithDialect(postgresql.NewPostgreSQLDialect(), query)
+	if err != nil {
+		t.Fatalf("Can't parse query statement: %s", err.Error())
+	}
+
+	selectQuery := stmt.(*sqlparser.Select)
+	columnInfo, err := findColumnInfo(selectQuery.From, selectQuery.Where.Expr.(*sqlparser.ComparisonExpr).Left.(*sqlparser.ColName), schemaStore, true)
+	if err != nil {
+		t.Fatalf("Can't find column info: %s", err.Error())
+	}
+
 	searchableQueryFilter := SearchableQueryFilter{
 		schemaStore: schemaStore,
 	}
 
-	tableNamesWithQuotes := sqlparser.NewTableIdentWithQuotes(tableNameUpperCase, '"')
-	schemaTable := searchableQueryFilter.getTableSchemaOfColumn(&sqlparser.ColName{}, &AliasedTableName{
-		TableName: sqlparser.TableName{
-			Name: tableNamesWithQuotes,
-		},
-	}, AliasToTableMap{})
+	schemaTable := searchableQueryFilter.getColumnSetting(&sqlparser.ColName{
+		Name: sqlparser.NewColIdent("default_client_id"),
+	}, columnInfo)
 
 	if schemaTable == nil {
 		t.Fatalf("Expect not nil schemaTable, matched with config")
-	}
-}
-
-func TestFilterInterestingTables(t *testing.T) {
-	tableNameUpperCase := "SomeTableInUpperCase"
-	configStr := `
-schemas:
-  - table: sometableinuppercase
-    encrypted: 
-      - column: "default_client_id"
-      - column: specified_client_id
-        client_id: specified_client_id
-`
-	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr), config.UseMySQL)
-	if err != nil {
-		t.Fatalf("Can't parse config: %s", err.Error())
-	}
-
-	searchableQueryFilter := SearchableQueryFilter{
-		schemaStore: schemaStore,
-	}
-
-	tableNamesWithQuotes := sqlparser.NewTableIdentWithQuotes(tableNameUpperCase, '"')
-
-	aliasedTable, _ := searchableQueryFilter.filterInterestingTables(sqlparser.TableExprs{
-		&sqlparser.AliasedTableExpr{
-			Expr: sqlparser.TableName{
-				Name: tableNamesWithQuotes,
-			},
-		},
-	})
-
-	if aliasedTable == nil {
-		t.Fatalf("Expect not nil aliasedTable, matched with config")
 	}
 }
 
@@ -93,7 +69,7 @@ func Test_getColumnEqualComparisonExprs_NotColumnComparisonQueries(t *testing.T)
 			t.Fatalf("expected no error on parsing valid WHERE clause query - %s", err.Error())
 		}
 
-		compExprs, err := searchableQueryFilter.getColumnEqualComparisonExprs(whereStatements[0], nil, nil)
+		compExprs, err := searchableQueryFilter.filterColumnEqualComparisonExprs(whereStatements[0], statement.(*sqlparser.Select).From)
 		if err != nil {
 			t.Fatal(err)
 		}

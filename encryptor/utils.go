@@ -28,9 +28,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var errNotFoundtable = errors.New("not found table for alias")
-var errNotSupported = errors.New("not supported type of sql node")
-var errTableAlreadyMatched = errors.New("aliased table name already matched")
+var (
+	errNotFoundtable          = errors.New("not found table for alias")
+	errNotSupported           = errors.New("not supported type of sql node")
+	errTableAlreadyMatched    = errors.New("aliased table name already matched")
+	errAliasedTableNotMatched = errors.New("aliases table not matched")
+)
 
 type columnInfo struct {
 	Name  string
@@ -177,6 +180,27 @@ func getFirstTableWithoutAlias(fromExpr sqlparser.TableExprs) (string, error) {
 	return name, nil
 }
 
+func findColumnInfo(fromExpr sqlparser.TableExprs, colName *sqlparser.ColName, schemaStore config.TableSchemaStore, hasTablesWithoutAliases bool) (columnInfo, error) {
+	var alias = colName.Qualifier.Name.RawValue()
+	var columnName = colName.Name.String()
+
+	if colName.Qualifier.Name.IsEmpty() {
+		var columnTable string
+		var err error
+		if hasTablesWithoutAliases {
+			columnTable, err = getFirstTableWithoutAlias(fromExpr)
+		} else {
+			columnTable, err = getMatchedAliasedTable(fromExpr, colName, schemaStore)
+		}
+		if err != nil {
+			return columnInfo{}, err
+		}
+		alias = columnTable
+	}
+
+	return findTableName(alias, columnName, fromExpr)
+}
+
 func getMatchedAliasedTable(fromExpr sqlparser.TableExprs, colName *sqlparser.ColName, tableSchemaStore config.TableSchemaStore) (string, error) {
 	if len(fromExpr) == 0 {
 		return "", errEmptyTableExprs
@@ -221,6 +245,10 @@ func getMatchedAliasedTable(fromExpr sqlparser.TableExprs, colName *sqlparser.Co
 
 			alisedName = tName
 		}
+	}
+
+	if alisedName == "" {
+		return "", errAliasedTableNotMatched
 	}
 
 	return alisedName, nil
@@ -275,7 +303,7 @@ func findTableName(alias, columnName string, expr sqlparser.SQLNode) (columnInfo
 		return columnInfo{}, errNotFoundtable
 	case sqlparser.TableName:
 		// table1, should be equal to end alias value
-		if alias == val.Name.RawValue() {
+		if alias == val.Name.ValueForConfig() {
 			return columnInfo{Name: columnName, Table: alias}, nil
 		}
 		return columnInfo{}, errNotFoundtable
@@ -285,7 +313,7 @@ func findTableName(alias, columnName string, expr sqlparser.SQLNode) (columnInfo
 		}
 		if val.As.RawValue() == alias {
 			if tblName, ok := val.Expr.(sqlparser.TableName); ok {
-				return findTableName(tblName.Name.RawValue(), columnName, val.Expr)
+				return findTableName(tblName.Name.ValueForConfig(), columnName, val.Expr)
 			}
 			return findTableName("", columnName, val.Expr)
 		}
@@ -401,32 +429,11 @@ func mapColumnsToAliases(selectQuery *sqlparser.Select, tableSchemaStore config.
 
 			colName, ok := aliased.Expr.(*sqlparser.ColName)
 			if ok {
-				if colName.Qualifier.Name.IsEmpty() {
-					var columnTable string
-					var err error
-					if hasTablesWithoutAliases {
-						columnTable, err = getFirstTableWithoutAlias(selectQuery.From)
-					} else {
-						columnTable, err = getMatchedAliasedTable(selectQuery.From, colName, tableSchemaStore)
-					}
-					if err != nil {
-						out = append(out, nil)
-						continue
-					}
-
-					info, err := findTableName(columnTable, colName.Name.String(), selectQuery.From)
-					if err == nil {
-						info.Alias = columnTable
-						out = append(out, &info)
-						continue
-					}
-				} else {
-					info, err := findTableName(colName.Qualifier.Name.RawValue(), colName.Name.String(), selectQuery.From)
-					if err == nil {
-						info.Alias = colName.Qualifier.Name.RawValue()
-						out = append(out, &info)
-						continue
-					}
+				info, err := findColumnInfo(selectQuery.From, colName, tableSchemaStore, hasTablesWithoutAliases)
+				if err == nil {
+					info.Alias = colName.Qualifier.Name.RawValue()
+					out = append(out, &info)
+					continue
 				}
 			}
 		}

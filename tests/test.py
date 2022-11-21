@@ -7855,7 +7855,19 @@ class TestSearchableTokenizationWithoutZone(AcraCatchLogsMixin, BaseTokenization
         self.insert_via_1(default_client_id_table.insert(), data)
         self.insert_via_1(default_client_id_table_join.insert(), data)
 
+        # with aliased column in where statement
         query = 'SELECT id, token_i32, token_i64, token_str, token_email FROM test_tokenization_default_client_id as test_table WHERE test_table.token_i64 = :token_i64'
+        parameters = {'token_i64': data['token_i64']}
+
+        source_data = self.fetch_from_1(sa.text(query), parameters, literal_binds=False)
+        for k in ('token_i32', 'token_i64', 'token_str', 'token_email'):
+            if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+                self.assertEqual(source_data[0][k], data[k].encode('utf-8'))
+            else:
+                self.assertEqual(source_data[0][k], data[k])
+
+        # with non-aliased column in where statement
+        query = 'SELECT id, token_i32, token_i64, token_str, token_email FROM test_tokenization_default_client_id as test_table WHERE token_i64 = :token_i64'
         parameters = {'token_i64': data['token_i64']}
 
         source_data = self.fetch_from_1(sa.text(query), parameters, literal_binds=False)
