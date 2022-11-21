@@ -1,5 +1,15 @@
 schemas:
   # used in test.py
+  - table: test_searchable_limit_offset
+    columns:
+      - id
+      - data
+      - raw_data
+      - empty
+    encrypted:
+      - column: data
+        searchable: true
+
   - table: test_searchable_transparent_encryption
     columns:
       - id

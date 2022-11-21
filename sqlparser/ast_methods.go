@@ -1769,10 +1769,21 @@ func (node *Limit) Format(buf *TrackedBuffer) {
 		return
 	}
 	buf.Myprintf(" limit ")
-	if node.Offset != nil {
-		buf.Myprintf("%v, ", node.Offset)
+	switch node.Type {
+	// PostgreSQL + MySQL
+	case LimitTypeLimitOnly:
+		buf.Myprintf("%v", node.Rowcount)
+	case LimitTypeLimitAndOffset:
+		buf.Myprintf("%v offset %v", node.Rowcount, node.Offset)
+	// MySQL only
+	case LimitTypeCommaSeparated:
+		buf.Myprintf("%v, %v", node.Offset, node.Rowcount)
+	// PostgreSQL only
+	case LimitTypeLimitAll:
+		buf.WriteString("all")
+	case LimitTypeLimitAllAndOffset:
+		buf.Myprintf("all offset %v", node.Offset)
 	}
-	buf.Myprintf("%v", node.Rowcount)
 }
 
 func (node *Limit) walkSubtree(visit Visit) error {

@@ -1345,6 +1345,21 @@ var (
 	}, {
 		input:  "select NULL::text from dual",
 		output: "select null::text from dual",
+	}, { // PostgreSQL & MySQL limit&offset format
+		input:  "select * from dual limit 10 offset 10",
+		output: "select * from dual limit 10 offset 10",
+	}, { // PostgreSQL & MySQL limit&offset format
+		input:  "select * from dual limit 10",
+		output: "select * from dual limit 10",
+	}, { // MySQL format
+		input:  "select * from dual limit 10, 10",
+		output: "select * from dual limit 10, 10",
+	}, { // PostgreSQL format
+		input:  "select * from dual limit all",
+		output: "select * from dual limit all",
+	}, { // PostgreSQL format
+		input:  "select * from dual limit all offset 10",
+		output: "select * from dual limit all offset 10",
 	}}
 )
 

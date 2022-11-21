@@ -2930,15 +2930,23 @@ limit_opt:
   }
 | LIMIT expression
   {
-    $$ = &Limit{Rowcount: $2}
+    $$ = &Limit{Rowcount: $2, Type: LimitTypeLimitOnly}
   }
+| LIMIT ALL
+    {
+      $$ = &Limit{Type: LimitTypeLimitAll}
+    }
 | LIMIT expression ',' expression
   {
-    $$ = &Limit{Offset: $2, Rowcount: $4}
+    $$ = &Limit{Offset: $2, Rowcount: $4, Type: LimitTypeCommaSeparated}
   }
 | LIMIT expression OFFSET expression
   {
-    $$ = &Limit{Offset: $4, Rowcount: $2}
+    $$ = &Limit{Offset: $4, Rowcount: $2, Type: LimitTypeLimitAndOffset}
+  }
+| LIMIT ALL OFFSET expression
+  {
+    $$ = &Limit{Offset: $4, Type: LimitTypeLimitAllAndOffset}
   }
 
 lock_opt:

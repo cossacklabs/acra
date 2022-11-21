@@ -135,7 +135,9 @@ else:
 COLUMN_DATA_SIZE = (TEST_RANDOM_DATA_CONFIG['data_max_size'] + 200) * 2
 metadata = sa.MetaData()
 test_table = sa.Table('test', metadata,
-    sa.Column('id', sa.Integer, primary_key=True),
+    # sometimes MariaDB ignores explicitly set ID and uses auto incremented values
+    # in most of tests we epxlicitly set id value
+    sa.Column('id', sa.Integer, primary_key=True, autoincrement=False),
     sa.Column('data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
     sa.Column('raw_data', sa.Text),
     sa.Column('nullable_column', sa.Text, nullable=True),
@@ -11649,6 +11651,238 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
                 os.kill(pid, signal.SIGKILL)
             stop_process(translator)
             os.remove(config['log_to_file'])
+
+
+class LimitOffsetQueryTest(BaseTransparentEncryption):
+    encryptor_table = sa.Table(
+        'test_searchable_limit_offset', metadata,
+        sa.Column('id', sa.Integer, primary_key=True, autoincrement=False),
+        sa.Column('data',
+                  sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+        sa.Column('raw_data', sa.Text),
+        sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+    )
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_encryptor_config.yaml')
+
+    def setUp(self):
+        super().setUp()
+        self.engine_raw.execute(sa.delete(self.encryptor_table))
+        self.engine_raw.execute(sa.delete(test_table))
+
+    def testSearchableQueries(self):
+        limit_count = 3
+        offset_index = 3
+        searchable_data = 'searchable data'
+        data_amount = 10
+        testCase = collections.namedtuple('TestCase', ['query', 'limit', 'offset'])
+        test_cases = [
+            testCase(
+                query="select id, data, raw_data, empty from {table_name} where data='{data}' "
+                      "order by id LIMIT {limit}".format(
+                    limit=limit_count, table_name=self.encryptor_table.name, data=searchable_data),
+                limit=limit_count,
+                offset=0,
+            ),
+            testCase(
+                query="select id, data, raw_data, empty from {table_name} where data='{data}' order by id "
+                      "LIMIT {limit} OFFSET {offset}".format(
+                    limit=limit_count, table_name=self.encryptor_table.name, offset=offset_index, data=searchable_data),
+                limit=limit_count,
+                offset=offset_index,
+            ),
+        ]
+        mysql_cases = [
+            testCase(
+                query="select id, data, raw_data, empty from {table_name} where data='{data}' order by id "
+                      "LIMIT {offset}, {limit}".format(
+                    limit=limit_count, table_name=self.encryptor_table.name, offset=offset_index, data=searchable_data),
+                limit=limit_count,
+                offset=offset_index,
+            ),
+        ]
+        postgresql_cases = [
+            testCase(
+                query="select id, data, raw_data, empty from {table_name} where data='{data}' order by id "
+                      "LIMIT ALL".format(
+                    table_name=self.encryptor_table.name, data=searchable_data),
+                limit=data_amount,
+                offset=0,
+            ),
+            testCase(
+                query="select id, data, raw_data, empty from {table_name} where data='{data}' order by id "
+                      "LIMIT ALL OFFSET {offset}".format(
+                    table_name=self.encryptor_table.name, offset=offset_index, data=searchable_data),
+                limit=data_amount,
+                offset=offset_index,
+            ),
+        ]
+        if TEST_MYSQL:
+            test_cases += mysql_cases
+        elif TEST_POSTGRESQL:
+            test_cases += postgresql_cases
+        data_set = []
+
+        for i in range(data_amount):
+            if i % 2 == 0:
+                row = {'id': i, 'data': searchable_data.encode('ascii'), 'raw_data': searchable_data}
+            else:
+                data = get_pregenerated_random_data().encode('ascii')
+                row = {'id': i, 'data': data, 'raw_data': data}
+            data_set.append(row)
+            self.engine1.execute(self.encryptor_table.insert(), row)
+
+        for test_case in test_cases:
+            result = self.engine1.execute(sa.text(test_case.query)).fetchall()
+            # simulate search logic
+            expected_data_slice = [i
+                                   for i in data_set
+                                   if i['id'] % 2 == 0]
+            expected_data_slice = expected_data_slice[test_case.offset:test_case.offset+test_case.limit]
+            self.assertEqual(len(expected_data_slice), len(result))
+            for i, row in enumerate(result):
+                self.assertEqual(row['id'], expected_data_slice[i]['id'])
+                self.assertEqual(utils.memoryview_to_bytes(row['data']),
+                                 expected_data_slice[i]['raw_data'].encode('ascii'))
+                self.assertEqual(row['raw_data'], expected_data_slice[i]['raw_data'])
+                self.assertEqual(row['empty'], b'')
+
+        for test_case in test_cases:
+            result = self.engine2.execute(sa.text(test_case.query)).fetchall()
+            self.assertEqual(len(result), 0)
+
+    def get_testcases(self, data_amount):
+        # randomly chosen
+        limit_count = 3
+        offset_index = 3
+        testCase = collections.namedtuple('TestCase', ['query', 'limit', 'offset'])
+        test_cases = [
+            testCase(
+                query='select id, data, raw_data, empty from {table_name} order by id LIMIT {limit}'.format(
+                    limit=limit_count, table_name=test_table.name),
+                limit=limit_count,
+                offset=0,
+            ),
+            testCase(
+                query='select id, data, raw_data, empty from {table_name} order by id LIMIT {limit} OFFSET {offset}'.format(
+                    limit=limit_count, table_name=test_table.name, offset=offset_index),
+                limit=limit_count,
+                offset=offset_index,
+            ),
+        ]
+        mysql_cases = [
+            testCase(
+                query='select id, data, raw_data, empty from {table_name} order by id LIMIT {offset}, {limit}'.format(
+                    limit=limit_count, table_name=test_table.name, offset=offset_index),
+                limit=limit_count,
+                offset=offset_index,
+            ),
+        ]
+        postgresql_cases = [
+            testCase(
+                query='select id, data, raw_data, empty from {table_name} order by id LIMIT ALL'.format(
+                    table_name=test_table.name),
+                limit=data_amount,
+                offset=0,
+            ),
+            testCase(
+                query='select id, data, raw_data, empty from {table_name} order by id LIMIT ALL OFFSET {offset}'.format(
+                    table_name=test_table.name, offset=offset_index),
+                limit=data_amount,
+                offset=offset_index,
+            ),
+        ]
+        if TEST_MYSQL:
+            test_cases += mysql_cases
+        elif TEST_POSTGRESQL:
+            test_cases += postgresql_cases
+        return test_cases
+
+    def testAcrastructRead(self):
+        client_id = TLS_CERT_CLIENT_ID_1
+        server_public1 = read_storage_public_key(client_id, KEYS_FOLDER.name)
+        data_set = []
+        for i in range(10):
+            data = get_pregenerated_random_data()
+            acra_struct = create_acrastruct(
+                data.encode('ascii'), server_public1)
+            self.log(storage_client_id=client_id,
+                     data=acra_struct, expected=data.encode('ascii'))
+            row = {'id': i, 'data': acra_struct, 'raw_data': data}
+            data_set.append(row)
+            self.engine1.execute(test_table.insert(), row)
+
+        test_cases = self.get_testcases(len(data_set))
+        for test_case in test_cases:
+            result = self.engine1.execute(sa.text(test_case.query)).fetchall()
+            expected_data_slice = data_set[test_case.offset:test_case.offset+test_case.limit]
+            self.assertEqual(len(expected_data_slice), len(result))
+            for i, row in enumerate(result):
+                self.assertEqual(row['id'], expected_data_slice[i]['id'])
+                self.assertEqual(utils.memoryview_to_bytes(row['data']),
+                                 expected_data_slice[i]['raw_data'].encode('ascii'))
+                self.assertEqual(row['raw_data'], expected_data_slice[i]['raw_data'])
+                self.assertEqual(row['empty'], b'')
+
+        # requests by another client without permissions
+        for test_case in test_cases:
+            result = self.engine2.execute(sa.text(test_case.query)).fetchall()
+            expected_data_slice = data_set[test_case.offset:test_case.offset+test_case.limit]
+            self.assertEqual(len(expected_data_slice), len(result))
+            for i, row in enumerate(result):
+                self.assertEqual(row['id'], expected_data_slice[i]['id'])
+                self.assertNotEqual(
+                    utils.memoryview_to_bytes(row['data']), expected_data_slice[i]['raw_data'].encode('ascii'))
+                self.assertEqual(row['raw_data'], expected_data_slice[i]['raw_data'])
+                self.assertEqual(row['empty'], b'')
+
+    def testReadAcrastructInAcrastruct(self):
+        client_id = TLS_CERT_CLIENT_ID_1
+        server_public1 = read_storage_public_key(client_id, KEYS_FOLDER.name)
+
+        # use one sample of outer invalid acrastruct
+        fake_offset = (3+45+84) - 4
+        incorrect_data = get_pregenerated_random_data()
+        suffix_data = get_pregenerated_random_data()[:10]
+        fake_acra_struct = create_acrastruct(
+            incorrect_data.encode('ascii'), server_public1)[:fake_offset]
+        data_set = []
+        for i in range(10):
+            correct_data = get_pregenerated_random_data()
+            inner_acra_struct = create_acrastruct(
+                correct_data.encode('ascii'), server_public1)
+            data = fake_acra_struct + inner_acra_struct + suffix_data.encode('ascii')
+            correct_data = correct_data + suffix_data
+            self.log(storage_client_id=client_id,
+                     data=data,
+                     expected=fake_acra_struct+correct_data.encode('ascii'))
+            row = {'id': i, 'data': data, 'raw_data': correct_data}
+            data_set.append(row)
+            self.engine1.execute(test_table.insert(), row)
+
+        test_cases = self.get_testcases(len(data_set))
+        for test_case in test_cases:
+            result = self.engine1.execute(sa.text(test_case.query)).fetchall()
+            expected_data_slice = data_set[test_case.offset:test_case.offset+test_case.limit]
+            self.assertEqual(len(expected_data_slice), len(result))
+            for i, row in enumerate(result):
+                self.assertEqual(utils.memoryview_to_bytes(row['data'][fake_offset:]), row['raw_data'].encode('utf-8'))
+                self.assertEqual(utils.memoryview_to_bytes(row['data'][:fake_offset]), fake_acra_struct[:fake_offset])
+
+                self.assertEqual(row['id'], expected_data_slice[i]['id'])
+                self.assertEqual(row['raw_data'], expected_data_slice[i]['raw_data'])
+                self.assertEqual(row['empty'], b'')
+
+        for test_case in test_cases:
+            result = self.engine2.execute(sa.text(test_case.query)).fetchall()
+            expected_data_slice = data_set[test_case.offset:test_case.offset+test_case.limit]
+            self.assertEqual(len(expected_data_slice), len(result))
+            for i, row in enumerate(result):
+                self.assertNotEqual(utils.memoryview_to_bytes(row['data'][fake_offset:]).decode('ascii', errors='ignore'),
+                                    row['raw_data'])
+
+                self.assertEqual(row['id'], expected_data_slice[i]['id'])
+                self.assertEqual(row['raw_data'], expected_data_slice[i]['raw_data'])
+                self.assertEqual(row['empty'], b'')
 
 
 if __name__ == '__main__':
