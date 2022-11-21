@@ -198,7 +198,13 @@ func findColumnInfo(fromExpr sqlparser.TableExprs, colName *sqlparser.ColName, s
 		alias = columnTable
 	}
 
-	return findTableName(alias, columnName, fromExpr)
+	info, err := findTableName(alias, columnName, fromExpr)
+	if err != nil {
+		return columnInfo{}, err
+	}
+	info.Alias = alias
+
+	return info, nil
 }
 
 func getMatchedAliasedTable(fromExpr sqlparser.TableExprs, colName *sqlparser.ColName, tableSchemaStore config.TableSchemaStore) (string, error) {
@@ -431,7 +437,6 @@ func mapColumnsToAliases(selectQuery *sqlparser.Select, tableSchemaStore config.
 			if ok {
 				info, err := findColumnInfo(selectQuery.From, colName, tableSchemaStore, hasTablesWithoutAliases)
 				if err == nil {
-					info.Alias = colName.Qualifier.Name.RawValue()
 					out = append(out, &info)
 					continue
 				}
