@@ -750,9 +750,14 @@ func realMain() error {
 
 	log.Infof("Start listening to connections. Current PID: %v", os.Getpid())
 
+	// by default should be false
+	sqlparser.SetTokenizerVerbosity(false)
+	sqlparser.SetSQLParserErrorVerboseLevel(false)
 	if *debug {
 		log.Infof("Enabling DEBUG log level")
 		logging.SetLogLevel(logging.LogDebug)
+		sqlparser.SetSQLParserErrorVerboseLevel(true)
+		sqlparser.SetTokenizerVerbosity(true)
 	} else if *verbose {
 		log.Infof("Enabling VERBOSE log level")
 		logging.SetLogLevel(logging.LogVerbose)

@@ -1613,6 +1613,7 @@ func TestKeywords(t *testing.T) {
 }
 
 func TestConvert(t *testing.T) {
+	SetTokenizerVerbosity(true)
 	validSQL := []struct {
 		input  string
 		output string
@@ -2225,6 +2226,7 @@ var (
 
 func TestErrors(t *testing.T) {
 	var dialect dialect.Dialect
+	SetTokenizerVerbosity(true)
 	for i, tcase := range invalidSQL {
 		if tcase.dialect == nil {
 			dialect = mysql.NewMySQLDialect()

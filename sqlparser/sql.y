@@ -50,6 +50,19 @@ func forceEOF(yylex interface{}) {
   yylex.(*Tokenizer).ForceEOF = true
 }
 
+// setErrorVerbose configures format of ErrorMessages from parser. If false then only "syntax error" will be shown.
+// Default is false
+func SetSQLParserErrorVerboseLevel(verbose bool) {
+  yyErrorVerbose = verbose
+}
+
+// setDebugLevel configures debug level of log messages from parser. Default is 0
+func setDebugLevel(level int) {
+    if level < 0 {
+        panic("unsupported debug level for sqlparser")
+    }
+    yyDebug = level
+}
 %}
 
 %union {

@@ -72,7 +72,11 @@ func (p Parser) HandleRawSQLQuery(sql string) (normalizedQuery, redactedQuery st
 func (p Parser) Parse(sql string) (Statement, error) {
 	statement, err := ParseWithDialect(defaultDialect, sql)
 	if err != nil && p.parseQueryErrorMode == ModeDefault {
-		log.Println("ignoring error of non parsed sql statement")
+		if log.GetLevel() == log.DebugLevel {
+			log.WithError(err).Debugln("ignoring error of non parsed sql statement")
+		} else {
+			log.Warningln("ignoring error of non parsed sql statement")
+		}
 		return NotParsedStatement{Query: sql}, nil
 	}
 	return statement, err
