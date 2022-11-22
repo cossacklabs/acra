@@ -12,6 +12,9 @@ func TestGetTableSchemaOfColumnMatchConfigTable(t *testing.T) {
 	configStr := `
 schemas:
   - table: sometableinuppercase
+    columns:
+      - default_client_id
+      - specified_client_id
     encrypted: 
       - column: "default_client_id"
       - column: specified_client_id
@@ -30,7 +33,7 @@ schemas:
 	}
 
 	selectQuery := stmt.(*sqlparser.Select)
-	columnInfo, err := findColumnInfo(selectQuery.From, selectQuery.Where.Expr.(*sqlparser.ComparisonExpr).Left.(*sqlparser.ColName), schemaStore, true)
+	columnInfo, err := findColumnInfo(selectQuery.From, selectQuery.Where.Expr.(*sqlparser.ComparisonExpr).Left.(*sqlparser.ColName), schemaStore)
 	if err != nil {
 		t.Fatalf("Can't find column info: %s", err.Error())
 	}

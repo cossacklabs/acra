@@ -140,7 +140,6 @@ func isSupportedSQLVal(val *sqlparser.SQLVal) bool {
 // filterColumnEqualComparisonExprs return only <ColName> = <VALUE> or <ColName> != <VALUE> or <ColName> <=> <VALUE> expressions
 func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(stmt sqlparser.SQLNode, tableExpr sqlparser.TableExprs) ([]SearchableExprItem, error) {
 	var exprs []SearchableExprItem
-	var hasTablesWithoutAliases = hasTablesWithoutAliases(tableExpr)
 
 	err := sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
 		comparisonExpr, ok := node.(*sqlparser.ComparisonExpr)
@@ -153,7 +152,7 @@ func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(stmt sqlpa
 			return true, nil
 		}
 
-		columnInfo, err := findColumnInfo(tableExpr, lColumn, filter.schemaStore, hasTablesWithoutAliases)
+		columnInfo, err := findColumnInfo(tableExpr, lColumn, filter.schemaStore)
 		if err != nil {
 			return true, nil
 		}
@@ -174,7 +173,7 @@ func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(stmt sqlpa
 		if rColumn, ok := comparisonExpr.Right.(*sqlparser.ColName); ok {
 			// get right columnSetting to check weather it is searchable too
 
-			columnInfo, err := findColumnInfo(tableExpr, rColumn, filter.schemaStore, hasTablesWithoutAliases)
+			columnInfo, err := findColumnInfo(tableExpr, rColumn, filter.schemaStore)
 			if err != nil {
 				return true, nil
 			}

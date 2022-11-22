@@ -263,8 +263,8 @@ func TestSearchableWithJoinsWithTextFormat(t *testing.T) {
 		{Query: "SELECT * FROM table1 t1 inner join test_table_2 t3 on t3.data1='some_data'"},
 		{Query: "SELECT * FROM test_table_2 inner join table1 t2 on data2='some_data'"},
 		{Query: "SELECT * FROM test_table inner join test_table_2 t2 on data1='some_data'"},
-		{Query: "SELECT value1 FROM test_table t1, test_table_2 where data1='some_data'"},
-		{Query: "SELECT value1 FROM test as tt, test_table_2 t2, test_table where data1='some_data'"},
+		{Query: "SELECT value1 FROM test_table t1, test_table_2 where t1.data1='some_data'"},
+		{Query: "SELECT value1 FROM test as tt, test_table_2 t2, test_table where data2='some_data'"},
 	}
 
 	encryptors := []*HashQuery{NewMysqlHashQuery(keyStore, schema, registryHandler)}
