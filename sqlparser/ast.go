@@ -1677,6 +1677,7 @@ const (
 	AscNullsLastScr   = "asc nulls last"
 )
 
+// LimitType represents type of statements format
 type LimitType int8
 
 const (
