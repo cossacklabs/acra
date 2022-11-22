@@ -1345,6 +1345,24 @@ var (
 	}, {
 		input:  "select NULL::text from dual",
 		output: "select null::text from dual",
+	}, { // PostgreSQL & MySQL limit&offset format
+		input:  "select * from dual limit 10 offset 10",
+		output: "select * from dual limit 10 offset 10",
+	}, { // PostgreSQL & MySQL limit&offset format
+		input:  "select * from dual limit 10",
+		output: "select * from dual limit 10",
+	}, { // MySQL format
+		input:   "select * from dual limit 10, 10",
+		output:  "select * from dual limit 10, 10",
+		dialect: mysql.NewMySQLDialect(),
+	}, { // PostgreSQL format
+		input:   "select * from dual limit all",
+		output:  "select * from dual limit all",
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, { // PostgreSQL format
+		input:   "select * from dual limit all offset 10",
+		output:  "select * from dual limit all offset 10",
+		dialect: postgresql.NewPostgreSQLDialect(),
 	}}
 )
 
@@ -1595,6 +1613,7 @@ func TestKeywords(t *testing.T) {
 }
 
 func TestConvert(t *testing.T) {
+	SetTokenizerVerbosity(true)
 	validSQL := []struct {
 		input  string
 		output string
@@ -2207,6 +2226,7 @@ var (
 
 func TestErrors(t *testing.T) {
 	var dialect dialect.Dialect
+	SetTokenizerVerbosity(true)
 	for i, tcase := range invalidSQL {
 		if tcase.dialect == nil {
 			dialect = mysql.NewMySQLDialect()

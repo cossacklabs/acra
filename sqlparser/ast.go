@@ -1677,9 +1677,28 @@ const (
 	AscNullsLastScr   = "asc nulls last"
 )
 
+// LimitType represents type of statements format
+type LimitType int8
+
+const (
+	// LimitTypeLimitOnly is type of LIMIT row_count format
+	LimitTypeLimitOnly LimitType = iota
+	//LimitTypeCommaSeparated is type of  LIMIT {[offset,] row_count}, MySQL format
+	// https://dev.mysql.com/doc/refman/8.0/en/select.html
+	LimitTypeCommaSeparated
+	// LimitTypeLimitAndOffset is type of LIMIT row_count OFFSET offset
+	LimitTypeLimitAndOffset
+	// LimitTypeLimitAll is type of LIMIT ALL, PostgreSQL format
+	// https://www.postgresql.org/docs/current/sql-select.html#SQL-LIMIT
+	LimitTypeLimitAll
+	// LimitTypeLimitAllAndOffset is type of LIMIT ALL OFFSET offset
+	LimitTypeLimitAllAndOffset
+)
+
 // Limit represents a LIMIT clause.
 type Limit struct {
 	Offset, Rowcount Expr
+	Type             LimitType
 }
 
 // Values represents a VALUES clause.

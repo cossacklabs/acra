@@ -69,6 +69,7 @@ func TestParseNextValid(t *testing.T) {
 // SQL statement can be passed afterwards.
 func TestParseNextErrors(t *testing.T) {
 	var testDialect dialect.Dialect
+	SetTokenizerVerbosity(true)
 	for _, tcase := range invalidSQL {
 		if tcase.excludeMulti {
 			// Skip tests which leave unclosed strings, or comments.
