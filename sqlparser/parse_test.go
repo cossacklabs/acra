@@ -1352,14 +1352,17 @@ var (
 		input:  "select * from dual limit 10",
 		output: "select * from dual limit 10",
 	}, { // MySQL format
-		input:  "select * from dual limit 10, 10",
-		output: "select * from dual limit 10, 10",
+		input:   "select * from dual limit 10, 10",
+		output:  "select * from dual limit 10, 10",
+		dialect: mysql.NewMySQLDialect(),
 	}, { // PostgreSQL format
-		input:  "select * from dual limit all",
-		output: "select * from dual limit all",
+		input:   "select * from dual limit all",
+		output:  "select * from dual limit all",
+		dialect: postgresql.NewPostgreSQLDialect(),
 	}, { // PostgreSQL format
-		input:  "select * from dual limit all offset 10",
-		output: "select * from dual limit all offset 10",
+		input:   "select * from dual limit all offset 10",
+		output:  "select * from dual limit all offset 10",
+		dialect: postgresql.NewPostgreSQLDialect(),
 	}}
 )
 

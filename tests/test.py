@@ -11665,9 +11665,22 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_encryptor_config.yaml')
 
     def setUp(self):
+        # should be before setUp and fork_acra
+        self.log_file = tempfile.NamedTemporaryFile()
         super().setUp()
         self.engine_raw.execute(sa.delete(self.encryptor_table))
         self.engine_raw.execute(sa.delete(test_table))
+
+    def tearDown(self):
+        super().tearDown()
+        os.remove(self.log_file.name)
+
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        acra_kwargs['encryptor_config_file'] = get_test_encryptor_config(
+            self.ENCRYPTOR_CONFIG)
+        acra_kwargs['log_to_file'] = self.log_file.name
+        return super(BaseTransparentEncryption, self).fork_acra(
+            popen_kwargs, **acra_kwargs)
 
     def testSearchableQueries(self):
         limit_count = 3
@@ -11769,6 +11782,7 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
                 offset=offset_index,
             ),
         ]
+        failure_cases = []
         mysql_cases = [
             testCase(
                 query='select id, data, raw_data, empty from {table_name} order by id LIMIT {offset}, {limit}'.format(
@@ -11793,9 +11807,11 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
         ]
         if TEST_MYSQL:
             test_cases += mysql_cases
+            failure_cases += postgresql_cases
         elif TEST_POSTGRESQL:
             test_cases += postgresql_cases
-        return test_cases
+            failure_cases += mysql_cases
+        return test_cases, failure_cases
 
     def testAcrastructRead(self):
         client_id = TLS_CERT_CLIENT_ID_1
@@ -11811,7 +11827,7 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
             data_set.append(row)
             self.engine1.execute(test_table.insert(), row)
 
-        test_cases = self.get_testcases(len(data_set))
+        test_cases, _ = self.get_testcases(len(data_set))
         for test_case in test_cases:
             result = self.engine1.execute(sa.text(test_case.query)).fetchall()
             expected_data_slice = data_set[test_case.offset:test_case.offset+test_case.limit]
@@ -11859,7 +11875,7 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
             data_set.append(row)
             self.engine1.execute(test_table.insert(), row)
 
-        test_cases = self.get_testcases(len(data_set))
+        test_cases, _ = self.get_testcases(len(data_set))
         for test_case in test_cases:
             result = self.engine1.execute(sa.text(test_case.query)).fetchall()
             expected_data_slice = data_set[test_case.offset:test_case.offset+test_case.limit]
@@ -11883,6 +11899,47 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
                 self.assertEqual(row['id'], expected_data_slice[i]['id'])
                 self.assertEqual(row['raw_data'], expected_data_slice[i]['raw_data'])
                 self.assertEqual(row['empty'], b'')
+
+    def testFailureQueries(self):
+        _, failure_cases = self.get_testcases(10)
+        for test_case in failure_cases:
+            # clear all previous log entries
+            self.log_file.truncate(0)
+            with self.assertRaises(sa.exc.ProgrammingError) as exc:
+                # check that database doesn't pass it too
+                self.engine1.execute(sa.text(test_case.query))
+            if TEST_POSTGRESQL:
+                self.assertIsInstance(exc.exception.orig, psycopg2.errors.SyntaxError)
+            elif TEST_MYSQL:
+                self.assertIsInstance(exc.exception.orig, pymysql.err.ProgrammingError)
+                self.assertIn("You have an error in your SQL syntax;", exc.exception.orig.args[1])
+            else:
+                raise exc.exception
+
+            # check that acra-server didn't parse it too
+            # find our query in the log output
+            # next after the query should be log entry about parsing error
+            success = False
+            with open(self.log_file.name, 'r', encoding='utf8') as f:
+                while True:
+                    line = f.readline()
+                    if not line:
+                        break
+                    if test_case.query in line:
+                        new_line = f.readline()
+                        self.assertIn('ignoring error of non parsed sql statement', new_line)
+                        if TEST_POSTGRESQL:
+                            self.assertIn("PostgreSQL dialect doesn't allow 'LIMIT offset, limit' syntax of LIMIT "
+                                          "statements", new_line)
+                        elif TEST_MYSQL:
+                            self.assertIn("MySQL dialect doesn't allow 'LIMIT ALL' syntax of LIMIT statements",
+                                          new_line)
+                        else:
+                            self.fail('Unexpected test environment')
+                        success = True
+                        break
+            if not success:
+                self.fail('Not found expected log entry in the acra-server\'s log output')
 
 
 if __name__ == '__main__':

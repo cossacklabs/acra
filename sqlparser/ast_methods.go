@@ -3,8 +3,8 @@ package sqlparser
 import (
 	"errors"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"io"
-	"log"
 	"strings"
 
 	"github.com/cossacklabs/acra/sqlparser/dependency/querypb"

@@ -2934,10 +2934,18 @@ limit_opt:
   }
 | LIMIT ALL
     {
+      if yylex.(*Tokenizer).IsMySQL() {
+        yylex.Error("MySQL dialect doesn't allow 'LIMIT ALL' syntax of LIMIT statements")
+        return 1
+      }
       $$ = &Limit{Type: LimitTypeLimitAll}
     }
 | LIMIT expression ',' expression
   {
+    if yylex.(*Tokenizer).IsPostgreSQL() {
+      yylex.Error("PostgreSQL dialect doesn't allow 'LIMIT offset, limit' syntax of LIMIT statements")
+      return 1
+    }
     $$ = &Limit{Offset: $2, Rowcount: $4, Type: LimitTypeCommaSeparated}
   }
 | LIMIT expression OFFSET expression
@@ -2946,6 +2954,10 @@ limit_opt:
   }
 | LIMIT ALL OFFSET expression
   {
+    if yylex.(*Tokenizer).IsMySQL() {
+      yylex.Error("MySQL dialect doesn't allow 'LIMIT ALL' syntax of LIMIT statements")
+      return 1
+    }
     $$ = &Limit{Offset: $4, Type: LimitTypeLimitAllAndOffset}
   }
 
