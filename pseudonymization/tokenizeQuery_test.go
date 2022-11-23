@@ -237,8 +237,8 @@ func TestSearchableTokenizationWithDefaultTablesTextFormat(t *testing.T) {
 		{ClientID: clientIDTestTable2, Query: "SELECT * FROM test_table_2 inner join table1 t2 on data1='%s'"},
 		// check matching with default table test_table default present in config, test_table_2 in the config too, but hash alias
 		{ClientID: clientIDTestTable, Query: "SELECT * FROM test_table inner join test_table_2 t2 on data1='%s'"},
-		{ClientID: clientIDTestTable2, Query: "SELECT value1 FROM test_table t1, test_table_2 where data1='%s'"},
-		{ClientID: clientIDTestTable, Query: "SELECT value1 FROM test as tt, test_table_2 t2, test_table where data1='%s'"},
+		{ClientID: clientIDTestTable, Query: "SELECT value1 FROM test_table t1, test_table_2 where t1.data1='%s'"},
+		{ClientID: clientIDTestTable2, Query: "SELECT value1 FROM test as tt, test_table_2 t2, test_table where t2.data1='%s'"},
 	}
 
 	parser := sqlparser.New(sqlparser.ModeDefault)

@@ -1,13 +1,13 @@
 package encryptor
 
 import (
+	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
 	"testing"
 
 	"github.com/cossacklabs/acra/decryptor/base/mocks"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/sqlparser/dialect"
-	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
 	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
 	"github.com/stretchr/testify/mock"
 )
@@ -54,6 +54,26 @@ func TestGetFirstTableWithoutAlias(t *testing.T) {
 func TestMapColumnsToAliases(t *testing.T) {
 	parser := sqlparser.New(sqlparser.ModeStrict)
 	t.Run("With enumeration fields query", func(t *testing.T) {
+
+		testConfig := `
+schemas:
+  - table: table5
+    columns:
+      - col5
+    encrypted:
+      - column: col5
+
+  - table: table6
+    columns:
+      - col6
+    encrypted:
+      - column: col6
+`
+		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(testConfig), config.UseMySQL)
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		query := `
 select t1.col1, t1.col2, t2.col1, t2.col2, t3.col1, t4.col4, col5, table6.col6
 from table5, table6
@@ -89,7 +109,7 @@ inner join table6 on table6.col1=t1.col1
 		if !ok {
 			t.Fatal("Test query should be Select expression")
 		}
-		columns, err := mapColumnsToAliases(selectExpr, &config.MapTableSchemaStore{})
+		columns, err := mapColumnsToAliases(selectExpr, schemaStore)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -184,6 +204,14 @@ schemas:
 					{Alias: "alias", Table: "users", Name: "id"},
 					{Alias: "alias", Table: "users", Name: "email"},
 					{Alias: "alias", Table: "users", Name: "mobile_number"},
+				},
+			},
+			{
+				// should return nil, nil, nil as all the columns present in both tables which is invalid
+				query:   `SELECT id, email, mobile_number FROM users, users_duplicate`,
+				dialect: mysql.NewMySQLDialect(),
+				expectedValues: []*columnInfo{
+					nil, nil, nil,
 				},
 			},
 		}
@@ -403,6 +431,25 @@ schemas:
 	})
 
 	t.Run("Asterisk query with subQuery", func(t *testing.T) {
+		testConfig := `
+schemas:
+  - table: table2
+    columns:
+      - value
+    encrypted:
+      - column: value
+
+  - table: table3
+    columns:
+      - value
+    encrypted:
+      - column: value
+`
+		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(testConfig), config.UseMySQL)
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		queries := []string{
 			`select (select value from table2), (select value from table3), * from table1;`,
 		}
@@ -428,7 +475,7 @@ schemas:
 				t.Fatal("Test query should be Select expression")
 			}
 
-			columns, err := mapColumnsToAliases(selectExpr, &config.MapTableSchemaStore{})
+			columns, err := mapColumnsToAliases(selectExpr, schemaStore)
 			if err != nil {
 				t.Fatal(err)
 			}
