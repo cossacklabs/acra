@@ -26,7 +26,9 @@ import (
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
+	"unicode/utf8"
 )
 
 // ErrHMACNotMatch hmac not equal to data in AcraStruct
@@ -84,8 +86,8 @@ func (p *Processor) Process(data []byte, ctx *base.DataProcessorContext) ([]byte
 	accessContext := base.AccessContextFromContext(ctx.Context)
 
 	columnSetting, ok := encryptor.EncryptionSettingFromContext(ctx.Context)
-	if ok && columnSetting.GetSearchablePrefix() > 0 && len(data) > int(columnSetting.GetSearchablePrefix()) {
-		data = data[:columnSetting.GetSearchablePrefix()]
+	if ok && columnSetting.GetSearchablePrefix() > 0 && utf8.RuneCount(data) > int(columnSetting.GetSearchablePrefix()) {
+		data = utils.GetNRunesAsBytes(string(data), int(columnSetting.GetSearchablePrefix()))
 	}
 
 	if p.hashData != nil && !p.matchedHash.IsEqual(data, accessContext.GetClientID(), p.hmacStore) {

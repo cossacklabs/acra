@@ -22,7 +22,9 @@ import (
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/keystore"
 	estore "github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
+	"unicode/utf8"
 )
 
 // SearchableDataEncryptor adds hash prefix to AcraStruct generated with encryptor.AcrawriterDataEncryptor
@@ -79,8 +81,8 @@ func (e *SearchableDataEncryptor) EncryptWithClientID(clientID, data []byte, set
 				logrus.WithField("searchable_prefix", searchPrefix).
 					Infoln("Insert data with searchable_prefix")
 
-				if len(data) > int(searchPrefix) {
-					hashData = data[:searchPrefix]
+				if utf8.RuneCount(data) > int(searchPrefix) {
+					hashData = utils.GetNRunesAsBytes(string(data), int(searchPrefix))
 				} else {
 					logrus.WithField("data_length", len(data)).WithField("searchable_prefix", searchPrefix).
 						Warningln("Data is less than search_prefix")

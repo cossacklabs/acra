@@ -19,6 +19,7 @@ package decryptor
 import (
 	"context"
 	"fmt"
+	"unicode/utf8"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	queryEncryptor "github.com/cossacklabs/acra/encryptor"
@@ -253,8 +254,8 @@ func (encryptor *HashQuery) calculateHmac(ctx context.Context, data []byte) ([]b
 
 		value := ctx.Value(searchPrefixCtxKey{})
 		columnSetting, ok := value.(config.ColumnEncryptionSetting)
-		if ok && columnSetting.GetSearchablePrefix() > 0 && len(data) > int(columnSetting.GetSearchablePrefix()) {
-			data = data[:columnSetting.GetSearchablePrefix()]
+		if ok && columnSetting.GetSearchablePrefix() > 0 && utf8.RuneCount(data) > int(columnSetting.GetSearchablePrefix()) {
+			data = utils.GetNRunesAsBytes(string(data), int(columnSetting.GetSearchablePrefix()))
 		}
 
 		logrus.Debugln("Searchable column with raw data, replace with HMAC")

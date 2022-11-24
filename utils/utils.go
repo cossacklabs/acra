@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"sync"
 	"time"
+	"unicode/utf8"
 	"unsafe"
 
 	log "github.com/sirupsen/logrus"
@@ -236,4 +237,21 @@ func WaitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 // in the future go versions.
 func BytesToString(data []byte) string {
 	return *(*string)(unsafe.Pointer(&data))
+}
+
+// GetNRunesAsBytes returns correct byte slice for N characters in the string
+func GetNRunesAsBytes(s string, n int) []byte {
+	if n == 0 {
+		return []byte(s)
+	}
+	if n < 0 {
+		panic("incorrect usage of GetNRunesAsBytes with n < 0")
+	}
+	for i, c := range s {
+		n--
+		if n == 0 {
+			return []byte(s)[:i+utf8.RuneLen(c)]
+		}
+	}
+	return []byte(s)
 }

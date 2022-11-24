@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"github.com/cossacklabs/themis/gothemis/keys"
+	"github.com/stretchr/testify/assert"
 	"os"
 	"reflect"
 	"testing"
@@ -129,5 +130,24 @@ func TestBytesToString(t *testing.T) {
 				t.Fatal("Result string uses another block of memory")
 			}
 		})
+	}
+}
+
+func TestGetNRunesAsBytes(t *testing.T) {
+	type testcase struct {
+		in         string
+		out        []byte
+		runeLength int
+		outLength  int
+	}
+	testcases := []testcase{
+		// each cyrillic symbol represented as 2 bytes
+		{`ыіґtest`, []byte{209, 139, 209, 150, 210, 145}, 3, 6},
+		{`test`, []byte{'t', 'e', 's'}, 3, 3},
+	}
+	for _, tcase := range testcases {
+		out := GetNRunesAsBytes(tcase.in, tcase.runeLength)
+		assert.Equal(t, out, tcase.out)
+		assert.Equal(t, len(out), tcase.outLength)
 	}
 }
