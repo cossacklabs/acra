@@ -86,6 +86,11 @@ func (s *emptyEncryptionSetting) GetSearchablePrefix() uint8 {
 	panic("implement me")
 }
 
+func (s *emptyEncryptionSetting) GetDBDataTypeID() uint32 {
+	panic("implement me")
+}
+
+
 func (s *emptyEncryptionSetting) GetEncryptedDataType() common2.EncryptedType {
 	panic("implement me")
 }

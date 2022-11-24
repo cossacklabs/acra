@@ -242,18 +242,18 @@ func realMain() error {
 	}
 	serverConfig.SetDBConnectionSettings(*dbHost, *dbPort)
 
-	if config_loader.IsEncryptorConfigLoaderCLIConfigured() {
-		if err := serverConfig.LoadMapTableSchemaConfig(*encryptorConfigStorageType); err != nil {
-			log.WithError(err).Errorln("Can't load encryptor config")
-			return err
-		}
-		log.Infoln("Encryptor configuration loaded")
-	}
-
 	if err := serverConfig.SetDatabaseType(*useMysql, *usePostgresql); err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
 			Errorln("Can't configure database type")
 		return err
+	}
+
+	if config_loader.IsEncryptorConfigLoaderCLIConfigured() {
+		if err := serverConfig.LoadMapTableSchemaConfig(*encryptorConfigStorageType, *useMysql); err != nil {
+			log.WithError(err).Errorln("Can't load encryptor config")
+			return err
+		}
+		log.Infoln("Encryptor configuration loaded")
 	}
 
 	if err := serverConfig.SetCensor(*censorConfig); err != nil {
@@ -750,9 +750,14 @@ func realMain() error {
 
 	log.Infof("Start listening to connections. Current PID: %v", os.Getpid())
 
+	// by default should be false
+	sqlparser.SetTokenizerVerbosity(false)
+	sqlparser.SetSQLParserErrorVerboseLevel(false)
 	if *debug {
 		log.Infof("Enabling DEBUG log level")
 		logging.SetLogLevel(logging.LogDebug)
+		sqlparser.SetSQLParserErrorVerboseLevel(true)
+		sqlparser.SetTokenizerVerbosity(true)
 	} else if *verbose {
 		log.Infof("Enabling VERBOSE log level")
 		logging.SetLogLevel(logging.LogVerbose)

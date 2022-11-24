@@ -6,16 +6,21 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
+	"math"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/cossacklabs/acra/decryptor/base"
+	_ "github.com/cossacklabs/acra/decryptor/postgresql/types"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
 	common2 "github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/jackc/pgx/pgtype"
 	"github.com/sirupsen/logrus"
 )
 
@@ -49,6 +54,14 @@ func TestEncodingDecodingProcessorBinaryIntData(t *testing.T) {
 		7: "int64",
 	}
 
+	sizeToDataTypeID := map[int]uint32{
+		4: pgtype.Int4OID,
+		8: pgtype.Int8OID,
+		// set correct values for incorrect sizes
+		3: pgtype.Int4OID,
+		7: pgtype.Int8OID,
+	}
+
 	encoder, err := NewPgSQLDataEncoderProcessor()
 	if err != nil {
 		t.Fatal(err)
@@ -64,8 +77,9 @@ func TestEncodingDecodingProcessorBinaryIntData(t *testing.T) {
 		accessContext.SetColumnInfo(columnInfo)
 		ctx := base.SetAccessContextToContext(context.Background(), accessContext)
 		testSetting := config.BasicColumnEncryptionSetting{
-			DataType:  sizeToTokenType[tcase.binarySize],
-			TokenType: sizeToTokenType[tcase.binarySize]}
+			DataType:   sizeToTokenType[tcase.binarySize],
+			DataTypeID: sizeToDataTypeID[tcase.binarySize],
+			TokenType:  sizeToTokenType[tcase.binarySize]}
 		ctx = encryptor.NewContextWithEncryptionSetting(ctx, &testSetting)
 		ctx, strData, err := decoder.OnColumn(ctx, tcase.binValue)
 		if err != tcase.decodeErr {
@@ -151,15 +165,15 @@ func TestTextMode(t *testing.T) {
 		// decoder expects valid string and pass as is, so no errors. but on encode operation it expects valid int literal
 		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte("some data"),
 			decodeErr: nil, encodeErr: nil,
-			setting:    &config.BasicColumnEncryptionSetting{TokenType: "int32", DataType: "int32"},
+			setting:    &config.BasicColumnEncryptionSetting{TokenType: "int32", DataType: "int32", DataTypeID: pgtype.Int4OID},
 			logMessage: `Can't decode int value and no default value`},
 
 		{input: []byte("123"), decodedData: []byte("123"), encodedData: []byte("123"), decodeErr: nil, encodeErr: nil,
-			setting: &config.BasicColumnEncryptionSetting{TokenType: "int32", DataType: "int32"}},
+			setting: &config.BasicColumnEncryptionSetting{TokenType: "int32", DataType: "int32", DataTypeID: pgtype.Int4OID}},
 
 		// encryption/decryption integer data, not tokenization
 		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte("some data"), decodeErr: nil, encodeErr: nil,
-			setting:    &config.BasicColumnEncryptionSetting{DataType: "int32"},
+			setting:    &config.BasicColumnEncryptionSetting{DataType: "int32", DataTypeID: pgtype.Int4OID},
 			logMessage: `Can't decode int value and no default value`},
 
 		// encryption/decryption integer data, not tokenization
@@ -172,6 +186,7 @@ func TestTextMode(t *testing.T) {
 			setting: &config.BasicColumnEncryptionSetting{
 				TokenType:        "int32",
 				DataType:         "int32",
+				DataTypeID:       pgtype.Int4OID,
 				ResponseOnFail:   common2.ResponseOnFailDefault,
 				DefaultDataValue: &strDefaultValue,
 			},
@@ -179,14 +194,14 @@ func TestTextMode(t *testing.T) {
 
 		// string values can contain hex values and should be returned as is
 		{input: []byte("\\xTT"), decodedData: []byte("\\xTT"), encodedData: []byte("\\xTT"), decodeErr: hex.InvalidByteError('T'), encodeErr: nil,
-			setting: &config.BasicColumnEncryptionSetting{DataType: "str"}},
+			setting: &config.BasicColumnEncryptionSetting{DataType: "str", DataTypeID: pgtype.TextOID}},
 
 		// invalid binary hex value that should not be decoded on Decode stage and processed as is and encode into hex format
 		{input: []byte("\\xTT"), decodedData: []byte("\\xTT"), encodedData: []byte("\\x5c785454"), decodeErr: hex.InvalidByteError('T'), encodeErr: nil,
-			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes"}},
+			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes", DataTypeID: pgtype.ByteaOID}},
 
 		{input: []byte(encodedStringWithControlCharacters), decodedData: []byte(stringWithControlCharacters), encodedData: []byte(encodedStringWithControlCharacters), decodeErr: nil, encodeErr: nil,
-			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes"}},
+			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes", DataTypeID: pgtype.ByteaOID}},
 
 		{input: []byte(stringWithControlCharacters), decodedData: []byte(stringWithControlCharacters), encodedData: []byte(stringWithControlCharacters), decodeErr: nil, encodeErr: nil,
 			setting: nil},
@@ -198,20 +213,20 @@ func TestTextMode(t *testing.T) {
 			setting: &config.BasicColumnEncryptionSetting{DataType: ""}},
 
 		{input: []byte("valid string"), decodedData: []byte("valid string"), encodedData: []byte("valid string"), decodeErr: nil, encodeErr: nil,
-			setting: &config.BasicColumnEncryptionSetting{DataType: "str"}},
+			setting: &config.BasicColumnEncryptionSetting{DataType: "str", DataTypeID: pgtype.TextOID}},
 
 		// empty values
 		{input: []byte{}, decodedData: []byte{}, encodedData: []byte{}, decodeErr: nil, encodeErr: nil,
-			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes"}},
+			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes", DataTypeID: pgtype.ByteaOID}},
 		// empty values
 		{input: nil, decodedData: nil, encodedData: nil, decodeErr: nil, encodeErr: nil,
-			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes"}},
+			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes", DataTypeID: pgtype.ByteaOID}},
 		// empty values
 		{input: []byte{}, decodedData: []byte{}, encodedData: []byte{}, decodeErr: nil, encodeErr: nil,
-			setting: &config.BasicColumnEncryptionSetting{DataType: "str"}},
+			setting: &config.BasicColumnEncryptionSetting{DataType: "str", DataTypeID: pgtype.TextOID}},
 		// empty values
 		{input: nil, decodedData: nil, encodedData: nil, decodeErr: nil, encodeErr: nil,
-			setting: &config.BasicColumnEncryptionSetting{DataType: "str"}},
+			setting: &config.BasicColumnEncryptionSetting{DataType: "str", DataTypeID: pgtype.TextOID}},
 	}
 
 	columnInfo := base.NewColumnInfo(0, "", false, 4, 0, 0)
@@ -270,17 +285,17 @@ func TestBinaryMode(t *testing.T) {
 		// decoder expects valid string and pass as is, so no errors. but on encode operation it expects valid int literal
 		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte("some data"),
 			decodeErr: nil, encodeErr: nil,
-			setting:    &config.BasicColumnEncryptionSetting{DataType: "int32"},
+			setting:    &config.BasicColumnEncryptionSetting{DataType: "int32", DataTypeID: pgtype.Int4OID},
 			logMessage: `Can't decode int value and no default value`},
 
 		{input: []byte{0, 0, 0, 1}, decodedData: []byte("1"), encodedData: []byte{0, 0, 0, 1}, decodeErr: nil, encodeErr: nil,
-			setting: &config.BasicColumnEncryptionSetting{DataType: "int32"}},
+			setting: &config.BasicColumnEncryptionSetting{DataType: "int32", DataTypeID: pgtype.Int4OID}},
 
 		// encryption/decryption integer data, not tokenization
 		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte("some data"), decodeErr: nil, encodeErr: nil,
-			setting:    &config.BasicColumnEncryptionSetting{DataType: "int32"},
+			setting:    &config.BasicColumnEncryptionSetting{DataType: "int32", DataTypeID: pgtype.Int4OID},
 			logMessage: `Can't decode int value and no default value`},
-
+		//
 		// encryption/decryption integer data, not tokenization
 		{
 			input:       []byte("some data"),
@@ -290,6 +305,7 @@ func TestBinaryMode(t *testing.T) {
 			encodeErr:   nil,
 			setting: &config.BasicColumnEncryptionSetting{
 				DataType:         "int32",
+				DataTypeID:       pgtype.Int4OID,
 				ResponseOnFail:   common2.ResponseOnFailDefault,
 				DefaultDataValue: &strDefaultValue,
 			},
@@ -297,17 +313,17 @@ func TestBinaryMode(t *testing.T) {
 
 		// invalid binary hex value that should not be decoded on Decode stage and processed as is and encode into hex format
 		{input: []byte("\\xTT"), decodedData: []byte("\\xTT"), encodedData: []byte("\\xTT"), decodeErr: nil, encodeErr: nil,
-			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes"}},
+			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes", DataTypeID: pgtype.ByteaOID}},
 		// printable valid value returned as is
 		{input: []byte("valid string"), decodedData: []byte("valid string"), encodedData: []byte("valid string"), decodeErr: nil, encodeErr: nil,
-			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes"}},
+			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes", DataTypeID: pgtype.ByteaOID}},
 
 		// empty values
 		{input: []byte{}, decodedData: []byte{}, encodedData: []byte{}, decodeErr: nil, encodeErr: nil,
-			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes"}},
+			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes", DataTypeID: pgtype.ByteaOID}},
 		// empty values
 		{input: nil, decodedData: nil, encodedData: nil, decodeErr: nil, encodeErr: nil,
-			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes"}},
+			setting: &config.BasicColumnEncryptionSetting{DataType: "bytes", DataTypeID: pgtype.ByteaOID}},
 	}
 
 	columnInfo := base.NewColumnInfo(0, "", true, 4, 0, 0)
@@ -410,7 +426,7 @@ func TestEncodingDecodingTextFormatWithTokenType(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := testSetting.Init(); err != nil {
+		if err := testSetting.Init(false); err != nil {
 			t.Fatal(err)
 		}
 		_, binValue, err := decoder.OnColumn(ctx, tcase.inputValue)
@@ -516,6 +532,7 @@ func TestFailedEncodingInvalidBinaryValue(t *testing.T) {
 	strValue := utils.BytesToString(testData)
 	testSetting = config.BasicColumnEncryptionSetting{
 		DataType:         "bytes",
+		DataTypeID:       pgtype.ByteaOID,
 		ResponseOnFail:   common2.ResponseOnFailDefault,
 		DefaultDataValue: &strValue,
 	}
@@ -539,10 +556,11 @@ func TestErrorOnFail(t *testing.T) {
 	markNotDecrypted := false
 
 	type testcase struct {
-		input     string
-		dataType  string
-		decrypted bool
-		err       error
+		input      string
+		dataType   string
+		decrypted  bool
+		err        error
+		dataTypeID uint32
 	}
 
 	column := "gopher"
@@ -551,27 +569,27 @@ func TestErrorOnFail(t *testing.T) {
 	// check only whether error is returned or not
 	testcases := []testcase{
 		// decryption successfull, we expect no error
-		{"string_decrypted", "str", markDecrypted, nil},
+		{"string_decrypted", "str", markDecrypted, nil, pgtype.TextOID},
 		// decryption failed, we expect error
-		{"string_not_decrypted", "str", markNotDecrypted, base.NewEncodingError(column)},
-
+		{"string_not_decrypted", "str", markNotDecrypted, base.NewEncodingError(column), pgtype.TextOID},
+		//
 		// decryption successfull, we expect no error
-		{"bytes_decrypted", "bytes", markDecrypted, nil},
+		{"bytes_decrypted", "bytes", markDecrypted, nil, pgtype.ByteaOID},
 		// decryption failed, we expect error
-		{"bytes_not_decrypted", "bytes", markNotDecrypted, base.NewEncodingError(column)},
+		{"bytes_not_decrypted", "bytes", markNotDecrypted, base.NewEncodingError(column), pgtype.TextOID},
 
 		// int doesn't care about marked context
 		// valid int returns no error
-		{"-2147483648", "int32", false, nil},
+		{"-2147483648", "int32", false, nil, pgtype.Int4OID},
 		// parsing error returns error
-		{"invalid_int32", "int32", false, base.NewEncodingError(column)},
+		{"invalid_int32", "int32", false, base.NewEncodingError(column), pgtype.Int4OID},
 
-		{"-9223372036854775808", "int64", false, nil},
-		{"invalid_int64", "int64", false, base.NewEncodingError(column)},
+		//{"-9223372036854775808", "int64", false, nil, pgtype.Int4OID},
+		{"invalid_int64", "int64", false, base.NewEncodingError(column), pgtype.Int8OID},
 
 		// unknown type returns no error
-		{"unknown_type_decrypted", "bees", markDecrypted, nil},
-		{"unknown_type_not_decrypted", "bees", markNotDecrypted, nil},
+		{"unknown_type_decrypted", "bees", markDecrypted, nil, 0},
+		{"unknown_type_not_decrypted", "bees", markNotDecrypted, nil, 0},
 	}
 
 	encoder, err := NewPgSQLDataEncoderProcessor()
@@ -583,6 +601,7 @@ func TestErrorOnFail(t *testing.T) {
 		testSetting := config.BasicColumnEncryptionSetting{
 			Name:           column,
 			DataType:       tcase.dataType,
+			DataTypeID:     tcase.dataTypeID,
 			ResponseOnFail: common2.ResponseOnFailError,
 		}
 		ctx := encryptor.NewContextWithEncryptionSetting(context.Background(), &testSetting)
@@ -616,19 +635,20 @@ func TestErrorOnFail(t *testing.T) {
 
 func TestEmptyOnFail(t *testing.T) {
 	type testcase struct {
-		input    string
-		dataType string
-		output   string
+		input      string
+		dataType   string
+		output     string
+		dataTypeID uint32
 	}
 
 	testcases := []testcase{
 		// we don't mark context as decrypted, to trigger
 		// `OnFail` path
-		{"string", "str", "string"},
-		{"bytes", "bytes", "\\x6279746573"},
-		{"invalid_int_32", "int32", "invalid_int_32"},
-		{"invalid_int_64", "int64", "invalid_int_64"},
-		{"unknown_type", "bees", "unknown_type"},
+		{"string", "str", "string", pgtype.TextOID},
+		{"bytes", "bytes", "\\x6279746573", pgtype.ByteaOID},
+		{"invalid_int_32", "int32", "invalid_int_32", pgtype.Int4OID},
+		{"invalid_int_64", "int64", "invalid_int_64", pgtype.Int4OID},
+		{"unknown_type", "bees", "unknown_type", 0},
 	}
 
 	encoder, err := NewPgSQLDataEncoderProcessor()
@@ -639,6 +659,7 @@ func TestEmptyOnFail(t *testing.T) {
 	for _, tcase := range testcases {
 		testSetting := config.BasicColumnEncryptionSetting{
 			DataType:       tcase.dataType,
+			DataTypeID:     tcase.dataTypeID,
 			ResponseOnFail: common2.ResponseOnFailEmpty,
 		}
 		ctx := encryptor.NewContextWithEncryptionSetting(context.Background(), &testSetting)
@@ -678,19 +699,20 @@ func TestCiphertextOnFail(t *testing.T) {
 	// The same as TestEmptyOnFail but `response_on_fail=ciphertext`
 
 	type testcase struct {
-		input    string
-		dataType string
-		output   string
+		input      string
+		dataType   string
+		output     string
+		dataTypeID uint32
 	}
 
 	testcases := []testcase{
 		// we don't mark context as decrypted, to trigger
 		// `OnFail` path
-		{"string", "str", "string"},
-		{"bytes", "bytes", "\\x6279746573"},
-		{"invalid_int_32", "int32", "invalid_int_32"},
-		{"invalid_int_64", "int64", "invalid_int_64"},
-		{"unknown_type", "bees", "unknown_type"},
+		{"string", "str", "string", pgtype.TextOID},
+		{"bytes", "bytes", "\\x6279746573", pgtype.ByteaOID},
+		{"invalid_int_32", "int32", "invalid_int_32", pgtype.Int4OID},
+		{"invalid_int_64", "int64", "invalid_int_64", pgtype.Int8OID},
+		{"unknown_type", "bees", "unknown_type", 0},
 	}
 
 	encoder, err := NewPgSQLDataEncoderProcessor()
@@ -701,6 +723,7 @@ func TestCiphertextOnFail(t *testing.T) {
 	for _, tcase := range testcases {
 		testSetting := config.BasicColumnEncryptionSetting{
 			DataType:       tcase.dataType,
+			DataTypeID:     tcase.dataTypeID,
 			ResponseOnFail: common2.ResponseOnFailCiphertext,
 		}
 		ctx := encryptor.NewContextWithEncryptionSetting(context.Background(), &testSetting)
@@ -744,6 +767,7 @@ func TestDefaultOnFail(t *testing.T) {
 		markDecrypted bool
 		textOutput    []byte
 		binaryOutput  []byte
+		dataTypeID    uint32
 	}
 
 	testcases := []testcase{
@@ -754,6 +778,7 @@ func TestDefaultOnFail(t *testing.T) {
 			markDecrypted: true,
 			textOutput:    []byte("string_decrypted"),
 			binaryOutput:  []byte("string_decrypted"),
+			dataTypeID:    pgtype.TextOID,
 		},
 
 		{
@@ -763,6 +788,7 @@ func TestDefaultOnFail(t *testing.T) {
 			markDecrypted: false,
 			textOutput:    []byte("default"),
 			binaryOutput:  []byte("default"),
+			dataTypeID:    pgtype.TextOID,
 		},
 
 		{
@@ -772,6 +798,7 @@ func TestDefaultOnFail(t *testing.T) {
 			markDecrypted: true,
 			textOutput:    []byte("\\x62797465735f646563727970746564"),
 			binaryOutput:  []byte("bytes_decrypted"),
+			dataTypeID:    pgtype.ByteaOID,
 		},
 
 		{
@@ -781,6 +808,7 @@ func TestDefaultOnFail(t *testing.T) {
 			markDecrypted: false,
 			textOutput:    []byte("\\x636f737361636b6c616273"),
 			binaryOutput:  []byte("cossacklabs"),
+			dataTypeID:    pgtype.ByteaOID,
 		},
 
 		{
@@ -790,6 +818,7 @@ func TestDefaultOnFail(t *testing.T) {
 			markDecrypted: false,
 			textOutput:    []byte("\\x62797465735f6e6f745f6465637279707465645f70617273655f6572726f72"),
 			binaryOutput:  []byte("bytes_not_decrypted_parse_error"),
+			dataTypeID:    pgtype.ByteaOID,
 		},
 
 		{
@@ -799,6 +828,7 @@ func TestDefaultOnFail(t *testing.T) {
 			markDecrypted: true,
 			textOutput:    []byte("123456"),
 			binaryOutput:  []byte{0x00, 0x01, 0xe2, 0x40},
+			dataTypeID:    pgtype.Int4OID,
 		},
 
 		{
@@ -808,6 +838,7 @@ func TestDefaultOnFail(t *testing.T) {
 			markDecrypted: true,
 			textOutput:    []byte("invalid_int32_decrypted"),
 			binaryOutput:  []byte("invalid_int32_decrypted"),
+			dataTypeID:    pgtype.Int4OID,
 		},
 
 		{
@@ -817,6 +848,7 @@ func TestDefaultOnFail(t *testing.T) {
 			markDecrypted: false,
 			textOutput:    []byte("123456"),
 			binaryOutput:  []byte{0x00, 0x01, 0xe2, 0x40},
+			dataTypeID:    pgtype.Int4OID,
 		},
 
 		{
@@ -826,6 +858,7 @@ func TestDefaultOnFail(t *testing.T) {
 			markDecrypted: true,
 			textOutput:    []byte("invalid_int32_invalid_default"),
 			binaryOutput:  []byte("invalid_int32_invalid_default"),
+			dataTypeID:    pgtype.Int4OID,
 		},
 
 		{
@@ -835,6 +868,7 @@ func TestDefaultOnFail(t *testing.T) {
 			markDecrypted: true,
 			textOutput:    []byte("-987654"),
 			binaryOutput:  []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xf0, 0xed, 0xfa},
+			dataTypeID:    pgtype.Int8OID,
 		},
 
 		{
@@ -844,6 +878,7 @@ func TestDefaultOnFail(t *testing.T) {
 			markDecrypted: false,
 			textOutput:    []byte("-987654"),
 			binaryOutput:  []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xf0, 0xed, 0xfa},
+			dataTypeID:    pgtype.Int8OID,
 		},
 
 		{
@@ -853,6 +888,7 @@ func TestDefaultOnFail(t *testing.T) {
 			markDecrypted: true,
 			textOutput:    []byte("invalid_int64_decrypted"),
 			binaryOutput:  []byte("invalid_int64_decrypted"),
+			dataTypeID:    pgtype.Int8OID,
 		},
 
 		{
@@ -862,6 +898,7 @@ func TestDefaultOnFail(t *testing.T) {
 			markDecrypted: true,
 			textOutput:    []byte("invalid_int64_invalid_default"),
 			binaryOutput:  []byte("invalid_int64_invalid_default"),
+			dataTypeID:    pgtype.Int8OID,
 		},
 
 		{
@@ -893,6 +930,7 @@ func TestDefaultOnFail(t *testing.T) {
 	for _, tcase := range testcases {
 		testSetting := config.BasicColumnEncryptionSetting{
 			DataType:         tcase.dataType,
+			DataTypeID:       tcase.dataTypeID,
 			ResponseOnFail:   common2.ResponseOnFailDefault,
 			DefaultDataValue: &tcase.defaultValue,
 		}
@@ -935,5 +973,48 @@ func TestDefaultOnFail(t *testing.T) {
 				output,
 			)
 		}
+	}
+}
+
+func TestValidateDefaultValue(t *testing.T) {
+	type args struct {
+		value      *string
+		dataTypeID uint32
+	}
+	var (
+		emptyString = ""
+		int32String = strconv.FormatUint(math.MaxInt32, 10)
+		int64String = strconv.FormatUint(math.MaxInt64, 10)
+		// use max uint64 as value for int64 that should overflow
+		invalidInt64String = strconv.FormatUint(math.MaxUint64, 10)
+		// valid ASCII [0, 127]. All greater values validated as UTF8
+		invalidString = string([]byte{128, 129})
+		someString    = "some string"
+	)
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{"invalid string", args{&invalidString, uint32(pgtype.TextOID)}, true},
+		{"valid bytes", args{&invalidString, uint32(pgtype.ByteaOID)}, true},
+		{"empty string", args{&emptyString, uint32(pgtype.TextOID)}, false},
+		{"empty bytes", args{&emptyString, uint32(pgtype.ByteaOID)}, false},
+		{"int32 string", args{&int32String, uint32(pgtype.TextOID)}, false},
+		{"invalid integer int32 string", args{&int64String, uint32(pgtype.Int4OID)}, true},
+		{"invalid non-integer int32 string", args{&someString, uint32(pgtype.Int4OID)}, true},
+		{"int64 string", args{&int64String, uint32(pgtype.Int8OID)}, false},
+		{"invalid int64 string", args{&invalidInt64String, uint32(pgtype.Int8OID)}, true},
+		{"invalid non-integer int64 string", args{&someString, uint32(pgtype.Int8OID)}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dataTypeIDEncoders := type_awareness.GetPostgreSQLDataTypeIDEncoders()
+			encoder := dataTypeIDEncoders[tt.args.dataTypeID]
+
+			if err := encoder.ValidateDefaultValue(tt.args.value); (err != nil) != tt.wantErr {
+				t.Errorf("ValidateDefaultValue() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
 	}
 }

@@ -40,6 +40,13 @@ var stringTokenType = map[uint16]int{
 	'`':  BACK_QUOTE_STRING,
 }
 
+var tokenizerVerbose = false
+
+// SetTokenizerVerbosity turns on/off tokenizer's error messages verbosity
+func SetTokenizerVerbosity(verbose bool) {
+	tokenizerVerbose = verbose
+}
+
 var defaultDialect dialect.Dialect = mysql.NewMySQLDialect()
 
 // SetDefaultDialect set globally default dialect used in old functions with default dialect
@@ -501,7 +508,8 @@ func (tkn *Tokenizer) Lex(lval *yySymType) int {
 // Error is called by go yacc if there's a parsing error.
 func (tkn *Tokenizer) Error(err string) {
 	buf := &bytes2.Buffer{}
-	if tkn.lastToken != nil {
+	// don't print lastToken in non-verbose mode to avoid leaking sensitive data due to parser's errors
+	if tkn.lastToken != nil && tokenizerVerbose {
 		fmt.Fprintf(buf, "%s at position %v near '%s'", err, tkn.Position, tkn.lastToken)
 	} else {
 		fmt.Fprintf(buf, "%s at position %v", err, tkn.Position)

@@ -18,6 +18,7 @@ package encryptor
 
 import (
 	"context"
+
 	"github.com/cossacklabs/acra/acrastruct"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/keystore"

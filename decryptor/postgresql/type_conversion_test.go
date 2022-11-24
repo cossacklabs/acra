@@ -1,14 +1,13 @@
 package postgresql
 
 import (
-	"github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/jackc/pgx/pgtype"
 	"testing"
 )
 
 func Test_mapEncryptedTypeToOID(t *testing.T) {
 	type args struct {
-		dataType common.EncryptedType
+		dataTypeID uint32
 	}
 	tests := []struct {
 		name  string
@@ -16,16 +15,16 @@ func Test_mapEncryptedTypeToOID(t *testing.T) {
 		want  uint32
 		want1 bool
 	}{
-		{"string", args{common.EncryptedType_String}, pgtype.TextOID, true},
-		{"bytes", args{common.EncryptedType_Bytes}, pgtype.ByteaOID, true},
-		{"int32", args{common.EncryptedType_Int32}, pgtype.Int4OID, true},
-		{"int64", args{common.EncryptedType_Int64}, pgtype.Int8OID, true},
-		{"unknown", args{common.EncryptedType_Unknown}, 0, false},
-		{"different value", args{common.EncryptedType(100500)}, 0, false},
+		{"string", args{pgtype.TextOID}, pgtype.TextOID, true},
+		{"bytes", args{pgtype.ByteaOID}, pgtype.ByteaOID, true},
+		{"int32", args{pgtype.Int4OID}, pgtype.Int4OID, true},
+		{"int64", args{pgtype.Int8OID}, pgtype.Int8OID, true},
+		{"unknown", args{0}, 0, false},
+		{"different value", args{100500}, 0, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1 := mapEncryptedTypeToOID(tt.args.dataType)
+			got, got1 := mapEncryptedTypeToOID(tt.args.dataTypeID)
 			if got != tt.want {
 				t.Errorf("mapEncryptedTypeToOID() got = %v, want %v", got, tt.want)
 			}

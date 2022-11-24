@@ -1,0 +1,115 @@
+schemas:
+  - table: test_type_aware_decryption_without_defaults
+    columns:
+      - id
+      - value_str
+      - value_bytes
+      - value_int32
+      - value_int64
+      - value_null_str
+      - value_null_int32
+      - value_empty_str
+
+    #MySQL available types https://dev.mysql.com/doc/dev/mysql-server/latest/namespaceclassic__protocol_1_1field__type.html
+    encrypted:
+      - column: value_str
+        data_type_db_identifier: 254
+
+      - column: value_bytes
+        data_type_db_identifier: 252
+
+      - column: value_int32
+        data_type_db_identifier: 3
+
+      - column: value_int64
+        data_type_db_identifier: 8
+
+      - column: value_null_str
+        data_type_db_identifier: 254
+
+      - column: value_null_int32
+        data_type_db_identifier: 3
+
+      - column: value_empty_str
+        data_type_db_identifier: 254
+
+
+  - table: test_type_aware_decryption_with_error
+    columns:
+      - id
+      - value_str
+      - value_bytes
+      - value_int32
+      - value_int64
+      - value_null_str
+      - value_null_int32
+      - value_empty_str
+
+    encrypted:
+      - column: value_str
+        data_type_db_identifier: 254
+        response_on_fail: error
+
+      - column: value_bytes
+        data_type_db_identifier: 252
+        response_on_fail: error
+
+      - column: value_int32
+        data_type_db_identifier: 3
+        response_on_fail: error
+
+      - column: value_int64
+        data_type_db_identifier: 8
+        response_on_fail: error
+
+      - column: value_null_str
+        data_type_db_identifier: 254
+        response_on_fail: error
+
+      - column: value_null_int32
+        data_type_db_identifier: 3
+        response_on_fail: error
+
+      - column: value_empty_str
+        data_type_db_identifier: 254
+        response_on_fail: error
+
+  - table: test_type_aware_decryption_with_ciphertext
+    columns:
+      - id
+      - value_str
+      - value_bytes
+      - value_int32
+      - value_int64
+      - value_null_str
+      - value_null_int32
+      - value_empty_str
+
+    encrypted:
+      - column: value_str
+        data_type_db_identifier: 254
+        response_on_fail: ciphertext
+
+      - column: value_bytes
+        data_type_db_identifier: 252
+        response_on_fail: ciphertext
+
+      - column: value_int32
+        data_type_db_identifier: 3
+        response_on_fail: ciphertext
+
+      - column: value_int64
+        data_type_db_identifier: 8
+        response_on_fail: ciphertext
+
+      - column: value_null_str
+        data_type_db_identifier: 254
+        response_on_fail: ciphertext
+
+      - column: value_null_int32
+        data_type_db_identifier: 3
+        response_on_fail: ciphertext
+
+      - column: value_empty_str
+        data_type_db_identifier: 254
+        response_on_fail: ciphertext

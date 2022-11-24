@@ -50,6 +50,19 @@ func forceEOF(yylex interface{}) {
   yylex.(*Tokenizer).ForceEOF = true
 }
 
+// setErrorVerbose configures format of ErrorMessages from parser. If false then only "syntax error" will be shown.
+// Default is false
+func SetSQLParserErrorVerboseLevel(verbose bool) {
+  yyErrorVerbose = verbose
+}
+
+// setDebugLevel configures debug level of log messages from parser. Default is 0
+func setDebugLevel(level int) {
+    if level < 0 {
+        panic("unsupported debug level for sqlparser")
+    }
+    yyDebug = level
+}
 %}
 
 %union {
@@ -2930,15 +2943,35 @@ limit_opt:
   }
 | LIMIT expression
   {
-    $$ = &Limit{Rowcount: $2}
+    $$ = &Limit{Rowcount: $2, Type: LimitTypeLimitOnly}
   }
+| LIMIT ALL
+    {
+      if yylex.(*Tokenizer).IsMySQL() {
+        yylex.Error("MySQL dialect doesn't allow 'LIMIT ALL' syntax of LIMIT statements")
+        return 1
+      }
+      $$ = &Limit{Type: LimitTypeLimitAll}
+    }
 | LIMIT expression ',' expression
   {
-    $$ = &Limit{Offset: $2, Rowcount: $4}
+    if yylex.(*Tokenizer).IsPostgreSQL() {
+      yylex.Error("PostgreSQL dialect doesn't allow 'LIMIT offset, limit' syntax of LIMIT statements")
+      return 1
+    }
+    $$ = &Limit{Offset: $2, Rowcount: $4, Type: LimitTypeCommaSeparated}
   }
 | LIMIT expression OFFSET expression
   {
-    $$ = &Limit{Offset: $4, Rowcount: $2}
+    $$ = &Limit{Offset: $4, Rowcount: $2, Type: LimitTypeLimitAndOffset}
+  }
+| LIMIT ALL OFFSET expression
+  {
+    if yylex.(*Tokenizer).IsMySQL() {
+      yylex.Error("MySQL dialect doesn't allow 'LIMIT ALL' syntax of LIMIT statements")
+      return 1
+    }
+    $$ = &Limit{Offset: $4, Type: LimitTypeLimitAllAndOffset}
   }
 
 lock_opt:

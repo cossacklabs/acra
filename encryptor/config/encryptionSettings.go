@@ -20,9 +20,10 @@ import (
 	"errors"
 	"fmt"
 
-	common2 "github.com/cossacklabs/acra/encryptor/config/common"
+	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
+	"github.com/cossacklabs/acra/encryptor/config/common"
 	maskingCommon "github.com/cossacklabs/acra/masking/common"
-	"github.com/cossacklabs/acra/pseudonymization/common"
+	tokenizationCommon "github.com/cossacklabs/acra/pseudonymization/common"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -46,6 +47,7 @@ const (
 	SettingDataTypeFlag
 	SettingDefaultDataValueFlag
 	SettingOnFailFlag
+	SettingDataTypeIDFlag
 )
 
 // validSettings store all valid combinations of encryption settings
@@ -78,7 +80,13 @@ var validSettings = map[SettingMask]struct{}{
 	SettingDataTypeFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag:                     {},
 	SettingDataTypeFlag | SettingOnFailFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag: {},
 
-	SettingDataTypeFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag | SettingMaskingFlag | SettingMaskingPlaintextLengthFlag | SettingMaskingPlaintextSideFlag: {},
+	SettingDataTypeIDFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag:                                                   {},
+	SettingDataTypeIDFlag | SettingOnFailFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag:                               {},
+	SettingDataTypeIDFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag:                     {},
+	SettingDataTypeIDFlag | SettingOnFailFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag: {},
+
+	SettingDataTypeFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag | SettingMaskingFlag | SettingMaskingPlaintextLengthFlag | SettingMaskingPlaintextSideFlag:   {},
+	SettingDataTypeIDFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag | SettingMaskingFlag | SettingMaskingPlaintextLengthFlag | SettingMaskingPlaintextSideFlag: {},
 
 	// ZoneID
 
@@ -87,6 +95,11 @@ var validSettings = map[SettingMask]struct{}{
 	SettingDataTypeFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag:                     {},
 	SettingDataTypeFlag | SettingOnFailFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag: {},
 
+	SettingDataTypeIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag:                                                   {},
+	SettingDataTypeIDFlag | SettingOnFailFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag:                               {},
+	SettingDataTypeIDFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag:                     {},
+	SettingDataTypeIDFlag | SettingOnFailFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag: {},
+
 	// AcraStruct
 	// ClientID
 	SettingDataTypeFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag:                                                   {},
@@ -94,12 +107,22 @@ var validSettings = map[SettingMask]struct{}{
 	SettingDataTypeFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag:                     {},
 	SettingDataTypeFlag | SettingOnFailFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag: {},
 
+	SettingDataTypeIDFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag:                                                   {},
+	SettingDataTypeIDFlag | SettingOnFailFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag:                               {},
+	SettingDataTypeIDFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag:                     {},
+	SettingDataTypeIDFlag | SettingOnFailFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag: {},
+
 	// ZoneID
 
 	SettingDataTypeFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag:                                                   {},
 	SettingDataTypeFlag | SettingOnFailFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag:                               {},
 	SettingDataTypeFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag:                     {},
 	SettingDataTypeFlag | SettingOnFailFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag: {},
+
+	SettingDataTypeIDFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag:                                                   {},
+	SettingDataTypeIDFlag | SettingOnFailFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag:                               {},
+	SettingDataTypeIDFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag:                     {},
+	SettingDataTypeIDFlag | SettingOnFailFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag: {},
 
 	/////////////
 	// SEARCHABLE
@@ -109,9 +132,16 @@ var validSettings = map[SettingMask]struct{}{
 	// default ClientID with data type flag
 	SettingDataTypeFlag | SettingSearchFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
 	SettingDataTypeFlag | SettingSearchFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
+
+	SettingDataTypeIDFlag | SettingSearchFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
+	SettingDataTypeIDFlag | SettingSearchFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
+
 	// default ClientID with data type default
 	SettingDefaultDataValueFlag | SettingDataTypeFlag | SettingSearchFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
 	SettingDefaultDataValueFlag | SettingDataTypeFlag | SettingSearchFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
+
+	SettingDefaultDataValueFlag | SettingDataTypeIDFlag | SettingSearchFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
+	SettingDefaultDataValueFlag | SettingDataTypeIDFlag | SettingSearchFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
 
 	// specified ClientID
 	SettingSearchFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
@@ -119,9 +149,16 @@ var validSettings = map[SettingMask]struct{}{
 	// specified ClientID with data type flag
 	SettingDataTypeFlag | SettingSearchFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
 	SettingDataTypeFlag | SettingSearchFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
+
+	SettingDataTypeIDFlag | SettingSearchFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
+	SettingDataTypeIDFlag | SettingSearchFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
+
 	// specified ClientID with data type default
 	SettingDefaultDataValueFlag | SettingDataTypeFlag | SettingSearchFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
 	SettingDefaultDataValueFlag | SettingDataTypeFlag | SettingSearchFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
+
+	SettingDefaultDataValueFlag | SettingDataTypeIDFlag | SettingSearchFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
+	SettingDefaultDataValueFlag | SettingDataTypeIDFlag | SettingSearchFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
 
 	/////////////
 	// MASKING (should be specified all 3 parameters)
@@ -158,15 +195,12 @@ var validSettings = map[SettingMask]struct{}{
 }
 
 // Token type names as expected in the configuration file.
-var tokenTypeNames = map[string]common.TokenType{
-	"int32": common.TokenType_Int32,
-	"int64": common.TokenType_Int64,
-	"str":   common.TokenType_String,
-	"bytes": common.TokenType_Bytes,
-	"email": common.TokenType_Email,
-
-	"int32_string": common.TokenType_Int32Str,
-	"int64_string": common.TokenType_Int64Str,
+var tokenTypeNames = map[string]tokenizationCommon.TokenType{
+	"int32": tokenizationCommon.TokenType_Int32,
+	"int64": tokenizationCommon.TokenType_Int64,
+	"str":   tokenizationCommon.TokenType_String,
+	"bytes": tokenizationCommon.TokenType_Bytes,
+	"email": tokenizationCommon.TokenType_Email,
 }
 
 // CryptoEnvelopeType type of crypto envelope for encryptors
@@ -202,11 +236,13 @@ type BasicColumnEncryptionSetting struct {
 
 	// same as TokenType but related for encryption operations
 	DataType string `yaml:"data_type"`
+	// same as DataType but expect exact ID type
+	DataTypeID uint32 `yaml:"data_type_db_identifier"`
 	// string for str/email/int32/int64 ans base64 string for binary data
 	DefaultDataValue *string `yaml:"default_data_value"`
 	// an action that should be performed on failure
 	// possible actions are "ciphertext", "error" or "default"
-	ResponseOnFail common2.ResponseOnFail `yaml:"response_on_fail"`
+	ResponseOnFail common.ResponseOnFail `yaml:"response_on_fail"`
 
 	// Data pseudonymization (tokenization)
 
@@ -233,14 +269,14 @@ type BasicColumnEncryptionSetting struct {
 // IsBinaryDataOperation return true if setting related to operation over binary data
 func IsBinaryDataOperation(setting ColumnEncryptionSetting) bool {
 	// tokenization for binary data or encryption/masking of binary data (not text)
-	hasBinaryOperation := setting.GetTokenType() == common.TokenType_Bytes
+	hasBinaryOperation := setting.GetTokenType() == tokenizationCommon.TokenType_Bytes
 	hasBinaryOperation = hasBinaryOperation || setting.OnlyEncryption() || setting.IsSearchable()
 	hasBinaryOperation = hasBinaryOperation || len(setting.GetMaskingPattern()) != 0
 	return hasBinaryOperation
 }
 
 // Init validate and initialize SettingMask
-func (s *BasicColumnEncryptionSetting) Init() (err error) {
+func (s *BasicColumnEncryptionSetting) Init(useMySQL bool) (err error) {
 	if len(s.Name) == 0 {
 		return ErrInvalidEncryptorConfig
 	}
@@ -281,39 +317,39 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 		log.Warnln("Setting `tokenized` flag is not necessary anymore and will be ignored")
 	}
 
-	var tokenType common.TokenType
+	var tokenType tokenizationCommon.TokenType
 	var ok bool
 	if s.TokenType != "" {
 		tokenType, ok = tokenTypeNames[s.TokenType]
 		if !ok {
-			return fmt.Errorf("%s: %w", s.TokenType, common.ErrUnknownTokenType)
+			return fmt.Errorf("%s: %w", s.TokenType, tokenizationCommon.ErrUnknownTokenType)
 		}
-		if err = common.ValidateTokenType(tokenType); err != nil {
+		if err = tokenizationCommon.ValidateTokenType(tokenType); err != nil {
 			return err
 		}
 	}
 
-	if s.ResponseOnFail != common2.ResponseOnFailEmpty {
+	if s.ResponseOnFail != common.ResponseOnFailEmpty {
 		s.settingMask |= SettingOnFailFlag
 	} else if s.DefaultDataValue != nil {
 		// if `response_on_fail` is not defined, but `default_data_value` is,
 		// then we automatically set `response_on_fail` to default value
 		// to simplify configuration for the user
-		s.ResponseOnFail = common2.ResponseOnFailDefault
+		s.ResponseOnFail = common.ResponseOnFailDefault
 	} else {
 		// Otherwise, default action is to return ciphertext
-		s.ResponseOnFail = common2.ResponseOnFailCiphertext
+		s.ResponseOnFail = common.ResponseOnFailCiphertext
 	}
 
-	if err := common2.ValidateOnFail(s.ResponseOnFail); err != nil {
+	if err := common.ValidateOnFail(s.ResponseOnFail); err != nil {
 		return err
 	}
 
-	dataType := common2.EncryptedType_Unknown
+	dataType := common.EncryptedType_Unknown
 	if s.DataType == "" {
 		// if DataType empty but configured for tokenization then map TokenType to appropriate DataType
 		if s.TokenType != "" {
-			s.DataType, err = common2.TokenTypeToEncryptedDataType(tokenType).ToConfigString()
+			s.DataType, err = common.TokenTypeToEncryptedDataType(tokenType).ToConfigString()
 			if err != nil {
 				return err
 			}
@@ -324,26 +360,66 @@ func (s *BasicColumnEncryptionSetting) Init() (err error) {
 	}
 
 	if s.DataType != "" {
-		dataType, err = common2.ParseStringEncryptedType(s.DataType)
-		if err != nil {
-			return fmt.Errorf("%s: %w", s.DataType, common2.ErrUnknownEncryptedType)
+		if s.DataTypeID != 0 {
+			return common.ErrDataTypeWithDataTypeID
 		}
-		if err = common2.ValidateEncryptedType(dataType); err != nil {
+
+		dataType, err = common.ParseStringEncryptedType(s.DataType)
+		if err != nil {
+			return fmt.Errorf("%s: %w", s.DataType, common.ErrUnknownEncryptedType)
+		}
+		if err = common.ValidateEncryptedType(dataType); err != nil {
 			return err
 		}
 	}
 
-	if s.DefaultDataValue != nil {
-		if dataType == common2.EncryptedType_Unknown {
-			return errors.New("default_data_value used without data_type")
+	if s.DataTypeID != 0 {
+		s.settingMask |= SettingDataTypeIDFlag
+
+		dataTypeIDEncoders := type_awareness.GetPostgreSQLDataTypeIDEncoders()
+		if useMySQL {
+			dataTypeIDEncoders = type_awareness.GetMySQLDataTypeIDEncoders()
 		}
-		s.settingMask |= SettingDefaultDataValueFlag
-		if s.ResponseOnFail != common2.ResponseOnFailDefault {
-			return fmt.Errorf("default data value is defined, but `response_on_fail` operation is not \"default\" (%s)", s.ResponseOnFail)
+
+		_, ok := dataTypeIDEncoders[s.DataTypeID]
+		if !ok {
+			return common.ErrUnsupportedDataTypeID
+		}
+
+		if useMySQL {
+			s.DataType = common.MySQLDataTypeIDEncryptedType[s.DataTypeID]
+		} else {
+			s.DataType = common.PostgreSQLDataTypeIDEncryptedType[s.DataTypeID]
+		}
+		dataType, _ = common.ParseStringEncryptedType(s.DataType)
+	}
+
+	if s.DataTypeID == 0 && s.DataType != "" {
+		if useMySQL {
+			s.DataTypeID = common.MySQLEncryptedTypeDataTypeIDs[dataType]
+		} else {
+			s.DataTypeID = common.PostgreSQLEncryptedTypeDataTypeIDs[dataType]
 		}
 	}
-	if err = common2.ValidateDefaultValue(s.DefaultDataValue, dataType); err != nil {
-		return fmt.Errorf("invalid default value: %w", err)
+
+	if s.DefaultDataValue != nil {
+		if s.DataTypeID == 0 {
+			return errors.New("default_data_value used without data_type_id")
+		}
+		s.settingMask |= SettingDefaultDataValueFlag
+		if s.ResponseOnFail != common.ResponseOnFailDefault {
+			return fmt.Errorf("default data value is defined, but `response_on_fail` operation is not \"default\" (%s)", s.ResponseOnFail)
+		}
+
+		dataTypeIDEncoders := type_awareness.GetPostgreSQLDataTypeIDEncoders()
+		if useMySQL {
+			dataTypeIDEncoders = type_awareness.GetMySQLDataTypeIDEncoders()
+		}
+
+		dataTypeEncoder := dataTypeIDEncoders[s.DataTypeID]
+		if err = dataTypeEncoder.ValidateDefaultValue(s.DefaultDataValue); err != nil {
+			return fmt.Errorf("invalid default value: %w", err)
+		}
 	}
 
 	if s.TokenType != "" {
@@ -426,15 +502,15 @@ func (s *BasicColumnEncryptionSetting) IsConsistentTokenization() bool {
 }
 
 // GetTokenType return the type of tokenization to apply to the column.
-func (s *BasicColumnEncryptionSetting) GetTokenType() common.TokenType {
+func (s *BasicColumnEncryptionSetting) GetTokenType() tokenizationCommon.TokenType {
 	// If the configuration file contains some unknown or unsupported token type,
 	// return some safe default.
-	const defaultTokenType = common.TokenType_Unknown
+	const defaultTokenType = tokenizationCommon.TokenType_Unknown
 	tokenType, ok := tokenTypeNames[s.TokenType]
 	if !ok {
 		return defaultTokenType
 	}
-	return common.NormalizeTokenType(tokenType, defaultTokenType)
+	return tokenizationCommon.NormalizeTokenType(tokenType, defaultTokenType)
 }
 
 // IsSearchable returns true if column should be searchable.
@@ -463,11 +539,11 @@ func (s *BasicColumnEncryptionSetting) IsEndMasking() bool {
 }
 
 // GetEncryptedDataType returns data type for encrypted data
-func (s *BasicColumnEncryptionSetting) GetEncryptedDataType() common2.EncryptedType {
+func (s *BasicColumnEncryptionSetting) GetEncryptedDataType() common.EncryptedType {
 	// If the configuration file contains some unknown or unsupported token type,
 	// return some safe default.
-	const defaultDataType = common2.EncryptedType_Unknown
-	dataType, err := common2.ParseStringEncryptedType(s.DataType)
+	const defaultDataType = common.EncryptedType_Unknown
+	dataType, err := common.ParseStringEncryptedType(s.DataType)
 	if err != nil {
 		return defaultDataType
 	}
@@ -498,19 +574,21 @@ func (s *BasicColumnEncryptionSetting) applyDefaults(defaults defaultValues) {
 
 // GetResponseOnFail returns the action that should be performed on failure
 // Valid values are "", "ciphertext", "error" and "default"
-func (s *BasicColumnEncryptionSetting) GetResponseOnFail() common2.ResponseOnFail {
+func (s *BasicColumnEncryptionSetting) GetResponseOnFail() common.ResponseOnFail {
 	return s.ResponseOnFail
 }
 
 // HasTypeAwareSupport return true if setting configured for decryption with type awareness
 func HasTypeAwareSupport(setting ColumnEncryptionSetting) bool {
 	maskingSupport := setting.GetMaskingPattern() != ""
-	switch setting.GetEncryptedDataType() {
-	case common2.EncryptedType_String, common2.EncryptedType_Bytes, common2.EncryptedType_Int32, common2.EncryptedType_Int64:
-		break
-	default:
+	if setting.GetDBDataTypeID() == 0 {
 		// intX not supported masking with type awareness
 		maskingSupport = false
 	}
 	return setting.OnlyEncryption() || setting.IsSearchable() || maskingSupport
+}
+
+// GetDBDataTypeID returns the DataTypeID of corresponded DB got from `data_type_db_identifier` encryptor config option
+func (s *BasicColumnEncryptionSetting) GetDBDataTypeID() uint32 {
+	return s.DataTypeID
 }

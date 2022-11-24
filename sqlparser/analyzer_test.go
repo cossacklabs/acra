@@ -404,6 +404,7 @@ func TestStringIn(t *testing.T) {
 }
 
 func TestExtractSetValues(t *testing.T) {
+	SetTokenizerVerbosity(true)
 	testcases := []struct {
 		sql   string
 		out   map[SetKey]interface{}

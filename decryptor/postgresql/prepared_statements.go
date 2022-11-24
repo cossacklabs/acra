@@ -22,14 +22,13 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/encryptor/config/common"
-	"github.com/cossacklabs/acra/utils"
-
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
+	"github.com/cossacklabs/acra/encryptor/config/common"
 	tokens "github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/sqlparser"
+	"github.com/cossacklabs/acra/utils"
 )
 
 // Errors returned by prepared statement registry.
