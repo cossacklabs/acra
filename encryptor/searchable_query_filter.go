@@ -270,8 +270,19 @@ func (filter *SearchableQueryFilter) getColumnEqualComparisonExprs(stmt sqlparse
 			}
 
 			if sqlVal, ok := comparisonExpr.Right.(*sqlparser.SQLVal); ok && isSupportedSQLVal(sqlVal) {
-				if comparisonExpr.Operator == sqlparser.EqualStr || comparisonExpr.Operator == sqlparser.NotEqualStr || comparisonExpr.Operator == sqlparser.NullSafeEqualStr {
+				if comparisonExpr.Operator == sqlparser.EqualStr || comparisonExpr.Operator == sqlparser.NotEqualStr ||
+					comparisonExpr.Operator == sqlparser.NullSafeEqualStr || comparisonExpr.Operator == sqlparser.LikeStr ||
+					comparisonExpr.Operator == sqlparser.NotLikeStr {
 					if _, ok := comparisonExpr.Left.(*sqlparser.ColName); ok {
+						switch comparisonExpr.Operator {
+						case sqlparser.EqualStr, sqlparser.NullSafeEqualStr, sqlparser.LikeStr:
+							comparisonExpr.Operator = sqlparser.EqualStr
+							break
+						case sqlparser.NotEqualStr, sqlparser.NotLikeStr:
+							comparisonExpr.Operator = sqlparser.NotEqualStr
+							break
+						}
+
 						exprs = append(exprs, comparisonExpr)
 					}
 				}
