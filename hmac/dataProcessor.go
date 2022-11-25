@@ -61,7 +61,7 @@ func (p *Processor) OnColumn(ctx context.Context, data []byte) (context.Context,
 		logger := logging.GetLoggerFromContext(ctx)
 		logger.WithError(err).Debugln("Failed on HMAC processing")
 		p.hashData = nil
-		return ctx, p.rawData, nil
+		return base.MarkNotDecryptedContext(ctx), p.rawData, nil
 	}
 
 	p.matchedHash = ExtractHash(data)
