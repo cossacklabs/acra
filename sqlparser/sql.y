@@ -155,7 +155,7 @@ func setDebugLevel(level int) {
 %left <bytes> AND
 %right <bytes> NOT '!'
 %left <bytes> BETWEEN CASE WHEN THEN ELSE END
-%left <bytes> '=' '<' '>' LE GE NE NULL_SAFE_EQUAL IS LIKE REGEXP IN
+%left <bytes> '=' '<' '>' LE GE NE NULL_SAFE_EQUAL IS LIKE ILIKE REGEXP IN
 %left <bytes> '|'
 %left <bytes> '&'
 %left <bytes> SHIFT_LEFT SHIFT_RIGHT
@@ -2159,6 +2159,14 @@ condition:
   {
     $$ = &ComparisonExpr{Left: $1, Operator: LikeStr, Right: $3, Escape: $4}
   }
+| value_expression ILIKE value_expression like_escape_opt
+  {
+    if yylex.(*Tokenizer).IsMySQL() {
+       yylex.Error("MySQL dialect doesn't support `ILKE` statement")
+       return 1
+     }
+    $$ = &ComparisonExpr{Left: $1, Operator: ILikeStr, Right: $3, Escape: $4}
+  }
 | value_expression NOT LIKE value_expression like_escape_opt
   {
     $$ = &ComparisonExpr{Left: $1, Operator: NotLikeStr, Right: $4, Escape: $5}
@@ -3367,6 +3375,7 @@ reserved_keyword:
 | KEY
 | LEFT
 | LIKE
+| ILIKE
 | LIMIT
 | LOCALTIME
 | LOCALTIMESTAMP
