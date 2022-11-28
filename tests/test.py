@@ -7686,6 +7686,10 @@ class TestSearchableTransparentEncryptionWithSearchPrefix(AcraCatchLogsMixin, Ba
             {'searchable': pattern.encode('ascii')}
         )
         self.assertEqual(len(rows), 1)
+
+        self.checkDefaultIdEncryption(**context)
+        self.assertEqual(rows[0]['searchable'], search_term)
+
         self.assertIn("Like pattern length more than provided search prefix, using the search prefix length", self.read_log(self.acra))
 
         context = self.get_context_data()
@@ -7702,7 +7706,7 @@ class TestSearchableTransparentEncryptionWithSearchPrefix(AcraCatchLogsMixin, Ba
         )
         self.assertEqual(len(rows), 2)
 
-        search_term = 'Україна'
+        search_term = 'їжак'
         search_term_utf8 = search_term.encode('utf8')
 
         context = self.get_context_data()
