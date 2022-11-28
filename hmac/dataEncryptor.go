@@ -59,8 +59,6 @@ func (e *SearchableDataEncryptor) EncryptWithClientID(clientID, data []byte, set
 		if err != nil {
 			return nil, err
 		}
-		defer utils.ZeroizeSymmetricKey(key)
-
 		var encryptedData, hash []byte
 		if e.decryptor.MatchDataSignature(data) {
 			// match AcraStruct/AcraBlock
@@ -78,31 +76,35 @@ func (e *SearchableDataEncryptor) EncryptWithClientID(clientID, data []byte, set
 
 			logrus.Debugln("Hash data")
 			return append(hash, encryptedData...), nil
-		} else {
-			var hashData []byte
-
-			if searchPrefix := setting.GetSearchablePrefix(); searchPrefix > 0 {
-				logrus.WithField("searchable_prefix", searchPrefix).Infoln("Insert data with searchable_prefix")
-
-				hashData = e.hashPrefixed(searchPrefix, data, key)
-			} else {
-				hashData = GenerateHMAC(key, data)
-			}
-
-			encryptedData, err = e.dataEncryptor.EncryptWithClientID(clientID, data, setting)
-			if err != nil {
-				return nil, err
-			}
-
-			logrus.Debugln("Hash data")
-			return append(hashData, encryptedData...), nil
 		}
+
+		var hashData []byte
+
+		if searchPrefix := setting.GetSearchablePrefix(); searchPrefix > 0 {
+			logrus.WithField("searchable_prefix", searchPrefix).Infoln("Insert data with searchable_prefix")
+
+			hashData = e.hashPrefixed(searchPrefix, data, key)
+		} else {
+			hashData = GenerateHMAC(key, data)
+		}
+
+		encryptedData, err = e.dataEncryptor.EncryptWithClientID(clientID, data, setting)
+		if err != nil {
+			return nil, err
+		}
+
+		logrus.Debugln("Hash data")
+		return append(hashData, encryptedData...), nil
 	}
 	return data, nil
 }
 
 func (e *SearchableDataEncryptor) hashPrefixed(prefix uint8, data []byte, key []byte) []byte {
-	compositeHash := make([]byte, 0)
+	compositeHash := make([]byte, 0, int(prefix)*GetDefaultHashSize())
+
+	tempKey := make([]byte, len(key))
+	copy(tempKey, key)
+	defer utils.ZeroizeSymmetricKey(tempKey)
 
 	unicodeData := []rune(string(data))
 	// generating hash with different parts, e.g:
@@ -113,8 +115,12 @@ func (e *SearchableDataEncryptor) hashPrefixed(prefix uint8, data []byte, key []
 		if iteration > len(data) || iteration > int(prefix) {
 			break
 		}
+
 		iterationPrefix := []byte(string(unicodeData[:iteration]))
 		compositeHash = append(compositeHash, GenerateHMAC(key, iterationPrefix)...)
+
+		// GenerateHMAC zeroize the provided key
+		copy(key, tempKey)
 
 		iteration++
 	}

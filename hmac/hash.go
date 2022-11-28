@@ -56,6 +56,7 @@ func GenerateHMAC(key, data []byte) []byte {
 	h := hmac.New(hashFuncMap[defaultFuncNumber], key)
 	h.Write(data)
 	mac := h.Sum(nil)
+	utils.ZeroizeSymmetricKey(key)
 	h.Reset()
 	return append([]byte{uint8(defaultFuncNumber)}, mac...)
 }

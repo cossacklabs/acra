@@ -19,7 +19,6 @@ package decryptor
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"github.com/cossacklabs/acra/decryptor/base"
 	queryEncryptor "github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
@@ -29,6 +28,7 @@ import (
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
+	"strconv"
 	"strings"
 )
 
@@ -93,27 +93,38 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObjec
 	}
 	clientSession := base.ClientSessionFromContext(ctx)
 	bindSettings := queryEncryptor.PlaceholderSettingsFromClientSession(clientSession)
-	// Now that we have condition expressions, perform rewriting in them.
-	hashSize := []byte(fmt.Sprintf("%d", hmac.GetDefaultHashSize()))
+	hashSize := hmac.GetDefaultHashSize()
+
 	for _, item := range items {
+		fromVal := []byte{'1'}
+		prefix := int(item.Setting.GetSearchablePrefix())
 
-		var substrExpr sqlparser.Expr = &sqlparser.SubstrExpr{
+		if prefix > 0 {
+			// if the prefix not equal to zero, we need to shift all prefixed hashes to search for full data
+			// we need to shift 3 * <HMAC_size>(33) + 1
+			// for example: consider the prefix is 3 and the query is select * from table where column ='full_data'
+			// substring(column, 100, 33) = 'hash(full_data)'
+			fromVal = []byte(strconv.Itoa(hashSize*prefix + 1))
+		}
+
+		// if the query is like/ilike change from position to corresponded hash
+		if likeFrom, ok := encryptor.getLikeSearchableFromPosition(item, prefix); ok {
+			fromVal = likeFrom
+		}
+
+		item.Expr.Left = &sqlparser.SubstrExpr{
 			Name: item.Expr.Left.(*sqlparser.ColName),
-			From: sqlparser.NewIntVal([]byte{'1'}),
-			To:   sqlparser.NewIntVal(hashSize),
+			From: sqlparser.NewIntVal(fromVal),
+			To:   sqlparser.NewIntVal([]byte(strconv.Itoa(hashSize))),
 		}
 
-		if expr, ok := encryptor.isSearchWithPrefixExpr(item); ok {
-			substrExpr = expr
-		}
-
-		item.Expr.Left = substrExpr
+		encryptor.changeSearchableOperator(item)
 
 		if rColName, ok := item.Expr.Right.(*sqlparser.ColName); ok {
 			item.Expr.Right = &sqlparser.SubstrExpr{
 				Name: rColName,
 				From: sqlparser.NewIntVal([]byte{'1'}),
-				To:   sqlparser.NewIntVal(hashSize),
+				To:   sqlparser.NewIntVal([]byte(strconv.Itoa(hashSize))),
 			}
 			continue
 		}
@@ -250,7 +261,6 @@ func (encryptor *HashQuery) calculateHmac(ctx context.Context, data []byte) ([]b
 			logrus.WithError(err).Debugln("Can't load key for hmac")
 			return nil, err
 		}
-		defer utils.ZeroizeSymmetricKey(key)
 
 		logrus.Debugln("Searchable column with raw data, replace with HMAC")
 		return hmac.GenerateHMAC(key, data), nil
@@ -271,62 +281,58 @@ func (encryptor *HashQuery) calculateHmac(ctx context.Context, data []byte) ([]b
 	return mac, nil
 }
 
-func (encryptor *HashQuery) isSearchWithPrefixExpr(item queryEncryptor.SearchableExprItem) (sqlparser.Expr, bool) {
-	var hashSize = hmac.GetDefaultHashSize()
-	var fromVal []byte
-
-	prefix := int(item.Setting.GetSearchablePrefix())
+func (encryptor *HashQuery) getLikeSearchableFromPosition(item queryEncryptor.SearchableExprItem, prefix int) ([]byte, bool) {
 	if prefix == 0 {
 		return nil, false
 	}
 
-	// if the prefix not equal to zero, we need to shift all prefixed hashes to search for full data
-	// we need to shift 3 * <HMAC_size>(33) + 1
-	// for example: consider the prefix is 3 and the query is select * from table where column ='full_data'
-	// substring(column, 100, 33) = 'hash(full_data)'
-	fromVal = []byte(fmt.Sprintf("%d", hashSize*prefix+1))
-
-	if item.Expr.Operator == sqlparser.LikeStr {
-
-		rVal, ok := item.Expr.Right.(*sqlparser.SQLVal)
-		if !ok {
-			return nil, false
-		}
-
-		rawData, err := encryptor.coder.Decode(rVal)
-		if err != nil {
-			logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeSQLValue).
-				WithError(err).
-				Warningln("Can't decode data with unsupported coding format or unsupported expression")
-			return nil, false
-		}
-
-		if !bytes.HasSuffix(rawData, []byte("%")) {
-			logrus.WithField("prefix", prefix).Infoln("No % in like query")
-			return nil, false
-		}
-
-		// convert rawData to unicode code points to operate with utf8 strings
-		dataUnicode := []rune(strings.TrimSuffix(string(rawData), "%"))
-		patternLen := len(dataUnicode)
-
-		if patternLen > prefix {
-			logrus.WithField("prefix", prefix).Debugln("Like pattern length more that provided search prefix")
-			return nil, false
-		}
-		rVal.Val = []byte(string(dataUnicode))
-
-		// if the prefix not equal to zero and query has like comparison
-		// we need to shift length(like_pattern) * <HMAC_size>(33) + 1
-		// for example: consider the prefix is 3 and the query is select * from table where column like 'va%'
-		// result should be => substring(column, 67, 33) = hash('va)'
-		fromVal = []byte(fmt.Sprintf("%d", hashSize*(patternLen-1)+1))
-		item.Expr.Operator = sqlparser.EqualStr
+	if item.Expr.Operator != sqlparser.LikeStr && item.Expr.Operator != sqlparser.NotLikeStr {
+		return nil, false
 	}
 
-	return &sqlparser.SubstrExpr{
-		Name: item.Expr.Left.(*sqlparser.ColName),
-		From: sqlparser.NewIntVal(fromVal),
-		To:   sqlparser.NewIntVal([]byte(fmt.Sprintf("%d", hashSize))),
-	}, true
+	rVal, ok := item.Expr.Right.(*sqlparser.SQLVal)
+	if !ok {
+		return nil, false
+	}
+
+	rawData, err := encryptor.coder.Decode(rVal)
+	if err != nil {
+		logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeSQLValue).
+			WithError(err).
+			Warningln("Can't decode data with unsupported coding format or unsupported expression")
+		return nil, false
+	}
+
+	if !bytes.HasSuffix(rawData, []byte("%")) {
+		logrus.WithField("prefix", prefix).Infoln("No % in like query")
+		return nil, false
+	}
+
+	// convert rawData to unicode code points to operate with utf8 strings
+	dataUnicode := []rune(strings.TrimSuffix(string(rawData), "%"))
+	patternLen := len(dataUnicode)
+
+	if patternLen > prefix {
+		logrus.WithField("prefix", prefix).
+			Warning("Like pattern length more than provided search prefix, using the search prefix length")
+		dataUnicode = dataUnicode[:prefix]
+		patternLen = prefix
+	}
+	rVal.Val = []byte(string(dataUnicode))
+	hashSize := hmac.GetDefaultHashSize()
+
+	// if the prefix not equal to zero and query has like comparison
+	// we need to shift length(like_pattern) * <HMAC_size>(33) + 1
+	// for example: consider the prefix is 3 and the query is select * from table where column like 'va%'
+	// result should be => substring(column, 67, 33) = hash('va)'
+	return []byte(strconv.Itoa(hashSize*(patternLen-1) + 1)), true
+}
+
+func (encryptor *HashQuery) changeSearchableOperator(item queryEncryptor.SearchableExprItem) {
+	switch item.Expr.Operator {
+	case sqlparser.EqualStr, sqlparser.NullSafeEqualStr, sqlparser.LikeStr:
+		item.Expr.Operator = sqlparser.EqualStr
+	case sqlparser.NotEqualStr, sqlparser.NotLikeStr:
+		item.Expr.Operator = sqlparser.NotEqualStr
+	}
 }

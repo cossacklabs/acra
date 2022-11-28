@@ -7636,7 +7636,7 @@ class BaseTokenizationWithBinaryMySQL(BaseTokenization):
         return result
 
 
-class TestSearchableTransparentEncryptionWithSearchPrefix(BaseSearchableTransparentEncryption):
+class TestSearchableTransparentEncryptionWithSearchPrefix(AcraCatchLogsMixin, BaseSearchableTransparentEncryption):
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_encryptor_config_with_search_prefix.yaml')
 
     def testSearch(self):
@@ -7680,12 +7680,13 @@ class TestSearchableTransparentEncryptionWithSearchPrefix(BaseSearchableTranspar
         self.assertEqual(rows[0]['searchable'], search_term)
 
         pattern = '{}%'.format(search_term[:4].decode('ascii'))
-        # search by like with prefix of 4 bytes not records should be found
+        # search by like with prefix of 4 bytes expect record to be found by prefix length
         rows = self.executeSelect2(
             sa.select([self.encryptor_table]).filter(self.encryptor_table.c.searchable.like(pattern.encode('ascii'))),
             {'searchable': pattern.encode('ascii')}
         )
-        self.assertEqual(len(rows), 0)
+        self.assertEqual(len(rows), 1)
+        self.assertIn("Like pattern length more than provided search prefix, using the search prefix length", self.read_log(self.acra))
 
         context = self.get_context_data()
         context['searchable'] = search_term
