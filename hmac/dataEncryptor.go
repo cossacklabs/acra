@@ -22,6 +22,7 @@ import (
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/keystore"
 	estore "github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
 )
 
@@ -58,6 +59,8 @@ func (e *SearchableDataEncryptor) EncryptWithClientID(clientID, data []byte, set
 		if err != nil {
 			return nil, err
 		}
+		defer utils.ZeroizeSymmetricKey(key)
+
 		var encryptedData, hash []byte
 		if e.decryptor.MatchDataSignature(data) {
 			// match AcraStruct/AcraBlock
@@ -72,15 +75,50 @@ func (e *SearchableDataEncryptor) EncryptWithClientID(clientID, data []byte, set
 				return nil, err
 			}
 			hash = GenerateHMAC(key, data)
+
+			logrus.Debugln("Hash data")
+			return append(hash, encryptedData...), nil
 		} else {
-			hash = GenerateHMAC(key, data)
+			var hashData []byte
+
+			if searchPrefix := setting.GetSearchablePrefix(); searchPrefix > 0 {
+				logrus.WithField("searchable_prefix", searchPrefix).Infoln("Insert data with searchable_prefix")
+
+				hashData = e.hashPrefixed(searchPrefix, data, key)
+			} else {
+				hashData = GenerateHMAC(key, data)
+			}
+
 			encryptedData, err = e.dataEncryptor.EncryptWithClientID(clientID, data, setting)
 			if err != nil {
 				return nil, err
 			}
+
+			logrus.Debugln("Hash data")
+			return append(hashData, encryptedData...), nil
 		}
-		logrus.Debugln("Hash data")
-		return append(hash, encryptedData...), nil
 	}
 	return data, nil
+}
+
+func (e *SearchableDataEncryptor) hashPrefixed(prefix uint8, data []byte, key []byte) []byte {
+	compositeHash := make([]byte, 0)
+
+	unicodeData := []rune(string(data))
+	// generating hash with different parts, e.g:
+	// if the data is `value` and search_prefix: 3
+	// hash(`v`) + hash(`va`) + hash(`val`) + hash(`value`)
+	iteration := 1
+	for {
+		if iteration > len(data) || iteration > int(prefix) {
+			break
+		}
+		iterationPrefix := []byte(string(unicodeData[:iteration]))
+		compositeHash = append(compositeHash, GenerateHMAC(key, iterationPrefix)...)
+
+		iteration++
+	}
+
+	compositeHash = append(compositeHash, GenerateHMAC(key, data)...)
+	return compositeHash
 }

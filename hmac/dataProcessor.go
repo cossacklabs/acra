@@ -19,10 +19,12 @@ package hmac
 import (
 	"context"
 	"errors"
+
 	"github.com/cossacklabs/acra/acrablock"
 	acrastruct2 "github.com/cossacklabs/acra/acrastruct"
 	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -58,7 +60,13 @@ func (p *Processor) OnColumn(ctx context.Context, data []byte) (context.Context,
 		logger := logging.GetLoggerFromContext(ctx)
 		logger.WithError(err).Debugln("Failed on HMAC processing")
 		p.hashData = nil
-		return ctx, p.rawData, nil
+		return base.MarkNotDecryptedContext(ctx), p.rawData, nil
+	}
+
+	columnSetting, ok := encryptor.EncryptionSettingFromContext(ctx)
+	if p.hashData == nil && ok && columnSetting.GetSearchablePrefix() > 0 {
+		shift := GetDefaultHashSize() * int(columnSetting.GetSearchablePrefix())
+		data = data[shift:]
 	}
 
 	p.matchedHash = ExtractHash(data)
@@ -81,6 +89,14 @@ func (p *Processor) OnColumn(ctx context.Context, data []byte) (context.Context,
 // Process HMAC DataProcessor implementation
 func (p *Processor) Process(data []byte, ctx *base.DataProcessorContext) ([]byte, error) {
 	accessContext := base.AccessContextFromContext(ctx.Context)
+
+	columnSetting, ok := encryptor.EncryptionSettingFromContext(ctx.Context)
+
+	if ok && p.hashData == nil && columnSetting.GetSearchablePrefix() > 0 {
+		shift := GetDefaultHashSize() * int(columnSetting.GetSearchablePrefix())
+		data = data[shift:]
+	}
+
 	if p.hashData != nil && !p.matchedHash.IsEqual(data, accessContext.GetClientID(), p.hmacStore) {
 		return data, ErrHMACNotMatch
 	}

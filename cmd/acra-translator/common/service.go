@@ -8,6 +8,7 @@ import (
 	"github.com/cossacklabs/acra/hmac"
 	"github.com/cossacklabs/acra/logging"
 	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
 )
 
@@ -156,6 +157,8 @@ func (service *TranslatorService) EncryptSearchable(ctx context.Context, data, c
 		logger.WithError(err).Errorln("Can't load HMAC key")
 		return SearchableResponse{}, ErrKeysNotFound
 	}
+	defer utils.ZeroizeSymmetricKey(hmacKey)
+
 	logger.Debugln("Generate HMAC")
 	dataHash := hmac.GenerateHMAC(hmacKey, data)
 	logger.Debugln("Create AcraStruct")
@@ -246,6 +249,8 @@ func (service *TranslatorService) GenerateQueryHash(context context.Context, dat
 		logger.WithError(err).Errorln("Can't load HMAC key")
 		return nil, ErrKeysNotFound
 	}
+	defer utils.ZeroizeSymmetricKey(key)
+
 	logger.Debugln("Generate HMAC")
 	hash := hmac.GenerateHMAC(key, data)
 	return hash, nil
@@ -318,6 +323,8 @@ func (service *TranslatorService) EncryptSymSearchable(ctx context.Context, data
 		logger.WithError(err).Errorln("Can't load HMAC key")
 		return SearchableResponse{}, ErrKeysNotFound
 	}
+	defer utils.ZeroizeSymmetricKey(hmacKey)
+
 	logger.Debugln("Generate HMAC")
 	dataHash := hmac.GenerateHMAC(hmacKey, data)
 	logger.Debugln("Create AcraBlock")

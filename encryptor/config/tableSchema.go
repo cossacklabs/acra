@@ -54,6 +54,7 @@ type ColumnEncryptionSetting interface {
 	IsSearchable() bool
 	// Data masking
 	GetMaskingPattern() string
+	GetSearchablePrefix() uint8
 	GetPartialPlaintextLen() int
 	IsEndMasking() bool
 	OnlyEncryption() bool

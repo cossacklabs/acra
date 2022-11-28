@@ -7636,6 +7636,89 @@ class BaseTokenizationWithBinaryMySQL(BaseTokenization):
         return result
 
 
+class TestSearchableTransparentEncryptionWithSearchPrefix(BaseSearchableTransparentEncryption):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_encryptor_config_with_search_prefix.yaml')
+
+    def testSearch(self):
+        context = self.get_context_data()
+        search_term = context['searchable']
+
+        # Insert searchable data and some additional different rows
+        self.insertRow(context)
+        # self.insertDifferentRows(context, count=5)
+
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
+            {'searchable': search_term},
+        )
+        self.assertEqual(len(rows), 1)
+
+        self.checkDefaultIdEncryption(**context)
+        self.assertEqual(rows[0]['searchable'], search_term)
+
+        pattern = '{}%'.format(search_term[:2].decode('ascii'))
+        # search by like with prefix of 2 bytes
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table]).filter(self.encryptor_table.c.searchable.like(pattern.encode('ascii'))),
+            {'searchable': pattern.encode('ascii')}
+        )
+        self.assertEqual(len(rows), 1)
+
+        self.checkDefaultIdEncryption(**context)
+        self.assertEqual(rows[0]['searchable'], search_term)
+
+        pattern = '{}%'.format(search_term[:3].decode('ascii'))
+        # search by like with prefix of 2 bytes
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table]).filter(self.encryptor_table.c.searchable.like(pattern.encode('ascii'))),
+            {'searchable': pattern.encode('ascii')}
+        )
+        self.assertEqual(len(rows), 1)
+
+        self.checkDefaultIdEncryption(**context)
+        self.assertEqual(rows[0]['searchable'], search_term)
+
+        pattern = '{}%'.format(search_term[:4].decode('ascii'))
+        # search by like with prefix of 4 bytes not records should be found
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table]).filter(self.encryptor_table.c.searchable.like(pattern.encode('ascii'))),
+            {'searchable': pattern.encode('ascii')}
+        )
+        self.assertEqual(len(rows), 0)
+
+        context = self.get_context_data()
+        context['searchable'] = search_term
+
+        # insert more rows with the same search_term
+        self.insertRow(context)
+
+        pattern = '{}%'.format(search_term[:3].decode('ascii'))
+        # search by like with prefix of 4 bytes not records should be found
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table]).filter(self.encryptor_table.c.searchable.like(pattern.encode('ascii'))),
+            {'searchable': pattern.encode('ascii')}
+        )
+        self.assertEqual(len(rows), 2)
+
+        search_term = 'Україна'
+        search_term_utf8 = search_term.encode('utf8')
+
+        context = self.get_context_data()
+        context['searchable'] = search_term_utf8
+
+        # insert more rows with the search_term of utf8 symbols
+        self.insertRow(context)
+
+        pattern = '{}%'.format(search_term[:2])
+        # search by like with prefix of 3 symbols
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table]).filter(self.encryptor_table.c.searchable.like(pattern.encode('utf8'))),
+            {'searchable': pattern.encode('utf8')}
+        )
+        self.assertEqual(len(rows), 1)
+
+
 class TestSearchableTokenizationWithoutZone(AcraCatchLogsMixin, BaseTokenization):
     ZONE = False
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_searchable_tokenization_config.yaml')

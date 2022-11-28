@@ -205,6 +205,95 @@ func TestSearchableWithTextFormat(t *testing.T) {
 	}
 }
 
+// TestSearchableWithLikeSearch process searchable SELECT query with like comparisons
+func TestSearchableWithLikeSearch(t *testing.T) {
+	clientSession := &mocks.ClientSession{}
+	sessionData := make(map[string]interface{}, 2)
+	clientSession.On("GetData", mock.Anything).Return(func(key string) interface{} {
+		return sessionData[key]
+	}, func(key string) bool {
+		_, ok := sessionData[key]
+		return ok
+	})
+	clientSession.On("DeleteData", mock.Anything).Run(func(args mock.Arguments) {
+		delete(sessionData, args[0].(string))
+	})
+	clientSession.On("SetData", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		sessionData[args[0].(string)] = args[1]
+	})
+	schemaConfig := `schemas:
+  - table: test_table
+    columns:
+      - data1
+      - data2
+    encrypted:
+      - column: data1
+        searchable: true
+        searchable_prefix: 5
+`
+
+	schema, err := config.MapTableSchemaStoreFromConfig([]byte(schemaConfig), config.UseMySQL)
+	assert.NoError(t, err)
+
+	ctx := base.SetClientSessionToContext(context.Background(), clientSession)
+	parser := sqlparser.New(sqlparser.ModeDefault)
+	keyStore := &mocks2.ServerKeyStore{}
+	keyStore.On("GetHMACSecretKey", mock.Anything).Return([]byte(`some key`), nil)
+	registryHandler := crypto.NewRegistryHandler(nil)
+	encryptor := NewPostgresqlHashQuery(keyStore, schema, registryHandler)
+
+	coder := &encryptor2.PostgresqlDBDataCoder{}
+
+	type testcase struct {
+		Query   string
+		Pattern string
+	}
+	testcases := []testcase{
+		{Pattern: "dat%", Query: "SELECT data1 from test_table WHERE data1 like '%s'"},
+	}
+	for _, testcase := range testcases {
+		query := fmt.Sprintf(testcase.Query, testcase.Pattern)
+
+		queryObj := base.NewOnQueryObjectFromQuery(query, parser)
+		queryObj, _, err = encryptor.OnQuery(ctx, queryObj)
+		assert.NoError(t, err)
+
+		stmt, err := queryObj.Statement()
+		assert.NoError(t, err)
+
+		var whereStatements []*sqlparser.Where
+		err = sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
+			where, ok := node.(*sqlparser.Where)
+			if ok {
+				whereStatements = append(whereStatements, where)
+			}
+			return true, nil
+		}, stmt)
+		assert.NoError(t, err)
+		assert.True(t, len(whereStatements) > 0)
+
+		var comparisonExpr *sqlparser.ComparisonExpr
+		switch node := whereStatements[0].Expr.(type) {
+		case *sqlparser.ComparisonExpr:
+			comparisonExpr = node
+		}
+
+		_, isSubstrExpr := comparisonExpr.Left.(*sqlparser.SubstrExpr)
+		assert.True(t, isSubstrExpr)
+		assert.Equal(t, comparisonExpr.Operator, sqlparser.EqualStr)
+
+		rightVal := comparisonExpr.Right.(*sqlparser.SQLVal)
+		assert.True(t, len(rightVal.Val) > len(testcase.Pattern))
+
+		hmacValue, err := encryptor.calculateHmac(ctx, bytes.TrimSuffix([]byte(testcase.Pattern), []byte("%s")))
+		assert.NoError(t, err)
+
+		newData, err := coder.Encode(rightVal, hmacValue)
+		assert.NoError(t, err)
+		assert.Equal(t, len(rightVal.Val), len(newData))
+	}
+}
+
 // TestSearchableWithJoinsWithTextFormat process searchable SELECT query with placeholder for prepared statement
 // and use binding values in text format
 func TestSearchableWithJoinsWithTextFormat(t *testing.T) {

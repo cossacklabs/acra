@@ -137,9 +137,15 @@ func MarkDecryptedContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, decryptedCtxKey{}, true)
 }
 
+// MarkNotDecryptedContext save flag in context that data wasn't decrypted
+func MarkNotDecryptedContext(ctx context.Context) context.Context {
+	return context.WithValue(ctx, decryptedCtxKey{}, false)
+}
+
 // IsDecryptedFromContext return true if data was decrypted related to context
 func IsDecryptedFromContext(ctx context.Context) bool {
-	return ctx.Value(decryptedCtxKey{}) != nil
+	val := ctx.Value(decryptedCtxKey{})
+	return val != nil && val.(bool)
 }
 
 type errorConvertedDataTypeCtxKey struct{}

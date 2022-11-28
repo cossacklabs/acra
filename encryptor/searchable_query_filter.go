@@ -193,7 +193,9 @@ func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(stmt sqlpa
 		}
 
 		if sqlVal, ok := comparisonExpr.Right.(*sqlparser.SQLVal); ok && isSupportedSQLVal(sqlVal) {
-			if comparisonExpr.Operator == sqlparser.EqualStr || comparisonExpr.Operator == sqlparser.NotEqualStr || comparisonExpr.Operator == sqlparser.NullSafeEqualStr {
+			if comparisonExpr.Operator == sqlparser.EqualStr || comparisonExpr.Operator == sqlparser.NotEqualStr ||
+				comparisonExpr.Operator == sqlparser.NullSafeEqualStr || comparisonExpr.Operator == sqlparser.LikeStr ||
+				comparisonExpr.Operator == sqlparser.NotLikeStr {
 				if _, ok := comparisonExpr.Left.(*sqlparser.ColName); ok {
 					exprs = append(exprs, SearchableExprItem{
 						Expr:    comparisonExpr,
