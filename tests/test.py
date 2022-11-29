@@ -11447,8 +11447,15 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
             connect_str = get_engine_connection_string(
                 self.get_acraserver_connection_string(self.ACRASERVER_PORT), DB_NAME)
             test_engine = sa.create_engine(connect_str, connect_args=tls_args)
-
-            result = test_engine.execute('select 1').fetchone()
+            count = 0
+            while count < 5:
+                try:
+                    result = test_engine.execute('select 1').fetchone()
+                    break
+                except Exception:
+                    count += 1
+                    if count == 5:
+                        raise
             self.assertEqual(1, result[0])
 
             # use another keystore and delete previous
@@ -11533,7 +11540,17 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
                 stop_process(translator)
                 raise
 
-            plaintext = self.grpc_decrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, None, ciphertext)
+            count = 0
+            while count < 5:
+                try:
+                    plaintext = self.grpc_decrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, None, ciphertext)
+                    # on grpc call error function returns empty response without exception
+                    if plaintext:
+                        break
+                except Exception:
+                    count += 1
+                    if count == 5:
+                        raise
             self.assertEqual(plaintext, test_data)
 
             with self.assertRaises(Exception) as exc:
