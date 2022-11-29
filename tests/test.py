@@ -11453,6 +11453,7 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
                     result = test_engine.execute('select 1').fetchone()
                     break
                 except Exception:
+                    print('retry ', count)
                     count += 1
                     if count == 5:
                         raise
@@ -11477,7 +11478,15 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
             tls_args['port'] = self.ACRASERVER_PORT
             test_engine = sa.create_engine(connect_str, connect_args=tls_args)
 
-            result = test_engine.execute('select 1').fetchone()
+            while count < 5:
+                try:
+                    result = test_engine.execute('select 1').fetchone()
+                    break
+                except Exception:
+                    print('retry ', count)
+                    count += 1
+                    if count == 5:
+                        raise
             self.assertEqual(1, result[0])
 
             with self.assertRaises(Exception) as exc:
