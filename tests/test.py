@@ -11450,7 +11450,8 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
             count = 0
             while count < 5:
                 try:
-                    result = test_engine.execute('select 1').fetchone()
+                    with test_engine.connect() as connection:
+                        result = connection.execute('select 1').fetchone()
                     break
                 except Exception:
                     print('retry ', count)
@@ -11480,7 +11481,8 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
 
             while count < 5:
                 try:
-                    result = test_engine.execute('select 1').fetchone()
+                    with test_engine.connect() as connection:
+                        result = connection.execute('select 1').fetchone()
                     break
                 except Exception:
                     print('retry ', count)
