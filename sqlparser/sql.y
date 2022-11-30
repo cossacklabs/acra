@@ -2162,13 +2162,21 @@ condition:
 | value_expression ILIKE value_expression like_escape_opt
   {
     if yylex.(*Tokenizer).IsMySQL() {
-       yylex.Error("MySQL dialect doesn't support `ILKE` statement")
+       yylex.Error("MySQL dialect doesn't support `ILIKE` statement")
        return 1
      }
     $$ = &ComparisonExpr{Left: $1, Operator: ILikeStr, Right: $3, Escape: $4}
   }
 | value_expression NOT LIKE value_expression like_escape_opt
   {
+    $$ = &ComparisonExpr{Left: $1, Operator: NotLikeStr, Right: $4, Escape: $5}
+  }
+| value_expression NOT ILIKE value_expression like_escape_opt
+  {
+    if yylex.(*Tokenizer).IsMySQL() {
+       yylex.Error("MySQL dialect doesn't support `ILIKE` statement")
+       return 1
+     }
     $$ = &ComparisonExpr{Left: $1, Operator: NotLikeStr, Right: $4, Escape: $5}
   }
 | value_expression REGEXP value_expression
