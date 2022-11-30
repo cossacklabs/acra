@@ -260,12 +260,3 @@ func (encryptor *HashQuery) calculateHmac(ctx context.Context, data []byte) ([]b
 	mac := hmac.GenerateHMAC(key, decrypted)
 	return mac, nil
 }
-
-func (encryptor *HashQuery) changeSearchableOperator(item queryEncryptor.SearchableExprItem) {
-	switch item.Expr.Operator {
-	case sqlparser.EqualStr, sqlparser.NullSafeEqualStr, sqlparser.LikeStr:
-		item.Expr.Operator = sqlparser.EqualStr
-	case sqlparser.NotEqualStr, sqlparser.NotLikeStr:
-		item.Expr.Operator = sqlparser.NotEqualStr
-	}
-}
