@@ -99,6 +99,8 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObjec
 			To:   sqlparser.NewIntVal(hashSize),
 		}
 
+		encryptor.searchableQueryFilter.ChangeSearchableOperator(item.Expr)
+
 		if rColName, ok := item.Expr.Right.(*sqlparser.ColName); ok {
 			item.Expr.Right = &sqlparser.SubstrExpr{
 				Name: rColName,
