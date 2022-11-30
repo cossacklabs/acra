@@ -99,6 +99,8 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObjec
 			To:   sqlparser.NewIntVal(hashSize),
 		}
 
+		encryptor.searchableQueryFilter.ChangeSearchableOperator(item.Expr)
+
 		if rColName, ok := item.Expr.Right.(*sqlparser.ColName); ok {
 			item.Expr.Right = &sqlparser.SubstrExpr{
 				Name: rColName,
@@ -257,4 +259,13 @@ func (encryptor *HashQuery) calculateHmac(ctx context.Context, data []byte) ([]b
 	defer utils.ZeroizeBytes(key)
 	mac := hmac.GenerateHMAC(key, decrypted)
 	return mac, nil
+}
+
+func (encryptor *HashQuery) changeSearchableOperator(item queryEncryptor.SearchableExprItem) {
+	switch item.Expr.Operator {
+	case sqlparser.EqualStr, sqlparser.NullSafeEqualStr, sqlparser.LikeStr:
+		item.Expr.Operator = sqlparser.EqualStr
+	case sqlparser.NotEqualStr, sqlparser.NotLikeStr:
+		item.Expr.Operator = sqlparser.NotEqualStr
+	}
 }
