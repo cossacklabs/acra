@@ -6829,7 +6829,8 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
 
         # Insert searchable data and some additional different rows
         self.insertRow(context)
-        self.insertDifferentRows(context, count=5)
+        extra_rows_count = 5
+        self.insertDifferentRows(context, count=extra_rows_count)
 
         rows = self.executeSelect2(
             sa.select([self.encryptor_table])
@@ -6840,6 +6841,17 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
 
         self.checkDefaultIdEncryption(**context)
         self.assertEqual(rows[0]['searchable'], search_term)
+
+        # check not equal
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable != sa.bindparam('searchable')),
+            {'searchable': search_term},
+            )
+        self.assertEqual(len(rows), extra_rows_count)
+
+        for row in rows:
+            self.assertNotEqual(row['searchable'], search_term)
 
     def testExtendedSyntaxSearch(self):
         context = self.get_context_data()
