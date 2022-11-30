@@ -6823,6 +6823,15 @@ class BaseSearchableTransparentEncryptionBinaryMySQLMixin(BaseBinaryMySQLTestCas
 
 
 class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
+    def get_result_len(self, result):
+        '''returns len of object as rowcount field or len() call
+
+        result is sqlalchemy ResultProxy with rowcount field or asyncpg's response as list object without rowcount
+        '''
+        if hasattr(result, 'rowcount'):
+            return result.rowcount
+        return len(result)
+
     def testSearch(self):
         context = self.get_context_data()
         search_term = context['searchable']
@@ -6837,7 +6846,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
                 .where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
             {'searchable': search_term},
             )
-        self.assertEqual(len(rows), 1)
+        self.assertEqual(self.get_result_len(rows), 1)
 
         self.checkDefaultIdEncryption(**context)
         self.assertEqual(rows[0]['searchable'], search_term)
@@ -6848,10 +6857,94 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
             .where(self.encryptor_table.c.searchable != sa.bindparam('searchable')),
             {'searchable': search_term},
             )
-        self.assertEqual(len(rows), extra_rows_count)
+        self.assertEqual(self.get_result_len(rows), extra_rows_count)
 
         for row in rows:
             self.assertNotEqual(row['searchable'], search_term)
+
+    def testExtendedSyntaxNotMatchedSearch(self):
+        context = self.get_context_data()
+        search_term = context['searchable']
+
+        # Insert searchable data and some additional different rows
+        extra_rows_count = 5
+        self.insertRow(context)
+        self.insertDifferentRows(context, count=extra_rows_count)
+
+        new_token_i32 = random.randint(0, 2 ** 16)
+        searchable_update_data = {
+            'token_i32': new_token_i32,
+            'b_searchable': search_term
+        }
+
+        # test searchable tokenization in update where statements
+        query = sa.update(self.encryptor_table).where(
+            self.encryptor_table.c.searchable != sa.bindparam('b_searchable')).values(token_i32=new_token_i32)
+        result = self.execute_via_2(query, searchable_update_data)
+
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable != sa.bindparam('searchable')),
+            {'searchable': search_term},
+            )
+        self.assertEqual(len(rows), extra_rows_count)
+        for row in rows:
+            self.assertNotEqual(row['id'], context['id'])
+            self.assertNotEqual(row['searchable'], search_term)
+            self.assertEqual(row['token_i32'], new_token_i32)
+
+        row_id = get_random_id()
+        insert_data = {
+            'param_1': row_id,
+            'b_searchable': search_term
+        }
+
+        select_columns = ['id', 'default_client_id', 'number', 'zone_id', 'specified_client_id', 'raw_data', 'searchable',
+                          'searchable_acrablock', 'empty', 'nullable', 'masking', 'token_bytes', 'token_email',
+                          'token_str', 'token_i32', 'token_i64']
+
+        if TEST_POSTGRESQL:
+            id_sequence = sa.text("nextval('test_searchable_transparent_encryption_id_seq')")
+        else:
+            # use null as value for auto incremented column
+            # https://dev.mysql.com/doc/refman/8.0/en/example-auto-increment.html
+            id_sequence = None
+        select_query = sa.select(
+            id_sequence, sa.column('default_client_id'), sa.column('number'), sa.column('zone_id'),
+            sa.column('specified_client_id'), sa.column('raw_data'), sa.column('searchable'),
+            sa.column('searchable_acrablock'), sa.column('empty'), sa.column('nullable'), sa.column('masking'),
+            sa.column('token_bytes'), sa.column('token_email'), sa.column('token_str'), sa.column('token_i32'),
+            sa.column('token_i64')). \
+            where(self.encryptor_table.c.searchable != sa.bindparam('b_searchable'))
+
+        query = sa.insert(self.encryptor_table).from_select(select_columns, select_query)
+        self.execute_via_2(query, insert_data)
+
+        # after insert there extra_rows_count * 2 rows should be present in DB
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable != sa.bindparam('searchable')),
+            {'searchable': search_term},
+            )
+        self.assertEqual(self.get_result_len(rows), extra_rows_count*2)
+
+        # test searchable encryption in delete statements
+        query = sa.delete(self.encryptor_table).where(self.encryptor_table.c.searchable != sa.bindparam('b_searchable'))
+        result = self.execute_via_2(query, searchable_update_data)
+
+        # verify that deleted not searchable
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable != sa.bindparam('searchable')),
+            {'searchable': search_term},
+            )
+        self.assertEqual(len(rows), 0)
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
+            {'searchable': search_term},
+            )
+        self.assertEqual(self.get_result_len(rows), 1)
 
     def testExtendedSyntaxSearch(self):
         context = self.get_context_data()
@@ -7029,6 +7122,26 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         self.checkDefaultIdEncryption(**context)
         self.assertEqual(rows[0]['searchable_acrablock'], search_term)
 
+    def testSearchAcraBlockNotMatched(self):
+        context = self.get_context_data()
+        row_id = context['id']
+        search_term = context['searchable_acrablock']
+        extra_rows_count = 5
+
+        # Insert searchable data and some additional different rows
+        self.insertRow(context)
+        self.insertDifferentRows(context, count=extra_rows_count, search_field='searchable_acrablock')
+
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable_acrablock != sa.bindparam('searchable_acrablock')),
+            {'searchable_acrablock': search_term})
+        self.assertEqual(len(rows), extra_rows_count)
+
+        for row in rows:
+            self.assertNotEqual(row['searchable_acrablock'], search_term)
+            self.assertNotEqual(row['id'], context['id'])
+
     def testDeserializeOldContainerOnDecryptionFail(self):
         acrastruct = create_acrastruct_with_client_id(b'somedata', TLS_CERT_CLIENT_ID_1)
 
@@ -7084,6 +7197,36 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         self.checkDefaultIdEncryption(**context)
         self.assertEqual(rows[0]['searchable'], search_term)
 
+    def testSearchWithEncryptedDataNotMatchedQuery(self):
+        context = self.get_context_data()
+        not_encrypted_term = context['raw_data']
+        search_term = context['searchable']
+        encrypted_term = create_acrastruct_with_client_id(
+            search_term, TLS_CERT_CLIENT_ID_2)
+        context['searchable'] = encrypted_term
+
+        # Insert searchable data and some additional different rows
+        self.insertRow(context)
+        # Use plaintext search term here to avoid mismatches
+        extra_rows_count = 5
+        self.insertDifferentRows(context, count=extra_rows_count, search_term=search_term)
+
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(sa.and_(
+                self.encryptor_table.c.searchable != sa.bindparam('searchable'),
+                self.encryptor_table.c.raw_data == sa.bindparam('raw_data'))),
+            {'searchable': search_term,
+             'raw_data': not_encrypted_term},
+            )
+        self.assertEqual(len(rows), extra_rows_count)
+
+        result = self.engine2.execute(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable != encrypted_term))
+        rows = result.fetchall()
+        self.assertEqual(len(rows), extra_rows_count)
+
     def testSearchAcraBlockWithEncryptedData(self):
         context = self.get_context_data()
         row_id = context['id']
@@ -7129,6 +7272,37 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
 
         self.checkDefaultIdEncryption(**context)
         self.assertEqual(rows[0]['searchable_acrablock'], search_term)
+
+    def testSearchAcraBlockWithEncryptedDataNotMatchedQuery(self):
+        context = self.get_context_data()
+        row_id = context['id']
+        not_encrypted_term = context['raw_data']
+        search_term = context['searchable_acrablock']
+        encrypted_term = create_acrastruct_with_client_id(
+            search_term, TLS_CERT_CLIENT_ID_2)
+        context['searchable_acrablock'] = encrypted_term
+
+        # Insert searchable data and some additional different rows
+        self.insertRow(context)
+        # Use plaintext search term here to avoid mismatches
+        extra_rows_count = 5
+        self.insertDifferentRows(context, count=extra_rows_count, search_term=search_term, search_field='searchable_acrablock')
+
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(sa.and_(
+                self.encryptor_table.c.searchable_acrablock != sa.bindparam('searchable_acrablock'),
+                self.encryptor_table.c.raw_data == sa.bindparam('raw_data'))),
+            {'searchable_acrablock': search_term,
+             'raw_data': not_encrypted_term},
+            )
+        self.assertEqual(len(rows), extra_rows_count)
+
+        result = self.engine2.execute(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable_acrablock != encrypted_term))
+        rows = result.fetchall()
+        self.assertEqual(len(rows), extra_rows_count)
 
     def testRotatedKeys(self):
         """Verify decryption of searchable data with old keys."""
