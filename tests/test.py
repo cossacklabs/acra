@@ -7858,7 +7858,6 @@ class TestSearchableTokenizationWithoutZone(AcraCatchLogsMixin, BaseTokenization
         self.insert_via_1(default_client_id_table.insert(), data)
 
         columns = {
-            'id': default_client_id_table.c.id,
             'token_i32': default_client_id_table.c.token_i32,
             'token_i64': default_client_id_table.c.token_i64,
             'token_str': default_client_id_table.c.token_str,
@@ -7887,7 +7886,7 @@ class TestSearchableTokenizationWithoutZone(AcraCatchLogsMixin, BaseTokenization
         query = sa.update(default_client_id_table).where(columns['token_i32'] == data['token_i32']).values(token_str=new_token_str)
         self.execute_via_1(query, update_data)
 
-        parameters = {key: data[key]}
+        parameters = {'token_i32': data['token_i32']}
         query = sa.select(default_client_id_table).where(columns[key] == data[key])
         source_data = self.fetch_from_1(query, parameters, literal_binds=False)
 
@@ -7925,6 +7924,135 @@ class TestSearchableTokenizationWithoutZone(AcraCatchLogsMixin, BaseTokenization
 
         source_data = self.fetch_from_1(sa.select([default_client_id_table]))
         self.assertEqual(0, len(source_data))
+
+    def testSearchableTokenizationNotEqualQuery(self):
+        default_client_id_table = sa.Table(
+            'test_tokenization_default_client_id', metadata,
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('nullable_column', sa.Text, nullable=True),
+            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_i32', sa.Integer()),
+            sa.Column('token_i64', sa.BigInteger()),
+            sa.Column('token_str', sa.Text),
+            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_email', sa.Text),
+            extend_existing=True,
+        )
+        metadata.create_all(self.engine_raw, [default_client_id_table])
+        self.engine1.execute(default_client_id_table.delete())
+
+        # insert two rows with same values
+        data = {
+            'nullable_column': None,
+            'empty': b'',
+            'token_i32': random_int32(),
+            'token_i64': random_int64(),
+            'token_str': random_str(),
+            'token_bytes': random_bytes(),
+            'token_email': random_email(),
+        }
+        expected_rows = [data]
+        self.insert_via_1(default_client_id_table.insert(), data)
+        new_data = data.copy()
+        self.insert_via_1(default_client_id_table.insert(), new_data)
+        expected_rows.append(new_data)
+
+        # insert values with different values
+        not_expected_rows = []
+        for idx in range(5):
+            insert_data = {
+                'nullable_column': None,
+                'empty': b'',
+                'token_i32': random_int32(),
+                'token_i64': random_int64(),
+                'token_str': random_str(),
+                'token_bytes': random_bytes(50),
+                'token_email': random_email(),
+            }
+            not_expected_rows.append(insert_data)
+
+        # bulk insert data
+        self.insert_via_1_bulk(default_client_id_table.insert(), not_expected_rows)
+
+        columns = {
+            'token_i32': default_client_id_table.c.token_i32,
+            'token_i64': default_client_id_table.c.token_i64,
+            'token_str': default_client_id_table.c.token_str,
+            'token_bytes': default_client_id_table.c.token_bytes,
+            'token_email': default_client_id_table.c.token_email,
+        }
+
+        # query with not equal operator
+        for i32_key in columns:
+            parameters = {i32_key: data[i32_key]}
+            query = sa.select(default_client_id_table).where(columns[i32_key] != data[i32_key]).order_by(
+                default_client_id_table.c.id)
+
+            source_data = self.fetch_from_1(query, parameters, literal_binds=False)
+            self.assertEqual(len(source_data), len(not_expected_rows))
+            for i, row in enumerate(source_data):
+                for k in ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email'):
+                    if isinstance(row[k], (bytearray, bytes)) and isinstance(not_expected_rows[i][k], str):
+                        self.assertEqual(row[k], not_expected_rows[i].encode('utf-8'))
+                    else:
+                        self.assertEqual(row[k], not_expected_rows[i][k])
+
+        i32_key = 'token_i32'  # different from updating key token_str
+        new_not_expected_token_str = random_str()
+        update_not_expected_data = {
+            'token_str': new_not_expected_token_str,
+        }
+        query = sa.update(default_client_id_table).where(columns[i32_key] != data[i32_key]).values(
+            token_str=new_not_expected_token_str)
+        self.execute_via_1(query, update_not_expected_data)
+        parameters = {i32_key: data[i32_key]}
+        query = sa.select(default_client_id_table).where(columns[i32_key] != data[i32_key]).order_by(
+            default_client_id_table.c.id)
+        source_data = self.fetch_from_1(query, parameters, literal_binds=False)
+        for i, row in enumerate(source_data):
+            if isinstance(row[k], (bytearray, bytes)) and isinstance(not_expected_rows[i][k], str):
+                self.assertEqual(row['token_str'], new_not_expected_token_str.encode('utf-8'))
+            else:
+                self.assertEqual(row['token_str'], new_not_expected_token_str)
+
+        if TEST_POSTGRESQL:
+            id_sequence = sa.text("nextval('{}_id_seq')".format(default_client_id_table.name))
+        else:
+            # use null as value for auto incremented column
+            # https://dev.mysql.com/doc/refman/8.0/en/example-auto-increment.html
+            id_sequence = None
+        select_columns = ['id', 'nullable_column', 'empty', 'token_i32', 'token_i64', 'token_str', 'token_bytes',
+                          'token_email']
+        select_query = sa.select(id_sequence, sa.column('nullable_column'), sa.column('empty'),
+                                 columns['token_i32'], columns['token_i64'], columns['token_str'],
+                                 columns['token_bytes'], columns['token_email']). \
+            where(columns['token_i32'] != data['token_i32'])
+
+        query = sa.insert(default_client_id_table).from_select(select_columns, select_query)
+        self.execute_via_1(query, {})
+
+        # expect that data was encrypted with client_id which used to insert (client_id==keypair1)
+        source_data = self.fetch_from_1(
+            sa.select([default_client_id_table])
+            .where(default_client_id_table.c.token_i32 != data['token_i32'])
+            .order_by(default_client_id_table.c.id))
+        self.assertEqual(len(source_data), len(not_expected_rows) * 2)
+        for i, row in enumerate(source_data):
+            # due to we have 2 values copy, we should compare them in the cycle with not_expected_rows
+            expected_row_index = i % len(not_expected_rows)
+            for k in ('token_i32', 'token_i64', 'token_bytes', 'token_email'):
+                if isinstance(source_data[i][k], (bytearray, bytes)) and isinstance(not_expected_rows[expected_row_index][k], str):
+                    self.assertEqual(source_data[i][k], not_expected_rows[expected_row_index][k].encode('utf-8'))
+                else:
+                    self.assertEqual(source_data[i][k], not_expected_rows[expected_row_index][k])
+
+        # delete all except first 2 rows
+        query = sa.delete(default_client_id_table).where(columns['token_str'] != data['token_str'])
+        self.execute_via_1(query, {})
+
+        source_data = self.fetch_from_1(sa.select([default_client_id_table]))
+        # we expect that deleted all rows except first 2 added
+        self.assertEqual(2, len(source_data))
 
     def testSearchableTokenizationWithJOINs(self):
         default_client_id_table = sa.Table(
