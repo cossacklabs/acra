@@ -1993,10 +1993,10 @@ class BaseBinaryPostgreSQLTestCase(AsyncpgExecutorMixin, BaseTestCase):
             if saPlaceholderIndex in query:
                 saPlaceholder = saPlaceholderIndex
                 param_counter += 1
-            pgPlaceholder = '$' + str(len(values) + 1)
             # Replace and keep values only for those placeholders which
             # are actually used in the query.
             if saPlaceholder in query:
+                pgPlaceholder = '$' + str(len(values) + 1)
                 values.append(value)
                 query = query.replace(saPlaceholder, pgPlaceholder)
         return query, values
@@ -7883,10 +7883,12 @@ class TestSearchableTokenizationWithoutZone(AcraCatchLogsMixin, BaseTokenization
         }
 
         # test searchable tokenization in update where statements
-        query = sa.update(default_client_id_table).where(columns['token_i32'] == data['token_i32']).values(token_str=new_token_str)
+        query = sa.update(default_client_id_table).where(columns['token_i32'] == data['token_i32']).values(
+            token_str=new_token_str)
         self.execute_via_1(query, update_data)
 
-        parameters = {'token_i32': data['token_i32']}
+        key = 'token_i32'
+        parameters = {key: data[key]}
         query = sa.select(default_client_id_table).where(columns[key] == data[key])
         source_data = self.fetch_from_1(query, parameters, literal_binds=False)
 
@@ -7900,8 +7902,11 @@ class TestSearchableTokenizationWithoutZone(AcraCatchLogsMixin, BaseTokenization
             'param_1': row_id,
             'token_i32': data['token_i32']
         }
-        select_columns = ['id', 'nullable_column', 'empty', 'token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email']
-        select_query = sa.select(sa.literal(row_id).label('id'), sa.column('nullable_column'), sa.column('empty'), columns['token_i32'], columns['token_i64'], columns['token_str'], columns['token_bytes'], columns['token_email']).\
+        select_columns = ['id', 'nullable_column', 'empty', 'token_i32', 'token_i64', 'token_str', 'token_bytes',
+                          'token_email']
+        select_query = sa.select(sa.literal(row_id).label('id'), sa.column('nullable_column'), sa.column('empty'),
+                                 columns['token_i32'], columns['token_i64'], columns['token_str'],
+                                 columns['token_bytes'], columns['token_email']).\
             where(columns['token_i32'] == data['token_i32'])
 
         query = sa.insert(default_client_id_table).from_select(select_columns, select_query)
@@ -7940,9 +7945,13 @@ class TestSearchableTokenizationWithoutZone(AcraCatchLogsMixin, BaseTokenization
         )
         metadata.create_all(self.engine_raw, [default_client_id_table])
         self.engine1.execute(default_client_id_table.delete())
-
-        # insert two rows with same values
+        # sqlalchemy's sa.insert().values() generates INSERT statement with 'id' column that should be assigned with
+        # value or None and it will place configure default value. But this testcase used by different Executors that
+        # don't and can't do same and tries to compile statement to the string query and meet problems with it. To avoid
+        # it just assign value
+        id_generator = iter(range(1, 100500))
         data = {
+            'id': next(id_generator),
             'nullable_column': None,
             'empty': b'',
             'token_i32': random_int32(),
@@ -7950,17 +7959,20 @@ class TestSearchableTokenizationWithoutZone(AcraCatchLogsMixin, BaseTokenization
             'token_str': random_str(),
             'token_bytes': random_bytes(),
             'token_email': random_email(),
+
         }
+        # insert two rows with same values
         expected_rows = [data]
         self.insert_via_1(default_client_id_table.insert(), data)
-        new_data = data.copy()
-        self.insert_via_1(default_client_id_table.insert(), new_data)
-        expected_rows.append(new_data)
+        data['id'] = next(id_generator)
+        self.insert_via_1(default_client_id_table.insert(), data)
+        expected_rows.append(data)
 
         # insert values with different values
         not_expected_rows = []
         for idx in range(5):
             insert_data = {
+                'id': next(id_generator),
                 'nullable_column': None,
                 'empty': b'',
                 'token_i32': random_int32(),
@@ -7993,20 +8005,21 @@ class TestSearchableTokenizationWithoutZone(AcraCatchLogsMixin, BaseTokenization
             for i, row in enumerate(source_data):
                 for k in ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email'):
                     if isinstance(row[k], (bytearray, bytes)) and isinstance(not_expected_rows[i][k], str):
-                        self.assertEqual(row[k], not_expected_rows[i].encode('utf-8'))
+                        self.assertEqual(row[k], not_expected_rows[i][k].encode('utf-8'))
                     else:
                         self.assertEqual(row[k], not_expected_rows[i][k])
 
-        i32_key = 'token_i32'  # different from updating key token_str
         new_not_expected_token_str = random_str()
+        i32_key = 'b_token_i32'  # use different name for bind value to skip placing it in SET statement by sqlalchemy
         update_not_expected_data = {
             'token_str': new_not_expected_token_str,
+            i32_key: data['token_i32'],
         }
-        query = sa.update(default_client_id_table).where(columns[i32_key] != data[i32_key]).values(
+        query = sa.update(default_client_id_table).where(columns['token_i32'] != sa.bindparam(i32_key)).values(
             token_str=new_not_expected_token_str)
         self.execute_via_1(query, update_not_expected_data)
-        parameters = {i32_key: data[i32_key]}
-        query = sa.select(default_client_id_table).where(columns[i32_key] != data[i32_key]).order_by(
+        parameters = {'token_i32': data['token_i32']}
+        query = sa.select(default_client_id_table).where(columns['token_i32'] != data['token_i32']).order_by(
             default_client_id_table.c.id)
         source_data = self.fetch_from_1(query, parameters, literal_binds=False)
         for i, row in enumerate(source_data):
@@ -8015,12 +8028,17 @@ class TestSearchableTokenizationWithoutZone(AcraCatchLogsMixin, BaseTokenization
             else:
                 self.assertEqual(row['token_str'], new_not_expected_token_str)
 
+        # update sequence counter because INSERT FROM SELECT will use default value but previously we explicitly
+        # set values
         if TEST_POSTGRESQL:
+            self.engine_raw.execute("select setval('{}_id_seq', {})".format(
+                default_client_id_table.name, next(id_generator)))
             id_sequence = sa.text("nextval('{}_id_seq')".format(default_client_id_table.name))
         else:
             # use null as value for auto incremented column
             # https://dev.mysql.com/doc/refman/8.0/en/example-auto-increment.html
             id_sequence = None
+
         select_columns = ['id', 'nullable_column', 'empty', 'token_i32', 'token_i64', 'token_str', 'token_bytes',
                           'token_email']
         select_query = sa.select(id_sequence, sa.column('nullable_column'), sa.column('empty'),
@@ -8029,7 +8047,7 @@ class TestSearchableTokenizationWithoutZone(AcraCatchLogsMixin, BaseTokenization
             where(columns['token_i32'] != data['token_i32'])
 
         query = sa.insert(default_client_id_table).from_select(select_columns, select_query)
-        self.execute_via_1(query, {})
+        self.execute_via_1(query, {'token_i32': data['token_i32']})
 
         # expect that data was encrypted with client_id which used to insert (client_id==keypair1)
         source_data = self.fetch_from_1(
@@ -8048,7 +8066,7 @@ class TestSearchableTokenizationWithoutZone(AcraCatchLogsMixin, BaseTokenization
 
         # delete all except first 2 rows
         query = sa.delete(default_client_id_table).where(columns['token_str'] != data['token_str'])
-        self.execute_via_1(query, {})
+        self.execute_via_1(query, {'token_str': data['token_str']})
 
         source_data = self.fetch_from_1(sa.select([default_client_id_table]))
         # we expect that deleted all rows except first 2 added
