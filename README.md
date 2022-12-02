@@ -286,7 +286,7 @@ If you’d like to contribute your code or provide any other kind of input to Ac
 
 ## Acra feedback
 
-If you are an Acra user, please leave a [short feedback](https://bit.ly/acra-feedback).
+If you are an Acra user, please leave a [short feedback](https://forms.gle/1pVtknvvRcDpiZYQ8).
 
 ## License
 
