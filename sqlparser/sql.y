@@ -2177,7 +2177,7 @@ condition:
        yylex.Error("MySQL dialect doesn't support `ILIKE` statement")
        return 1
      }
-    $$ = &ComparisonExpr{Left: $1, Operator: NotLikeStr, Right: $4, Escape: $5}
+    $$ = &ComparisonExpr{Left: $1, Operator: NotILikeStr, Right: $4, Escape: $5}
   }
 | value_expression REGEXP value_expression
   {

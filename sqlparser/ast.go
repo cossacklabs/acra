@@ -1133,6 +1133,7 @@ const (
 	LikeStr              = "like"
 	ILikeStr             = "ilike"
 	NotLikeStr           = "not like"
+	NotILikeStr          = "not ilike"
 	RegexpStr            = "regexp"
 	NotRegexpStr         = "not regexp"
 	JSONExtractOp        = "->"
