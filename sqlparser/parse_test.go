@@ -1367,6 +1367,10 @@ var (
 		input:   "select * from dual where val ilike 'test%'",
 		output:  "select * from dual where val ilike 'test%'",
 		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
+		input:   "SELECT * FROM dual WHERE val ILIKE 'test%'",
+		output:  "select * from dual where val ilike 'test%'",
+		dialect: postgresql.NewPostgreSQLDialect(),
 	}}
 )
 
@@ -2227,6 +2231,10 @@ var (
 			dialect: postgresql.NewPostgreSQLDialect(),
 		}, {
 			input:   "select * from dual where val ilike 'test%'",
+			output:  "MySQL dialect doesn't support `ILIKE` statement at position 43",
+			dialect: mysql.NewMySQLDialect(),
+		}, {
+			input:   "SELECT * FROM dual WHERE val ILIKE 'test%'",
 			output:  "MySQL dialect doesn't support `ILIKE` statement at position 43",
 			dialect: mysql.NewMySQLDialect(),
 		},
