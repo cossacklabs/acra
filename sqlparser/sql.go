@@ -5321,7 +5321,7 @@ yydefault:
 				yylex.Error("MySQL dialect doesn't support `ILIKE` statement")
 				return 1
 			}
-			yyVAL.expr = &ComparisonExpr{Left: yyDollar[1].expr, Operator: NotLikeStr, Right: yyDollar[4].expr, Escape: yyDollar[5].expr}
+			yyVAL.expr = &ComparisonExpr{Left: yyDollar[1].expr, Operator: NotILikeStr, Right: yyDollar[4].expr, Escape: yyDollar[5].expr}
 		}
 	case 408:
 		yyDollar = yyS[yypt-3 : yypt+1]
