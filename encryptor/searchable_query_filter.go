@@ -86,9 +86,9 @@ func (filter *SearchableQueryFilter) FilterSearchableComparisons(statement sqlpa
 // ChangeSearchableOperator change the operator of ComparisonExpr to EqualStr|NotEqualStr depending on expr.Operator
 func (filter *SearchableQueryFilter) ChangeSearchableOperator(expr *sqlparser.ComparisonExpr) {
 	switch expr.Operator {
-	case sqlparser.EqualStr, sqlparser.NullSafeEqualStr, sqlparser.LikeStr:
+	case sqlparser.EqualStr, sqlparser.NullSafeEqualStr, sqlparser.LikeStr, sqlparser.ILikeStr:
 		expr.Operator = sqlparser.EqualStr
-	case sqlparser.NotEqualStr, sqlparser.NotLikeStr:
+	case sqlparser.NotEqualStr, sqlparser.NotLikeStr, sqlparser.NotILikeStr:
 		expr.Operator = sqlparser.NotEqualStr
 	}
 }
