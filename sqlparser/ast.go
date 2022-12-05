@@ -1131,6 +1131,7 @@ const (
 	InStr                = "in"
 	NotInStr             = "not in"
 	LikeStr              = "like"
+	ILikeStr             = "ilike"
 	NotLikeStr           = "not like"
 	RegexpStr            = "regexp"
 	NotRegexpStr         = "not regexp"

@@ -281,6 +281,7 @@ var keywords = map[string]int{
 	"less":                LESS,
 	"level":               LEVEL,
 	"like":                LIKE,
+	"ilike":               ILIKE,
 	"limit":               LIMIT,
 	"linear":              UNUSED,
 	"lines":               UNUSED,

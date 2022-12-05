@@ -1363,6 +1363,14 @@ var (
 		input:   "select * from dual limit all offset 10",
 		output:  "select * from dual limit all offset 10",
 		dialect: postgresql.NewPostgreSQLDialect(),
+	}, { // PostgreSQL format
+		input:   "select * from dual where val ilike 'test%'",
+		output:  "select * from dual where val ilike 'test%'",
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
+		input:   "SELECT * FROM dual WHERE val ILIKE 'test%'",
+		output:  "select * from dual where val ilike 'test%'",
+		dialect: postgresql.NewPostgreSQLDialect(),
 	}}
 )
 
@@ -2221,7 +2229,16 @@ var (
 			input:   "select adddate('2008-01-02', interval 1 year) from t",
 			output:  "PostgreSQL don't support Mysql syntax of interval expression at position 45 near 'year'",
 			dialect: postgresql.NewPostgreSQLDialect(),
-		}}
+		}, {
+			input:   "select * from dual where val ilike 'test%'",
+			output:  "MySQL dialect doesn't support `ILIKE` statement at position 43",
+			dialect: mysql.NewMySQLDialect(),
+		}, {
+			input:   "SELECT * FROM dual WHERE val ILIKE 'test%'",
+			output:  "MySQL dialect doesn't support `ILIKE` statement at position 43",
+			dialect: mysql.NewMySQLDialect(),
+		},
+	}
 )
 
 func TestErrors(t *testing.T) {
