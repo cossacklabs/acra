@@ -355,6 +355,7 @@ type Update struct {
 	Where      *Where
 	OrderBy    OrderBy
 	Limit      *Limit
+	Returning  Returning
 }
 
 // Delete represents a DELETE statement.
@@ -367,6 +368,7 @@ type Delete struct {
 	Where      *Where
 	OrderBy    OrderBy
 	Limit      *Limit
+	Returning  Returning
 }
 
 // Set represents a SET statement.

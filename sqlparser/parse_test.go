@@ -1377,6 +1377,14 @@ var (
 		input:   "SELECT * FROM dual WHERE val NOT ILIKE 'test%'",
 		output:  "select * from dual where val not ilike 'test%'",
 		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
+		input:   "delete from dual where price <= 99.99 returning 1, 0 as literal, zone_id, specified_client_id, other_column, default_client_id, null",
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
+		input: "delete from dual where price <= 99.99 returning 1, 0 as literal, zone_id, specified_client_id, other_column, default_client_id, null",
+	}, {
+		input:   "update dual set price = price * 1.10 where price <= 99.99 returning 1, 0 as literal, zone_id, specified_client_id, other_column, default_client_id, null",
+		dialect: postgresql.NewPostgreSQLDialect(),
 	},
 	}
 )
@@ -2251,6 +2259,10 @@ var (
 		}, {
 			input:   "SELECT * FROM dual WHERE val NOT ILIKE 'test%'",
 			output:  "MySQL dialect doesn't support `ILIKE` statement at position 47",
+			dialect: mysql.NewMySQLDialect(),
+		}, {
+			input:   "UPDATE dual SET price = price * 1.1 RETURNING 1, 0 as literal",
+			output:  "MySQL/MariaDB dialect doesn't support returning with update statement at position 62",
 			dialect: mysql.NewMySQLDialect(),
 		},
 	}

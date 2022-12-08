@@ -326,8 +326,16 @@ func (encryptor *QueryDataEncryptor) encryptUpdateQuery(ctx context.Context, upd
 	if len(tables) == 0 {
 		return false, nil
 	}
+
 	qualifierMap := NewAliasToTableMapFromTables(tables)
 	firstTable := tables[0].TableName
+
+	// MySQL/MariaDB dont support returning after update statements
+	// Postgres doest but expect only one table in tables expression, so we can take the firstTable for returning matching
+	if encryptor.encryptor == nil {
+		return false, encryptor.onReturning(ctx, update.Returning, firstTable.Name.ValueForConfig())
+	}
+
 	return encryptor.encryptUpdateExpressions(ctx, update.Exprs, firstTable, qualifierMap, bindPlaceholders)
 }
 
@@ -395,6 +403,22 @@ func (encryptor *QueryDataEncryptor) onSelect(ctx context.Context, statement *sq
 	SaveQueryDataItemsToClientSession(clientSession, querySelectSettings)
 
 	encryptor.querySelectSettings = querySelectSettings
+	return false, nil
+}
+
+func (encryptor *QueryDataEncryptor) onDelete(ctx context.Context, delete *sqlparser.Delete) (bool, error) {
+	tables := GetTablesWithAliases(delete.TableExprs)
+	if !encryptor.hasTablesToEncrypt(tables) {
+		return false, nil
+	}
+	if len(tables) == 0 {
+		return false, nil
+	}
+
+	if encryptor.encryptor == nil {
+		return false, encryptor.onReturning(ctx, delete.Returning, tables[0].TableName.Name.ValueForConfig())
+	}
+
 	return false, nil
 }
 
@@ -476,9 +500,9 @@ func (encryptor *QueryDataEncryptor) OnQuery(ctx context.Context, query base.OnQ
 	case *sqlparser.Insert:
 		changed, err = encryptor.encryptInsertQuery(ctx, typedStatement, bindPlaceholders)
 	case *sqlparser.Update:
-		if encryptor.encryptor != nil {
-			changed, err = encryptor.encryptUpdateQuery(ctx, typedStatement, bindPlaceholders)
-		}
+		changed, err = encryptor.encryptUpdateQuery(ctx, typedStatement, bindPlaceholders)
+	case *sqlparser.Delete:
+		changed, err = encryptor.onDelete(ctx, typedStatement)
 	}
 	if err != nil {
 		return query, false, err

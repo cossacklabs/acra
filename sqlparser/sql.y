@@ -462,15 +462,20 @@ insert_or_replace:
   }
 
 update_statement:
-  UPDATE comment_opt table_references SET update_list where_expression_opt order_by_opt limit_opt
+  UPDATE comment_opt table_references SET update_list where_expression_opt order_by_opt limit_opt returning_opt
   {
-    $$ = &Update{Comments: Comments($2), TableExprs: $3, Exprs: $5, Where: NewWhere(WhereStr, $6), OrderBy: $7, Limit: $8}
+    if yylex.(*Tokenizer).IsMySQL() && len($9) != 0 {
+        yylex.Error("MySQL/MariaDB dialect doesn't support returning with update statement")
+        return 1
+     }
+
+    $$ = &Update{Comments: Comments($2), TableExprs: $3, Exprs: $5, Where: NewWhere(WhereStr, $6), OrderBy: $7, Limit: $8, Returning: $9}
   }
 
 delete_statement:
-  DELETE comment_opt FROM table_name opt_partition_clause where_expression_opt order_by_opt limit_opt
+  DELETE comment_opt FROM table_name opt_partition_clause where_expression_opt order_by_opt limit_opt returning_opt
   {
-    $$ = &Delete{Comments: Comments($2), TableExprs:  TableExprs{&AliasedTableExpr{Expr:$4}}, Partitions: $5, Where: NewWhere(WhereStr, $6), OrderBy: $7, Limit: $8}
+    $$ = &Delete{Comments: Comments($2), TableExprs:  TableExprs{&AliasedTableExpr{Expr:$4}}, Partitions: $5, Where: NewWhere(WhereStr, $6), OrderBy: $7, Limit: $8, Returning: $9}
   }
 | DELETE comment_opt FROM table_name_list USING table_references where_expression_opt
   {

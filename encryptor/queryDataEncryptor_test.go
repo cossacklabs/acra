@@ -898,38 +898,47 @@ schemas:
 	})
 
 	t.Run("RETURNING columns with sql literals", func(t *testing.T) {
+		sqlparser.SetDefaultDialect(postgresql.NewPostgreSQLDialect())
+
 		returning := "1, 0 as literal, zone_id, specified_client_id, other_column, default_client_id, NULL"
-		query := fmt.Sprintf(`INSERT INTO TableWithColumnSchema 
-('zone_id', 'specified_client_id', 'other_column', 'default_client_id') VALUES (1, 1, 1, 1) RETURNING %s`, returning)
-
-		_, _, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
-		if err != nil {
-			t.Fatalf("%s", err.Error())
+		queryTemplates := []string{
+			"INSERT INTO TableWithColumnSchema ('zone_id', 'specified_client_id', 'other_column', 'default_client_id') VALUES (1, 1, 1, 1) RETURNING %s",
+			"UPDATE TableWithColumnSchema SET price = price * 1.10 WHERE price <= 99.99 RETURNING %s",
+			"DELETE FROM TableWithColumnSchema WHERE price <= 99.99 RETURNING %s",
 		}
 
-		returningColumns := strings.Split(returning, ", ")
-		// 1, 0 as literal, NULL
-		extraValuesCount := 3
-		if (len(columns) + extraValuesCount) != len(returningColumns) {
-			t.Fatalf("Incorrect encryptor.querySelectSettings length")
-		}
+		for _, template := range queryTemplates {
+			query := fmt.Sprintf(template, returning)
 
-		expectedNilColumns := map[int]struct{}{
-			0: {},
-			1: {},
-			4: {},
-			6: {},
-		}
-
-		for i := range returningColumns {
-			if _, ok := expectedNilColumns[i]; ok {
-				continue
+			_, _, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
+			if err != nil {
+				t.Fatalf("%s", err.Error())
 			}
 
-			setting := encryptor.querySelectSettings[i]
+			returningColumns := strings.Split(returning, ", ")
+			// 1, 0 as literal, NULL
+			extraValuesCount := 3
+			if (len(columns) + extraValuesCount) != len(returningColumns) {
+				t.Fatalf("Incorrect encryptor.querySelectSettings length")
+			}
 
-			if returningColumns[i] != setting.columnName {
-				t.Fatalf("%v. Incorrect QueryDataItem \nTook: %v\nExpected: %v", i, setting.columnName, columns[i])
+			expectedNilColumns := map[int]struct{}{
+				0: {},
+				1: {},
+				4: {},
+				6: {},
+			}
+
+			for i := range returningColumns {
+				if _, ok := expectedNilColumns[i]; ok {
+					continue
+				}
+
+				setting := encryptor.querySelectSettings[i]
+
+				if returningColumns[i] != setting.columnName {
+					t.Fatalf("%v. Incorrect QueryDataItem \nTook: %v\nExpected: %v", i, setting.columnName, columns[i])
+				}
 			}
 		}
 	})
