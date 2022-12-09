@@ -817,7 +817,16 @@ schemas:
         client_id: %s
       - column: zone_id
         zone_id: %s
-`, clientIDStr, zoneIDStr)
+
+  - table: tablewithcolumnschema_2
+    columns: ["other_column", "default_client_id", "specified_client_id", "zone_id"]
+    encrypted: 
+      - column: "default_client_id"
+      - column: specified_client_id
+        client_id: %s
+      - column: zone_id
+        zone_id: %s
+`, clientIDStr, zoneIDStr, clientIDStr, zoneIDStr)
 	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr), config.UseMySQL)
 	if err != nil {
 		t.Fatalf("Can't parse config: %s", err.Error())
@@ -938,6 +947,143 @@ schemas:
 
 				if returningColumns[i] != setting.columnName {
 					t.Fatalf("%v. Incorrect QueryDataItem \nTook: %v\nExpected: %v", i, setting.columnName, columns[i])
+				}
+			}
+		}
+	})
+
+	t.Run("RETURNING columns with sql literals and several tables from config", func(t *testing.T) {
+		sqlparser.SetDefaultDialect(postgresql.NewPostgreSQLDialect())
+
+		returning := "t2.specified_client_id, specified_client_id, t2.default_client_id, default_client_id"
+		queryTemplates := []string{
+			"UPDATE TableWithColumnSchema SET specified_client_id = t2.specified_client_id FROM TableWithColumnSchema_2 as t2 RETURNING %s",
+			"DELETE FROM TableWithColumnSchema USING TableWithColumnSchema_2 as t2 WHERE t2.specified_client_id = specified_client_id RETURNING %s",
+		}
+
+		for _, template := range queryTemplates {
+			query := fmt.Sprintf(template, returning)
+
+			_, _, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
+			if err != nil {
+				t.Fatalf("%s", err.Error())
+			}
+
+			returningColumns := strings.Split(returning, ", ")
+			if len(encryptor.querySelectSettings) != len(returningColumns) {
+				t.Fatalf("Incorrect encryptor.querySelectSettings length")
+			}
+
+			expectedTables := map[int]string{
+				0: "tablewithcolumnschema_2",
+				1: "tablewithcolumnschema",
+				2: "tablewithcolumnschema_2",
+				3: "tablewithcolumnschema",
+			}
+
+			for i := range returningColumns {
+				setting := encryptor.querySelectSettings[i]
+				if setting == nil {
+					t.Fatalf("expected setting not to be nil")
+				}
+
+				if setting.tableName != expectedTables[i] {
+					t.Fatalf("Unexpected setting.tableName, expected %s but got %s", expectedTables[i], setting.tableName)
+				}
+			}
+		}
+	})
+
+	t.Run("RETURNING columns with sql literals and several tables", func(t *testing.T) {
+		sqlparser.SetDefaultDialect(postgresql.NewPostgreSQLDialect())
+
+		returning := "specified_client_id, specified_unknown_column, default_client_id, default_unknown_column"
+		queryTemplates := []string{
+			"UPDATE UnknownTable SET specified_client_id = t2.specified_client_id FROM TableWithColumnSchema_2 as t2 RETURNING %s",
+			"UPDATE TableWithColumnSchema_2 as t2  SET specified_client_id = t2.specified_client_id FROM UnknownTable RETURNING %s",
+			"DELETE FROM UnknownTable USING TableWithColumnSchema_2 as t2 WHERE t2.specified_client_id = default_unknown_column RETURNING %s",
+			"DELETE FROM TableWithColumnSchema_2 USING UnknownTable WHERE specified_client_id = default_unknown_column RETURNING %s",
+		}
+
+		for _, template := range queryTemplates {
+			query := fmt.Sprintf(template, returning)
+
+			_, _, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
+			if err != nil {
+				t.Fatalf("%s", err.Error())
+			}
+
+			returningColumns := strings.Split(returning, ", ")
+			if len(encryptor.querySelectSettings) != len(returningColumns) {
+				t.Fatalf("Incorrect encryptor.querySelectSettings length")
+			}
+
+			tableFromConfig := "tablewithcolumnschema_2"
+			expectedTables := map[int]*string{
+				0: &tableFromConfig,
+				1: nil,
+				2: &tableFromConfig,
+				3: nil,
+			}
+
+			for i := range returningColumns {
+				setting := encryptor.querySelectSettings[i]
+
+				if expectedTables[i] == nil && setting != nil {
+					t.Fatalf("Expected setting to be nil, but got %s", setting)
+				}
+
+				if expectedTables[i] != nil && setting == nil {
+					t.Fatalf("Expected setting not to be nil, but got nil")
+				}
+
+				if table := expectedTables[i]; table != nil {
+					if *table != setting.tableName {
+						t.Fatalf("Unexpected setting table name, want %s but got %s", *table, setting.tableName)
+					}
+				}
+			}
+		}
+	})
+
+	t.Run("RETURNING with star and several tables", func(t *testing.T) {
+		sqlparser.SetDefaultDialect(postgresql.NewPostgreSQLDialect())
+
+		returning := "*"
+		queryTemplates := []string{
+			"UPDATE TableWithColumnSchema SET specified_client_id = t2.specified_client_id FROM TableWithColumnSchema_2 as t2 RETURNING %s",
+			"DELETE FROM TableWithColumnSchema USING TableWithColumnSchema_2 as t2  WHERE did = t2.did RETURNING %s",
+		}
+
+		tableSchema := schemaStore.GetTableSchema("tablewithcolumnschema")
+		table2Schema := schemaStore.GetTableSchema("tablewithcolumnschema_2")
+
+		expectSettingNumber := len(tableSchema.Columns()) + len(table2Schema.Columns())
+
+		for _, template := range queryTemplates {
+			query := fmt.Sprintf(template, returning)
+
+			_, _, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
+			if err != nil {
+				t.Fatalf("%s", err.Error())
+			}
+
+			expectedNilColumns := map[int]struct{}{
+				0: {},
+				4: {},
+			}
+
+			if expectSettingNumber != len(encryptor.querySelectSettings) {
+				t.Fatalf("Incorrect number of  encryptor.querySelectSettings")
+			}
+
+			for i := 0; i < expectSettingNumber; i++ {
+				if _, ok := expectedNilColumns[i]; ok {
+					setting := encryptor.querySelectSettings[i]
+
+					if setting != nil {
+						t.Fatalf("Expected nil setting, but got not %s", setting.columnName)
+					}
 				}
 			}
 		}

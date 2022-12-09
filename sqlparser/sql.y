@@ -238,7 +238,7 @@ func setDebugLevel(level int) {
 %type <selectExprs> select_expression_list select_expression_list_opt
 %type <selectExpr> select_expression
 %type <expr> expression
-%type <tableExprs> from_opt table_references
+%type <tableExprs> from_opt from_table_opt table_references
 %type <tableExpr> table_reference table_factor join_table
 %type <joinCondition> join_condition join_condition_opt on_expression_opt
 %type <tableNames> table_name_list
@@ -462,28 +462,37 @@ insert_or_replace:
   }
 
 update_statement:
-  UPDATE comment_opt table_references SET update_list where_expression_opt order_by_opt limit_opt returning_opt
+ UPDATE comment_opt table_references SET update_list from_table_opt where_expression_opt order_by_opt limit_opt returning_opt
   {
-    if yylex.(*Tokenizer).IsMySQL() && len($9) != 0 {
-        yylex.Error("MySQL/MariaDB dialect doesn't support returning with update statement")
+    if yylex.(*Tokenizer).IsMySQL()  {
+        yylex.Error("MySQL dialect doesn't support FROM TableExpr with update statement")
         return 1
      }
 
-    $$ = &Update{Comments: Comments($2), TableExprs: $3, Exprs: $5, Where: NewWhere(WhereStr, $6), OrderBy: $7, Limit: $8, Returning: $9}
+    $$ = &Update{Comments: Comments($2), TableExprs: $3, Exprs: $5, From: $6, Where: NewWhere(WhereStr, $7), OrderBy: $8, Limit: $9, Returning: $10}
   }
+|  UPDATE comment_opt table_references SET update_list where_expression_opt order_by_opt limit_opt returning_opt
+   {
+     if yylex.(*Tokenizer).IsMySQL() && len($9) != 0 {
+         yylex.Error("MySQL/MariaDB dialect doesn't support returning with update statement")
+         return 1
+      }
+
+     $$ = &Update{Comments: Comments($2), TableExprs: $3, Exprs: $5, Where: NewWhere(WhereStr, $6), OrderBy: $7, Limit: $8, Returning: $9}
+   }
 
 delete_statement:
   DELETE comment_opt FROM table_name opt_partition_clause where_expression_opt order_by_opt limit_opt returning_opt
   {
     $$ = &Delete{Comments: Comments($2), TableExprs:  TableExprs{&AliasedTableExpr{Expr:$4}}, Partitions: $5, Where: NewWhere(WhereStr, $6), OrderBy: $7, Limit: $8, Returning: $9}
   }
-| DELETE comment_opt FROM table_name_list USING table_references where_expression_opt
+| DELETE comment_opt FROM table_name_list USING table_references where_expression_opt returning_opt
   {
-    $$ = &Delete{Comments: Comments($2), Targets: $4, TableExprs: $6, Where: NewWhere(WhereStr, $7)}
+    $$ = &Delete{Comments: Comments($2), Targets: $4, TableExprs: $6, Where: NewWhere(WhereStr, $7), Returning: $8}
   }
-| DELETE comment_opt table_name_list from_or_using table_references where_expression_opt
+| DELETE comment_opt table_name_list from_or_using table_references where_expression_opt returning_opt
   {
-    $$ = &Delete{Comments: Comments($2), Targets: $3, TableExprs: $5, Where: NewWhere(WhereStr, $6)}
+    $$ = &Delete{Comments: Comments($2), Targets: $3, TableExprs: $5, Where: NewWhere(WhereStr, $6), Returning: $7}
   }
 
 from_or_using:
@@ -1872,6 +1881,12 @@ from_opt:
     $$ = TableExprs{&AliasedTableExpr{Expr:TableName{Name: NewTableIdent("dual")}}}
   }
 | FROM table_references
+  {
+    $$ = $2
+  }
+
+from_table_opt:
+ FROM table_references
   {
     $$ = $2
   }

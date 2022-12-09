@@ -95,7 +95,9 @@ func (encryptor *QueryDataEncryptor) encryptInsertQuery(ctx context.Context, ins
 	}
 
 	if encryptor.encryptor == nil {
-		return false, encryptor.onReturning(ctx, insert.Returning, tableName.ValueForConfig())
+		return false, encryptor.onReturning(ctx, insert.Returning, []sqlparser.TableExpr{&sqlparser.AliasedTableExpr{
+			Expr: insert.Table,
+		}})
 	}
 
 	var columnsName []string
@@ -319,21 +321,28 @@ func NewAliasToTableMapFromTables(tables []*AliasedTableName) AliasToTableMap {
 
 // encryptUpdateQuery encrypt data in Update query and return true if any fields was encrypted, false if wasn't and error if error occurred
 func (encryptor *QueryDataEncryptor) encryptUpdateQuery(ctx context.Context, update *sqlparser.Update, bindPlaceholders map[int]config.ColumnEncryptionSetting) (bool, error) {
-	tables := GetTablesWithAliases(update.TableExprs)
-	if !encryptor.hasTablesToEncrypt(tables) {
+	if len(update.TableExprs) == 0 {
 		return false, nil
 	}
-	if len(tables) == 0 {
+
+	fromTables := update.TableExprs
+
+	if len(update.From) != 0 {
+		fromTables = append(fromTables, update.From...)
+	}
+
+	tables := GetTablesWithAliases(fromTables)
+	if !encryptor.hasTablesToEncrypt(tables) {
 		return false, nil
 	}
 
 	qualifierMap := NewAliasToTableMapFromTables(tables)
 	firstTable := tables[0].TableName
 
-	// MySQL/MariaDB dont support returning after update statements
-	// Postgres doest but expect only one table in tables expression, so we can take the firstTable for returning matching
+	// MySQL/MariaDB don`t support returning after update statements
+	// Postgres doest but expect only one table in tables expression, but also can have more tables in FROM statement
 	if encryptor.encryptor == nil {
-		return false, encryptor.onReturning(ctx, update.Returning, firstTable.Name.ValueForConfig())
+		return false, encryptor.onReturning(ctx, update.Returning, fromTables)
 	}
 
 	return encryptor.encryptUpdateExpressions(ctx, update.Exprs, firstTable, qualifierMap, bindPlaceholders)
@@ -407,46 +416,79 @@ func (encryptor *QueryDataEncryptor) onSelect(ctx context.Context, statement *sq
 }
 
 func (encryptor *QueryDataEncryptor) onDelete(ctx context.Context, delete *sqlparser.Delete) (bool, error) {
-	tables := GetTablesWithAliases(delete.TableExprs)
-	if !encryptor.hasTablesToEncrypt(tables) {
+	if len(delete.Targets) == 0 {
 		return false, nil
 	}
-	if len(tables) == 0 {
+
+	fromTables := []sqlparser.TableExpr{&sqlparser.AliasedTableExpr{
+		Expr: delete.Targets[0],
+	}}
+
+	if len(delete.TableExprs) != 0 {
+		fromTables = append(fromTables, delete.TableExprs...)
+	}
+
+	tables := GetTablesWithAliases(fromTables)
+	if !encryptor.hasTablesToEncrypt(tables) {
 		return false, nil
 	}
 
 	if encryptor.encryptor == nil {
-		return false, encryptor.onReturning(ctx, delete.Returning, tables[0].TableName.Name.ValueForConfig())
+		return false, encryptor.onReturning(ctx, delete.Returning, fromTables)
 	}
 
 	return false, nil
 }
 
-func (encryptor *QueryDataEncryptor) onReturning(ctx context.Context, returning sqlparser.Returning, tableName string) error {
+func (encryptor *QueryDataEncryptor) onReturning(ctx context.Context, returning sqlparser.Returning, fromTables sqlparser.TableExprs) error {
 	if len(returning) == 0 {
 		return nil
 	}
 
-	schema := encryptor.schemaStore.GetTableSchema(tableName)
 	querySelectSettings := make([]*QueryDataItem, 0, 8)
 
 	if _, ok := returning[0].(*sqlparser.StarExpr); ok {
-		for _, name := range schema.Columns() {
-			if columnSetting := schema.GetColumnEncryptionSettings(name); columnSetting != nil {
-				querySelectSettings = append(querySelectSettings, &QueryDataItem{
-					setting:    columnSetting,
-					tableName:  tableName,
-					columnName: name,
-				})
+		for _, tableExp := range fromTables {
+			aliased, ok := tableExp.(*sqlparser.AliasedTableExpr)
+			if !ok {
 				continue
 			}
-			querySelectSettings = append(querySelectSettings, nil)
+
+			tableName, ok := aliased.Expr.(sqlparser.TableName)
+			if !ok {
+				continue
+			}
+
+			// if the Returning is star and we have more than one table in the query e.g.
+			// update table1 set did = tt.did from table2 as tt returning *
+			// and the table is not in the encryptor config we cant collect corresponding querySettings as we dont actual table representation
+			tableSchema := encryptor.schemaStore.GetTableSchema(tableName.Name.ValueForConfig())
+			if tableSchema == nil {
+				logrus.WithField("table", tableName.Name.ValueForConfig()).Info("Unable to collect querySettings for table not in encryptor config")
+				return errors.New("")
+			}
+
+			for _, name := range tableSchema.Columns() {
+				if columnSetting := tableSchema.GetColumnEncryptionSettings(name); columnSetting != nil {
+					querySelectSettings = append(querySelectSettings, &QueryDataItem{
+						setting:    columnSetting,
+						tableName:  tableName.Name.ValueForConfig(),
+						columnName: name,
+					})
+					continue
+				}
+				querySelectSettings = append(querySelectSettings, nil)
+			}
 		}
+
 		clientSession := base.ClientSessionFromContext(ctx)
 		SaveQueryDataItemsToClientSession(clientSession, querySelectSettings)
 		encryptor.querySelectSettings = querySelectSettings
 		return nil
 	}
+
+	targetTable := GetTablesWithAliases(fromTables)[0].TableName.Name.ValueForConfig()
+	schema := encryptor.schemaStore.GetTableSchema(targetTable)
 
 	for _, item := range returning {
 		var colName *sqlparser.ColName
@@ -466,12 +508,33 @@ func (encryptor *QueryDataEncryptor) onReturning(ctx context.Context, returning 
 			querySelectSettings = append(querySelectSettings, nil)
 			continue
 		}
-		rawColName := colName.Name.String()
-		if columnSetting := schema.GetColumnEncryptionSettings(rawColName); columnSetting != nil {
+
+		columnInfo, err := findColumnInfo(fromTables, colName, encryptor.schemaStore)
+		if err != nil {
+			if schema == nil {
+				querySelectSettings = append(querySelectSettings, nil)
+				continue
+			}
+
+			if columnSetting := schema.GetColumnEncryptionSettings(colName.Name.String()); columnSetting != nil {
+				querySelectSettings = append(querySelectSettings, &QueryDataItem{
+					setting:    columnSetting,
+					tableName:  targetTable,
+					columnName: colName.Name.String(),
+				})
+				continue
+			}
+			querySelectSettings = append(querySelectSettings, nil)
+			continue
+		}
+
+		tableSchema := encryptor.schemaStore.GetTableSchema(columnInfo.Table)
+
+		if columnSetting := tableSchema.GetColumnEncryptionSettings(columnInfo.Name); columnSetting != nil {
 			querySelectSettings = append(querySelectSettings, &QueryDataItem{
 				setting:    columnSetting,
-				tableName:  tableName,
-				columnName: rawColName,
+				tableName:  columnInfo.Table,
+				columnName: columnInfo.Name,
 			})
 			continue
 		}

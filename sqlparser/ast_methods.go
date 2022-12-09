@@ -309,9 +309,14 @@ func (node *Insert) walkSubtree(visit Visit) error {
 
 // Format formats the node.
 func (node *Update) Format(buf *TrackedBuffer) {
-	buf.Myprintf("update %v%v set %v%v%v%v%v",
-		node.Comments, node.TableExprs,
-		node.Exprs, node.Where, node.OrderBy, node.Limit, node.Returning)
+	buf.Myprintf("update %v%v set %v", node.Comments, node.TableExprs,
+		node.Exprs)
+
+	if len(node.From) != 0 {
+		buf.Myprintf(" from %v", node.From)
+	}
+
+	buf.Myprintf("%v%v%v%v", node.Where, node.OrderBy, node.Limit, node.Returning)
 }
 
 func (node *Update) walkSubtree(visit Visit) error {
@@ -345,7 +350,7 @@ func (node *Delete) walkSubtree(visit Visit) error {
 	return Walk(
 		visit,
 		node.Comments,
-		node.Targets,
+		node.TableExprs,
 		node.TableExprs,
 		node.Where,
 		node.OrderBy,
