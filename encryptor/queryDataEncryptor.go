@@ -416,16 +416,16 @@ func (encryptor *QueryDataEncryptor) onSelect(ctx context.Context, statement *sq
 }
 
 func (encryptor *QueryDataEncryptor) onDelete(ctx context.Context, delete *sqlparser.Delete) (bool, error) {
-	if len(delete.Targets) == 0 {
+	if len(delete.TableExprs) == 0 {
 		return false, nil
 	}
 
-	fromTables := []sqlparser.TableExpr{&sqlparser.AliasedTableExpr{
-		Expr: delete.Targets[0],
-	}}
+	fromTables := delete.TableExprs
 
-	if len(delete.TableExprs) != 0 {
-		fromTables = append(fromTables, delete.TableExprs...)
+	if len(delete.Targets) != 0 {
+		fromTables = append(fromTables, &sqlparser.AliasedTableExpr{
+			Expr: delete.Targets[0],
+		})
 	}
 
 	tables := GetTablesWithAliases(fromTables)
@@ -487,9 +487,6 @@ func (encryptor *QueryDataEncryptor) onReturning(ctx context.Context, returning 
 		return nil
 	}
 
-	targetTable := GetTablesWithAliases(fromTables)[0].TableName.Name.ValueForConfig()
-	schema := encryptor.schemaStore.GetTableSchema(targetTable)
-
 	for _, item := range returning {
 		var colName *sqlparser.ColName
 		switch returningItem := item.(type) {
@@ -511,19 +508,6 @@ func (encryptor *QueryDataEncryptor) onReturning(ctx context.Context, returning 
 
 		columnInfo, err := findColumnInfo(fromTables, colName, encryptor.schemaStore)
 		if err != nil {
-			if schema == nil {
-				querySelectSettings = append(querySelectSettings, nil)
-				continue
-			}
-
-			if columnSetting := schema.GetColumnEncryptionSettings(colName.Name.String()); columnSetting != nil {
-				querySelectSettings = append(querySelectSettings, &QueryDataItem{
-					setting:    columnSetting,
-					tableName:  targetTable,
-					columnName: colName.Name.String(),
-				})
-				continue
-			}
 			querySelectSettings = append(querySelectSettings, nil)
 			continue
 		}

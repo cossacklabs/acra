@@ -337,10 +337,17 @@ func (node *Update) walkSubtree(visit Visit) error {
 // Format formats the node.
 func (node *Delete) Format(buf *TrackedBuffer) {
 	buf.Myprintf("delete %v", node.Comments)
-	if node.Targets != nil {
-		buf.Myprintf("%v ", node.Targets)
+	if node.Targets == nil {
+		buf.Myprintf("from %v%v%v%v%v%v", node.TableExprs, node.Partitions, node.Where, node.OrderBy, node.Limit, node.Returning)
+		return
 	}
-	buf.Myprintf("from %v%v%v%v%v%v", node.TableExprs, node.Partitions, node.Where, node.OrderBy, node.Limit, node.Returning)
+	buf.Myprintf("from %v", node.Targets)
+
+	if node.TableExprs != nil {
+		buf.Myprintf(" using  %v", node.TableExprs)
+	}
+
+	buf.Myprintf("%v%v%v%v%v", node.Partitions, node.Where, node.OrderBy, node.Limit, node.Returning)
 }
 
 func (node *Delete) walkSubtree(visit Visit) error {

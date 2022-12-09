@@ -819,12 +819,12 @@ schemas:
         zone_id: %s
 
   - table: tablewithcolumnschema_2
-    columns: ["other_column", "default_client_id", "specified_client_id", "zone_id"]
+    columns: ["other_column_2", "default_client_id_2", "specified_client_id_2", "zone_id_2"]
     encrypted: 
-      - column: "default_client_id"
-      - column: specified_client_id
+      - column: "default_client_id_2"
+      - column: specified_client_id_2
         client_id: %s
-      - column: zone_id
+      - column: zone_id_2
         zone_id: %s
 `, clientIDStr, zoneIDStr, clientIDStr, zoneIDStr)
 	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr), config.UseMySQL)
@@ -955,10 +955,10 @@ schemas:
 	t.Run("RETURNING columns with sql literals and several tables from config", func(t *testing.T) {
 		sqlparser.SetDefaultDialect(postgresql.NewPostgreSQLDialect())
 
-		returning := "t2.specified_client_id, specified_client_id, t2.default_client_id, default_client_id"
+		returning := "specified_client_id, specified_client_id_2, default_client_id, default_client_id_2"
 		queryTemplates := []string{
 			"UPDATE TableWithColumnSchema SET specified_client_id = t2.specified_client_id FROM TableWithColumnSchema_2 as t2 RETURNING %s",
-			"DELETE FROM TableWithColumnSchema USING TableWithColumnSchema_2 as t2 WHERE t2.specified_client_id = specified_client_id RETURNING %s",
+			"DELETE FROM TableWithColumnSchema USING TableWithColumnSchema_2  WHERE specified_client_id_2 = specified_client_id RETURNING %s",
 		}
 
 		for _, template := range queryTemplates {
@@ -975,10 +975,10 @@ schemas:
 			}
 
 			expectedTables := map[int]string{
-				0: "tablewithcolumnschema_2",
-				1: "tablewithcolumnschema",
-				2: "tablewithcolumnschema_2",
-				3: "tablewithcolumnschema",
+				0: "tablewithcolumnschema",
+				1: "tablewithcolumnschema_2",
+				2: "tablewithcolumnschema",
+				3: "tablewithcolumnschema_2",
 			}
 
 			for i := range returningColumns {
@@ -997,7 +997,7 @@ schemas:
 	t.Run("RETURNING columns with sql literals and several tables", func(t *testing.T) {
 		sqlparser.SetDefaultDialect(postgresql.NewPostgreSQLDialect())
 
-		returning := "specified_client_id, specified_unknown_column, default_client_id, default_unknown_column"
+		returning := "specified_client_id_2, specified_unknown_column, default_client_id_2, default_unknown_column"
 		queryTemplates := []string{
 			"UPDATE UnknownTable SET specified_client_id = t2.specified_client_id FROM TableWithColumnSchema_2 as t2 RETURNING %s",
 			"UPDATE TableWithColumnSchema_2 as t2  SET specified_client_id = t2.specified_client_id FROM UnknownTable RETURNING %s",
