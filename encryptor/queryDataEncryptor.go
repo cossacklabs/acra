@@ -465,7 +465,7 @@ func (encryptor *QueryDataEncryptor) onReturning(ctx context.Context, returning 
 			tableSchema := encryptor.schemaStore.GetTableSchema(tableName.Name.ValueForConfig())
 			if tableSchema == nil {
 				logrus.WithField("table", tableName.Name.ValueForConfig()).Info("Unable to collect querySettings for table not in encryptor config")
-				return errors.New("")
+				return errors.New("error to collect settings for unknown table")
 			}
 
 			for _, name := range tableSchema.Columns() {
