@@ -238,10 +238,9 @@ func setDebugLevel(level int) {
 %type <selectExprs> select_expression_list select_expression_list_opt
 %type <selectExpr> select_expression
 %type <expr> expression
-%type <tableExprs> from_opt from_table_opt table_references
+%type <tableExprs> from_opt from_table_opt table_references aliased_table_name_list
 %type <tableExpr> table_reference table_factor join_table
 %type <joinCondition> join_condition join_condition_opt on_expression_opt
-%type <tableNames> table_name_list
 %type <str> inner_join outer_join straight_join natural_join
 %type <tableName> table_name into_table_name
 %type <aliasedTableName> aliased_table_name
@@ -482,15 +481,15 @@ update_statement:
    }
 
 delete_statement:
-  DELETE comment_opt FROM table_name opt_partition_clause where_expression_opt order_by_opt limit_opt returning_opt
+  DELETE comment_opt FROM aliased_table_name opt_partition_clause where_expression_opt order_by_opt limit_opt returning_opt
   {
-    $$ = &Delete{Comments: Comments($2), TableExprs:  TableExprs{&AliasedTableExpr{Expr:$4}}, Partitions: $5, Where: NewWhere(WhereStr, $6), OrderBy: $7, Limit: $8, Returning: $9}
+    $$ = &Delete{Comments: Comments($2), TableExprs:  TableExprs{$4}, Partitions: $5, Where: NewWhere(WhereStr, $6), OrderBy: $7, Limit: $8, Returning: $9}
   }
-| DELETE comment_opt FROM table_name_list USING table_references where_expression_opt returning_opt
+| DELETE comment_opt FROM aliased_table_name_list USING table_references where_expression_opt returning_opt
   {
     $$ = &Delete{Comments: Comments($2), Targets: $4, TableExprs: $6, Where: NewWhere(WhereStr, $7), Returning: $8}
   }
-| DELETE comment_opt table_name_list from_or_using table_references where_expression_opt returning_opt
+| DELETE comment_opt aliased_table_name_list from_or_using table_references where_expression_opt returning_opt
   {
     $$ = &Delete{Comments: Comments($2), Targets: $3, TableExprs: $5, Where: NewWhere(WhereStr, $6), Returning: $7}
   }
@@ -499,12 +498,12 @@ from_or_using:
   FROM {}
 | USING {}
 
-table_name_list:
-  table_name
+aliased_table_name_list:
+  aliased_table_name
   {
-    $$ = TableNames{$1}
+    $$ = TableExprs{$1}
   }
-| table_name_list ',' table_name
+| aliased_table_name_list ',' aliased_table_name
   {
     $$ = append($$, $3)
   }

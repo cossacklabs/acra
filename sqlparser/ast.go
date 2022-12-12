@@ -363,7 +363,7 @@ type Update struct {
 // If you add fields here, consider adding them to calls to validateSubquerySamePlan.
 type Delete struct {
 	Comments   Comments
-	Targets    TableNames
+	Targets    TableExprs
 	TableExprs TableExprs
 	Partitions Partitions
 	Where      *Where

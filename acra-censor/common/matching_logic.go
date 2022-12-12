@@ -296,7 +296,7 @@ func handleDeleteStatement(query, pattern sqlparser.Statement) bool {
 	if !match {
 		return false
 	}
-	match = areEqualTableNames(queryDeleteNode.Targets, patternDeleteNode.Targets)
+	match = areEqualTableExprs(queryDeleteNode.Targets, patternDeleteNode.Targets)
 	if !match {
 		return false
 	}

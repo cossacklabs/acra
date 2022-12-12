@@ -423,9 +423,7 @@ func (encryptor *QueryDataEncryptor) onDelete(ctx context.Context, delete *sqlpa
 	fromTables := delete.TableExprs
 
 	if len(delete.Targets) != 0 {
-		fromTables = append(fromTables, &sqlparser.AliasedTableExpr{
-			Expr: delete.Targets[0],
-		})
+		fromTables = append(fromTables, delete.Targets...)
 	}
 
 	tables := GetTablesWithAliases(fromTables)

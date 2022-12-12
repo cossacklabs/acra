@@ -710,6 +710,10 @@ var (
 		input:  "delete from a1, a2 using t1 as a1 inner join t2 as a2 where a1.id=a2.id",
 		output: "delete from a1, a2 using  t1 as a1 join t2 as a2 where a1.id = a2.id",
 	}, {
+		input: "delete from test_table as t1 using  test_table2 where t2.field = true",
+	}, {
+		input: "delete from test_table as t1 where t2.field = true",
+	}, {
 		input: "set /* simple */ a = 3",
 	}, {
 		input: "set #simple\n b = 4",
