@@ -805,27 +805,29 @@ func TestOnReturning(t *testing.T) {
 	zoneIDStr := string(zone.GenerateZoneID())
 	clientIDStr := "specified_client_id"
 	defaultClientID := []byte("default_client_id")
-	columns := []string{"other_column", "default_client_id", "specified_client_id", "zone_id"}
+	columns := []string{"other_column", "default_client_id", "specified_client_id", "zone_id", "common_field"}
 
 	configStr := fmt.Sprintf(`
 schemas:
   - table: tablewithcolumnschema
-    columns: ["other_column", "default_client_id", "specified_client_id", "zone_id"]
+    columns: ["other_column", "default_client_id", "specified_client_id", "zone_id", "common_field"]
     encrypted: 
       - column: "default_client_id"
       - column: specified_client_id
         client_id: %s
       - column: zone_id
         zone_id: %s
+      - column: common_field
 
   - table: tablewithcolumnschema_2
-    columns: ["other_column_2", "default_client_id_2", "specified_client_id_2", "zone_id_2"]
+    columns: ["other_column_2", "default_client_id_2", "specified_client_id_2", "zone_id_2", "common_field"]
     encrypted: 
       - column: "default_client_id_2"
       - column: specified_client_id_2
         client_id: %s
       - column: zone_id_2
         zone_id: %s
+      - column: common_field
 `, clientIDStr, zoneIDStr, clientIDStr, zoneIDStr)
 	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr), config.UseMySQL)
 	if err != nil {
@@ -885,7 +887,7 @@ schemas:
 		}
 
 		returningColumns := strings.Split(returning, ", ")
-		if len(columns) != len(returningColumns) {
+		if len(encryptor.querySelectSettings) != len(returningColumns) {
 			t.Fatalf("Incorrect encryptor.querySelectSettings length")
 		}
 
@@ -925,9 +927,7 @@ schemas:
 			}
 
 			returningColumns := strings.Split(returning, ", ")
-			// 1, 0 as literal, NULL
-			extraValuesCount := 3
-			if (len(columns) + extraValuesCount) != len(returningColumns) {
+			if len(encryptor.querySelectSettings) != len(returningColumns) {
 				t.Fatalf("Incorrect encryptor.querySelectSettings length")
 			}
 
@@ -956,29 +956,69 @@ schemas:
 		sqlparser.SetDefaultDialect(postgresql.NewPostgreSQLDialect())
 
 		returning := "specified_client_id, specified_client_id_2, default_client_id, default_client_id_2"
-		queryTemplates := []string{
-			"UPDATE TableWithColumnSchema SET specified_client_id = t2.specified_client_id FROM TableWithColumnSchema_2 as t2 RETURNING %s",
-			"DELETE FROM TableWithColumnSchema USING TableWithColumnSchema_2  WHERE specified_client_id_2 = specified_client_id RETURNING %s",
+		returningWithAliases := "t1.specified_client_id, t2.specified_client_id_2, t1.default_client_id, t2.default_client_id_2, t1.common_field, t2.common_field"
+		testCases := []struct {
+			template       string
+			returning      string
+			expectedTables []string
+		}{
+			{
+				template:  "UPDATE TableWithColumnSchema SET specified_client_id = t2.specified_client_id FROM TableWithColumnSchema_2 as t2 RETURNING %s",
+				returning: returning,
+				expectedTables: []string{
+					"tablewithcolumnschema",
+					"tablewithcolumnschema_2",
+					"tablewithcolumnschema",
+					"tablewithcolumnschema_2",
+				},
+			},
+			{
+				template:  "UPDATE TableWithColumnSchema as t1 SET specified_client_id = t2.specified_client_id FROM TableWithColumnSchema_2 as t2 RETURNING %s",
+				returning: returningWithAliases,
+				expectedTables: []string{
+					"tablewithcolumnschema",
+					"tablewithcolumnschema_2",
+					"tablewithcolumnschema",
+					"tablewithcolumnschema_2",
+					"tablewithcolumnschema",
+					"tablewithcolumnschema_2",
+				},
+			},
+			{
+				template:  "DELETE FROM TableWithColumnSchema USING TableWithColumnSchema_2  WHERE specified_client_id_2 = specified_client_id RETURNING %s",
+				returning: returning,
+				expectedTables: []string{
+					"tablewithcolumnschema",
+					"tablewithcolumnschema_2",
+					"tablewithcolumnschema",
+					"tablewithcolumnschema_2",
+				},
+			},
+			{
+				template:  "DELETE FROM TableWithColumnSchema as t1 USING TableWithColumnSchema_2 as t2 WHERE specified_client_id_2 = specified_client_id RETURNING %s",
+				returning: returningWithAliases,
+				expectedTables: []string{
+					"tablewithcolumnschema",
+					"tablewithcolumnschema_2",
+					"tablewithcolumnschema",
+					"tablewithcolumnschema_2",
+					"tablewithcolumnschema",
+					"tablewithcolumnschema_2",
+				},
+			},
 		}
 
-		for _, template := range queryTemplates {
-			query := fmt.Sprintf(template, returning)
+		for _, tcase := range testCases {
+			query := fmt.Sprintf(tcase.template, tcase.returning)
 
 			_, _, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
 			if err != nil {
 				t.Fatalf("%s", err.Error())
 			}
 
-			returningColumns := strings.Split(returning, ", ")
+			returningColumns := strings.Split(tcase.returning, ", ")
 			if len(encryptor.querySelectSettings) != len(returningColumns) {
 				t.Fatalf("Incorrect encryptor.querySelectSettings length")
-			}
-
-			expectedTables := map[int]string{
-				0: "tablewithcolumnschema",
-				1: "tablewithcolumnschema_2",
-				2: "tablewithcolumnschema",
-				3: "tablewithcolumnschema_2",
 			}
 
 			for i := range returningColumns {
@@ -987,8 +1027,8 @@ schemas:
 					t.Fatalf("expected setting not to be nil")
 				}
 
-				if setting.tableName != expectedTables[i] {
-					t.Fatalf("Unexpected setting.tableName, expected %s but got %s", expectedTables[i], setting.tableName)
+				if setting.tableName != tcase.expectedTables[i] {
+					t.Fatalf("Unexpected setting.tableName, expected %s but got %s", tcase.expectedTables[i], setting.tableName)
 				}
 			}
 		}
@@ -1070,7 +1110,7 @@ schemas:
 
 			expectedNilColumns := map[int]struct{}{
 				0: {},
-				4: {},
+				5: {},
 			}
 
 			if expectSettingNumber != len(encryptor.querySelectSettings) {
