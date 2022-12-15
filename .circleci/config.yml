@@ -435,7 +435,7 @@ jobs:
 
   mysql-ssl:
     docker:
-      - image: cossacklabs/ci-py-go-themis:0.93.0
+      - image: cossacklabs/ci-py-go-themis:fix
       # use the same credentials for mysql db as for postgresql (which support was added first)
       # has latest tag on 2018.03.29
       - image: cossacklabs/mysql-ssl:5.7.31-1

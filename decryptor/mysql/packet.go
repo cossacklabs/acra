@@ -111,7 +111,7 @@ func (packet *Packet) GetData() []byte {
 
 // GetBindParameters returns packet Bind parameters
 func (packet *Packet) GetBindParameters(paramNum int) ([]base.BoundValue, error) {
-	// https://dev.mysql.com/doc/internals/en/com-stmt-execute.html#packet-COM_STMT_EXECUTE
+	// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_stmt_execute.html
 	// 1 - packet header
 	// 4 - stmt-id
 	// 1 - flags
@@ -283,6 +283,13 @@ func (packet *Packet) ReadPacket(connection net.Conn) error {
 		packet.data = data
 	}
 	return err
+}
+
+// IsOK return true if packet is OkPacket
+func (packet *Packet) IsOK() bool {
+	// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_ok_packet.html
+	isOkPacket := packet.data[0] == OkPacket && packet.GetPacketPayloadLength() >= 7
+	return isOkPacket
 }
 
 // IsEOF return true if packet is OkPacket or EOFPacket
