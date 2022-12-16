@@ -29,12 +29,12 @@ import (
 // CheckOneKey checks that all key pairs for client id <onekey> exists
 func CheckOneKey() {
 	keysPath := []string{
-		"src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey",
-		"src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey.pub",
-		"src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey_server",
-		"src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey_server.pub",
-		"src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey_storage",
-		"src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey_storage.pub",
+		"./benchmarks/.acrakeys/onekey",
+		"./benchmarks/.acrakeys/onekey.pub",
+		"./benchmarks/.acrakeys/onekey_server",
+		"./benchmarks/.acrakeys/onekey_server.pub",
+		"./benchmarks/.acrakeys/onekey_storage",
+		"./benchmarks/.acrakeys/onekey_storage.pub",
 	}
 	for _, key := range keysPath {
 		exists, err := utils.FileExists(key)
@@ -50,7 +50,7 @@ func CheckOneKey() {
 
 // GetPublicOneKey load and return public key for acra-writer <onekey_storage.pub>
 func GetPublicOneKey() *keys.PublicKey {
-	publicKey, err := utils.LoadPublicKey("src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey_storage.pub")
+	publicKey, err := utils.LoadPublicKey("./benchmarks/.acrakeys/onekey_storage.pub")
 	if err != nil {
 		panic(err)
 	}
@@ -66,11 +66,11 @@ func GenerateAcrastructRowsOneKey(publicKey *keys.PublicKey, db *sql.DB) {
 			panic(err)
 		}
 
-		acrastruct, err := acrastruct.CreateAcrastruct(data, publicKey, nil)
+		acraStruct, err := acrastruct.CreateAcrastruct(data, publicKey, nil)
 		if err != nil {
 			panic(err)
 		}
-		_, err = db.Exec("INSERT INTO test_without_zone(data) VALUES ($1);", &acrastruct)
+		_, err = db.Exec("INSERT INTO test_data(data) VALUES ($1);", &acraStruct)
 		if err != nil {
 			panic(err)
 		}
@@ -85,28 +85,6 @@ func GenerateDataRows(db *sql.DB) {
 			panic(err)
 		}
 		_, err = db.Exec("INSERT INTO test_raw(data) VALUES ($1);", &data)
-		if err != nil {
-			panic(err)
-		}
-	}
-}
-
-// GenerateAcrastructWithZone generate RowCount acrastructs using sequentially
-// all ZoneCount zones
-func GenerateAcrastructWithZone(db *sql.DB) {
-	zones := common.LoadZones()
-	for count := 0; count < common.RowCount; count++ {
-		data, err := common.GenerateData()
-		if err != nil {
-			panic(err)
-		}
-
-		zoneData := zones[count%common.ZoneCount]
-		acraStruct, err := acrastruct.CreateAcrastruct(data, &keys.PublicKey{Value: zoneData.PublicKey}, zoneData.ID)
-		if err != nil {
-			panic(err)
-		}
-		_, err = db.Exec("INSERT INTO test_with_zone(zone, data) VALUES ($1, $2);", &zoneData.ID, &acraStruct)
 		if err != nil {
 			panic(err)
 		}

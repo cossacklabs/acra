@@ -25,7 +25,6 @@ import (
 	"github.com/cossacklabs/acra/pseudonymization"
 	pseudonymizationCommon "github.com/cossacklabs/acra/pseudonymization/common"
 	tokenStorage "github.com/cossacklabs/acra/pseudonymization/storage"
-	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -90,10 +89,9 @@ type testData struct {
 	testInt    int
 	testEmail  string
 	testBytes  []byte
-	zoneID     []byte
 }
 
-func initKeyStore(clientID, zoneID []byte, keyStorage *mocks.ServerKeyStore, t *testing.T) {
+func initKeyStore(clientID []byte, keyStorage *mocks.ServerKeyStore, t *testing.T) {
 	// reset expected calls
 	keyStorage.ExpectedCalls = []*mock.Call{}
 
@@ -101,34 +99,15 @@ func initKeyStore(clientID, zoneID []byte, keyStorage *mocks.ServerKeyStore, t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	acraBlockZoneKey, err := keystore.GenerateSymmetricKey()
-	if err != nil {
-		t.Fatal(err)
-	}
 	hmacSymKey, err := keystore.GenerateSymmetricKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	// TODO use poison callbacks and keys
-	//poisonSymKey, err := keystore.GenerateSymmetricKey()
-	//if err != nil {
-	//	t.Fatal(err)
-	//}
-
-	//poisonKeyPair, err := keys.New(keys.TypeEC)
-	//if err != nil {
-	//	t.Fatal(err)
-	//}
 	AcraStructKeyPair, err := keys.New(keys.TypeEC)
 	if err != nil {
 		t.Fatal(err)
 	}
-	AcraStructZoneKeyPair, err := keys.New(keys.TypeEC)
-	if err != nil {
-		t.Fatal(err)
-	}
 	// everytime return copy of value because it will be zeroized after each call
-	//keyStorage.On("GetPoisonSymmetricKeys").Return(func() [][]byte { return [][]byte{append([]byte{}, poisonSymKey...)} }, nil)
 	keyStorage.On("GetClientIDSymmetricKeys", mock.MatchedBy(func(id []byte) bool {
 		return bytes.Equal(id, clientID)
 	})).Return(func([]byte) [][]byte { return [][]byte{append([]byte{}, acraBlockSymKey...)} }, nil)
@@ -139,20 +118,6 @@ func initKeyStore(clientID, zoneID []byte, keyStorage *mocks.ServerKeyStore, t *
 		return bytes.Equal(id, clientID)
 	})).Return(func([]byte) []byte { return append([]byte{}, hmacSymKey...) }, nil)
 
-	keyStorage.On("GetZonePublicKey", mock.MatchedBy(func(id []byte) bool {
-		return bytes.Equal(id, zoneID)
-	})).Return(AcraStructZoneKeyPair.Public, nil)
-	keyStorage.On("GetZonePrivateKeys", mock.MatchedBy(func(id []byte) bool {
-		return bytes.Equal(id, zoneID)
-	})).Return(func([]byte) []*keys.PrivateKey {
-		return []*keys.PrivateKey{{Value: append([]byte{}, AcraStructZoneKeyPair.Private.Value...)}}
-	}, nil)
-	keyStorage.On("GetZoneIDSymmetricKeys", mock.MatchedBy(func(id []byte) bool {
-		return bytes.Equal(id, zoneID)
-	})).Return(func([]byte) [][]byte { return [][]byte{append([]byte{}, acraBlockZoneKey...)} }, nil)
-	keyStorage.On("GetZoneIDSymmetricKey", mock.MatchedBy(func(id []byte) bool {
-		return bytes.Equal(id, zoneID)
-	})).Return(func([]byte) []byte { return append([]byte{}, acraBlockZoneKey...) }, nil)
 	keyStorage.On("GetClientIDEncryptionPublicKey", mock.MatchedBy(func(id []byte) bool {
 		return bytes.Equal(id, clientID)
 	})).Return(AcraStructKeyPair.Public, nil)
@@ -197,7 +162,6 @@ func TestHTTPAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	zoneID := zone.GenerateZoneID()
 	t.Run("test with direct TLS connections", func(t *testing.T) {
 		serverTLSConfig, err := network.NewTLSConfig("localhost", "", "", "", tls.RequireAndVerifyClientCert, network.NewCertVerifierAll())
 		if err != nil {
@@ -228,7 +192,7 @@ func TestHTTPAPI(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		initKeyStore(expectedClientID, zoneID, keyStorage, t)
+		initKeyStore(expectedClientID, keyStorage, t)
 		newListener, _ := getListenerAndDialer(clientWrapper, serverWrapper, t)
 		defer newListener.Close()
 		ctx, cancel := context.WithCancel(context.Background())
@@ -249,7 +213,6 @@ func TestHTTPAPI(t *testing.T) {
 		client := &http.Client{Transport: transport}
 		testContext := apiTestContext{
 			endpoint: fmt.Sprintf("https://%s", newListener.Addr()),
-			zoneID:   zoneID,
 			listener: newListener,
 			client:   client,
 		}
@@ -295,7 +258,7 @@ func TestHTTPAPI(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		initKeyStore(expectedClientID, zoneID, keyStorage, t)
+		initKeyStore(expectedClientID, keyStorage, t)
 		newListener, newDialer := getListenerAndDialer(clientWrapper, serverWrapper, t)
 		defer newListener.Close()
 		ctx, cancel := context.WithCancel(context.Background())
@@ -314,7 +277,6 @@ func TestHTTPAPI(t *testing.T) {
 		client := &http.Client{Transport: transport}
 		testContext := apiTestContext{
 			endpoint: fmt.Sprintf("http://%s", newListener.Addr()),
-			zoneID:   zoneID,
 			listener: newListener,
 			client:   client,
 		}
@@ -332,7 +294,6 @@ func TestHTTPAPI(t *testing.T) {
 }
 
 type apiTestContext struct {
-	zoneID   []byte
 	client   *http.Client
 	listener net.Listener
 	endpoint string
@@ -350,12 +311,6 @@ func testHTTPAPIEndpoints(testContext apiTestContext, t *testing.T) {
 		{forwardOperation: encryptSymSearchableOperation, backwardOperation: decryptSymSearchableOperation},
 	}
 	for _, testPair := range testOperationPairs {
-		expectedData.zoneID = nil
-		// test without zoneID
-		testEncryptDecrypt(testContext.endpoint, http.MethodGet, testPair.forwardOperation, testPair.backwardOperation, expectedData, testContext.client, t)
-		testEncryptDecrypt(testContext.endpoint, http.MethodPost, testPair.forwardOperation, testPair.backwardOperation, expectedData, testContext.client, t)
-		// test with ZoneID
-		expectedData.zoneID = testContext.zoneID
 		testEncryptDecrypt(testContext.endpoint, http.MethodGet, testPair.forwardOperation, testPair.backwardOperation, expectedData, testContext.client, t)
 		testEncryptDecrypt(testContext.endpoint, http.MethodPost, testPair.forwardOperation, testPair.backwardOperation, expectedData, testContext.client, t)
 	}
@@ -363,21 +318,14 @@ func testHTTPAPIEndpoints(testContext apiTestContext, t *testing.T) {
 	b64BinaryJSONData := fmt.Sprintf(`"%s"`, b64binaryData)
 	testTokenizeData := []tokenData{
 		// string literals
-		{nil, []byte(`"some json string"`), pseudonymizationCommon.TokenType_String},
-		{nil, []byte(b64BinaryJSONData), pseudonymizationCommon.TokenType_Bytes},
-		{nil, []byte(`"some@email.com"`), pseudonymizationCommon.TokenType_Email},
+		{[]byte(`"some json string"`), pseudonymizationCommon.TokenType_String},
+		{[]byte(b64BinaryJSONData), pseudonymizationCommon.TokenType_Bytes},
+		{[]byte(`"some@email.com"`), pseudonymizationCommon.TokenType_Email},
 		// int json literals
-		{nil, []byte(`123`), pseudonymizationCommon.TokenType_Int32},
-		{nil, []byte(`321`), pseudonymizationCommon.TokenType_Int64},
+		{[]byte(`123`), pseudonymizationCommon.TokenType_Int32},
+		{[]byte(`321`), pseudonymizationCommon.TokenType_Int64},
 	}
 	for _, testTokenData := range testTokenizeData {
-		testTokenData.ZoneID = []byte{}
-		// test without zoneID
-		testTokenizeDetokenize(testContext.endpoint, http.MethodGet, testTokenData, testContext.client, t)
-		testTokenizeDetokenize(testContext.endpoint, http.MethodPost, testTokenData, testContext.client, t)
-
-		// test with ZoneID
-		testTokenData.ZoneID = testContext.zoneID
 		testTokenizeDetokenize(testContext.endpoint, http.MethodGet, testTokenData, testContext.client, t)
 		testTokenizeDetokenize(testContext.endpoint, http.MethodPost, testTokenData, testContext.client, t)
 	}
@@ -385,7 +333,6 @@ func testHTTPAPIEndpoints(testContext apiTestContext, t *testing.T) {
 
 type encryptData struct {
 	testBytes []byte
-	zoneID    []byte
 }
 
 func testEncryptDecrypt(endpoint, method, encryptOperationURL, decryptOperationURL string, data encryptData, client *http.Client, t *testing.T) {
@@ -397,8 +344,7 @@ func testEncryptDecrypt(endpoint, method, encryptOperationURL, decryptOperationU
 	}
 	requestTemplate, err := template.New("").Parse(`
     {
-		"data": "{{.Base64Data}}",
-		"zone_id": "{{.ZoneID}}"
+		"data": "{{.Base64Data}}"
         
     }`)
 	if err != nil {
@@ -406,11 +352,10 @@ func testEncryptDecrypt(endpoint, method, encryptOperationURL, decryptOperationU
 	}
 	type requestData struct {
 		Base64Data string
-		ZoneID     string
 	}
 	outputBuffer := bytes.Buffer{}
 	if err := requestTemplate.Execute(&outputBuffer, requestData{
-		Base64Data: base64.StdEncoding.EncodeToString(data.testBytes), ZoneID: string(data.zoneID),
+		Base64Data: base64.StdEncoding.EncodeToString(data.testBytes),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -442,7 +387,7 @@ func testEncryptDecrypt(endpoint, method, encryptOperationURL, decryptOperationU
 	}
 	outputBuffer.Reset()
 	if err := requestTemplate.Execute(&outputBuffer, requestData{
-		Base64Data: base64.StdEncoding.EncodeToString(responseObject.Data), ZoneID: string(data.zoneID),
+		Base64Data: base64.StdEncoding.EncodeToString(responseObject.Data),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -472,9 +417,8 @@ func testEncryptDecrypt(endpoint, method, encryptOperationURL, decryptOperationU
 }
 
 type tokenData struct {
-	ZoneID []byte
-	Data   []byte
-	Type   pseudonymizationCommon.TokenType
+	Data []byte
+	Type pseudonymizationCommon.TokenType
 }
 
 func testTokenizeDetokenize(endpoint, method string, data tokenData, client *http.Client, t *testing.T) {
@@ -485,7 +429,7 @@ func testTokenizeDetokenize(endpoint, method string, data tokenData, client *htt
 		t.Fatalf("Unsupported method '%s' of http request\n", method)
 	}
 
-	tokenizeRequest := tokenizationHTTPRequest{Type: data.Type, ZoneID: data.ZoneID, Data: data.Data}
+	tokenizeRequest := tokenizationHTTPRequest{Type: data.Type, Data: data.Data}
 	requestJSON, err := json.Marshal(tokenizeRequest)
 	if err != nil {
 		t.Fatal(err)
@@ -519,7 +463,7 @@ func testTokenizeDetokenize(endpoint, method string, data tokenData, client *htt
 		t.Fatal("Tokenized data equal to source data")
 	}
 
-	tokenizeRequest = tokenizationHTTPRequest{Type: data.Type, ZoneID: data.ZoneID, Data: rawResponseObject.Data}
+	tokenizeRequest = tokenizationHTTPRequest{Type: data.Type, Data: rawResponseObject.Data}
 	requestJSON, err = json.Marshal(tokenizeRequest)
 	if err != nil {
 		t.Fatal(err)

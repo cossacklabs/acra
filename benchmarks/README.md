@@ -46,12 +46,6 @@ time="2022-02-14T05:36:55+02:00" level=info msg="Took 5.532813209 sec\n"
 run acra write './write.bin 2> >(tee -a default.acra.txt)'
 time="2022-02-14T05:37:01+02:00" level=info msg="Took 6.512527345 sec\n"
 wait 204133
-run read scripts without zones
-run direct read './read.bin 2> >(tee -a default.direct.txt)'
-time="2022-02-14T05:37:29+02:00" level=info msg="Took 3.650667988 sec\n"
-run acra read './read.bin 2> >(tee -a default.acra.txt)'
-time="2022-02-14T05:37:55+02:00" level=info msg="Took 18.882822578 sec\n"
-wait 204252
 ```
 
 At first, it writes data to database directly and through acra-server.

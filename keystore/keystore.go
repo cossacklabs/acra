@@ -59,14 +59,10 @@ const (
 	PurposeAuditLog                  KeyPurpose = "audit_log"
 	PurposePoisonRecordSymmetricKey  KeyPurpose = "poison_sym_key"
 	PurposeStorageClientSymmetricKey KeyPurpose = "storage_sym_key"
-	PurposeStorageZoneSymmetricKey   KeyPurpose = "zone_sym_key"
 	PurposePoisonRecordKeyPair       KeyPurpose = "poison_key"
 	PurposeStorageClientKeyPair      KeyPurpose = "storage"
 	PurposeStorageClientPublicKey    KeyPurpose = "public_storage"
 	PurposeStorageClientPrivateKey   KeyPurpose = "private_storage"
-	PurposeStorageZoneKeyPair        KeyPurpose = "zone"
-	PurposeStorageZonePrivateKey     KeyPurpose = "private_zone"
-	PurposeStorageZonePublicKey      KeyPurpose = "public_zone"
 	PurposeLegacy                    KeyPurpose = "legacy"
 	PurposeUndefined                 KeyPurpose = "undefined"
 )
@@ -85,7 +81,7 @@ type Key struct {
 	Content []byte
 }
 
-// KeysBackup struct that store keys for poison records and all client's/zone's keys
+// KeysBackup struct that store keys for poison records and all client's keys
 type KeysBackup struct {
 	MasterKey []byte
 	Keys      []byte
@@ -97,14 +93,13 @@ type Backup interface {
 	Import(*KeysBackup) error
 }
 
-// KeyOwnerType define type key owners. Defined to avoid function overrides for clientID/zoneID keys and allow to
+// KeyOwnerType define type key owners. Defined to avoid function overrides for clientID keys and allow to
 // define one function for several key owners
 type KeyOwnerType int
 
 // Set of values for KeyOwnerType
 const (
 	KeyOwnerTypeClient = iota
-	KeyOwnerTypeZone   = iota
 )
 
 // ErrKeysNotFound used if can't find key or keys
@@ -124,14 +119,11 @@ type HmacKeyGenerator interface {
 type SymmetricEncryptionKeyStore interface {
 	GetClientIDSymmetricKeys(id []byte) ([][]byte, error)
 	GetClientIDSymmetricKey(id []byte) ([]byte, error)
-	GetZoneIDSymmetricKeys(id []byte) ([][]byte, error)
-	GetZoneIDSymmetricKey(id []byte) ([]byte, error)
 }
 
 // SymmetricEncryptionKeyStoreGenerator interface methods responsible for generation encryption symmetric keys
 type SymmetricEncryptionKeyStoreGenerator interface {
 	GenerateClientIDSymmetricKey(id []byte) error
-	GenerateZoneIDSymmetricKey(id []byte) error
 }
 
 // PoisonKeyGenerator is responsible for generation of poison keys.
@@ -214,7 +206,6 @@ func GetMasterKeyFromEnvironmentVariable(varname string) ([]byte, error) {
 // KeyContext contains generic key context for key operation
 type KeyContext struct {
 	ClientID []byte
-	ZoneID   []byte
 	Context  []byte
 	Purpose  KeyPurpose
 }
@@ -242,19 +233,8 @@ func NewClientIDKeyContext(purpose KeyPurpose, clientID []byte) KeyContext {
 	}
 }
 
-// NewZoneIDKeyContext create new key context with key purpose and zoneID
-func NewZoneIDKeyContext(purpose KeyPurpose, zoneID []byte) KeyContext {
-	return KeyContext{
-		Purpose: purpose,
-		ZoneID:  zoneID,
-	}
-}
-
 // GetKeyContextFromContext return byte context depending on provided options
 func GetKeyContextFromContext(keyContext KeyContext) []byte {
-	if keyContext.ZoneID != nil {
-		return keyContext.ZoneID
-	}
 	if keyContext.ClientID != nil {
 		return keyContext.ClientID
 	}
@@ -266,9 +246,6 @@ func GetKeyContextFromContext(keyContext KeyContext) []byte {
 
 // String implementation of Stringer interface for KeyContext
 func (ctx KeyContext) String() string {
-	if ctx.ZoneID != nil {
-		return string(ctx.ZoneID)
-	}
 	if ctx.ClientID != nil {
 		return string(ctx.ClientID)
 	}
@@ -313,7 +290,6 @@ type TransportKeyStore interface {
 
 // PublicKeyStore provides access to storage public keys, used to encrypt data for storage.
 type PublicKeyStore interface {
-	GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error)
 	GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error)
 }
 
@@ -333,9 +309,6 @@ type DataEncryptorKeyStore interface {
 // PrivateKeyStore provides access to storage private keys, used to decrypt stored data.
 type PrivateKeyStore interface {
 	SymmetricEncryptionKeyStore
-	HasZonePrivateKey(id []byte) bool
-	GetZonePrivateKey(id []byte) (*keys.PrivateKey, error)
-	GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error)
 	GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error)
 	GetServerDecryptionPrivateKeys(id []byte) ([]*keys.PrivateKey, error)
 }
@@ -346,17 +319,6 @@ type StorageKeyCreation interface {
 	GenerateDataEncryptionKeys(clientID []byte) error
 	// Sets storage key pair for given client ID.
 	SaveDataEncryptionKeys(clientID []byte, keypair *keys.Keypair) error
-	// Creates a new zone along with a key.
-	// Returns new zone ID, its public key data, error.
-	GenerateZoneKey() ([]byte, []byte, error)
-	// Replaces the current key pair for given zone ID.
-	SaveZoneKeypair(zoneID []byte, keypair *keys.Keypair) error
-	// Generates a new key pair and replaces the current key pair for given zone ID.
-	// Returns new publie key data, error.
-	RotateZoneKey(zoneID []byte) ([]byte, error)
-	// Generates a new symetric key and replaces the current key for given zone ID.
-	// Returns new key data, error.
-	RotateSymmetricZoneKey(zoneID []byte) error
 }
 
 // DecryptionKeyStore enables AcraStruct decryption. It is used by acra-server.
@@ -416,12 +378,11 @@ type ServerKeyStore interface {
 //
 // "ID" is unique string that can be used to identify this key set in the keystore.
 // "Purpose" is short human-readable description of the key purpose.
-// "ClientID" and "ZoneID" are filled in where relevant.
+// "ClientID" and "AdditionalContext" are filled in where relevant.
 type KeyDescription struct {
 	ID       string
 	Purpose  KeyPurpose
 	ClientID []byte `json:",omitempty"`
-	ZoneID   []byte `json:",omitempty"`
 }
 
 // TranslationKeyStore enables AcraStruct translation. It is used by acra-translator tool.

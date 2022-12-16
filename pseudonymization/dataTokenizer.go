@@ -41,7 +41,7 @@ func (t *DataTokenizer) Tokenize(data []byte, context common.TokenContext, setti
 		anonymize = t.tokenizer.AnonymizeConsistently
 	}
 
-	logrus.WithFields(logrus.Fields{"column": setting.ColumnName(), "client_id": string(context.ClientID), "zone_id": string(context.ZoneID)}).Debugln("Tokenize with DataTokenizer")
+	logrus.WithFields(logrus.Fields{"column": setting.ColumnName(), "client_id": string(context.ClientID), "additional_context": string(context.AdditionalContext)}).Debugln("Tokenize with DataTokenizer")
 	tokenType := setting.GetTokenType()
 	switch tokenType {
 	case common.TokenType_Int32:
@@ -95,7 +95,7 @@ func (t *DataTokenizer) Tokenize(data []byte, context common.TokenContext, setti
 
 // Detokenize the data in given context with provided settings.
 func (t *DataTokenizer) Detokenize(data []byte, context common.TokenContext, setting config.ColumnEncryptionSetting) ([]byte, error) {
-	logrus.WithFields(logrus.Fields{"column": setting.ColumnName(), "client_id": string(context.ClientID), "zone_id": string(context.ZoneID)}).Debugln("Detokenize with DataTokenizer")
+	logrus.WithFields(logrus.Fields{"column": setting.ColumnName(), "client_id": string(context.ClientID), "additional_context": string(context.AdditionalContext)}).Debugln("Detokenize with DataTokenizer")
 	tokenType := setting.GetTokenType()
 	switch tokenType {
 	case common.TokenType_Int32:

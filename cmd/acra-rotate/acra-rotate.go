@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package main is entry point for acra-rotate. Acra-rotate provide console utility to rotate private/zone keys and re-encrypt
+// Package main is entry point for acra-rotate. Acra-rotate provide console utility to rotate private keys and re-encrypt
 // data stored in database or as files
 package main
 
@@ -48,12 +48,11 @@ var (
 
 func main() {
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which the keys will be loaded")
-	fileMapConfig := flag.String("file_map_config", "", "Path to file with map of <ZoneId>: <FilePaths> in json format {\"zone_id1\": [\"filepath1\", \"filepath2\"], \"zone_id2\": [\"filepath1\", \"filepath2\"]} (zones support deprecated since 0.94.0, will map ClientIDs only to file paths)")
-	sqlSelect := flag.String("sql_select", "", "Select query with ? as placeholders where last columns in result must be ClientId/ZoneId and AcraStruct. Other columns will be passed into insert/update query into placeholders (zones support deprecated since 0.94.0 and will be ignored).")
+	fileMapConfig := flag.String("file_map_config", "", "Path to file with map of <ClientId>: <FilePaths> in json format {\"client_id1\": [\"filepath1\", \"filepath2\"], \"client_id2\": [\"filepath1\", \"filepath2\"]}")
+	sqlSelect := flag.String("sql_select", "", "Select query with ? as placeholders where last columns in result must be ClientId and AcraStruct. Other columns will be passed into insert/update query into placeholders")
 	sqlUpdate := flag.String("sql_update", "", "Insert/Update query with ? as placeholder where into first will be placed rotated AcraStruct")
 	connectionString := flag.String("db_connection_string", "", "Connection string to db")
 	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
-	zoneMode := flag.Bool("zonemode_enable", true, "Rotate acrastructs as it was encrypted with zonemode or without. With zonemode_enable=true will be used zoneID for encryption/decryption. If false then key id will not be used")
 	_ = flag.Bool("postgresql_enable", false, "Handle Postgresql connections")
 	dryRun := flag.Bool("dry-run", false, "perform rotation without saving rotated AcraStructs and keys")
 	logging.SetLogLevel(logging.LogVerbose)
@@ -82,7 +81,7 @@ func main() {
 		log.Infoln("Rotating in dry-run mode")
 	}
 	if *fileMapConfig != "" {
-		runFileRotation(*fileMapConfig, keystorage, *zoneMode, *dryRun)
+		runFileRotation(*fileMapConfig, keystorage, *dryRun)
 	}
 	if *sqlSelect != "" || *sqlUpdate != "" {
 		if *sqlSelect == "" || *sqlUpdate == "" {
@@ -113,7 +112,7 @@ func main() {
 			os.Exit(1)
 		}
 		log.WithFields(log.Fields{"select_query": *sqlSelect, "update_query": *sqlUpdate}).Infoln("Rotate data in database")
-		if !rotateDb(*sqlSelect, *sqlUpdate, db, keystorage, encoder, *zoneMode, *dryRun) {
+		if !rotateDb(*sqlSelect, *sqlUpdate, db, keystorage, encoder, *dryRun) {
 			os.Exit(1)
 		}
 	}

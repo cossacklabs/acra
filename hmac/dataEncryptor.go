@@ -44,11 +44,6 @@ func NewSearchableEncryptor(keystore SearchableEncryptorKeystore, dataEncryptor 
 	return &SearchableDataEncryptor{dataEncryptor, keystore, dataProcessor}, nil
 }
 
-// EncryptWithZoneID proxy call to AcrawriterEncryptor
-func (e *SearchableDataEncryptor) EncryptWithZoneID(zoneID, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
-	return data, nil
-}
-
 // EncryptWithClientID add prefix with hmac to encrypted result from AcrawriterEncryptor
 func (e *SearchableDataEncryptor) EncryptWithClientID(clientID, data []byte, settingCE config.ColumnEncryptionSetting) ([]byte, error) {
 	setting, ok := settingCE.(config.ColumnEncryptionSetting)

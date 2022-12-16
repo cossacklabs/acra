@@ -143,9 +143,9 @@ func ProcessAcraStructs(ctx context.Context, inBuffer []byte, outBuffer []byte, 
 var ErrNoPrivateKeys = errors.New("cannot decrypt AcraStruct with empty key list")
 
 // DecryptAcrastruct returns plaintext data from AcraStruct, decrypting it using Themis SecureCell in Seal mode,
-// using zone as context and privateKey as decryption key.
+// using optional additional context and privateKey as decryption key.
 // Returns error if decryption failed.
-func DecryptAcrastruct(data []byte, privateKey *keys.PrivateKey, zone []byte) ([]byte, error) {
+func DecryptAcrastruct(data []byte, privateKey *keys.PrivateKey, additionalContext []byte) ([]byte, error) {
 	if err := ValidateAcraStructLength(data); err != nil {
 		return nil, err
 	}
@@ -167,7 +167,7 @@ func DecryptAcrastruct(data []byte, privateKey *keys.PrivateKey, zone []byte) ([
 	if err != nil {
 		return nil, err
 	}
-	decrypted, err := scell.Decrypt(innerData[KeyBlockLength+DataLengthSize:], zone)
+	decrypted, err := scell.Decrypt(innerData[KeyBlockLength+DataLengthSize:], additionalContext)
 	// fill zero symmetric_key
 	utils.ZeroizeSymmetricKey(symmetricKey)
 	if err != nil {
@@ -178,11 +178,11 @@ func DecryptAcrastruct(data []byte, privateKey *keys.PrivateKey, zone []byte) ([
 
 // DecryptRotatedAcrastruct tries decrypting an AcraStruct with a set of rotated keys.
 // It either returns decrypted data if one of the keys succeeds, or an error if none is good.
-func DecryptRotatedAcrastruct(data []byte, privateKeys []*keys.PrivateKey, zone []byte) ([]byte, error) {
+func DecryptRotatedAcrastruct(data []byte, privateKeys []*keys.PrivateKey, additionalContext []byte) ([]byte, error) {
 	var err = ErrNoPrivateKeys
 	var decryptedData []byte
 	for _, privateKey := range privateKeys {
-		decryptedData, err = DecryptAcrastruct(data, privateKey, zone)
+		decryptedData, err = DecryptAcrastruct(data, privateKey, additionalContext)
 		if err == nil {
 			return decryptedData, nil
 		}

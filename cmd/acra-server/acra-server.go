@@ -140,7 +140,6 @@ func realMain() error {
 	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "On detecting poison record: log about poison record detection, stop and shutdown")
 	scriptOnPoison := flag.String("poison_run_script_file", "", "On detecting poison record: log about poison record detection, execute script, return decrypted data")
 
-	withZone := flag.Bool("zonemode_enable", false, "Turn on zone mode (deprecated since 0.94.0, will be removed).")
 	enableHTTPAPI := flag.Bool("http_api_enable", false, "Enable HTTP API. Use together with --http_api_tls_transport_enable whenever possible.")
 	httpAPIUseTLS := flag.Bool("http_api_tls_transport_enable", false, "Enable HTTPS support for the API. Use together with the --http_api_enable. TLS configuration is the same as in the Acra Proxy.")
 
@@ -264,7 +263,6 @@ func realMain() error {
 
 	// now it's stub as default values
 	serverConfig.SetDetectPoisonRecords(*detectPoisonRecords)
-	serverConfig.SetWithZone(*withZone)
 	serverConfig.SetEnableHTTPAPI(*enableHTTPAPI)
 	serverConfig.SetDebug(*debug)
 	serverConfig.SetServiceName(ServiceName)
@@ -387,9 +385,9 @@ func realMain() error {
 			if *enableHTTPAPI {
 				log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).
 					Warningln("HTTP API server is used without TLS. Consider using TLS whenever possible.")
-				if *clientID == "" && !*withZone {
+				if *clientID == "" {
 					log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
-						Warning("HTTP API server is configured without TLS, which requires non-empty clientID or zone mode. Either configure TLS for the HTTP API server, use --client_id option or enable zones.")
+						Warning("HTTP API server is configured without TLS, which requires non-empty clientID. Either configure TLS for the HTTP API server, use --client_id option.")
 				}
 			}
 			httpAPIConnWrapper, err = common.BuildHTTPAPIConnectionWrapper(nil, *tlsUseClientIDFromCertificate, []byte(*clientID))
@@ -408,9 +406,9 @@ func realMain() error {
 	// here ConnectionWrapper used to establish connection with app via pure net.Conn with known static clientID on server side
 	// which ClientID will be used in next steps depends on --tls_client_id_from_cert parameter. If --tls_client_id_from_cert=false
 	// then will be used static --client_id otherwise will be extracted from TLS certificate and override static variant
-	if (*clientID == "" && !*withZone) && !*tlsUseClientIDFromCertificate {
+	if (*clientID == "") && !*tlsUseClientIDFromCertificate {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
-			Errorln("Configuration error: without zone mode and without encryption you must set <client_id> which will be used to connect to AcraServer")
+			Errorln("Configuration error: without encryption you must set <client_id> which will be used to connect to AcraServer")
 		return err
 	}
 	log.Infof("Selecting transport: use raw transport wrapper")
@@ -541,13 +539,13 @@ func realMain() error {
 
 	var proxyFactory base.ProxyFactory
 	if *useMysql {
-		proxyFactory, err = mysql.NewProxyFactory(base.NewProxySetting(sqlParser, serverConfig.GetTableSchema(), keyStore, proxyTLSWrapper, serverConfig.GetCensor(), poisonCallbacks, *withZone), keyStore, tokenizer)
+		proxyFactory, err = mysql.NewProxyFactory(base.NewProxySetting(sqlParser, serverConfig.GetTableSchema(), keyStore, proxyTLSWrapper, serverConfig.GetCensor(), poisonCallbacks), keyStore, tokenizer)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize proxy for connections")
 			return err
 		}
 	} else {
-		proxyFactory, err = postgresql.NewProxyFactory(base.NewProxySetting(sqlParser, serverConfig.GetTableSchema(), keyStore, proxyTLSWrapper, serverConfig.GetCensor(), poisonCallbacks, *withZone), keyStore, tokenizer)
+		proxyFactory, err = postgresql.NewProxyFactory(base.NewProxySetting(sqlParser, serverConfig.GetTableSchema(), keyStore, proxyTLSWrapper, serverConfig.GetCensor(), poisonCallbacks), keyStore, tokenizer)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize proxy for connections")
 			return err
@@ -685,7 +683,7 @@ func realMain() error {
 			shutdownCurrentInstance(err)
 			return
 		}
-		if *withZone || *enableHTTPAPI {
+		if *enableHTTPAPI {
 			fdAPI, err = network.ListenerFileDescriptor(server.ListenerAPI())
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetFileDescriptor).
@@ -767,9 +765,9 @@ func realMain() error {
 	}
 
 	if os.Getenv(GracefulRestartEnv) == "true" {
-		err = server.StartServerFromFileDescriptor(mainContext, &wg, *withZone, *enableHTTPAPI, DescriptorAcra, DescriptorAPI)
+		err = server.StartServerFromFileDescriptor(mainContext, &wg, *enableHTTPAPI, DescriptorAcra, DescriptorAPI)
 	} else {
-		err = server.StartServer(mainContext, &wg, *withZone, *enableHTTPAPI)
+		err = server.StartServer(mainContext, &wg, *enableHTTPAPI)
 	}
 
 	if utils.WaitWithTimeout(&wg, utils.DefaultWaitGroupTimeoutDuration) {

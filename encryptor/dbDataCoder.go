@@ -133,7 +133,7 @@ func PgEncodeToHexString(data []byte) []byte {
 // Acra captures SQL queries like `INSERT INTO users (age, username, email, photo) VALUES (123, 'john_wick', 'johnwick@mail.com', '\xaabbcc');`
 // and manipulates with SQL values `123`, `'john_wick'`, `'johnwick@mail.com'`, `'\xaabbcc'`. On first stage Acra
 // decodes with Decode method values from SQL literals into binary or leave as is. For example hex encoded values decoded into binary"
-// `'\xaabbcc'` decoded into []byte{170,187,204} and passed to QueryEncryptor's callbacks `EncryptWith[Client|Zone]ID`
+// `'\xaabbcc'` decoded into []byte{170,187,204} and passed to QueryEncryptor's callbacks `EncryptWithClientID`
 // After that it should be encoded with Encode method from binary form into SQL to replace values in the query.
 type PostgresqlDBDataCoder struct{}
 

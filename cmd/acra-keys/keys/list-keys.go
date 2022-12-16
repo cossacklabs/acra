@@ -112,6 +112,6 @@ func printKeysJSON(keys []keystore.KeyDescription, writer io.Writer) error {
 
 const (
 	purposeHeader = "Key purpose"
-	extraIDHeader = "Client/Zone ID"
+	extraIDHeader = "Client"
 	idHeader      = "Key ID"
 )

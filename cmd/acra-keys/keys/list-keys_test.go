@@ -28,11 +28,6 @@ import (
 func TestPrintKeysDefault(t *testing.T) {
 	keys := []keystore.KeyDescription{
 		{
-			ID:      "Test ID Please Ignore",
-			Purpose: "no particular",
-			ZoneID:  []byte("Area51"),
-		},
-		{
 			ID:      "Another ID",
 			Purpose: "testing",
 		},
@@ -45,10 +40,9 @@ func TestPrintKeysDefault(t *testing.T) {
 	}
 
 	actual := output.String()
-	expected := `Key purpose   | Client/Zone ID | Key ID
---------------+----------------+----------------------
-no particular | Area51         | Test ID Please Ignore
-testing       |                | Another ID
+	expected := `Key purpose | Client | Key ID
+------------+--------+-----------
+testing     |        | Another ID
 `
 	if actual != expected {
 		t.Errorf("Incorrect output.\nActual:\n%s\nExpected:\n%s", actual, expected)
@@ -57,11 +51,6 @@ testing       |                | Another ID
 
 func TestPrintKeysJSON(t *testing.T) {
 	keys := []keystore.KeyDescription{
-		{
-			ID:      "Test ID Please Ignore",
-			Purpose: "no particular",
-			ZoneID:  []byte("Area51"),
-		},
 		{
 			ID:      "Another ID",
 			Purpose: "testing",
@@ -99,6 +88,5 @@ func equalDescriptionLists(a, b []keystore.KeyDescription) bool {
 
 func equalDescriptions(a, b keystore.KeyDescription) bool {
 	return a.ID == b.ID && a.Purpose == b.Purpose &&
-		bytes.Equal(a.ClientID, b.ClientID) &&
-		bytes.Equal(a.ZoneID, b.ZoneID)
+		bytes.Equal(a.ClientID, b.ClientID)
 }

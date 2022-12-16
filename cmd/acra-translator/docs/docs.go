@@ -27,7 +27,7 @@ const docTemplate = `{
     "paths": {
         "/v2/decrypt": {
             "get": {
-                "description": "Decrypt AcraStruct with specified ZoneID or ClientID from connection (zones support deprecated since 0.94.0, will be removed)",
+                "description": "Decrypt AcraStruct with specified ClientID from connection",
                 "consumes": [
                     "application/json"
                 ],
@@ -41,14 +41,6 @@ const docTemplate = `{
                         "name": "data",
                         "in": "body",
                         "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "ZoneID",
-                        "name": "zone_id",
-                        "in": "body",
                         "schema": {
                             "type": "string"
                         }
@@ -78,7 +70,7 @@ const docTemplate = `{
         },
         "/v2/decryptSearchable": {
             "get": {
-                "description": "Decrypt searchable AcraStruct with specified ZoneID or ClientID from connection (zones support deprecated since 0.94.0, will be removed)",
+                "description": "Decrypt searchable AcraStruct with ClientID from connection",
                 "consumes": [
                     "application/json"
                 ],
@@ -92,14 +84,6 @@ const docTemplate = `{
                         "name": "data",
                         "in": "body",
                         "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "ZoneID",
-                        "name": "zone_id",
-                        "in": "body",
                         "schema": {
                             "type": "string"
                         }
@@ -129,7 +113,7 @@ const docTemplate = `{
         },
         "/v2/decryptSym": {
             "get": {
-                "description": "Decrypt AcraBlock with specified ZoneID or ClientID from connection (zones support deprecated since 0.94.0, will be removed)",
+                "description": "Decrypt AcraBlock with ClientID from connection",
                 "consumes": [
                     "application/json"
                 ],
@@ -143,14 +127,6 @@ const docTemplate = `{
                         "name": "data",
                         "in": "body",
                         "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "ZoneID",
-                        "name": "zone_id",
-                        "in": "body",
                         "schema": {
                             "type": "string"
                         }
@@ -180,7 +156,7 @@ const docTemplate = `{
         },
         "/v2/decryptSymSearchable": {
             "get": {
-                "description": "Decrypt searchable AcraBlock with specified ZoneID or ClientID from connection (zones support deprecated since 0.94.0, will be removed)",
+                "description": "Decrypt searchable AcraBlock with ClientID from connection",
                 "consumes": [
                     "application/json"
                 ],
@@ -194,14 +170,6 @@ const docTemplate = `{
                         "name": "data",
                         "in": "body",
                         "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "ZoneID",
-                        "name": "zone_id",
-                        "in": "body",
                         "schema": {
                             "type": "string"
                         }
@@ -248,14 +216,6 @@ const docTemplate = `{
                         "schema": {
                             "type": "string"
                         }
-                    },
-                    {
-                        "description": "ZoneID",
-                        "name": "zone_id",
-                        "in": "body",
-                        "schema": {
-                            "type": "string"
-                        }
                     }
                 ],
                 "responses": {
@@ -282,7 +242,7 @@ const docTemplate = `{
         },
         "/v2/encrypt": {
             "get": {
-                "description": "Encrypt data with specified ZoneID or ClientID from connection (zones support deprecated since 0.94.0, will be removed)",
+                "description": "Encrypt data with specified ClientID from connection",
                 "consumes": [
                     "application/json"
                 ],
@@ -296,14 +256,6 @@ const docTemplate = `{
                         "name": "data",
                         "in": "body",
                         "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "ZoneID",
-                        "name": "zone_id",
-                        "in": "body",
                         "schema": {
                             "type": "string"
                         }
@@ -333,7 +285,7 @@ const docTemplate = `{
         },
         "/v2/encryptSearchable": {
             "get": {
-                "description": "Encrypt data with searchable AcraStruct with specified ZoneID or ClientID from connection (zones support deprecated since 0.94.0, will be removed)",
+                "description": "Encrypt data with searchable AcraStruct with specified ClientID from connection",
                 "consumes": [
                     "application/json"
                 ],
@@ -347,14 +299,6 @@ const docTemplate = `{
                         "name": "data",
                         "in": "body",
                         "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "ZoneID",
-                        "name": "zone_id",
-                        "in": "body",
                         "schema": {
                             "type": "string"
                         }
@@ -384,7 +328,7 @@ const docTemplate = `{
         },
         "/v2/encryptSym": {
             "get": {
-                "description": "Encrypt data with AcraBlock with specified ZoneID or ClientID from connection (zones support deprecated since 0.94.0, will be removed)",
+                "description": "Encrypt data with AcraBlock with ClientID from connection",
                 "consumes": [
                     "application/json"
                 ],
@@ -398,14 +342,6 @@ const docTemplate = `{
                         "name": "data",
                         "in": "body",
                         "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "ZoneID",
-                        "name": "zone_id",
-                        "in": "body",
                         "schema": {
                             "type": "string"
                         }
@@ -435,7 +371,7 @@ const docTemplate = `{
         },
         "/v2/encryptSymSearchable": {
             "get": {
-                "description": "Encrypt data with searchable AcraBlock with specified ZoneID or ClientID from connection (zones support deprecated since 0.94.0, will be removed)",
+                "description": "Encrypt data with searchable AcraBlock with ClientID from connection",
                 "consumes": [
                     "application/json"
                 ],
@@ -449,14 +385,6 @@ const docTemplate = `{
                         "name": "data",
                         "in": "body",
                         "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "ZoneID",
-                        "name": "zone_id",
-                        "in": "body",
                         "schema": {
                             "type": "string"
                         }
@@ -503,14 +431,6 @@ const docTemplate = `{
                         "schema": {
                             "type": "string"
                         }
-                    },
-                    {
-                        "description": "ZoneID",
-                        "name": "zone_id",
-                        "in": "body",
-                        "schema": {
-                            "type": "string"
-                        }
                     }
                 ],
                 "responses": {
@@ -551,14 +471,6 @@ const docTemplate = `{
                         "name": "data",
                         "in": "body",
                         "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "ZoneID",
-                        "name": "zone_id",
-                        "in": "body",
                         "schema": {
                             "type": "string"
                         }

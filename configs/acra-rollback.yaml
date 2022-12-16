@@ -101,6 +101,3 @@ vault_tls_ocsp_client_url:
 # Use TLS to encrypt transport with HashiCorp Vault
 vault_tls_transport_enable: false
 
-# Turn on zone mode (deprecated since 0.94.0, will be removed).
-zonemode_enable: false
-

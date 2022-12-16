@@ -29,31 +29,8 @@ void create_acrastruct() {
   cout << base64::encode(as) << endl;
 }
 
-void create_acrastruct_with_zone() {
-  static string message_with_zone("message with zone");
-  acra::data message_with_zone_vector(message_with_zone.c_str(), message_with_zone.c_str() + message_with_zone.length());
-
-  static string zone_id("DDDDDDDDvTOInNRROHOihRkf");
-  acra::data zone_id_vector(zone_id.c_str(), zone_id.c_str() + zone_id.length());
-
-  vector<uint8_t> zone_pub_key = base64::decode("VUVDMgAAAC1GQ4j5AgEwz22ion8C0lvwRGJSjaC/G6ver3oOqmbBrIBjpdRo");
-
-  // init acrawriter
-  acra acrawriter;
-
-  // create acrastruct
-  acra::acrastruct as_with_zone = acrawriter.create_acrastruct(message_with_zone_vector, zone_pub_key, zone_id_vector);
-
-  cout << "AcraStruct with zone (hex):" << endl;
-  cout << hex::encode(as_with_zone) << endl;
-
-  cout << "AcraStruct with zone (Base64):" << endl;
-  cout << base64::encode(as_with_zone) << endl;
-}
-
 int main() {
 
   create_acrastruct();
-  create_acrastruct_with_zone();
   return 0;
 }

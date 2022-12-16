@@ -2,7 +2,6 @@ See a verbose explanation of how to prepare environment and use the examples in 
 
 These examples are simple as it may be with hardcoded values (sorry) just to see how you should create acrastructs and see decrypted data from database. Script will do next: encrypt data, save to database, fetch from database and print.
   
-# Without zone
 You can override next values in script to adapt to your environment:
 * `$message` - message that will be encrypted and saved to db
 * `$key_path` - path to file with storage public key that will be used to create acrastruct
@@ -11,16 +10,4 @@ You can override next values in script to adapt to your environment:
 ## Run
 ```
 php examples/php/example.php
-```
-
-# With zone
-
-You can override next values in script to adapt to your environment:
-* `$message` - message that will be encrypted and saved to db
-* `$zone` - you may replace `http://127.0.0.1:9191/getNewZone` value with correct AcraConnector's host:port
-* `$dbconn` - replace host|port|dbname|user|password with your settings for PostgreSQL. Use AcraConnector host:port to print decrypted data and database's host:port to print encrypted data
-
-## Run
-```
-php examples/php/example_with_zone.php
 ```

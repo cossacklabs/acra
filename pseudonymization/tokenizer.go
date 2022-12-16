@@ -138,9 +138,10 @@ func (p *pseudoanonymizer) generateDataID(data []byte, context common.TokenConte
 	h := sha256.New()
 	h.Write(dataIDDelim)
 	h.Write(data)
-	if len(context.ZoneID) != 0 {
+	if len(context.AdditionalContext) != 0 {
+		// leave for backward compatibility when used zones
 		h.Write([]byte(`zone`))
-		h.Write(context.ZoneID)
+		h.Write(context.AdditionalContext)
 	} else {
 		h.Write([]byte(`client`))
 		h.Write(context.ClientID)

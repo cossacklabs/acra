@@ -26,9 +26,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// rotateDb execute selectQuery to fetch AcraStructs with related zone ids, decrypt with rotated zone keys and
-func rotateDb(selectQuery, updateQuery string, db *sql.DB, keystore RotateStorageKeyStore, encoder utils.BinaryEncoder, zoneMode, dryRun bool) bool {
-	rotator, err := newRotator(keystore, zoneMode)
+// rotateDb execute selectQuery to fetch AcraStructs, decrypt with rotated keys
+func rotateDb(selectQuery, updateQuery string, db *sql.DB, keystore RotateStorageKeyStore, encoder utils.BinaryEncoder, dryRun bool) bool {
+	rotator, err := newRotator(keystore)
 	if err != nil {
 		return false
 	}
@@ -45,8 +45,8 @@ func rotateDb(selectQuery, updateQuery string, db *sql.DB, keystore RotateStorag
 		log.WithError(err).Errorln("Can't fetch metadata for result columns")
 		return false
 	}
-	if len(columns) < 2 {
-		log.Errorln("Result has < 2 columns. Expected at least ZoneId and AcraStruct")
+	if len(columns) < 1 {
+		log.Errorln("Result has < 2 columns. Expected at least AcraStruct")
 		return false
 	}
 
@@ -69,7 +69,7 @@ func rotateDb(selectQuery, updateQuery string, db *sql.DB, keystore RotateStorag
 		acraStructID, ok := row[acraStructIDIndex].([]byte)
 		// check that acrastruct and id have correct types ([]byte)
 		if !ok {
-			log.Errorf("ClientId/ZoneId column has incorrect type (bytes expected, took %s)", reflect.TypeOf(row[acraStructIDIndex]))
+			log.Errorf("ClientId column has incorrect type (bytes expected, took %s)", reflect.TypeOf(row[acraStructIDIndex]))
 			return false
 		}
 

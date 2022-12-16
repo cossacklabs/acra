@@ -1,4 +1,4 @@
-This example contains CLion project with AcraStruct generation with and without Zones.
+This example contains CLion project with AcraStruct generation.
 
 # Building and running
 
@@ -45,7 +45,7 @@ vector<uint8_t> pub_key = base64::decode("VUVDMgAAAC1SGS5iAprH9f1sf7GR4OZ/J1YEn8
 ```
 
 
-# Generating AcraStruct without zone
+# Generating AcraStruct
 
 Create AcraStructs from data-to-encrypt and Acra public storage key (don't forget to update key to your AcraServer's key):
 
@@ -70,34 +70,6 @@ acra acrawriter;
 acra::acrastruct as = acrawriter.create_acrastruct(message_vector, pub_key);
 ```
 
-
-# Generating AcraStruct with zone
-
-Create AcraStructs from data-to-encrypt, ZoneID and Acra public zone key (don't forget to update key to your AcraServer's key):
-
-```cpp
-#include <cppcodec/base64_rfc4648.hpp>
-
-#include "acrawriter.hpp"
-
-using acra = acrawriter::acrawriter;
-using base64 = cppcodec::base64_rfc4648;
-using namespace std;
-
-static string message("secret message");
-acra::data message_vector(message.c_str(), message.c_str() + message.length());
-
-static string zone_id("DDDDDDDDvTOInNRROHOihRkf");
-acra::data zone_id_vector(zone_id.c_str(), zone_id.c_str() + zone_id.length());
-
-vector<uint8_t> zone_pub_key = base64::decode("VUVDMgAAAC1GQ4j5AgEwz22ion8C0lvwRGJSjaC/G6ver3oOqmbBrIBjpdRo");
-
-// init acrawriter
-acra acrawriter;
-
-// create acrastruct
-acra::acrastruct as_with_zone = acrawriter.create_acrastruct(message_with_zone_vector, zone_pub_key, zone_id_vector);
-```
 
 # Installing Themis system library
 

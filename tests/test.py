@@ -71,7 +71,6 @@ import api_pb2_grpc
 import utils
 from random_utils import random_bytes, random_email, random_int32, random_int64, random_str
 from utils import (read_storage_public_key, read_storage_private_key,
-                   read_zone_public_key, read_zone_private_key,
                    read_poison_public_key, read_poison_private_key,
                    destroy_server_storage_key,
                    decrypt_acrastruct, deserialize_and_decrypt_acrastruct,
@@ -147,11 +146,6 @@ test_table = sa.Table('test', metadata,
 acrarollback_output_table = sa.Table('acrarollback_output', metadata,
                                      sa.Column('data', sa.LargeBinary),
                                      )
-# keys of json objects that return acra-addzone tool
-ZONE_ID = 'id'
-ZONE_PUBLIC_KEY = 'public_key'
-
-zones = []
 poison_record = None
 poison_record_acrablock = None
 master_key = None
@@ -689,8 +683,6 @@ BINARIES = [
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-tokens', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
-    Binary(name='acra-addzone', from_version=DEFAULT_VERSION,
-           build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-keymaker', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-keys', from_version=DEFAULT_VERSION,
@@ -777,7 +769,6 @@ BUILD_BINARIES = True
 
 
 def setUpModule():
-    global zones
     global KEYS_FOLDER
     global TLS_CERT_CLIENT_ID_1
     global TLS_CERT_CLIENT_ID_2
@@ -791,19 +782,11 @@ def setUpModule():
     # must be before any call of key generators or forks of acra/proxy servers
     os.environ.setdefault(ACRA_MASTER_KEY_VAR_NAME, get_master_key())
 
-    # first keypair for using without zones
     assert create_client_keypair_from_certificate(TEST_TLS_CLIENT_CERT) == 0
     assert create_client_keypair_from_certificate(TEST_TLS_CLIENT_2_CERT) == 0
 
     TLS_CERT_CLIENT_ID_1 = extract_client_id_from_cert(TEST_TLS_CLIENT_CERT)
     TLS_CERT_CLIENT_ID_2 = extract_client_id_from_cert(TEST_TLS_CLIENT_2_CERT)
-    # add two zones
-    zones.append(json.loads(subprocess.check_output(
-        [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
-        cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
-    zones.append(json.loads(subprocess.check_output(
-        [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
-        cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
     socket.setdefaulttimeout(SOCKET_CONNECT_TIMEOUT)
     drop_tables()
 
@@ -827,9 +810,6 @@ def tearDownModule():
         clean_binaries()
     clean_misc()
     KEYS_FOLDER.cleanup()
-    # use list.clear instead >>> zones = []; to avoid creation new variable with new address and allow to use it from
-    # other test modules
-    zones.clear()
     clean_test_data()
     for path in [MASTER_KEY_PATH]:
         try:
@@ -1467,7 +1447,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     ACRA_BYTEA = 'pgsql_hex_bytea'
     DB_BYTEA = 'hex'
     WHOLECELL_MODE = False
-    ZONE = False
     TEST_DATA_LOG = False
 
     acra = ProcessStub()
@@ -1521,8 +1500,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             'acrastruct_wholecell_enable': 'true' if self.WHOLECELL_MODE else 'false',
             'acrastruct_injectedcell_enable': 'false' if self.WHOLECELL_MODE else 'true',
             'd': 'true' if self.DEBUG_LOG else 'false',
-            'zonemode_enable': 'true' if self.ZONE else 'false',
-            'http_api_enable': 'true' if self.ZONE else 'true',
+            'http_api_enable': 'true',
             'keystore_cache_on_start_enable': 'false',
             'keys_dir': KEYS_FOLDER.name,
         }
@@ -1686,8 +1664,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         send_signal_by_process_name('acra-server', signal.SIGKILL)
 
     def log(self, data, expected=b'<no expected value>',
-            storage_client_id=None, zone_id=None,
-            poison_key=False):
+            storage_client_id=None, poison_key=False):
         """this function for printing data which used in test and for
         reproducing error with them if any error detected"""
         if not self.TEST_DATA_LOG:
@@ -1696,8 +1673,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         def key_name():
             if storage_client_id:
                 return 'client storage, id={}'.format(storage_client_id)
-            elif zone_id:
-                return 'zone storage, id={}'.format(zone_id)
             elif poison_key:
                 return 'poison record key'
             else:
@@ -1715,13 +1690,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             private_key = read_storage_private_key(KEYS_FOLDER.name, storage_client_id)
             log_entry['public_key'] = b64encode(public_key).decode('ascii')
             log_entry['private_key'] = b64encode(private_key).decode('ascii')
-
-        if zone_id:
-            public_key = read_zone_public_key(storage_client_id, KEYS_FOLDER.name)
-            private_key = read_zone_private_key(KEYS_FOLDER.name, storage_client_id)
-            log_entry['zone_public'] = b64encode(public_key).decode('ascii')
-            log_entry['zone_private'] = b64encode(private_key).decode('ascii')
-            log_entry['zone_id'] = zone_id
 
         if poison_key:
             public_key = read_poison_public_key(KEYS_FOLDER.name)
@@ -1799,19 +1767,15 @@ class AcraTranslatorMixin(object):
             'acratranslator_client_id_from_connection_enable': 'true',
         }
 
-    def http_decrypt_request(self, port, client_id, zone_id, acrastruct):
+    def http_decrypt_request(self, port, client_id, acrastruct):
         api_url = '{}://localhost:{}/v1/decrypt'.format(self.get_http_schema(), port)
-        if zone_id:
-            api_url = '{}?zone_id={}'.format(api_url, zone_id)
         kwargs = self.get_http_default_kwargs()
         kwargs['data'] = acrastruct
         with requests.post(api_url, **kwargs) as response:
             return response.content
 
-    def http_encrypt_request(self, port, client_id, zone_id, data):
+    def http_encrypt_request(self, port, client_id, data):
         api_url = '{}://localhost:{}/v1/encrypt'.format(self.get_http_schema(), port)
-        if zone_id:
-            api_url = '{}?zone_id={}'.format(api_url, zone_id)
         kwargs = self.get_http_default_kwargs()
         kwargs['data'] = data
         with requests.post(api_url, **kwargs) as response:
@@ -1826,37 +1790,25 @@ class AcraTranslatorMixin(object):
         tls_credentials = grpc.ssl_channel_credentials(ca_bytes, key_bytes, cert_bytes)
         return grpc.secure_channel('localhost:{}'.format(port), tls_credentials)
 
-    def grpc_encrypt_request(self, port, client_id, zone_id, data):
+    def grpc_encrypt_request(self, port, client_id, data):
         with self.get_grpc_channel(port) as channel:
             stub = api_pb2_grpc.WriterStub(channel)
             try:
-                if zone_id:
-                    response = stub.Encrypt(api_pb2.EncryptRequest(
-                        zone_id=zone_id.encode('ascii'), data=data,
-                        client_id=client_id.encode('ascii')),
-                        timeout=SOCKET_CONNECT_TIMEOUT)
-                else:
-                    response = stub.Encrypt(api_pb2.EncryptRequest(
-                        client_id=client_id.encode('ascii'), data=data),
-                        timeout=SOCKET_CONNECT_TIMEOUT)
+                response = stub.Encrypt(api_pb2.EncryptRequest(
+                    client_id=client_id.encode('ascii'), data=data),
+                    timeout=SOCKET_CONNECT_TIMEOUT)
             except grpc.RpcError as exc:
                 logging.info(exc)
                 return b''
             return response.acrastruct
 
-    def grpc_decrypt_request(self, port, client_id, zone_id, acrastruct, raise_exception_on_failure=False):
+    def grpc_decrypt_request(self, port, client_id, acrastruct, raise_exception_on_failure=False):
         with self.get_grpc_channel(port) as channel:
             stub = api_pb2_grpc.ReaderStub(channel)
             try:
-                if zone_id:
-                    response = stub.Decrypt(api_pb2.DecryptRequest(
-                        zone_id=zone_id.encode('ascii'), acrastruct=acrastruct,
-                        client_id=client_id.encode('ascii')),
-                        timeout=SOCKET_CONNECT_TIMEOUT)
-                else:
-                    response = stub.Decrypt(api_pb2.DecryptRequest(
-                        client_id=client_id.encode('ascii'), acrastruct=acrastruct),
-                        timeout=SOCKET_CONNECT_TIMEOUT)
+                response = stub.Decrypt(api_pb2.DecryptRequest(
+                    client_id=client_id.encode('ascii'), acrastruct=acrastruct),
+                    timeout=SOCKET_CONNECT_TIMEOUT)
             except grpc.RpcError as exc:
                 logging.info(exc)
                 if raise_exception_on_failure:
@@ -2010,13 +1962,13 @@ class BaseBinaryPostgreSQLTestCase(AsyncpgExecutorMixin, BaseTestCase):
         query = str(query.compile(compile_kwargs=compile_kwargs))
         values = []
         # example of the insert string:
-        # INSERT INTO test_table (id, zone_id, nullable_column, empty) VALUES (:id, :zone_id, :nullable_column, :empty)
+        # INSERT INTO test_table (id, nullable_column, empty) VALUES (:id, :nullable_column, :empty)
         pattern_string = r'(INSERT INTO) (\S+).*\((.*?)\).*(VALUES).*\((.*?)\)(.*\;?)'
 
         res = re.findall(pattern_string, query, re.IGNORECASE | re.DOTALL)
         if len(res) > 0:
             # regexp matching result should look like this:
-            # `id, zone_id, nullable_column, empty`
+            # `id, nullable_column, empty`
             intos = str(res[0][2])
             count = 1
             for idx, params in enumerate(parameters):
@@ -2038,13 +1990,13 @@ class BaseBinaryPostgreSQLTestCase(AsyncpgExecutorMixin, BaseTestCase):
         query = str(query.compile(compile_kwargs=compile_kwargs))
         values = []
         # example of the insert string:
-        # INSERT INTO test_table (id, zone_id, nullable_column, empty) VALUES (:id, :zone_id, :nullable_column, :empty)
+        # INSERT INTO test_table (id, nullable_column, empty) VALUES (:id, :nullable_column, :empty)
         pattern_string = r'(INSERT INTO) (\S+).*\((.*?)\).*(VALUES).*\((.*?)\)(.*\;?)'
 
         res = re.findall(pattern_string, query, re.IGNORECASE | re.DOTALL)
         if len(res) > 0:
             # regexp matching result should look like this:
-            # `id, zone_id, nullable_column, empty`
+            # `id, nullable_column, empty`
             intos = str(res[0][2])
             count = 1
             # so we need to split it by comma value to iterate over
@@ -2072,13 +2024,13 @@ class BaseBinaryMySQLTestCase(MysqlExecutorMixin, BaseTestCase):
         query = str(query.compile(compile_kwargs=compile_kwargs))
         values = []
         # example of the insert string:
-        # INSERT INTO test_table (id, zone_id, nullable_column, empty) VALUES (:id, :zone_id, :nullable_column, :empty)
+        # INSERT INTO test_table (id, nullable_column, empty) VALUES (:id, :nullable_column, :empty)
         pattern_string = r'(INSERT INTO) (\S+).*\((.*?)\).*(VALUES).*\((.*?)\)(.*\;?)'
 
         res = re.findall(pattern_string, query, re.IGNORECASE | re.DOTALL)
         if len(res) > 0:
             # regexp matching result should look like this:
-            # `id, zone_id, nullable_column, empty`
+            # `id, nullable_column, empty`
             intos = str(res[0][2])
 
             # so we need to split it by comma value to iterate over
@@ -2096,13 +2048,13 @@ class BaseBinaryMySQLTestCase(MysqlExecutorMixin, BaseTestCase):
         query = str(query.compile(compile_kwargs=compile_kwargs))
         values = []
         # example of the insert string:
-        # INSERT INTO test_table (id, zone_id, nullable_column, empty) VALUES (:id, :zone_id, :nullable_column, :empty)
+        # INSERT INTO test_table (id, nullable_column, empty) VALUES (:id, :nullable_column, :empty)
         pattern_string = r'(INSERT INTO) (\S+).*\((.*?)\).*(VALUES).*\((.*?)\)(.*\;?)'
 
         res = re.findall(pattern_string, query, re.IGNORECASE | re.DOTALL)
         if len(res) > 0:
             # regexp matching result should look like this:
-            # `id, zone_id, nullable_column, empty`
+            # `id, nullable_column, empty`
             intos = str(res[0][2])
             for idx, params in enumerate(parameters):
                 # each value in bulk insert contains unique suffix like ':id_m0'
@@ -2286,83 +2238,6 @@ class CensorWhitelistTest(BaseCensorTest):
                     return
 
 
-class ZoneHexFormatTest(BaseTestCase):
-    ZONE = True
-
-    def testRead(self):
-        data = get_pregenerated_random_data()
-        zone_public = b64decode(zones[0][ZONE_PUBLIC_KEY].encode('ascii'))
-        acra_struct = create_acrastruct(
-            data.encode('ascii'), zone_public,
-            context=zones[0][ZONE_ID].encode('ascii'))
-        row_id = get_random_id()
-        self.log(zone_id=zones[0][ZONE_ID],
-                 data=acra_struct, expected=data.encode('ascii'))
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': acra_struct, 'raw_data': data})
-
-        zone = zones[0][ZONE_ID].encode('ascii')
-        result = self.engine1.execute(
-            sa.select([sa.cast(zone, BYTEA), test_table])
-            .where(test_table.c.id == row_id))
-        row = result.fetchone()
-        self.assertEqual(row['data'], row['raw_data'].encode('utf-8'))
-        self.assertEqual(row['empty'], b'')
-
-        # without zone in another acra-server, in the same acra-server and without any acra-server
-        for engine in self.engines:
-            result = engine.execute(
-                sa.select([test_table])
-                .where(test_table.c.id == row_id))
-            row = result.fetchone()
-            self.assertNotEqual(row['data'].decode('ascii', errors='ignore'), row['raw_data'])
-            self.assertEqual(row['empty'], b'')
-
-    def testReadAcrastructInAcrastruct(self):
-        incorrect_data = get_pregenerated_random_data()
-        correct_data = get_pregenerated_random_data()
-        suffix_data = get_pregenerated_random_data()[:10]
-        zone_public = b64decode(zones[0][ZONE_PUBLIC_KEY].encode('ascii'))
-        fake_offset = (3+45+84) - 1
-        fake_acra_struct = create_acrastruct(
-            incorrect_data.encode('ascii'), zone_public, context=zones[0][ZONE_ID].encode('ascii'))[:fake_offset]
-        inner_acra_struct = create_acrastruct(
-            correct_data.encode('ascii'), zone_public, context=zones[0][ZONE_ID].encode('ascii'))
-        data = fake_acra_struct + inner_acra_struct + suffix_data.encode('ascii')
-        correct_data = correct_data + suffix_data
-        self.log(zone_id=zones[0][ZONE_ID],
-                 data=data,
-                 expected=fake_acra_struct+correct_data.encode('ascii'))
-        row_id = get_random_id()
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': data, 'raw_data': correct_data})
-        zone = zones[0][ZONE_ID].encode('ascii')
-        result = self.engine1.execute(
-            sa.select([sa.cast(zone, BYTEA), test_table])
-            .where(test_table.c.id == row_id))
-        row = result.fetchone()
-        self.assertEqual(row['data'][fake_offset:],
-                         safe_string(row['raw_data']).encode('utf-8'))
-        self.assertEqual(row['data'][:fake_offset], fake_acra_struct[:fake_offset])
-        self.assertEqual(row['empty'], b'')
-
-        result = self.engine2.execute(
-            sa.select([test_table])
-            .where(test_table.c.id == row_id))
-        row = result.fetchone()
-        self.assertNotEqual(len(row['data'][fake_offset:]), len(row['raw_data'][fake_offset:]))
-        self.assertEqual(row['empty'], b'')
-        result = self.engine_raw.execute(
-            sa.select([test_table])
-            .where(test_table.c.id == row_id))
-        row = result.fetchone()
-        self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
-                            row['raw_data'])
-        self.assertEqual(row['empty'], b'')
-
-
 class KMSAWSType:
     def setUp(self):
         if not TEST_WITH_AWS_KMS:
@@ -2387,8 +2262,6 @@ class KMSAWSType:
 
 
 class KMSPerClientEncryptorMixin:
-    # using local list of zones to store KMS created zones that can be used instead of global ZONES list
-    ZONES = []
     poison_record = None
 
     def setUp(self):
@@ -2403,16 +2276,6 @@ class KMSPerClientEncryptorMixin:
         assert create_client_keypair_from_certificate(TEST_TLS_CLIENT_2_CERT, keys_dir=self.keys_dir, extra_kwargs=extra_args) == 0
 
         self.poison_record = get_new_poison_record(extra_kwargs=extra_args, keys_dir=self.keys_dir)
-
-        self.ZONES.append(json.loads(subprocess.check_output(
-            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.keys_dir),
-            '--keystore_encryption_type=kms_per_client', '--kms_type={}'.format(self.get_kms_type()), '--kms_credentials_path={}'.format(self.get_kms_configuration_path())],
-            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
-
-        self.ZONES.append(json.loads(subprocess.check_output(
-            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.keys_dir),
-            '--keystore_encryption_type=kms_per_client', '--kms_type={}'.format(self.get_kms_type()), '--kms_credentials_path={}'.format(self.get_kms_configuration_path())],
-            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
         super().setUp()
 
     def get_poison_records(self):
@@ -2549,11 +2412,6 @@ class EscapeFormatTest(HexFormatTest):
             self.skipTest("useful only for postgresql")
         elif not TEST_WITH_TLS:
             self.skipTest("running tests only with TLS")
-
-
-class ZoneEscapeFormatTest(ZoneHexFormatTest):
-    ACRA_BYTEA = 'pgsql_escape_bytea'
-    DB_BYTEA = 'escape'
 
 
 class TestConnectionClosing(BaseTestCase):
@@ -2781,8 +2639,7 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
     def testShutdown(self):
         """fetch data from table by specifying row id
 
-        this method works with ZoneMode ON and OFF because in both cases acra-server should find poison record
-        on data decryption failure
+        acra-server should find poison record on data decryption failure
         """
         row_id = get_random_id()
         data = self.get_poison_record_data()
@@ -2804,8 +2661,7 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
     def testShutdown2(self):
         """check working poison record callback on full select
 
-        this method works with ZoneMode ON and OFF because in both cases acra-server should find poison record
-        on data decryption failure
+        acra-server should find poison record on data decryption failure
         """
         row_id = get_random_id()
         data = self.get_poison_record_data()
@@ -2827,8 +2683,7 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
     def testShutdown3(self):
         """check working poison record callback on full select inside another data
 
-        this method works with ZoneMode ON and OFF because in both cases acra-server should find poison record
-        on data decryption failure
+        acra-server should find poison record on data decryption failure
         """
         row_id = get_random_id()
         poison_record = self.get_poison_record_data()
@@ -2850,32 +2705,10 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
         self.assertIn('Detected poison record, exit', log)
         self.assertNotIn('executed code after os.Exit', log)
 
-    def testShutdownWithExplicitZone(self):
-        """check callback with select by id and specify zone id in select query
-
-        This method works with ZoneMode ON and OFF because in both cases acra-server should find poison record
-        on data decryption failure. Plus in ZoneMode OFF acra-server will ignore ZoneID
-        """
-        row_id = get_random_id()
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': self.get_poison_record_data(), 'raw_data': 'poison_record'})
-        with self.assertRaises(DatabaseError):
-            zone = zones[0][ZONE_ID].encode('ascii')
-            result = self.engine1.execute(
-                sa.select([sa.cast(zone, BYTEA), test_table])
-                    .where(test_table.c.id == row_id))
-            print(result.fetchall())
-        log = self.read_log(self.acra)
-        self.assertIn('code=101', log)
-        self.assertIn('Detected poison record, exit', log)
-        self.assertNotIn('executed code after os.Exit', log)
-
     def testShutdownTranslatorHTTP(self):
         """check poison record decryption via acra-translator using HTTP v1 API
 
-        This method works with ZoneMode ON and OFF because in both cases acra-translator should match poison record
-        on data decryption failure
+        acra-translator should match poison record on data decryption failure
         """
         http_port = 3356
         http_connection_string = 'tcp://127.0.0.1:{}'.format(http_port)
@@ -2887,7 +2720,7 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
         data = self.get_poison_record_data()
         with ProcessContextManager(self.fork_translator(translator_kwargs)):
             with self.assertRaises(requests.exceptions.ConnectionError) as exc:
-                response = self.http_decrypt_request(http_port, TLS_CERT_CLIENT_ID_1, None, data)
+                response = self.http_decrypt_request(http_port, TLS_CERT_CLIENT_ID_1, data)
         self.assertEqual(exc.exception.args[0].args[0], 'Connection aborted.')
 
         # check that port not listening anymore
@@ -2898,8 +2731,7 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
     def testShutdownTranslatorgRPC(self):
         """check poison record decryption via acra-translator using gRPC API
 
-        This method works with ZoneMode ON and OFF because in both cases acra-translator should match poison record
-        on data decryption failure
+        acra-translator should match poison record on data decryption failure
         """
         grpc_port = 3357
         grpc_connection_string = 'tcp://127.0.0.1:{}'.format(grpc_port)
@@ -2912,7 +2744,7 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
 
         with ProcessContextManager(self.fork_translator(translator_kwargs)):
             with self.assertRaises(grpc.RpcError) as exc:
-                response = self.grpc_decrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, None, data,
+                response = self.grpc_decrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, data,
                                                      raise_exception_on_failure=True)
         self.assertEqual(exc.exception.code(), grpc.StatusCode.UNAVAILABLE)
 
@@ -2939,8 +2771,6 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
     def testShutdown(self):
         """case with select by specifying row id, checks that acra-server doesn't initialize poison record detection
         and any callbacks, and returns data as is on decryption failure even if it's valid poison record
-
-        Works with ZoneMode On/OFF
         """
         row_id = get_random_id()
         data = self.get_poison_record_data()
@@ -2964,8 +2794,6 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
     def testShutdown2(self):
         """case with select full table, checks that acra-server doesn't initialize poison record detection
         and any callbacks, and returns data as is on decryption failure even if it's valid poison record
-
-        Works with ZoneMode On/OFF
         """
         row_id = get_random_id()
         data = self.get_poison_record_data()
@@ -2990,8 +2818,6 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
         """case with select full table and inlined poison record, checks that acra-server doesn't initialize poison
         record detection and any callbacks, and returns data as is on decryption failure even if it's valid poison
         record
-
-        Works with ZoneMode On/OFF
         """
         row_id = get_random_id()
         poison_record = self.get_poison_record_data()
@@ -3015,37 +2841,10 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
         self.assertNotIn('Turned on poison record detection', log)
         self.assertNotIn('code=101', log)
 
-    def testShutdownWithExplicitZone(self):
-        """case with explicitly specified ZoneID in SELECT query, checks that acra-server doesn't initialize poison
-        record detection and any callbacks, and returns data as is on decryption failure even if it's valid poison
-        record
-
-        Works with ZoneMode On/OFF
-        """
-        row_id = get_random_id()
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': self.get_poison_record_data(), 'raw_data': 'poison_record'})
-        zone = zones[0][ZONE_ID].encode('ascii')
-        result = self.engine1.execute(
-            sa.select([sa.cast(zone, BYTEA), test_table])
-                .where(test_table.c.id == row_id))
-        rows = result.fetchall()
-        for zone, _, data, raw_data, _, _ in result:
-            self.assertEqual(zone, zone)
-            self.assertEqual(data, poison_record)
-
-        log = self.read_log(self.acra)
-        self.assertNotIn('Recognized poison record', log)
-        self.assertNotIn('Turned on poison record detection', log)
-        self.assertNotIn('code=101', log)
-
     def testShutdownTranslatorHTTP(self):
         """check poison record ignoring via acra-translator using HTTP v1 API, omitting initialization poison
         record detection and any callbacks, returning data as is on decryption failure even if it's valid poison
         record
-
-        Works with ZoneMode On/OFF
         """
         http_port = 3356
         http_connection_string = 'tcp://127.0.0.1:{}'.format(http_port)
@@ -3058,7 +2857,7 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
 
             data = self.get_poison_record_data()
             with ProcessContextManager(self.fork_translator(translator_kwargs)) as translator:
-                response = self.http_decrypt_request(http_port, TLS_CERT_CLIENT_ID_1, None, data)
+                response = self.http_decrypt_request(http_port, TLS_CERT_CLIENT_ID_1, data)
                 self.assertEqual(response, b"Can't decrypt AcraStruct")
 
             with open(log_file.name, 'r') as f:
@@ -3071,8 +2870,6 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
         """check poison record ignoring via acra-translator using gRPC API, omitting initialization poison
             record detection and any callbacks, returning data as is on decryption failure even if it's valid poison
             record
-
-            Works with ZoneMode On/OFF
             """
         grpc_port = 3357
         grpc_connection_string = 'tcp://127.0.0.1:{}'.format(grpc_port)
@@ -3087,7 +2884,7 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
 
             with ProcessContextManager(self.fork_translator(translator_kwargs)):
                 with self.assertRaises(grpc.RpcError) as exc:
-                    response = self.grpc_decrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, None, data,
+                    response = self.grpc_decrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, data,
                                                          raise_exception_on_failure=True)
                 self.assertEqual(exc.exception.code(), grpc.StatusCode.UNKNOWN)
                 self.assertEqual(exc.exception.details(), "can't decrypt data")
@@ -3099,29 +2896,6 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
 
 
 class TestPoisonRecordOffStatusWithAcraBlock(TestPoisonRecordOffStatus):
-    def get_poison_record_data(self):
-        return get_poison_record_with_acrablock()
-
-
-class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
-    ZONE = True
-    WHOLECELL_MODE = False
-    SHUTDOWN = True
-
-
-class TestShutdownPoisonRecordWithZoneAcraBlock(TestShutdownPoisonRecordWithZone):
-    def get_poison_record_data(self):
-        return get_poison_record_with_acrablock()
-
-
-class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordOffStatus):
-    ZONE = True
-    WHOLECELL_MODE = False
-    SHUTDOWN = True
-    DETECT_POISON_RECORDS = False
-
-
-class TestShutdownPoisonRecordWithZoneOffStatusWithAcraBlock(TestShutdownPoisonRecordWithZoneOffStatus):
     def get_poison_record_data(self):
         return get_poison_record_with_acrablock()
 
@@ -3148,10 +2922,6 @@ class TestNoCheckPoisonRecord(BasePoisonRecordTest):
             sa.select([test_table]))
         for _, data, raw_data, _, _ in result:
             self.assertEqual(poison_record, data)
-
-
-class TestNoCheckPoisonRecordWithZone(TestNoCheckPoisonRecord):
-    ZONE = True
 
 
 class TestCheckLogPoisonRecord(BasePoisonRecordTest):
@@ -3192,7 +2962,6 @@ class TestKeyStorageClearing(BaseTestCase):
             self.init_key_stores()
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra(
-                    zonemode_enable='true',
                     http_api_enable='true',
                     tls_ocsp_from_cert='ignore',
                     tls_crl_from_cert='ignore',
@@ -3443,16 +3212,6 @@ class TestKeyStoreMigration(BaseTestCase):
             env={ACRA_MASTER_KEY_VAR_NAME: self.get_master_key(version)},
             timeout=PROCESS_CALL_TIMEOUT)
 
-        # Then add some zones that we're going to test with.
-        zone_output = subprocess.check_output([
-                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'),
-                '--keys_output_dir={}'.format(self.current_key_store_path()),
-            ],
-            env={ACRA_MASTER_KEY_VAR_NAME: self.get_master_key(version)},
-            timeout=PROCESS_CALL_TIMEOUT)
-        zone_config = json.loads(zone_output.decode('utf-8'))
-        self.zone_id = zone_config[ZONE_ID]
-
         # Keep the current version around, we'll need it for migration.
         self.keystore_version = version
 
@@ -3491,13 +3250,12 @@ class TestKeyStoreMigration(BaseTestCase):
         # Remove the old, now unneeded directory.
         old_test_dir.cleanup()
 
-    def start_services(self, zone_mode=False):
+    def start_services(self):
         """Start Acra services required for testing."""
         master_key = self.get_master_key(self.keystore_version)
         master_key_env = {ACRA_MASTER_KEY_VAR_NAME: master_key}
 
         self.acra_server = self.fork_acra(
-            zonemode_enable='true' if zone_mode else 'false',
             keys_dir=self.current_key_store_path(),
             tls_ocsp_from_cert='ignore',
             tls_crl_from_cert='ignore',
@@ -3513,10 +3271,6 @@ class TestKeyStoreMigration(BaseTestCase):
                 self.get_acraserver_connection_string(),
                 DB_NAME),
             connect_args=args)
-
-        # Remember whether we're running in zone mode. We need to know this
-        # to store and retrieve the data correctly.
-        self.zone_mode = zone_mode
 
     def stop_services(self):
         """Gracefully stop Acra services being tested."""
@@ -3538,22 +3292,11 @@ class TestKeyStoreMigration(BaseTestCase):
         new_master_key = self.get_master_key(self.keystore_version)
         old_master_key = os.environ[ACRA_MASTER_KEY_VAR_NAME]
         os.environ[ACRA_MASTER_KEY_VAR_NAME] = new_master_key
-
-        # Encryption depends on whether we're using zones or not.
-        if self.zone_mode:
-            acra_struct = create_acrastruct(
-                data.encode('ascii'),
-                read_zone_public_key(
-                    self.zone_id,
-                    self.current_key_store_path()),
-                context=self.zone_id.encode('ascii'))
-        else:
-            acra_struct = create_acrastruct(
-                data.encode('ascii'),
-                read_storage_public_key(
-                    self.client_id,
-                    self.current_key_store_path()))
-
+        acra_struct = create_acrastruct(
+            data.encode('ascii'),
+            read_storage_public_key(
+                self.client_id,
+                self.current_key_store_path()))
         os.environ[ACRA_MASTER_KEY_VAR_NAME] = old_master_key
 
         row_id = get_random_id()
@@ -3564,13 +3307,7 @@ class TestKeyStoreMigration(BaseTestCase):
 
     def select_as_client(self, row_id):
         """Select decrypted data via AcraServer."""
-        # If we're using zones, zone ID should precede the encrypted data.
-        if self.zone_mode:
-            cols = [sa.cast(self.zone_id.encode('ascii'), BYTEA),
-                    test_table.c.data, test_table.c.raw_data]
-        else:
-            cols = [test_table.c.data, test_table.c.raw_data]
-
+        cols = [test_table.c.data, test_table.c.raw_data]
         rows = self.engine.execute(
             sa.select(cols).where(test_table.c.id == row_id))
         return rows.first()
@@ -3599,7 +3336,7 @@ class TestKeyStoreMigration(BaseTestCase):
 
         self.create_key_store('v1')
 
-        # Try saving some data with default zone
+        # Try saving some data with defaults
         with self.running_services():
             row_id_1 = self.insert_as_client(data_1)
 
@@ -3611,21 +3348,6 @@ class TestKeyStoreMigration(BaseTestCase):
             # Get encrypted data. It should really be encrypted.
             encrypted_1 = self.select_directly(row_id_1)
             self.assertNotEquals(encrypted_1['data'], data_1.encode('ascii'))
-
-        # Now do the same with a specific zone
-        with self.running_services(zone_mode=True):
-            row_id_1_zoned = self.insert_as_client(data_1)
-
-            # Check that we're able to put and get data via AcraServer.
-            selected = self.select_as_client(row_id_1_zoned)
-            self.assertEquals(selected['data'], data_1.encode('ascii'))
-            self.assertEquals(selected['raw_data'], data_1)
-
-            # Get encrypted data. It should really be encrypted.
-            encrypted_1_zoned = self.select_directly(row_id_1_zoned)
-            self.assertNotEquals(encrypted_1_zoned['data'], data_1.encode('ascii'))
-            # Also, it should be different from the default-zoned data.
-            self.assertNotEquals(encrypted_1_zoned['data'], encrypted_1['data'])
 
         self.migrate_key_store('v2')
 
@@ -3644,24 +3366,6 @@ class TestKeyStoreMigration(BaseTestCase):
             # We're able to put some new data into the table and get it back.
             row_id_2 = self.insert_as_client(data_2)
             selected = self.select_as_client(row_id_2)
-            self.assertEquals(selected['data'], data_2.encode('ascii'))
-            self.assertEquals(selected['raw_data'], data_2)
-
-        # And again, this time with zones.
-        with self.running_services(zone_mode=True):
-            # Old data should still be there, accessible via AcraServer.
-            selected = self.select_as_client(row_id_1_zoned)
-            self.assertEquals(selected['data'], data_1.encode('ascii'))
-            self.assertEquals(selected['raw_data'], data_1)
-
-            # Key migration does not change encrypted data.
-            encrypted_1_zoned_migrated = self.select_directly(row_id_1_zoned)
-            self.assertEquals(encrypted_1_zoned_migrated['data'],
-                              encrypted_1_zoned['data'])
-
-            # We're able to put some new data into the table and get it back.
-            row_id_2_zoned = self.insert_as_client(data_2)
-            selected = self.select_as_client(row_id_2_zoned)
             self.assertEquals(selected['data'], data_2.encode('ascii'))
             self.assertEquals(selected['raw_data'], data_2)
 
@@ -3717,31 +3421,6 @@ class RedisMixin:
         self.redis_tokens_client.flushall()
         self.redis_tokens_client.close()
         super().tearDown()
-
-
-class TestAcraKeysWithZoneIDGeneration(unittest.TestCase):
-
-    def setUp(self):
-        self.master_key = get_master_key()
-        self.zone_dir = tempfile.TemporaryDirectory()
-
-    def test_rotate_symmetric_zone_key(self):
-        zone = json.loads(subprocess.check_output(
-            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.zone_dir.name)],
-            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8'))
-
-        subprocess.check_call([
-            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
-            'generate',
-            '--zone_symmetric_key',
-            '--keys_dir={}'.format(self.zone_dir.name),
-            '--keys_dir_public={}'.format(self.zone_dir.name),
-            '--zone_id={}'.format(zone['id'])
-        ],
-            env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
-            timeout=PROCESS_CALL_TIMEOUT)
-        path = '{}/{}_zone_sym.old'.format(self.zone_dir.name, zone['id'])
-        self.assertTrue(len(os.listdir(path)) != 0)
 
 
 class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
@@ -3820,22 +3499,6 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
         ],
             env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
             timeout=PROCESS_CALL_TIMEOUT)
-
-    def test_read_keys_symmetric_zone(self):
-        zone = json.loads(subprocess.check_output(
-            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.dir_with_distinguished_name_client_id.name)],
-            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8'))
-
-        subprocess.check_call([
-            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
-            'read',
-            '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
-            '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
-            'zone/{}/symmetric'.format(zone['id'])
-        ],
-            env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
-            timeout=PROCESS_CALL_TIMEOUT)
-
 
     def test_generate_client_id_from_serial_number(self):
         readKey = self.read_key_by_client_id(TLS_CLIENT_ID_SOURCE_SERIAL, self.dir_with_serial_number_client_id.name)
@@ -4018,8 +3681,6 @@ class TestPostgreSQLParseQueryErrorExit(AcraCatchLogsMixin, BaseTestCase):
 
 class TestKeyRotation(BaseTestCase):
     """Verify key rotation without data reencryption."""
-    # TODO(ilammy, 2020-03-13): test with rotated zone keys as well
-    # That is, as soon as it is possible to rotate them (T1581)
 
     def read_rotation_public_key(self,  extra_kwargs: dict = None):
         return read_storage_public_key(TLS_CERT_CLIENT_ID_1, KEYS_FOLDER.name, extra_kwargs=extra_kwargs)
@@ -4147,7 +3808,7 @@ class TestAcraRollback(BaseTestCase):
                 print(exc.stdout, file=sys.stdout)
             raise
 
-    def test_without_zone_to_file(self):
+    def test_to_file(self):
         server_public1 = read_storage_public_key(TLS_CERT_CLIENT_ID_1, KEYS_FOLDER.name)
 
         rows = []
@@ -4178,46 +3839,7 @@ class TestAcraRollback(BaseTestCase):
         for data in result:
             self.assertIn(data[0], source_data)
 
-    def test_with_zone_to_file(self):
-        zone_public = b64decode(zones[0][ZONE_PUBLIC_KEY].encode('ascii'))
-        rows = []
-        for _ in range(self.DATA_COUNT):
-            data = get_pregenerated_random_data()
-            row = {
-                'raw_data': data,
-                'data': create_acrastruct(
-                    data.encode('ascii'), zone_public,
-                    context=zones[0][ZONE_ID].encode('ascii')),
-                'id': get_random_id()
-            }
-            rows.append(row)
-        self.engine_raw.execute(test_table.insert(), rows)
-        if TEST_MYSQL:
-            select_query = '--select=select \'{id}\', data from {table};'.format(
-                 id=zones[0][ZONE_ID], table=test_table.name)
-        else:
-            select_query = '--select=select \'{id}\'::bytea, data from {table};'.format(
-                 id=zones[0][ZONE_ID], table=test_table.name)
-        args = [
-             select_query,
-             '--zonemode_enable=true',
-             '--insert=insert into {} values({});'.format(
-                 acrarollback_output_table.name, self.placeholder)
-        ]
-        self.run_acrarollback(args)
-
-        # execute file
-        with open(self.output_filename, 'r') as f:
-            for line in f:
-                self.engine_raw.execute(line)
-
-        source_data = set([i['raw_data'].encode('ascii') for i in rows])
-        result = self.engine_raw.execute(acrarollback_output_table.select())
-        result = result.fetchall()
-        for data in result:
-            self.assertIn(data[0], source_data)
-
-    def test_without_zone_execute(self):
+    def test_execute(self):
         server_public1 = read_storage_public_key(TLS_CERT_CLIENT_ID_1, KEYS_FOLDER.name)
 
         rows = []
@@ -4234,42 +3856,6 @@ class TestAcraRollback(BaseTestCase):
         args = [
             '--execute=true',
             '--select=select data from {};'.format(test_table.name),
-            '--insert=insert into {} values({});'.format(
-                acrarollback_output_table.name, self.placeholder)
-        ]
-        self.run_acrarollback(args)
-
-        source_data = set([i['raw_data'].encode('ascii') for i in rows])
-        result = self.engine_raw.execute(acrarollback_output_table.select())
-        result = result.fetchall()
-        for data in result:
-            self.assertIn(data[0], source_data)
-
-    def test_with_zone_execute(self):
-        zone_public = b64decode(zones[0][ZONE_PUBLIC_KEY].encode('ascii'))
-        rows = []
-        for _ in range(self.DATA_COUNT):
-            data = get_pregenerated_random_data()
-            row = {
-                'raw_data': data,
-                'data': create_acrastruct(
-                    data.encode('ascii'), zone_public,
-                    context=zones[0][ZONE_ID].encode('ascii')),
-                'id': get_random_id()
-            }
-            rows.append(row)
-        self.engine_raw.execute(test_table.insert(), rows)
-
-        if TEST_MYSQL:
-            select_query = '--select=select \'{id}\', data from {table};'.format(
-                 id=zones[0][ZONE_ID], table=test_table.name)
-        else:
-            select_query = '--select=select \'{id}\'::bytea, data from {table};'.format(
-                 id=zones[0][ZONE_ID], table=test_table.name)
-        args = [
-            '--execute=true',
-            select_query,
-            '--zonemode_enable=true',
             '--insert=insert into {} values({});'.format(
                 acrarollback_output_table.name, self.placeholder)
         ]
@@ -4303,9 +3889,6 @@ class TestAcraRollback(BaseTestCase):
         self.assertIn(b"SQL INSERT statement doesn't contain any placeholders", err)
 
     def test_with_rotated_keys(self):
-        # TODO(ilammy, 2020-03-13): test with rotated zone keys as well
-        # That is, as soon as it is possible to rotate them (T1581)
-
         def insert_random_data():
             rows = []
             public_key = read_storage_public_key(TLS_CERT_CLIENT_ID_1, KEYS_FOLDER.name)
@@ -4458,10 +4041,6 @@ class SSLPostgresqlConnectionTest(SSLPostgresqlMixin, HexFormatTest):
     pass
 
 
-class SSLPostgresqlConnectionWithZoneTest(SSLPostgresqlMixin, ZoneHexFormatTest):
-    pass
-
-
 class SSLMysqlMixin(SSLPostgresqlMixin):
     def checkSkip(self):
         if not (TEST_WITH_TLS and TEST_MYSQL):
@@ -4539,10 +4118,6 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
 
 
 class SSLMysqlConnectionTest(SSLMysqlMixin, HexFormatTest):
-    pass
-
-
-class SSLMysqlConnectionWithZoneTest(SSLMysqlMixin, ZoneHexFormatTest):
     pass
 
 
@@ -4742,11 +4317,9 @@ class TestClientIDDecryptionWithVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoad
     pass
 
 
-class TestZoneIDDecryptionWithAWSKMSMasterKeyLoader(AWSKMSMasterKeyLoaderMixin, ZoneHexFormatTest):
-    pass
-
-
 class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
+
+
 
     def apiEncryptionTest(self, request_func, use_http=False, use_grpc=False):
         # one is set
@@ -4778,7 +4351,7 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
 
             incorrect_client_id = TLS_CERT_CLIENT_ID_2
             with ProcessContextManager(self.fork_translator(translator_kwargs)):
-                response = request_func(translator_port, incorrect_client_id, None, data)
+                response = request_func(translator_port, incorrect_client_id, data)
                 decrypted = deserialize_and_decrypt_acrastruct(response, client_id_private_key, client_id)
                 self.assertEqual(data, decrypted)
         finally:
@@ -4815,7 +4388,7 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
 
             incorrect_client_id = TLS_CERT_CLIENT_ID_2
             with ProcessContextManager(self.fork_translator(translator_kwargs)):
-                response = request_func(translator_port, incorrect_client_id, None, acrastruct)
+                response = request_func(translator_port, incorrect_client_id, acrastruct)
                 self.assertEqual(data, response)
         finally:
             shutil.rmtree(key_folder.name)
@@ -4959,7 +4532,7 @@ class TestTranslatorDisableCachedOnStartup(AcraTranslatorMixin, BaseTestCase):
         incorrect_client_id = TLS_CERT_CLIENT_ID_2
         with ProcessContextManager(self.fork_translator(translator_kwargs)):
             self.cached_dir.cleanup()
-            response = self.http_encrypt_request(translator_port, incorrect_client_id, None, data)
+            response = self.http_encrypt_request(translator_port, incorrect_client_id, data)
             # we cant encrypt data because AcraServer doest have access to encryption key with disabled keystore caching
             self.assertEqual(response, b"Can't encrypt data")
             with self.assertRaises(ValueError):
@@ -5018,7 +4591,7 @@ class TestTranslatorEnableCachedOnStartup(AcraTranslatorMixin, BaseTestCase):
         incorrect_client_id = TLS_CERT_CLIENT_ID_2
         with ProcessContextManager(self.fork_translator(translator_kwargs)):
             self.cached_dir.cleanup()
-            response = self.http_encrypt_request(translator_port, incorrect_client_id, None, data)
+            response = self.http_encrypt_request(translator_port, incorrect_client_id, data)
             decrypted = deserialize_and_decrypt_acrastruct(response, client_id_private_key, client_id)
             self.assertEqual(data, decrypted)
 
@@ -5053,273 +4626,20 @@ class TestAcraTranslatorClientIDFromTLSBySerialNumberVaultMasterKeyLoader(HashiC
     pass
 
 
-class TestAcraRotateWithZone(BaseTestCase):
-    ZONE = True
-
+@ddt
+class TestAcraRotate(BaseTestCase):
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         acra_kwargs['keystore_cache_size'] = -1  # no cache
-        return super(TestAcraRotateWithZone, self).fork_acra(
+        return super(TestAcraRotate, self).fork_acra(
             popen_kwargs, **acra_kwargs)
 
-    def read_public_key(self, key_id, keys_folder):
-        return read_zone_public_key(key_id, keys_folder)
-
     def isSamePublicKeys(self, keys_folder, keys_data):
-        """check is equal zone public key on filesystem and from zone_data"""
+        """check is equal public key on filesystem and from key_data"""
         for key_id, public_key in keys_data.items():
             current_public = self.read_public_key(key_id, keys_folder)
             if b64decode(public_key) != current_public:
                 return False
         return True
-
-    def testFileRotation(self):
-        """
-        generate some zones, create AcraStructs with them and save to files
-        call acra-rotate and check that public keys of zones different,
-        AcraStructs different and decrypted AcraStructs (raw data) the same"""
-
-        TestData = collections.namedtuple("TestData", ["acrastruct", "data"])
-        zone_map = collections.defaultdict(list)
-        # how much generate acrastructs per zone
-        zone_file_count = 3
-        # count of different zones
-        zone_id_count = 3
-        filename_template = '{dir}/{id}_{num}.acrastruct'
-
-        zones_before_rotate = {}
-
-        # generated acrastructs to compare with rotated
-        acrastructs = {}
-        with tempfile.TemporaryDirectory() as keys_folder, \
-                tempfile.TemporaryDirectory() as data_folder:
-            # generate zones in separate folder
-            # create acrastructs with this zones
-            for i in range(zone_id_count):
-                zone_data = json.loads(
-                    subprocess.check_output(
-                        [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'),
-                         '--keys_output_dir={}'.format(keys_folder)],
-                        cwd=os.getcwd(),
-                        timeout=PROCESS_CALL_TIMEOUT).decode('utf-8'))
-                public_key = b64decode(zone_data[ZONE_PUBLIC_KEY])
-                zone_id = zone_data[ZONE_ID]
-                zones_before_rotate[zone_id] = zone_data[ZONE_PUBLIC_KEY]
-                for i in range(zone_file_count):
-                    data = get_pregenerated_random_data().encode('ascii')
-                    acrastruct = create_acrastruct(
-                        data, public_key, zone_id.encode("ascii"))
-                    filename = filename_template.format(
-                        dir=data_folder, id=zone_id, num=i)
-                    acrastructs[filename] = TestData(
-                        acrastruct=acrastruct, data=data)
-                    with open(filename, 'wb') as f:
-                        f.write(acrastruct)
-                    zone_map[zone_id].append(filename)
-
-            # keys of json objects that will be in output
-            PUBLIC_KEY = 'new_public_key'
-            FILES = 'file_paths'
-            # True must be first because code below depends on it
-            for dryRun in (True, False):
-                with contextlib.closing(tempfile.NamedTemporaryFile(
-                        'w', delete=False)) as zone_map_file:
-                    json.dump(zone_map, zone_map_file)
-                    zone_map_file.close()
-                    result = subprocess.check_output(
-                        [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-rotate'), '--keys_dir={}'.format(keys_folder),
-                         '--file_map_config={}'.format(zone_map_file.name),
-                         '--dry-run={}'.format(1 if dryRun else 0)])
-                    if not isinstance(result, str):
-                        result = result.decode('utf-8')
-                    result = json.loads(result)
-                    if dryRun:
-                        # keys on filesystem should not changed
-                        self.assertTrue(
-                            self.isSamePublicKeys(
-                                keys_folder, zones_before_rotate))
-                    else:
-                        # keys on filesystem must be changed
-                        self.assertFalse(
-                            self.isSamePublicKeys(
-                                keys_folder, zones_before_rotate))
-                    for zone_id in result:
-                        self.assertIn(zone_id, zones_before_rotate)
-                        # new public key in output must be different from
-                        # previous
-                        self.assertNotEqual(
-                            result[zone_id][PUBLIC_KEY],
-                            zones_before_rotate[zone_id])
-                        # check that all files was processed and are in result
-                        self.assertEqual(
-                            zone_map[zone_id],  # already sorted by loop index
-                            sorted(result[zone_id][FILES]))
-                        # compare rotated acrastructs
-                        for path in result[zone_id][FILES]:
-                            with open(path, 'rb') as acrastruct_file:
-                                rotated_acrastruct = acrastruct_file.read()
-                            zone_private = read_zone_private_key(keys_folder, zone_id)
-                            if dryRun:
-                                decrypted_rotated = decrypt_acrastruct(
-                                    rotated_acrastruct, zone_private,
-                                    zone_id=zone_id.encode('ascii'))
-                                self.assertEqual(
-                                    rotated_acrastruct,
-                                    acrastructs[path].acrastruct)
-                            else:
-                                decrypted_rotated = deserialize_and_decrypt_acrastruct(
-                                    rotated_acrastruct, zone_private,
-                                    zone_id=zone_id.encode('ascii'))
-                                self.assertNotEqual(
-                                    rotated_acrastruct,
-                                    acrastructs[path].acrastruct)
-                            # data should be unchanged
-                            self.assertEqual(
-                                decrypted_rotated, acrastructs[path].data)
-
-    def testDatabaseRotation(self):
-        # TODO(ilammy, 2020-03-13): test with rotated zone keys
-        # That is, as soon as it is possible to rotate them (T1581)
-
-        def load_zones_from_folder(keys_folder, zone_ids):
-            """load zone public keys from filesystem"""
-            output = {}
-            for id in zone_ids:
-                output[id] = b64encode(self.read_public_key(id, keys_folder))
-            return output
-
-        rotate_test_table = sa.Table(
-            'rotate_zone_test',
-            metadata,
-            sa.Column('id', sa.Integer, primary_key=True),
-            sa.Column('zone_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
-            sa.Column('data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
-            sa.Column('raw_data', sa.Text),
-        )
-        metadata.create_all(self.engine_raw)
-        self.engine_raw.execute(sa.delete(rotate_test_table))
-        zones = []
-        zone_count = 5
-        data_per_zone_count = 2
-        for i in range(zone_count):
-            zones.append(
-                json.loads(subprocess.check_output(
-                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'),
-                     '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
-                    cwd=os.getcwd(),
-                    timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
-        zone_ids = [data[ZONE_ID] for data in zones]
-        data_before_rotate = {}
-        for zone in zones:
-            for _ in range(data_per_zone_count):
-                data = get_pregenerated_random_data()
-                zone_public = b64decode(zone[ZONE_PUBLIC_KEY].encode('ascii'))
-                acra_struct = create_acrastruct(
-                    data.encode('ascii'), zone_public,
-                    context=zone[ZONE_ID].encode('ascii'))
-                row_id = get_random_id()
-                data_before_rotate[row_id] = acra_struct
-                self.engine_raw.execute(
-                    rotate_test_table.insert(),
-                    {'id': row_id, 'data': acra_struct, 'raw_data': data,
-                     'zone_id': zone[ZONE_ID].encode('ascii')})
-
-        if TEST_MYSQL:
-            # test:test@tcp(127.0.0.1:3306)/test
-            connection_string = "{user}:{password}@tcp({host}:{port})/{db_name}?tls=skip-verify".format(
-                user=DB_USER, password=DB_USER_PASSWORD, host=DB_HOST,
-                port=DB_PORT, db_name=DB_NAME)
-            mode_arg = '--mysql_enable'
-        elif TEST_POSTGRESQL:
-            if TEST_WITH_TLS:
-                sslmode = "require"
-            else:
-                sslmode = "disable"
-
-            connection_string = "postgres://{user}:{password}@{db_host}:{db_port}/{db_name}?sslmode={sslmode}".format(
-                sslmode=sslmode, user=DB_USER, password=DB_USER_PASSWORD,
-                db_host=DB_HOST, db_port=DB_PORT, db_name=DB_NAME)
-            mode_arg = '--postgresql_enable'
-        else:
-            self.fail("unsupported settings of tested db")
-
-        for dry_run in (True, False):
-            if TEST_MYSQL:
-                sql_update = "update {} set data=? where id=?;".format(rotate_test_table.name)
-                sql_select = 'select id, zone_id, data from {} order by id;'.format(rotate_test_table.name)
-            elif TEST_POSTGRESQL:
-                sql_update = "update {} set data=$1 where id=$2;".format(rotate_test_table.name)
-                sql_select = 'select id, zone_id::bytea, data from {} order by id;'.format(rotate_test_table.name)
-            else:
-                self.fail("unsupported settings of tested db")
-
-            default_args = [
-                os.path.join(BINARY_OUTPUT_FOLDER, 'acra-rotate'),
-                '--keys_dir={}'.format(KEYS_FOLDER.name),
-                '--db_connection_string={}'.format(connection_string),
-                '--dry-run={}'.format(1 if dry_run else 0),
-                mode_arg
-            ]
-
-            zone_map = load_zones_from_folder(KEYS_FOLDER.name, zone_ids)
-            # use extra arg in select and update
-            subprocess.check_output(
-                default_args + [
-                    '--sql_select={}'.format(sql_select),
-                    '--sql_update={}'.format(sql_update)
-                ]
-            )
-            if dry_run:
-                self.assertTrue(
-                    self.isSamePublicKeys(KEYS_FOLDER.name, zone_map))
-            else:
-                self.assertFalse(
-                    self.isSamePublicKeys(KEYS_FOLDER.name, zone_map))
-
-            result = self.engine1.execute(sa.select([rotate_test_table]))
-            self.check_decrypted_data(result)
-            result = self.engine_raw.execute(sa.select([rotate_test_table]))
-            self.check_rotation(result, data_before_rotate, dry_run)
-
-            some_id = list(data_before_rotate.keys())[0]
-
-            # chose any id to operate with specific row
-            if TEST_MYSQL:
-                sql_update = "update {} set data=? where id={{}};".format(rotate_test_table.name)
-                sql_select = 'select zone_id, data from {} where id={};'.format(rotate_test_table.name, some_id)
-            elif TEST_POSTGRESQL:
-                sql_update = "update {} set data=$1 where id={{}};".format(rotate_test_table.name)
-                sql_select = 'select zone_id::bytea, data from {} where id={};'.format(rotate_test_table.name, some_id)
-            else:
-                self.fail("unsupported settings of tested db")
-
-            sql_update = sql_update.format(some_id)
-
-
-            zone_map = load_zones_from_folder(KEYS_FOLDER.name, zone_ids)
-            # rotate with select without extra arg
-            subprocess.check_output(
-                default_args + [
-                    '--sql_select={}'.format(sql_select),
-                    '--sql_update={}'.format(sql_update)
-                ]
-            )
-
-            if dry_run:
-                self.assertTrue(
-                    self.isSamePublicKeys(KEYS_FOLDER.name, zone_map))
-            else:
-                self.assertFalse(
-                    self.isSamePublicKeys(KEYS_FOLDER.name, zone_map))
-
-            result = self.engine1.execute(
-                sa.select([rotate_test_table],
-                          whereclause=rotate_test_table.c.id==some_id))
-            self.check_decrypted_data(result)
-            # check that after rotation we can read actual data
-            result = self.engine_raw.execute(
-                sa.select([rotate_test_table],
-                          whereclause=rotate_test_table.c.id==some_id))
-            self.check_rotation(result, data_before_rotate, dry_run)
 
     def check_decrypted_data(self, result):
         data = result.fetchall()
@@ -5342,11 +4662,6 @@ class TestAcraRotateWithZone(BaseTestCase):
                 self.assertNotEqual(row['data'], data_before_rotate[row['id']])
                 # update with new data to check on next stage
                 data_before_rotate[row['id']] = row['data']
-
-
-@ddt
-class TestAcraRotate(TestAcraRotateWithZone):
-    ZONE = False
 
     def read_public_key(self, key_id, keys_folder):
         return read_storage_public_key(key_id, keys_folder)
@@ -5403,8 +4718,7 @@ class TestAcraRotate(TestAcraRotateWithZone):
                     result = subprocess.check_output(
                         [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-rotate'), '--keys_dir={}'.format(keys_folder),
                          '--file_map_config={}'.format(keys_map_file.name),
-                         '--dry-run={}'.format(1 if dryRun else 0),
-                         '--zonemode_enable=false'])
+                         '--dry-run={}'.format(1 if dryRun else 0)])
                     if not isinstance(result, str):
                         result = result.decode('utf-8')
                     result = json.loads(result)
@@ -5449,10 +4763,6 @@ class TestAcraRotate(TestAcraRotateWithZone):
                             # data should be unchanged
                             self.assertEqual(
                                 decrypted_rotated, acrastructs[path].data)
-
-    # Skip inherited non-decorated test
-    def testDatabaseRotation(self):
-        pass
 
     @data(False, True)
     def testDatabaseRotation2(self, rotate_storage_keys):
@@ -5524,7 +4834,6 @@ class TestAcraRotate(TestAcraRotateWithZone):
                 '--keys_dir={}'.format(KEYS_FOLDER.name),
                 '--db_connection_string={}'.format(connection_string),
                 '--dry-run={}'.format(1 if dry_run else 0),
-                '--zonemode_enable=false',
                 mode_arg
             ]
 
@@ -5734,7 +5043,7 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
         base_translator_kwargs.update(grpc_translator_kwargs)
         with ProcessContextManager(self.fork_translator(base_translator_kwargs)):
                 AcraTranslatorTest.grpc_decrypt_request(
-                    self, translator_port, client_id, None, acrastruct)
+                    self, translator_port, client_id, acrastruct)
                 self.checkMetrics(metrics_url, labels)
 
 
@@ -5747,13 +5056,11 @@ class BaseTransparentEncryption(BaseTestCase):
                   sa.Column('default_client_id',
                   sa.LargeBinary(length=COLUMN_DATA_SIZE)),
         sa.Column('number', sa.Integer),
-        sa.Column('zone_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
         sa.Column('raw_data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
         sa.Column('nullable', sa.Text, nullable=True),
         sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
         )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_config.yaml')
-    ZONES = zones
 
     def setUp(self):
         self.prepare_encryptor_config(client_id=TLS_CERT_CLIENT_ID_1)
@@ -5764,7 +5071,7 @@ class BaseTransparentEncryption(BaseTestCase):
         return get_test_encryptor_config(self.ENCRYPTOR_CONFIG)
 
     def prepare_encryptor_config(self, client_id=None):
-        prepare_encryptor_config(zone_id=self.ZONES[0][ZONE_ID], config_path=self.ENCRYPTOR_CONFIG, client_id=client_id)
+        prepare_encryptor_config(config_path=self.ENCRYPTOR_CONFIG, client_id=client_id)
 
     def tearDown(self):
         self.engine_raw.execute(self.encryptor_table.delete())
@@ -5788,16 +5095,13 @@ class TestTransparentEncryption(BaseTransparentEncryption):
             'id': get_random_id(),
             'default_client_id': get_pregenerated_random_data().encode('ascii'),
             'number': get_random_id(),
-            'zone_id': get_pregenerated_random_data().encode('ascii'),
             'specified_client_id': get_pregenerated_random_data().encode('ascii'),
             'raw_data': get_pregenerated_random_data().encode('ascii'),
-            'zone': zones[0],
             'empty': b'',
         }
         return context
 
-    def checkDefaultIdEncryption(self, id, default_client_id,
-                                 specified_client_id, number, zone_id, zone, raw_data,
+    def checkDefaultIdEncryption(self, id, default_client_id, specified_client_id, number, raw_data,
                                  *args, **kwargs):
         result = self.engine2.execute(
             sa.select([self.encryptor_table])
@@ -5812,12 +5116,10 @@ class TestTransparentEncryption(BaseTransparentEncryption):
         self.assertEqual(row['raw_data'], raw_data)
         # other data should be encrypted
         self.assertNotEqual(row['specified_client_id'], specified_client_id)
-        self.assertNotEqual(row['zone_id'], zone_id)
         self.assertEqual(row['empty'], b'')
 
     def checkSpecifiedIdEncryption(
-            self, id, default_client_id, specified_client_id, zone_id,
-            zone, raw_data, *args, **kwargs):
+            self, id, default_client_id, specified_client_id, raw_data, *args, **kwargs):
         # fetch using another client_id that will authenticated as TEST_TLS_CLIENT_2_CERT
         result = self.engine1.execute(
             sa.select([self.encryptor_table])
@@ -5831,7 +5133,6 @@ class TestTransparentEncryption(BaseTransparentEncryption):
         self.assertEqual(row['raw_data'], raw_data)
         # other data should be encrypted
         self.assertNotEqual(row['default_client_id'], default_client_id)
-        self.assertNotEqual(row['zone_id'], zone_id)
         self.assertEqual(row['empty'], b'')
 
     def insertRow(self, data, query=None,):
@@ -5854,8 +5155,7 @@ class TestTransparentEncryption(BaseTransparentEncryption):
 
         # update with acrastructs and AcraServer should not
         # re-encrypt
-        data_fields = ['default_client_id', 'specified_client_id', 'zone_id',
-                       'raw_data', 'empty']
+        data_fields = ['default_client_id', 'specified_client_id', 'raw_data', 'empty']
         data = {k: encrypted_data[k] for k in data_fields}
         data['id'] = context['id']
         self.update_data(data)
@@ -5876,7 +5176,7 @@ class TestTransparentEncryption(BaseTransparentEncryption):
         # check that data re-encrypted
         new_data = self.fetch_raw_data(new_context)
 
-        for field in ['default_client_id', 'specified_client_id', 'zone_id']:
+        for field in ['default_client_id', 'specified_client_id']:
             # not equal with previously encrypted
             self.assertNotEqual(new_data[field], encrypted_data[field])
             # not equal with raw data
@@ -5891,7 +5191,6 @@ class TestTransparentEncryption(BaseTransparentEncryption):
             .where(self.encryptor_table.c.id == context['id'])
             .values(default_client_id=context['default_client_id'],
                     specified_client_id=context['specified_client_id'],
-                    zone_id=context['zone_id'],
                     raw_data=context['raw_data'])
         )
 
@@ -5899,9 +5198,7 @@ class TestTransparentEncryption(BaseTransparentEncryption):
         result = self.engine_raw.execute(
             sa.select([self.encryptor_table.c.default_client_id,
                        self.encryptor_table.c.specified_client_id,
-                       sa.cast(context['zone'][ZONE_ID].encode('ascii'), BYTEA),
                        self.encryptor_table.c.number,
-                       self.encryptor_table.c.zone_id,
                        self.encryptor_table.c.raw_data,
                        self.encryptor_table.c.nullable,
                        self.encryptor_table.c.empty])
@@ -5941,11 +5238,6 @@ class TransparentEncryptionNoKeyMixin(AcraCatchLogsMixin):
 
         create_client_keypair(name=self.client_id, keys_dir=self.server_keys_dir, only_storage=True)
 
-        zones.append(json.loads(subprocess.check_output(
-            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-addzone'), '--keys_output_dir={}'.format(self.server_keys_dir)],
-            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
-
-
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         args = {'keys_dir': self.server_keys_dir, 'client_id': self.client_id}
         acra_kwargs.update(args)
@@ -5967,49 +5259,6 @@ class TransparentEncryptionNoKeyMixin(AcraCatchLogsMixin):
 
 
 class TestTransparentEncryptionWithNoEncryptionKey(TransparentEncryptionNoKeyMixin, TestTransparentEncryption):
-    pass
-
-
-class TestTransparentEncryptionWithZone(TestTransparentEncryption):
-    ZONE = True
-
-    def testSearch(self):
-        self.skipTest("searching with encryption with zones not supported yet")
-
-    def testSearchWithEncryptedData(self):
-        self.skipTest("searching with encryption with zones not supported yet")
-
-    def checkZoneIdEncryption(self, zone, id, default_client_id,
-                              specified_client_id, number, zone_id, raw_data,
-                              *args, **kwargs):
-        result = self.engine1.execute(
-            sa.select([self.encryptor_table.c.default_client_id,
-                       self.encryptor_table.c.specified_client_id,
-                       sa.cast(zone[ZONE_ID].encode('ascii'), BYTEA),
-                       self.encryptor_table.c.number,
-                       self.encryptor_table.c.zone_id,
-                       self.encryptor_table.c.raw_data,
-                       self.encryptor_table.c.nullable,
-                       self.encryptor_table.c.empty])
-            .where(self.encryptor_table.c.id == id))
-        row = result.fetchone()
-        self.assertIsNotNone(row)
-
-        # should be decrypted
-        self.assertEqual(row['zone_id'], zone_id)
-        # should be as is
-        self.assertEqual(row['number'], number)
-        self.assertEqual(row['raw_data'], raw_data)
-        # other data should be encrypted
-        self.assertNotEqual(row['default_client_id'], default_client_id)
-        self.assertNotEqual(row['specified_client_id'], specified_client_id)
-        self.assertEqual(row['empty'], b'')
-
-    def check_all_decryptions(self, **context):
-        self.checkZoneIdEncryption(**context)
-
-
-class TestTransparentEncryptionWithZoneWithNoEncryptionKey(TransparentEncryptionNoKeyMixin, TestTransparentEncryptionWithZone):
     pass
 
 
@@ -6083,7 +5332,7 @@ class TestSetupCustomApiPort(BaseTestCase):
             stop_process(acra)
 
     def check_all_decryptions(self, **context):
-        self.checkZoneIdEncryption(**context)
+        pass
 
 
 class TestEmptyValues(BaseTestCase):
@@ -6262,7 +5511,6 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                 dump_yaml_config(config, config_path)
 
             default_args = {
-                'acra-addzone': ['-keys_output_dir={}'.format(KEYS_FOLDER.name)],
                 'acra-keymaker': ['-keys_output_dir={}'.format(tmp_dir),
                                   '-keys_public_output_dir={}'.format(tmp_dir),
                                   '--keystore={}'.format(KEYSTORE_VERSION)],
@@ -6302,7 +5550,6 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             default_args = {
-                'acra-addzone': ['-keys_output_dir={}'.format(KEYS_FOLDER.name)],
                 'acra-keymaker': ['-keys_output_dir={}'.format(tmp_dir),
                                   '-keys_public_output_dir={}'.format(tmp_dir),
                                   '--keystore={}'.format(KEYSTORE_VERSION)],
@@ -6698,7 +5945,6 @@ class BaseSearchableTransparentEncryption(TestTransparentEncryption):
                   sa.LargeBinary(length=COLUMN_DATA_SIZE)),
 
         sa.Column('number', sa.Integer),
-        sa.Column('zone_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
         sa.Column('raw_data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
         sa.Column('nullable', sa.Text, nullable=True),
         sa.Column('searchable', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
@@ -6722,9 +5968,7 @@ class BaseSearchableTransparentEncryption(TestTransparentEncryption):
         result = self.engine_raw.execute(
             sa.select([self.encryptor_table.c.default_client_id,
                        self.encryptor_table.c.specified_client_id,
-                       sa.cast(context['zone'][ZONE_ID].encode('ascii'), BYTEA),
                        self.encryptor_table.c.number,
-                       self.encryptor_table.c.zone_id,
                        self.encryptor_table.c.raw_data,
                        self.encryptor_table.c.nullable,
                        self.encryptor_table.c.searchable,
@@ -6739,7 +5983,6 @@ class BaseSearchableTransparentEncryption(TestTransparentEncryption):
                 .where(self.encryptor_table.c.id == context['id'])
                 .values(default_client_id=context['default_client_id'],
                         specified_client_id=context['specified_client_id'],
-                        zone_id=context['zone_id'],
                         raw_data=context['raw_data'],
                         searchable=context.get('searchable'),
                         empty=context.get('empty', b''),
@@ -6751,10 +5994,8 @@ class BaseSearchableTransparentEncryption(TestTransparentEncryption):
             'id': get_random_id(),
             'default_client_id': get_pregenerated_random_data().encode('ascii'),
             'number': get_random_id(),
-            'zone_id': get_pregenerated_random_data().encode('ascii'),
             'specified_client_id': get_pregenerated_random_data().encode('ascii'),
             'raw_data': get_pregenerated_random_data().encode('ascii'),
-            'zone': zones[0],
             'searchable': get_pregenerated_random_data().encode('ascii'),
             'searchable_acrablock': get_pregenerated_random_data().encode('ascii'),
             'empty': b'',
@@ -6887,11 +6128,11 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
             'b_searchable': search_term
         }
 
-        select_columns = ['id', 'default_client_id', 'number', 'zone_id', 'specified_client_id', 'raw_data', 'searchable', 'searchable_acrablock', 'empty',
+        select_columns = ['id', 'default_client_id', 'number', 'specified_client_id', 'raw_data', 'searchable', 'searchable_acrablock', 'empty',
                           'nullable', 'masking', 'token_bytes', 'token_email', 'token_str', 'token_i32', 'token_i64']
 
         select_query = sa.select(
-            sa.literal(row_id).label('id'), sa.column('default_client_id'), sa.column('number'), sa.column('zone_id'), sa.column('specified_client_id'),
+            sa.literal(row_id).label('id'), sa.column('default_client_id'), sa.column('number'), sa.column('specified_client_id'),
             sa.column('raw_data'), sa.column('searchable'), sa.column('searchable_acrablock'), sa.column('empty'), sa.column('nullable'),
             sa.column('masking'), sa.column('token_bytes'), sa.column('token_email'), sa.column('token_str'), sa.column('token_i32'), sa.column('token_i64')). \
             where(self.encryptor_table.c.searchable == sa.bindparam('b_searchable'))
@@ -6961,16 +6202,12 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         search_term = context['searchable']
 
         search_context = context.copy()
-        # we should delete redundant `zone` key to compile bulk insert query
-        # https://docs.sqlalchemy.org/en/13/changelog/migration_08.html#unconsumed-column-names-warning-becomes-an-exception
-        del search_context['zone']
         values = [search_context]
         for idx in range(5):
             insert_context = self.get_context_data()
             new_data = get_pregenerated_random_data().encode('utf-8')
             if new_data != search_term:
                 insert_context['searchable'] = new_data
-                del insert_context['zone']
                 values.append(insert_context.copy())
 
         self.executeBulkInsert(self.encryptor_table.insert(), values)
@@ -6985,7 +6222,6 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         self.checkDefaultIdEncryption(**context)
         self.assertEqual(rows[0]['searchable'], search_term)
         for value in values:
-            value['zone'] = zones[0],
             self.checkDefaultIdEncryption(**value)
 
     def testSearchAcraBlock(self):
@@ -7262,7 +6498,6 @@ class TestSearchableTransparentEncryptionWithJOINs(BaseSearchableTransparentEncr
                   sa.LargeBinary(length=COLUMN_DATA_SIZE)),
 
         sa.Column('number', sa.Integer),
-        sa.Column('zone_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
         sa.Column('raw_data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
         sa.Column('nullable', sa.Text, nullable=True),
         sa.Column('searchable', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
@@ -7298,7 +6533,6 @@ class TestSearchableTransparentEncryptionWithJOINs(BaseSearchableTransparentEncr
                 self.encryptor_table_join.c.default_client_id,
                 self.encryptor_table_join.c.raw_data,
                 self.encryptor_table_join.c.specified_client_id,
-                self.encryptor_table_join.c.zone_id,
                 self.encryptor_table_join.c.empty,
             ).
             join(self.encryptor_table_join, self.encryptor_table_join.c.searchable==sa.bindparam('searchable')).
@@ -7316,7 +6550,6 @@ class TestSearchableTransparentEncryptionWithJOINs(BaseSearchableTransparentEncr
         self.assertEqual(row['raw_data'], context['raw_data'])
         # other data should be encrypted
         self.assertNotEqual(row['specified_client_id'], context['specified_client_id'])
-        self.assertNotEqual(row['zone_id'], context['zone_id'])
         self.assertEqual(row['empty'], b'')
 
         # test with invalid search_term
@@ -7440,25 +6673,6 @@ class TestSearchableTransparentEncryptionBinaryMySQL(BaseSearchableTransparentEn
     pass
 
 
-class TestTransparentSearchableEncryptionWithZone(BaseSearchableTransparentEncryption):
-    def testSearch(self):
-        self.skipTest("searching with encryption with zones not supported yet")
-
-    def testSearchWithEncryptedData(self):
-        self.skipTest("searching with encryption with zones not supported yet")
-
-    def testRotatedKeys(self):
-        self.skipTest("searching with encryption with zones not supported yet")
-
-
-class TestTransparentSearchableEncryptionWithZoneWithAWSKMSMasterKeyLoader(AWSKMSMasterKeyLoaderMixin, TestTransparentSearchableEncryptionWithZone):
-    pass
-
-
-class TestTransparentSearchableEncryptionWithZoneWithAWSKMSKeystore(KMSAWSType, KMSPerClientEncryptorMixin, TestTransparentSearchableEncryptionWithZone):
-    pass
-
-
 class BaseTokenization(BaseTestCase):
     WHOLECELL_MODE = True
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_tokenization_config.yaml')
@@ -7468,7 +6682,7 @@ class BaseTokenization(BaseTestCase):
 
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
         prepare_encryptor_config(
-            client_id=self.get_specified_client_id(), zone_id=zones[0][ZONE_ID], config_path=self.ENCRYPTOR_CONFIG)
+            client_id=self.get_specified_client_id(), config_path=self.ENCRYPTOR_CONFIG)
         acra_kwargs.update(encryptor_config_file=get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
         return super(BaseTokenization, self).fork_acra(popen_kwargs, **acra_kwargs)
 
@@ -7636,8 +6850,7 @@ class BaseTokenizationWithBinaryMySQL(BaseTokenization):
         return result
 
 
-class TestSearchableTokenizationWithoutZone(AcraCatchLogsMixin, BaseTokenization):
-    ZONE = False
+class TestSearchableTokenization(AcraCatchLogsMixin, BaseTokenization):
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_searchable_tokenization_config.yaml')
 
     def testSearchableTokenizationDefaultClientID(self):
@@ -7939,8 +7152,7 @@ class TestSearchableTokenizationWithoutZone(AcraCatchLogsMixin, BaseTokenization
                     self.assertEqual(source_data[0][k], data[k])
 
 
-class TestTokenizationWithoutZone(BaseTokenization):
-    ZONE = False
+class TestTokenization(BaseTokenization):
 
     def testTokenizationDefaultClientID(self):
         default_client_id_table = sa.Table(
@@ -8145,7 +7357,6 @@ class TestTokenizationWithoutZone(BaseTokenization):
 
 
 class TestReturningProcessingMixing:
-    ZONE = False
     specific_client_id_table = sa.Table(
         'test_tokenization_specific_client_id', metadata,
         sa.Column('id', sa.Integer, primary_key=True),
@@ -8294,204 +7505,39 @@ class TestReturningProcessingPostgreSQL(TestReturningProcessingMixing, BaseToken
         return source, hidden, self.data
 
 
-class TestTokenizationWithZone(BaseTokenization):
-    ZONE = True
-
-    def testTokenizationSpecificZoneID(self):
-        specific_zone_id_table = sa.Table(
-            'test_tokenization_specific_zone_id', metadata,
-            sa.Column('id', sa.Integer, primary_key=True),
-            sa.Column('zone_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
-            sa.Column('nullable_column', sa.Text, nullable=True),
-            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('token_i32', sa.Integer()),
-            sa.Column('token_i64', sa.BigInteger()),
-            sa.Column('token_str', sa.Text),
-            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('token_email', sa.Text),
-            extend_existing=True,
-        )
-        metadata.create_all(self.engine_raw, [specific_zone_id_table])
-        self.engine1.execute(specific_zone_id_table.delete())
-        zone_id = zones[0][ZONE_ID]
-        data = {
-            'id': 1,
-            'nullable_column': None,
-            'empty': b'',
-            'zone_id': zone_id.encode('ascii'),
-            'token_i32': random_int32(),
-            'token_i64': random_int64(),
-            'token_str': random_str(),
-            'token_bytes': random_bytes(),
-            'token_email': random_email(),
-        }
-
-        # insert data data using client_id==TEST_TLS_CLIENT_CERT
-        self.insert_via_1(specific_zone_id_table.insert(), data)
-
-        # expect that source data will returned from acra-servers with all client_id with correct zone id
-        source_data = self.fetch_from_2(
-            sa.select([specific_zone_id_table])
-                .where(specific_zone_id_table.c.id == data['id']))
-
-        hidden_data = self.fetch_from_1(
-            sa.select([specific_zone_id_table])
-                .where(specific_zone_id_table.c.id == data['id']))
-
-        if len(source_data) != len(hidden_data) != 1:
-            self.fail('incorrect len of result data')
-
-        token_fields = ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email')
-        # data owner take source data
-        for k in token_fields:
-            if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
-                self.assertEqual(source_data[0][k], data[k].encode('utf-8'))
-                self.assertEqual(hidden_data[0][k], data[k].encode('utf-8'))
-            else:
-                self.assertEqual(source_data[0][k], data[k])
-                self.assertEqual(hidden_data[0][k], data[k])
-
-        # expect that source data will not returned from acra-servers with all client_id with incorrect zone id
-        columns = [sa.cast(zones[1][ZONE_ID].encode('ascii'), BYTEA)]
-        # all columns except zone id
-        columns.extend([i for i in list(specific_zone_id_table.c) if i.name != 'zone_id'])
-        source_data = self.engine2.execute(
-            sa.select(columns)
-                .where(specific_zone_id_table.c.id == data['id']))
-        source_data = source_data.fetchall()
-        for i in token_fields:
-            self.assertNotEqual(source_data[0][i], data[i])
-
-    def testTokenizationSpecificZoneIDStarExpression(self):
-        specific_zone_id_table = sa.Table(
-            'test_tokenization_specific_zone_id_star_expression', metadata,
-            sa.Column('id', sa.Integer, primary_key=True),
-            # don't store zoneID in table
-            #sa.Column('zone_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
-            sa.Column('nullable_column', sa.Text, nullable=True),
-            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('token_i32', sa.Integer()),
-            sa.Column('token_i64', sa.BigInteger()),
-            sa.Column('token_str', sa.Text),
-            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('token_email', sa.Text),
-            extend_existing=True,
-        )
-        metadata.drop_all(self.engine_raw, [specific_zone_id_table])
-        metadata.create_all(self.engine_raw, [specific_zone_id_table])
-        self.engine1.execute(specific_zone_id_table.delete())
-        data = {
-            'id': 1,
-            'nullable_column': None,
-            'empty': b'',
-            'token_i32': random_int32(),
-            'token_i64': random_int64(),
-            'token_str': random_str(),
-            'token_bytes': random_bytes(),
-            'token_email': random_email(),
-        }
-
-        # insert data data using client_id==keypair1
-        self.insert_via_1(specific_zone_id_table.insert(), data)
-
-        CORRECT_ZONE, INCORRECT_ZONE = range(2)
-        # expect that source data will not returned from all acra-servers with incorrect zone id
-        columns = [
-            sa.literal(zones[CORRECT_ZONE][ZONE_ID]),
-            # mysql doesn't support query like `select 'string', * from table1`, only qualified StarExpr like `select 'string', t1.* from table1 as t1`
-            sa.text('{}.*'.format(specific_zone_id_table.name))
-        ]
-        # expect that source data will returned from all acra-servers with correct zone id
-        source_data = self.fetch_from_2(
-            sa.select(columns, from_obj=specific_zone_id_table)
-                .where(specific_zone_id_table.c.id == data['id']))
-
-        hidden_data = self.fetch_from_1(
-            sa.select(columns, from_obj=specific_zone_id_table)
-                .where(specific_zone_id_table.c.id == data['id']))
-
-        if len(source_data) != len(hidden_data) != 1:
-            self.fail('incorrect len of result data')
-
-        token_fields = ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email')
-        # data owner take source data
-        for k in token_fields:
-            if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
-                self.assertEqual(utils.memoryview_to_bytes(source_data[0][k]), data[k].encode('utf-8'))
-                self.assertEqual(utils.memoryview_to_bytes(hidden_data[0][k]), data[k].encode('utf-8'))
-            else:
-                self.assertEqual(utils.memoryview_to_bytes(source_data[0][k]), data[k])
-                self.assertEqual(utils.memoryview_to_bytes(hidden_data[0][k]), data[k])
-
-        # expect that source data will not returned from all acra-servers with incorrect zone id
-        columns = [
-            sa.literal(zones[INCORRECT_ZONE][ZONE_ID]),
-            sa.text('{}.*'.format(specific_zone_id_table.name))
-        ]
-        source_data = self.engine2.execute(
-            sa.select(columns)
-                .where(specific_zone_id_table.c.id == data['id']))
-        source_data = source_data.fetchall()
-        for i in token_fields:
-            self.assertNotEqual(utils.memoryview_to_bytes(source_data[0][i]), data[i])
-
-
-class TestTokenizationWithoutZoneWithBoltDB(BaseTokenizationWithBoltDB, TestTokenizationWithoutZone):
+class TestTokenizationWithBoltDB(BaseTokenizationWithBoltDB, TestTokenization):
     pass
 
 
-class TestTokenizationWithZoneWithBoltDB(BaseTokenizationWithBoltDB, TestTokenizationWithZone):
+class TestTokenizationWithRedis(BaseTokenizationWithRedis, TestTokenization):
     pass
 
 
-class TestTokenizationWithoutZoneWithRedis(BaseTokenizationWithRedis, TestTokenizationWithoutZone):
+class TestTokenizationBinaryMySQL(BaseTokenizationWithBinaryMySQL, TestTokenization):
     pass
 
 
-class TestTokenizationWithZoneWithRedis(BaseTokenizationWithRedis, TestTokenizationWithZone):
+class TestTokenizationTextPostgreSQL(BaseTokenizationWithTextPostgreSQL, TestTokenization):
     pass
 
 
-class TestTokenizationWithoutZoneBinaryMySQL(BaseTokenizationWithBinaryMySQL, TestTokenizationWithoutZone):
+class TestTokenizationBinaryPostgreSQL(BaseTokenizationWithBinaryPostgreSQL, TestTokenization):
     pass
 
 
-class TestTokenizationWithZoneBinaryMySQL(BaseTokenizationWithBinaryMySQL, TestTokenizationWithZone):
+class TestSearchableTokenizationBinaryPostgreSQL(BaseTokenizationWithBinaryPostgreSQL, TestSearchableTokenization):
     pass
 
 
-class TestTokenizationWithoutZoneTextPostgreSQL(BaseTokenizationWithTextPostgreSQL, TestTokenizationWithoutZone):
+class TestTokenizationBinaryPostgreSQLWithAWSKMSMaterKeyLoading(AWSKMSMasterKeyLoaderMixin, BaseTokenizationWithBinaryPostgreSQL, TestTokenization):
     pass
 
 
-class TestTokenizationWithZoneTextPostgreSQL(BaseTokenizationWithTextPostgreSQL, TestTokenizationWithZone):
+class TestTokenizationBinaryBindMySQL(BaseTokenizationWithBinaryBindMySQL, TestTokenization):
     pass
 
 
-class TestTokenizationWithoutZoneBinaryPostgreSQL(BaseTokenizationWithBinaryPostgreSQL, TestTokenizationWithoutZone):
-    pass
-
-
-class TestSearchableTokenizationWithoutZoneBinaryPostgreSQL(BaseTokenizationWithBinaryPostgreSQL, TestSearchableTokenizationWithoutZone):
-    pass
-
-
-class TestTokenizationWithoutZoneBinaryPostgreSQLWithAWSKMSMaterKeyLoading(AWSKMSMasterKeyLoaderMixin, BaseTokenizationWithBinaryPostgreSQL, TestTokenizationWithoutZone):
-    pass
-
-class TestTokenizationWithZoneBinaryPostgreSQL(BaseTokenizationWithBinaryPostgreSQL, TestTokenizationWithZone):
-    pass
-
-
-class TestTokenizationWithoutZoneBinaryBindMySQL(BaseTokenizationWithBinaryBindMySQL, TestTokenizationWithoutZone):
-    pass
-
-
-class TestTokenizationWithZoneBinaryBindMySQL(BaseTokenizationWithBinaryBindMySQL, TestTokenizationWithZone):
-    pass
-
-
-class TestSearchableTokenizationWithoutZoneBinaryBindMySQL(BaseTokenizationWithBinaryBindMySQL, TestSearchableTokenizationWithoutZone):
+class TestSearchableTokenizationBinaryBindMySQL(BaseTokenizationWithBinaryBindMySQL, TestSearchableTokenization):
     pass
 
 
@@ -8518,7 +7564,7 @@ class BaseMasking(BaseTokenization):
 
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
         prepare_encryptor_config(
-            client_id=self.get_specified_client_id(), zone_id=zones[0][ZONE_ID], config_path=self.ENCRYPTOR_CONFIG)
+            client_id=self.get_specified_client_id(), config_path=self.ENCRYPTOR_CONFIG)
         acra_kwargs.update(token_db='token1.db',
                            encryptor_config_file=get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
         return super(BaseTokenization, self).fork_acra(popen_kwargs, **acra_kwargs)
@@ -8560,7 +7606,7 @@ class BaseMaskingBinaryMySQLMixin(BaseBinaryMySQLTestCase, BaseTestCase):
         return self.executor1.execute_prepared_statement_no_result(query, parameters)
 
 
-class TestMaskingWithoutZone(BaseMasking):
+class TestMasking(BaseMasking):
     def test_masking_default_client_id(self):
         default_client_id_table = sa.Table(
             'test_masking_default_client_id', metadata,
@@ -8712,302 +7758,6 @@ class TestMaskingWithoutZone(BaseMasking):
         self.assertEqual(mask_pattern, hidden_data['shorter_plaintext'])
 
 
-class TestMaskingWithZonePerValue(BaseMasking):
-    ZONE = True
-
-    def test_masking_specific_zone_id_bulk(self):
-        specific_zone_id_table = sa.Table(
-            'test_masking_specific_zone_id', metadata,
-            sa.Column('id', sa.Integer, primary_key=True),
-            sa.Column('nullable_column', sa.Text, nullable=True),
-            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('masked_prefix', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('masked_suffix', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('masked_without_plaintext', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('exact_plaintext_length', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('shorter_plaintext', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            extend_existing=True
-        )
-        metadata.create_all(self.engine_raw, [specific_zone_id_table])
-        self.engine_raw.execute(specific_zone_id_table.delete())
-
-        values = []
-        for idx in range(3):
-            data = {
-                'id': 1 + idx,
-                'nullable_column': None,
-                'empty': b'',
-                'masked_prefix': random_bytes(9),
-                'masked_suffix': random_bytes(9),
-                'masked_without_plaintext': random_bytes(),
-                'exact_plaintext_length': random_bytes(10),
-                'shorter_plaintext': random_bytes(9),
-            }
-            values.append(data)
-
-        # insert data data with another client_id (keypair1) than should be encrypted (keypair2)
-        self.executeBulkInsert(specific_zone_id_table.insert(), values)
-
-        columns = []
-        for i in ('masked_prefix', 'masked_suffix', 'masked_without_plaintext', 'exact_plaintext_length', 'shorter_plaintext'):
-            # create in loop to generate new objects of literal and avoid removing in select clause by sqlalchemy
-            correct_zone = sa.literal(zones[0][ZONE_ID])
-            columns.append(correct_zone)
-            columns.append(getattr(specific_zone_id_table.c, i))
-
-        for value in values:
-            self.check_crypto_envelope(specific_zone_id_table, value['id'])
-
-            # check that using any acra-server with correct zone we fetch decrypted data
-            for engine in (self.engine1, self.engine2):
-                # expect that data was encrypted with client_id from acra-server which used to insert (client_id==TEST_TLS_CLIENT_2_CERT)
-                response = engine.execute(
-                    sa.select(columns)
-                        .where(specific_zone_id_table.c.id == value['id']))
-                source_data = response.fetchall()
-                if len(source_data) != 1:
-                    self.fail('incorrect len of result data')
-
-                for i in ('masked_prefix', 'masked_suffix', 'masked_without_plaintext', 'exact_plaintext_length', 'shorter_plaintext'):
-                    self.assertEqual(source_data[0][i], value[i])
-
-            incorrect_zone = sa.literal(zones[1][ZONE_ID])
-            # check that using any acra-server with incorrect zone we fetch masked data
-            for engine in (self.engine1, self.engine2):
-                hidden_data = engine.execute(
-                    sa.select([incorrect_zone, specific_zone_id_table])
-                        .where(specific_zone_id_table.c.id == value['id']))
-                hidden_data = hidden_data.fetchall()
-
-                if len(source_data) != len(hidden_data) != 1:
-                    self.fail('incorrect len of result data')
-
-                for i in ('masked_prefix', 'masked_suffix', 'masked_without_plaintext', 'exact_plaintext_length', 'shorter_plaintext'):
-                    self.assertEqual(source_data[0][i], value[i])
-
-                hidden_data = hidden_data[0]
-                mask_pattern = 'xxxx'.encode('ascii')
-                # check that mask at correct place
-                self.assertEqual(hidden_data['masked_prefix'][:len(mask_pattern)], mask_pattern)
-                # check that len of masked value not equal to source data because acrastruct always longer than plaintext
-                self.assertNotEqual(len(hidden_data['masked_prefix']), len(value['masked_prefix']))
-                # check that data after mask is not the same as source data
-                self.assertNotEqual(hidden_data['masked_prefix'][len(mask_pattern):], value)
-                # check that data after mask is not the same as source data with same offset as mask length
-                self.assertNotEqual(hidden_data['masked_prefix'][len(mask_pattern):], value['masked_prefix'][len(mask_pattern):])
-
-                # check that mask at correct place
-                self.assertEqual(hidden_data['masked_suffix'][-len(mask_pattern):], mask_pattern)
-                # check that len of masked value not equal to source data because acrastruct always longer than plaintext
-                self.assertNotEqual(len(hidden_data['masked_suffix']), len(value['masked_suffix']))
-                # check that data before mask is not the same as source data
-                self.assertNotEqual(hidden_data['masked_suffix'][:-len(mask_pattern)], value)
-                # check that data after mask is not the same as source data with same offset as mask length
-                self.assertNotEqual(hidden_data['masked_suffix'][:-len(mask_pattern)], value['masked_suffix'][:-len(mask_pattern)])
-
-                self.assertEqual(mask_pattern, hidden_data['masked_without_plaintext'])
-
-                # if plaintext length > data, then whole data will be encrypted
-                self.assertEqual(mask_pattern, hidden_data['exact_plaintext_length'])
-
-                self.assertEqual(mask_pattern, hidden_data['shorter_plaintext'])
-
-    def test_masking_specific_zone_id(self):
-        specific_zone_id_table = sa.Table(
-            'test_masking_specific_zone_id', metadata,
-            sa.Column('id', sa.Integer, primary_key=True),
-            sa.Column('nullable_column', sa.Text, nullable=True),
-            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('masked_prefix', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('masked_suffix', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('masked_without_plaintext', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('exact_plaintext_length', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('shorter_plaintext', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            extend_existing=True
-        )
-        metadata.create_all(self.engine_raw, [specific_zone_id_table])
-        self.engine_raw.execute(specific_zone_id_table.delete())
-        data = {
-            'id': 1,
-            'nullable_column': None,
-            'empty': b'',
-            'masked_prefix': random_bytes(9),
-            'masked_suffix': random_bytes(9),
-            'masked_without_plaintext': random_bytes(),
-            'exact_plaintext_length': random_bytes(10),
-            'shorter_plaintext': random_bytes(9),
-        }
-
-        # insert data data with another client_id (keypair1) than should be encrypted (keypair2)
-        self.engine1.execute(specific_zone_id_table.insert(values=data))
-
-        self.check_crypto_envelope(specific_zone_id_table, data['id'])
-
-        columns = []
-        for i in ('masked_prefix', 'masked_suffix', 'masked_without_plaintext', 'exact_plaintext_length', 'shorter_plaintext'):
-            # create in loop to generate new objects of literal and avoid removing in select clause by sqlalchemy
-            correct_zone = sa.literal(zones[0][ZONE_ID])
-            columns.append(correct_zone)
-            columns.append(getattr(specific_zone_id_table.c, i))
-
-        # check that using any acra-server with correct zone we fetch decrypted data
-        for engine in (self.engine1, self.engine2):
-            # expect that data was encrypted with client_id from acra-server which used to insert (client_id==TEST_TLS_CLIENT_2_CERT)
-            response = engine.execute(
-                sa.select(columns)
-                    .where(specific_zone_id_table.c.id == data['id']))
-            source_data = response.fetchall()
-            if len(source_data) != 1:
-                self.fail('incorrect len of result data')
-
-            for i in ('masked_prefix', 'masked_suffix', 'masked_without_plaintext', 'exact_plaintext_length', 'shorter_plaintext'):
-                self.assertEqual(source_data[0][i], data[i])
-
-        incorrect_zone = sa.literal(zones[1][ZONE_ID])
-        # check that using any acra-server with incorrect zone we fetch masked data
-        for engine in (self.engine1, self.engine2):
-            hidden_data = engine.execute(
-                sa.select([incorrect_zone, specific_zone_id_table])
-                    .where(specific_zone_id_table.c.id == data['id']))
-            hidden_data = hidden_data.fetchall()
-
-            if len(source_data) != len(hidden_data) != 1:
-                self.fail('incorrect len of result data')
-
-            for i in ('masked_prefix', 'masked_suffix', 'masked_without_plaintext', 'exact_plaintext_length', 'shorter_plaintext'):
-                self.assertEqual(source_data[0][i], data[i])
-
-            hidden_data = hidden_data[0]
-            mask_pattern = 'xxxx'.encode('ascii')
-            # check that mask at correct place
-            self.assertEqual(hidden_data['masked_prefix'][:len(mask_pattern)], mask_pattern)
-            # check that len of masked value not equal to source data because acrastruct always longer than plaintext
-            self.assertNotEqual(len(hidden_data['masked_prefix']), len(data['masked_prefix']))
-            # check that data after mask is not the same as source data
-            self.assertNotEqual(hidden_data['masked_prefix'][len(mask_pattern):], data)
-            # check that data after mask is not the same as source data with same offset as mask length
-            self.assertNotEqual(hidden_data['masked_prefix'][len(mask_pattern):], data['masked_prefix'][len(mask_pattern):])
-
-            # check that mask at correct place
-            self.assertEqual(hidden_data['masked_suffix'][-len(mask_pattern):], mask_pattern)
-            # check that len of masked value not equal to source data because acrastruct always longer than plaintext
-            self.assertNotEqual(len(hidden_data['masked_suffix']), len(data['masked_suffix']))
-            # check that data before mask is not the same as source data
-            self.assertNotEqual(hidden_data['masked_suffix'][:-len(mask_pattern)], data)
-            # check that data after mask is not the same as source data with same offset as mask length
-            self.assertNotEqual(hidden_data['masked_suffix'][:-len(mask_pattern)], data['masked_suffix'][:-len(mask_pattern)])
-
-            self.assertEqual(mask_pattern, hidden_data['masked_without_plaintext'])
-
-            # if plaintext length > data, then whole data will be encrypted
-            self.assertEqual(mask_pattern, hidden_data['exact_plaintext_length'])
-
-            self.assertEqual(mask_pattern, hidden_data['shorter_plaintext'])
-
-
-class TestMaskingWithZonePerRow(BaseMasking):
-    ZONE = True
-
-    def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
-        if popen_kwargs is None:
-            popen_kwargs = {}
-        env = popen_kwargs.get('env', {})
-        env['ZONE_FOR_ROW'] = 'on'
-        env.update(os.environ)
-        popen_kwargs['env'] = env
-        return super(TestMaskingWithZonePerRow, self).fork_acra(popen_kwargs, **acra_kwargs)
-
-    def test_masking_specific_zone_id(self):
-        specific_zone_id_table = sa.Table(
-            'test_masking_specific_zone_id', metadata,
-            sa.Column('id', sa.Integer, primary_key=True),
-            sa.Column('nullable_column', sa.Text, nullable=True),
-            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('masked_prefix', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('masked_suffix', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('masked_without_plaintext', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('exact_plaintext_length', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('shorter_plaintext', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            extend_existing=True
-        )
-        metadata.create_all(self.engine_raw, [specific_zone_id_table])
-        self.engine_raw.execute(specific_zone_id_table.delete())
-        data = {
-            'id': 1,
-            'nullable_column': None,
-            'empty': b'',
-            'masked_prefix': random_bytes(9),
-            'masked_suffix': random_bytes(9),
-            'masked_without_plaintext': random_bytes(),
-            'exact_plaintext_length': random_bytes(10),
-            'shorter_plaintext': random_bytes(9),
-        }
-
-        # insert data data with another client_id (keypair1) than should be encrypted (keypair2)
-        self.engine1.execute(specific_zone_id_table.insert(values=data))
-
-        self.check_crypto_envelope(specific_zone_id_table, data['id'])
-
-        columns = [sa.literal(zones[0][ZONE_ID])]
-        for i in ('masked_prefix', 'masked_suffix', 'masked_without_plaintext', 'exact_plaintext_length', 'shorter_plaintext'):
-            # create in loop to generate new objects of literal and avoid removing in select clause by sqlalchemy
-            columns.append(getattr(specific_zone_id_table.c, i))
-
-        # check that using any acra-server with correct zone we fetch decrypted data
-        for engine in (self.engine1, self.engine2):
-            # expect that data was encrypted with client_id from acra-server which used to insert (client_id==TEST_TLS_CLIENT_2_CERT)
-            response = engine.execute(
-                sa.select(columns)
-                    .where(specific_zone_id_table.c.id == data['id']))
-            source_data = response.fetchall()
-            if len(source_data) != 1:
-                self.fail('incorrect len of result data')
-
-            for i in ('masked_prefix', 'masked_suffix', 'masked_without_plaintext', 'exact_plaintext_length', 'shorter_plaintext'):
-                self.assertEqual(source_data[0][i], data[i])
-
-        incorrect_zone = sa.literal(zones[1][ZONE_ID])
-        # check that using any acra-server with incorrect zone we fetch masked data
-        for engine in (self.engine1, self.engine2):
-            hidden_data = engine.execute(
-                sa.select([incorrect_zone, specific_zone_id_table])
-                    .where(specific_zone_id_table.c.id == data['id']))
-            hidden_data = hidden_data.fetchall()
-
-            if len(source_data) != len(hidden_data) != 1:
-                self.fail('incorrect len of result data')
-
-            for i in ('masked_prefix', 'masked_suffix', 'masked_without_plaintext', 'exact_plaintext_length', 'shorter_plaintext'):
-                self.assertEqual(source_data[0][i], data[i])
-
-            hidden_data = hidden_data[0]
-            mask_pattern = 'xxxx'.encode('ascii')
-            # check that mask at correct place
-            self.assertEqual(hidden_data['masked_prefix'][:len(mask_pattern)], mask_pattern)
-            # check that len of masked value not equal to source data because acrastruct always longer than plaintext
-            self.assertNotEqual(len(hidden_data['masked_prefix']), len(data['masked_prefix']))
-            # check that data after mask is not the same as source data
-            self.assertNotEqual(hidden_data['masked_prefix'][len(mask_pattern):], data)
-            # check that data after mask is not the same as source data with same offset as mask length
-            self.assertNotEqual(hidden_data['masked_prefix'][len(mask_pattern):], data['masked_prefix'][len(mask_pattern):])
-
-            # check that mask at correct place
-            self.assertEqual(hidden_data['masked_suffix'][-len(mask_pattern):], mask_pattern)
-            # check that len of masked value not equal to source data because acrastruct always longer than plaintext
-            self.assertNotEqual(len(hidden_data['masked_suffix']), len(data['masked_suffix']))
-            # check that data before mask is not the same as source data
-            self.assertNotEqual(hidden_data['masked_suffix'][:-len(mask_pattern)], data)
-            # check that data after mask is not the same as source data with same offset as mask length
-            self.assertNotEqual(hidden_data['masked_suffix'][:-len(mask_pattern)], data['masked_suffix'][:-len(mask_pattern)])
-
-            self.assertEqual(mask_pattern, hidden_data['masked_without_plaintext'])
-
-            # if plaintext length > data, then whole data will be encrypted
-            self.assertEqual(mask_pattern, hidden_data['exact_plaintext_length'])
-
-            self.assertEqual(mask_pattern, hidden_data['shorter_plaintext'])
-
-
 class BaseAcraBlockMasking:
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_masking_acrablock_config.yaml')
 
@@ -9026,58 +7776,28 @@ class BaseAcraBlockMasking:
             self.assertIn(temp_acrastruct[:4], source_data[i])
 
 
-class TestMaskingAcraBlockWithoutZone(BaseAcraBlockMasking, TestMaskingWithoutZone):
+class TestMaskingAcraBlock(BaseAcraBlockMasking, TestMasking):
     pass
 
 
-class TestMaskingAcraBlockWithoutZoneBinaryMySQL(BaseAcraBlockMasking, BaseMaskingBinaryMySQLMixin, TestMaskingWithoutZone):
+class TestMaskingAcraBlockBinaryMySQL(BaseAcraBlockMasking, BaseMaskingBinaryMySQLMixin, TestMasking):
     pass
 
 
-class TestMaskingAcraBlockWithoutZoneBinaryPostgreSQL(BaseAcraBlockMasking, BaseMaskingBinaryPostgreSQLMixin, TestMaskingWithoutZone):
+class TestMaskingAcraBlockBinaryPostgreSQL(BaseAcraBlockMasking, BaseMaskingBinaryPostgreSQLMixin, TestMasking):
     pass
 
 
-class TestMaskingAcraBlockWithoutZoneWithDefaults(BaseAcraBlockMasking, TestMaskingWithoutZone):
+class TestMaskingAcraBlockWithDefaults(BaseAcraBlockMasking, TestMasking):
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_masking_acrablock_with_defaults_config.yaml')
 
 
-class TestMaskingAcraBlockWithZonePerValue(BaseAcraBlockMasking, TestMaskingWithZonePerValue):
-    pass
-
-
-class TestMaskingAcraBlockWithZonePerValueBinaryMySQL(BaseAcraBlockMasking, BaseMaskingBinaryMySQLMixin, TestMaskingWithZonePerValue):
-    pass
-
-
-class TestMaskingAcraBlockWithZonePerValueBinaryPostgreSQL(BaseAcraBlockMasking, BaseMaskingBinaryPostgreSQLMixin, TestMaskingWithZonePerValue):
-    pass
-
-
-class TestMaskingAcraBlockWithZonePerValueWithDefaults(BaseAcraBlockMasking, TestMaskingWithZonePerValue):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_masking_acrablock_with_defaults_config.yaml')
-
-
-class TestMaskingAcraBlockWithZonePerRow(BaseAcraBlockMasking, TestMaskingWithZonePerRow):
-    pass
-
-
-class TestMaskingWithoutZoneConnectorlessWithTLSByDN(TLSAuthenticationByDistinguishedNameMixin, TLSAuthenticationDirectlyToAcraMixin, TestMaskingWithoutZone):
+class TestMaskingConnectorlessWithTLSByDN(TLSAuthenticationByDistinguishedNameMixin, TLSAuthenticationDirectlyToAcraMixin, TestMasking):
     def get_specified_client_id(self):
         return extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_2_CERT, extractor=self.get_identifier_extractor_type())
 
 
-class TestMaskingWithoutZoneConnectorlessWithTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin, TLSAuthenticationDirectlyToAcraMixin, TestMaskingWithoutZone):
-    def get_specified_client_id(self):
-        return extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_2_CERT, extractor=self.get_identifier_extractor_type())
-
-
-class TestMaskingWithZonePerValueConnectorlessWithTLSByDN(TLSAuthenticationByDistinguishedNameMixin, TLSAuthenticationDirectlyToAcraMixin, TestMaskingWithZonePerValue):
-    def get_specified_client_id(self):
-        return extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_2_CERT, extractor=self.get_identifier_extractor_type())
-
-
-class TestMaskingWithZonePerValueConnectorlessWithTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin, TLSAuthenticationDirectlyToAcraMixin, TestMaskingWithZonePerValue):
+class TestMaskingConnectorlessWithTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin, TLSAuthenticationDirectlyToAcraMixin, TestMasking):
     def get_specified_client_id(self):
         return extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_2_CERT, extractor=self.get_identifier_extractor_type())
 
@@ -9098,30 +7818,12 @@ class TestSearchableTransparentEncryptionConnectorlessWithTLSBySerialNumber(TLSA
     pass
 
 
-class TestSearchableTransparentEncryptionWithZoneConnectorlessWithTLSByDN(TLSAuthenticationByDistinguishedNameMixin, TestTransparentSearchableEncryptionWithZone, TLSAuthenticationDirectlyToAcraMixin):
-    pass
-
-
-class TestSearchableTransparentEncryptionWithZoneConnectorlessWithTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin, TestTransparentSearchableEncryptionWithZone, TLSAuthenticationDirectlyToAcraMixin):
-    pass
-
-
-class TestTokenizationConnectorlessWithTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin, TLSAuthenticationDirectlyToAcraMixin, TestTokenizationWithoutZone):
+class TestTokenizationConnectorlessWithTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin, TLSAuthenticationDirectlyToAcraMixin, TestTokenization):
     def get_specified_client_id(self):
         return extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_2_CERT, extractor=self.get_identifier_extractor_type())
 
 
-class TestTokenizationConnectorlessWithTLSByDN(TLSAuthenticationByDistinguishedNameMixin, TLSAuthenticationDirectlyToAcraMixin, TestTokenizationWithoutZone):
-    def get_specified_client_id(self):
-        return extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_2_CERT, extractor=self.get_identifier_extractor_type())
-
-
-class TestTokenizationConnectorlessWithZoneWithTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin, TLSAuthenticationDirectlyToAcraMixin, TestTokenizationWithZone):
-    def get_specified_client_id(self):
-        return extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_2_CERT, extractor=self.get_identifier_extractor_type())
-
-
-class TestTokenizationConnectorlessWithZoneWithTLSByDN(TLSAuthenticationByDistinguishedNameMixin, TLSAuthenticationDirectlyToAcraMixin, TestTokenizationWithZone):
+class TestTokenizationConnectorlessWithTLSByDN(TLSAuthenticationByDistinguishedNameMixin, TLSAuthenticationDirectlyToAcraMixin, TestTokenization):
     def get_specified_client_id(self):
         return extract_client_id_from_cert(tls_cert=TEST_TLS_CLIENT_2_CERT, extractor=self.get_identifier_extractor_type())
 
@@ -9263,7 +7965,6 @@ class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
                                sa.Column('default_client_id',
                                          sa.LargeBinary(length=COLUMN_DATA_SIZE)),
                                sa.Column('number', sa.Integer),
-                               sa.Column('zone_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
                                sa.Column('raw_data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
                                sa.Column('nullable', sa.Text, nullable=True),
                                sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
@@ -9281,10 +7982,8 @@ class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
         specified_acrastruct = create_acrastruct_with_client_id(test_data, specified_id)
         default_acrastruct = create_acrastruct_with_client_id(test_data, default_id)
         row_id = get_random_id()
-        zone = zones[0]
         data = {'specified_client_id': specified_acrastruct,
                 'default_client_id': default_acrastruct,
-                'zone_id': test_data,
                 'id': row_id,
                 'masked_prefix': get_pregenerated_random_data().encode('ascii'),
                 'token_bytes': get_pregenerated_random_data().encode('ascii'),
@@ -9295,8 +7994,6 @@ class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
         raw_data = self.engine_raw.execute(
             sa.select([self.encryptor_table.c.specified_client_id,
                        self.encryptor_table.c.default_client_id,
-                       sa.LargeBinary().bind_expression(zone[ZONE_ID].encode('ascii')),
-                       self.encryptor_table.c.zone_id,
                        self.encryptor_table.c.masked_prefix,
                        self.encryptor_table.c.token_bytes,
                        self.encryptor_table.c.token_str,
@@ -9308,17 +8005,12 @@ class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
         self.assertNotEqual(raw_data['default_client_id'], test_data)
         self.assertEqual(raw_data['specified_client_id'][:3], CRYPTO_ENVELOPE_HEADER)
         self.assertEqual(raw_data['default_client_id'][:3], CRYPTO_ENVELOPE_HEADER)
-        self.assertNotEqual(raw_data['zone_id'], test_data)
-        # no matter from which acrastruct take first symbols
-        self.assertEqual(raw_data['zone_id'][:3], CRYPTO_ENVELOPE_HEADER)
         for i in ('masked_prefix', 'token_bytes', 'token_str', 'token_i64'):
             self.assertNotEqual(raw_data[i], data[i])
 
         decrypted_data = self.engine2.execute(
             sa.select([self.encryptor_table.c.specified_client_id,
                        self.encryptor_table.c.default_client_id,
-                       sa.LargeBinary().bind_expression(zone[ZONE_ID].encode('ascii')),
-                       self.encryptor_table.c.zone_id,
                        self.encryptor_table.c.masked_prefix,
                        self.encryptor_table.c.token_bytes,
                        self.encryptor_table.c.token_str,
@@ -9327,8 +8019,6 @@ class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
         decrypted_data = decrypted_data.fetchone()
         self.assertNotEqual(decrypted_data['specified_client_id'], specified_acrastruct)
         self.assertEqual(decrypted_data['default_client_id'], test_data)
-        # haven't to be decrypted due to zonemode off
-        self.assertNotEqual(decrypted_data['zone_id'], test_data)
         for i in ('masked_prefix', 'token_bytes', 'token_str', 'token_i64'):
             self.assertEqual(decrypted_data[i], data[i])
 
@@ -9356,90 +8046,6 @@ class TestTransparentAcraBlockEncryptionMissingExtraLog(TestTransparentAcraBlock
 
 
 class TestTransparentAcraBlockEncryptionWithDefaults(TestTransparentAcraBlockEncryption):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_config_with_defaults.yaml')
-
-
-class TestTransparentAcraBlockEncryptionWithZone(TestTransparentAcraBlockEncryption, TestTransparentEncryptionWithZone):
-    ZONE = True
-
-    zone_encryptor_table = sa.Table('test_transparent_acrablock_encryption_with_zone', metadata,
-                                    sa.Column('id', sa.Integer, primary_key=True),
-                                    sa.Column('specified_client_id',
-                                              sa.LargeBinary(length=COLUMN_DATA_SIZE)),
-                                    sa.Column('default_client_id',
-                                              sa.LargeBinary(length=COLUMN_DATA_SIZE)),
-                                    sa.Column('number', sa.Integer),
-                                    sa.Column('zone_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
-                                    sa.Column('raw_data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
-                                    sa.Column('nullable', sa.Text, nullable=True),
-                                    sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-                                    sa.Column('token_i64', sa.BigInteger(), nullable=False, default=1),
-                                    sa.Column('token_str', sa.Text, nullable=False, default=''),
-                                    sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-                                    sa.Column('masked_prefix', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-                                    )
-
-    def testAcraStructReEncryption(self):
-        specified_id = TLS_CERT_CLIENT_ID_1
-        default_id = TLS_CERT_CLIENT_ID_2
-        test_data = get_pregenerated_random_data().encode('utf-8')
-        specified_acrastruct = create_acrastruct_with_client_id(test_data, specified_id)
-        default_acrastruct = create_acrastruct_with_client_id(test_data, default_id)
-        zone = zones[0]
-        zone_acrastruct = create_acrastruct(test_data, b64decode(zone[ZONE_PUBLIC_KEY]), zone[ZONE_ID].encode('utf-8'))
-        row_id = get_random_id()
-        data = {'specified_client_id': specified_acrastruct,
-                'default_client_id': default_acrastruct,
-                'zone_id': zone_acrastruct,
-                'id': row_id,
-                'masked_prefix': get_pregenerated_random_data().encode('ascii'),
-                'token_bytes': get_pregenerated_random_data().encode('ascii'),
-                'token_str': get_pregenerated_random_data(),
-                'token_i64': random.randint(0, 2 ** 32),
-                }
-        self.engine2.execute(self.zone_encryptor_table.insert(), data)
-        raw_data = self.engine_raw.execute(
-            sa.select([self.zone_encryptor_table.c.specified_client_id,
-                       self.zone_encryptor_table.c.default_client_id,
-                       sa.literal(zone[ZONE_ID]),
-                       self.zone_encryptor_table.c.zone_id,
-                       self.zone_encryptor_table.c.masked_prefix,
-                       self.zone_encryptor_table.c.token_bytes,
-                       self.zone_encryptor_table.c.token_str,
-                       self.zone_encryptor_table.c.token_i64])
-                .where(self.zone_encryptor_table.c.id == row_id))
-
-        raw_data = raw_data.fetchone()
-        # should be equal to acrablock begin tag that is first 4 symbols of acrastructs
-        self.assertEqual(raw_data['specified_client_id'][:3], CRYPTO_ENVELOPE_HEADER)
-        self.assertNotEqual(raw_data['specified_client_id'], test_data)
-        self.assertEqual(raw_data['default_client_id'][:3], CRYPTO_ENVELOPE_HEADER)
-        self.assertNotEqual(raw_data['default_client_id'], test_data)
-        self.assertEqual(raw_data['zone_id'][:3], CRYPTO_ENVELOPE_HEADER)
-        self.assertNotEqual(raw_data['zone_id'], test_data)
-
-        for i in ('masked_prefix', 'token_bytes', 'token_str', 'token_i64'):
-            self.assertNotEqual(raw_data[i], data[i])
-
-        decrypted_data = self.engine2.execute(
-            sa.select([self.zone_encryptor_table.c.specified_client_id,
-                       self.zone_encryptor_table.c.default_client_id,
-                       sa.literal(zone[ZONE_ID]),
-                       self.zone_encryptor_table.c.zone_id,
-                       self.zone_encryptor_table.c.masked_prefix,
-                       self.zone_encryptor_table.c.token_bytes,
-                       self.zone_encryptor_table.c.token_str,
-                       self.zone_encryptor_table.c.token_i64])
-                .where(self.zone_encryptor_table.c.id == row_id))
-        decrypted_data = decrypted_data.fetchone()
-        self.assertEqual(decrypted_data['specified_client_id'][:3], CRYPTO_ENVELOPE_HEADER)
-        self.assertEqual(decrypted_data['default_client_id'][:3], CRYPTO_ENVELOPE_HEADER)
-        self.assertEqual(decrypted_data['zone_id'], test_data)
-        for i in ('masked_prefix', 'token_bytes', 'token_str', 'token_i64'):
-            self.assertEqual(decrypted_data[i], data[i])
-
-
-class TestTransparentAcraBlockEncryptionWithZoneWithDefaults(TestTransparentAcraBlockEncryptionWithZone):
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_config_with_defaults.yaml')
 
 
@@ -11636,7 +10242,7 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
             raise
         test_data = b'test data'
         try:
-            ciphertext = self.grpc_encrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, None, test_data)
+            ciphertext = self.grpc_encrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, test_data)
             self.assertNotEqual(ciphertext, b'')
             # load default config
             shutil.rmtree(temp_keystore)
@@ -11651,7 +10257,7 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
                 stop_process(translator)
                 raise
 
-            plaintext = self.grpc_decrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, None, ciphertext)
+            plaintext = self.grpc_decrypt_request(grpc_port, TLS_CERT_CLIENT_ID_1, ciphertext)
             self.assertEqual(plaintext, test_data)
 
             with self.assertRaises(Exception) as exc:

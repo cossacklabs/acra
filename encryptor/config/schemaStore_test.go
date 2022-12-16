@@ -255,19 +255,6 @@ schemas:
 `,
 			common.ErrInvalidMaskingPattern},
 
-		{"searchable encryption doesn't support zones",
-			`
-schemas:
-  - table: test_table
-    columns:
-      - data1
-    encrypted:
-      - column: data1
-        searchable: true
-        zone_id: DDDDDDDDMatNOMYjqVOuhACC
-`,
-			ErrInvalidEncryptorConfig},
-
 		{"tokenization can't be searchable",
 			`
 schemas:
@@ -399,31 +386,6 @@ schemas:
 `,
 			nil},
 
-		{"type aware decryption, all supported types, specified zone id",
-			`
-schemas:
-  - table: test_table
-    columns:
-      - data1
-      - data2
-      - data3
-      - data4
-    encrypted:
-      - column: data1
-        data_type: str
-        zone_id: client
-      - column: data2
-        data_type: bytes
-        zone_id: client
-      - column: data3
-        data_type: int32
-        zone_id: client
-      - column: data4
-        data_type: int64
-        zone_id: client
-`,
-			nil},
-
 		{"type aware decryption, all supported types, default value",
 			`
 schemas:
@@ -492,42 +454,6 @@ schemas:
 `,
 			nil},
 
-		{"type aware decryption, all supported types, default value, specified zone id",
-			`
-schemas:
-  - table: test_table
-    columns:
-      - data1
-      - data2
-      - data3
-      - data4
-    encrypted:
-      - column: data1
-        data_type: str
-        response_on_fail: default_value
-        default_data_value: "str"
-        zone_id: zone
-
-      - column: data2
-        data_type: bytes
-        response_on_fail: default_value
-        default_data_value: "bytes"
-        zone_id: zone
-
-      - column: data3
-        data_type: int32
-        response_on_fail: default_value
-        default_data_value: "123"
-        zone_id: zone
-
-      - column: data4
-        data_type: int64
-        response_on_fail: default_value
-        default_data_value: "123"
-        zone_id: zone
-`,
-			nil},
-
 		{"AcraBlock - type aware decryption, all supported types",
 			`
 defaults:
@@ -575,33 +501,6 @@ schemas:
       - column: data4
         data_type: int64
         client_id: client
-`,
-			nil},
-
-		{"type aware decryption, all supported types, specified zone id",
-			`
-defaults:
-  crypto_envelope: acrastruct
-schemas:
-  - table: test_table
-    columns:
-      - data1
-      - data2
-      - data3
-      - data4
-    encrypted:
-      - column: data1
-        data_type: str
-        zone_id: client
-      - column: data2
-        data_type: bytes
-        zone_id: client
-      - column: data3
-        data_type: int32
-        zone_id: client
-      - column: data4
-        data_type: int64
-        zone_id: client
 `,
 			nil},
 
@@ -674,44 +573,6 @@ schemas:
         response_on_fail: default_value
         default_data_value: "123"
         client_id: client
-`,
-			nil},
-
-		{"type aware decryption, all supported types, default value, specified zone id",
-			`
-defaults:
-  crypto_envelope: acrastruct
-schemas:
-  - table: test_table
-    columns:
-      - data1
-      - data2
-      - data3
-      - data4
-    encrypted:
-      - column: data1
-        data_type: str
-        response_on_fail: default_value
-        default_data_value: "str"
-        zone_id: zone
-
-      - column: data2
-        data_type: bytes
-        response_on_fail: default_value
-        default_data_value: "bytes"
-        zone_id: zone
-
-      - column: data3
-        data_type: int32
-        response_on_fail: default_value
-        default_data_value: "123"
-        zone_id: zone
-
-      - column: data4
-        data_type: int64
-        response_on_fail: default_value
-        default_data_value: "123"
-        zone_id: zone
 `,
 			nil},
 	}

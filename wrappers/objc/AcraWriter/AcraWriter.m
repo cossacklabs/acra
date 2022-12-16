@@ -24,7 +24,7 @@ static NSString *kErrorDomain = @"com.CossackLabs.Acra.Error";
 static NSUInteger kSymmetricKeySize = 32;
 static NSUInteger kAcraStructHeaderByte = 34;
 
-- (nullable AcraStruct *)createAcraStructFrom:(nonnull NSData *)message publicKey:(nonnull NSData *)publicKey zoneID:(nullable NSData *)zoneID error:(NSError * __autoreleasing *)error {
+- (nullable AcraStruct *)createAcraStructFrom:(nonnull NSData *)message publicKey:(nonnull NSData *)publicKey additionalContext:(nullable NSData *)additionalContext error:(NSError * __autoreleasing *)error {
   
   if (message == nil || [message length] == 0) {
     *error = [NSError errorWithDomain:kErrorDomain
@@ -60,7 +60,7 @@ static NSUInteger kAcraStructHeaderByte = 34;
     return nil;
   }
   
-  // 3. encrypt random symmetric key using asymmetric encryption with random private key and acra/zone public key
+  // 3. encrypt random symmetric key using asymmetric encryption with random private key and acra public key
   TSMessage * asymetricEncrypter = [[TSMessage alloc] initInEncryptModeWithPrivateKey:keygenEC.privateKey peerPublicKey:publicKey];
   NSData * encryptedRandomSymmKey = [asymetricEncrypter wrapData:symmetricKey
                                                            error:error];
@@ -74,9 +74,9 @@ static NSUInteger kAcraStructHeaderByte = 34;
   // zeroing private key
   [keygenEC.privateKey resetBytesInRange:NSMakeRange(0, [keygenEC.privateKey length])];
   
-  // 4. encrypt payload using symmetric encryption and random symm key
+  // 4. encrypt payload using symmetric encryption and random sym key
   TSCellSeal * symmetricEncrypter = [[TSCellSeal alloc] initWithKey:symmetricKey];
-  NSData * encryptedMessage = [symmetricEncrypter wrapData:message context:zoneID error:error];
+  NSData * encryptedMessage = [symmetricEncrypter wrapData:message context:additionalContext error:error];
   if (*error) {
     *error = [NSError errorWithDomain:kErrorDomain
                                  code:AcraWriterErrorCantEncryptPayload

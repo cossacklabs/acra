@@ -60,27 +60,13 @@ public class AcraWriterTest {
     }
 
     @Test
-    public void testCreateAcraStructWithoutZone() {
+    public void testCreateAcraStruct() {
         AcraWriter aw = new AcraWriter();
         assertNotNull(aw);
 
         try {
             Keypair keypair = KeypairGenerator.generateKeypair(AsymmetricKey.KEYTYPE_EC);
             AcraStruct as = aw.createAcraStruct("message".getBytes(), keypair.getPublicKey(), null);
-        } catch (InvalidArgumentException | KeyGenerationException | NullArgumentException | SecureCellException | IOException e) {
-            assertTrue("Shouldn't be any exceptions", false);
-            e.printStackTrace();
-        }
-    }
-
-    @Test
-    public void testCreateAcraStructWithZone() {
-        AcraWriter aw = new AcraWriter();
-        assertNotNull(aw);
-
-        try {
-            Keypair keypair = KeypairGenerator.generateKeypair(AsymmetricKey.KEYTYPE_EC);
-            AcraStruct as = aw.createAcraStruct("message".getBytes(), keypair.getPublicKey(), "zone ID".getBytes());
         } catch (InvalidArgumentException | KeyGenerationException | NullArgumentException | SecureCellException | IOException e) {
             assertTrue("Shouldn't be any exceptions", false);
             e.printStackTrace();
@@ -109,10 +95,9 @@ public class AcraWriterTest {
             byte[] message = new byte[payloadSize];
             new Random().nextBytes(message);
 
-            byte[] zoneID = "some zone id".getBytes();
             Keypair keypair = KeypairGenerator.generateKeypair(AsymmetricKey.KEYTYPE_EC);
 
-            AcraStruct acraStruct = aw.createAcraStruct(message, keypair.getPublicKey(), zoneID);
+            AcraStruct acraStruct = aw.createAcraStruct(message, keypair.getPublicKey(), null);
 
             byte[] acraStructBytes = acraStruct.toByteArray();
             ByteArrayInputStream stream = new ByteArrayInputStream(acraStructBytes);
@@ -167,7 +152,7 @@ public class AcraWriterTest {
 
             // create decryptor
             SecureCell cell = new SecureCell(decryptedSymmKey);
-            byte[] decryptedData = cell.unprotect(zoneID, new SecureCellData(encryptedData, null));
+            byte[] decryptedData = cell.unprotect(null, new SecureCellData(encryptedData, null));
             assertNotNull("Should be able to decrypt encrypted data", decryptedData);
             assertTrue("Decrypted data should not be empty", decryptedData.length > 0);
 

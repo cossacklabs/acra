@@ -43,7 +43,6 @@ import (
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
 )
@@ -289,18 +288,6 @@ func (store *KeyStore) CacheOnStart() error {
 			if _, err = store.GetClientIDEncryptionPublicKey(desc.ClientID); err != nil {
 				return err
 			}
-		case keystore.PurposeStorageZonePrivateKey:
-			if _, err = store.GetZonePrivateKey(desc.ZoneID); err != nil {
-				return err
-			}
-		case keystore.PurposeStorageZonePublicKey:
-			if _, err = store.GetZonePublicKey(desc.ZoneID); err != nil {
-				return err
-			}
-		case keystore.PurposeStorageZoneSymmetricKey:
-			if _, err = store.GetZoneIDSymmetricKeys(desc.ZoneID); err != nil {
-				return err
-			}
 		default:
 			return ErrUnrecognizedKeyPurpose
 		}
@@ -437,42 +424,6 @@ func (store *KeyStore) backupHistoricalKeyFile(filename string) error {
 		return nil
 	}
 	return store.fs.Copy(filename, backupName)
-}
-
-// generateZoneKey for specific zone id. Will be generated new key pair and private key will be overwrited
-func (store *KeyStore) generateZoneKey(id []byte) ([]byte, []byte, error) {
-	/* save private key in fs, return id and public key*/
-
-	keyContext := keystore.NewZoneIDKeyContext(keystore.PurposeStorageZonePrivateKey, id)
-	keypair, err := store.generateKeyPair(GetZoneKeyFilename(id), keyContext)
-	if err != nil {
-		return []byte{}, []byte{}, err
-	}
-	store.lock.Lock()
-	defer store.lock.Unlock()
-	cacheEncryptedKey, err := store.cacheEncryptor.Encrypt(store.encryptorCtx, keypair.Private.Value, keyContext)
-	if err != nil {
-		return nil, nil, nil
-	}
-	utils.ZeroizePrivateKey(keypair.Private)
-	// cache key
-	store.cache.Add(GetZoneKeyFilename(id), cacheEncryptedKey)
-	return id, keypair.Public.Value, nil
-}
-
-// GenerateZoneKey generates zone ID and zone key pair, encrypts private key using zoneID as context,
-// and saves encrypted PK in the filem returns zoneID and public key.
-// Returns error if generation or encryption fail.
-func (store *KeyStore) GenerateZoneKey() ([]byte, []byte, error) {
-	var id []byte
-	for {
-		// generate until key not exists
-		id = zone.GenerateZoneID()
-		if !store.HasZonePrivateKey(id) {
-			break
-		}
-	}
-	return store.generateZoneKey(id)
 }
 
 // GetPrivateKeyFilePath return path for file with private key with configured folder for store
@@ -636,12 +587,6 @@ func (store *KeyStore) getPublicKeyByFilename(filename string) (*keys.PublicKey,
 	return &keys.PublicKey{Value: binKey}, nil
 }
 
-// GetZonePublicKey return PublicKey by zoneID from cache or load from main store
-func (store *KeyStore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) {
-	fname := store.GetPublicKeyFilePath(getZonePublicKeyFilename(zoneID))
-	return store.getPublicKeyByFilename(fname)
-}
-
 // GetClientIDEncryptionPublicKey return PublicKey by clientID from cache or load from main store
 func (store *KeyStore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
 	fname := store.GetPublicKeyFilePath(
@@ -650,48 +595,6 @@ func (store *KeyStore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.Pu
 			// use correct suffix as type of key
 			[]byte(GetServerDecryptionKeyFilename(clientID))))
 	return store.getPublicKeyByFilename(fname)
-}
-
-// GetZonePrivateKey reads encrypted zone private key from fs, decrypts it with master key and zoneId
-// and returns plaintext private key, or reading/decryption error.
-func (store *KeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
-	fname := GetZoneKeyFilename(id)
-
-	keyContext := keystore.NewZoneIDKeyContext(keystore.PurposeStorageZonePrivateKey, id)
-	return store.getPrivateKeyByFilename(fname, keyContext)
-}
-
-// HasZonePrivateKey returns if private key for this zoneID exists in cache or is written to fs.
-func (store *KeyStore) HasZonePrivateKey(id []byte) bool {
-	if !keystore.ValidateID(id) {
-		return false
-	}
-	// add caching false answers. now if key doesn't exists than always checks on fs
-	// it's system call and slow.
-	if len(id) == 0 {
-		return false
-	}
-	fname := GetZoneKeyFilename(id)
-	store.lock.RLock()
-	defer store.lock.RUnlock()
-	_, ok := store.cache.Get(fname)
-	if ok {
-		return true
-	}
-	exists, _ := store.fs.Exists(store.GetPrivateKeyFilePath(fname))
-	return exists
-}
-
-// GetZonePrivateKeys reads all historical encrypted zone private keys from fs,
-// decrypts them with master key and zoneId, and returns plaintext private keys,
-// or reading/decryption error.
-func (store *KeyStore) GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
-	filenames, err := store.GetHistoricalPrivateKeyFilenames(GetZoneKeyFilename(id))
-	if err != nil {
-		return nil, err
-	}
-	keyContext := keystore.NewZoneIDKeyContext(keystore.PurposeStorageZonePrivateKey, id)
-	return store.getPrivateKeysByFilenames(filenames, keyContext)
 }
 
 // GetPeerPublicKey returns public key for this clientID, gets it from cache or reads from fs.
@@ -942,16 +845,14 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 	if lastKeyPart == "zone" {
 		return &keystore.KeyDescription{
 			ID:      fileInfo.Name(),
-			Purpose: keystore.PurposeStorageZonePrivateKey,
-			ZoneID:  []byte(strings.Join(components[:len(components)-1], "_")),
+			Purpose: keystore.PurposeLegacy,
 		}, nil
 	}
 
 	if lastKeyPart == "zone.pub" {
 		return &keystore.KeyDescription{
 			ID:      fileInfo.Name(),
-			Purpose: keystore.PurposeStorageZonePublicKey,
-			ZoneID:  []byte(strings.Join(components[:len(components)-1], "_")),
+			Purpose: keystore.PurposeLegacy,
 		}, nil
 	}
 
@@ -966,8 +867,7 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 	if penultimateKeyPart == "zone" && lastKeyPart == "sym" {
 		return &keystore.KeyDescription{
 			ID:      fileInfo.Name(),
-			Purpose: keystore.PurposeStorageZoneSymmetricKey,
-			ZoneID:  []byte(strings.Join(components[:len(components)-2], "_")),
+			Purpose: keystore.PurposeLegacy,
 		}, nil
 	}
 
@@ -1101,28 +1001,6 @@ func (store *KeyStore) GetPoisonSymmetricKey() ([]byte, error) {
 	}
 
 	return nil, err
-}
-
-// RotateZoneKey generate new key pair for ZoneId, overwrite private key with new and return new public key
-func (store *KeyStore) RotateZoneKey(zoneID []byte) ([]byte, error) {
-	_, public, err := store.generateZoneKey(zoneID)
-	return public, err
-}
-
-// RotateSymmetricZoneKey generate new symmetric key for ZoneId, overwrite private key with new
-func (store *KeyStore) RotateSymmetricZoneKey(zoneID []byte) error {
-	keyName := getZoneIDSymmetricKeyName(zoneID)
-
-	keyContext := keystore.NewZoneIDKeyContext(keystore.PurposeStorageZoneSymmetricKey, zoneID)
-	return store.generateAndSaveSymmetricKey(store.GetPrivateKeyFilePath(keyName), keyContext)
-}
-
-// SaveZoneKeypair save or overwrite zone keypair
-func (store *KeyStore) SaveZoneKeypair(id []byte, keypair *keys.Keypair) error {
-	filename := GetZoneKeyFilename(id)
-
-	keyContext := keystore.NewZoneIDKeyContext(keystore.PurposeStorageZonePrivateKey, id)
-	return store.SaveKeyPairWithFilename(keypair, filename, keyContext)
 }
 
 // SaveDataEncryptionKeys save or overwrite decryption keypair for client id
@@ -1328,14 +1206,6 @@ func (store *KeyStore) GenerateClientIDSymmetricKey(id []byte) error {
 	return store.generateAndSaveSymmetricKey(store.GetPrivateKeyFilePath(keyName), keyContext)
 }
 
-// GenerateZoneIDSymmetricKey generate symmetric key for specified zone id
-func (store *KeyStore) GenerateZoneIDSymmetricKey(id []byte) error {
-	keyName := getZoneIDSymmetricKeyName(id)
-
-	keyContext := keystore.NewZoneIDKeyContext(keystore.PurposeStorageZoneSymmetricKey, id)
-	return store.generateAndSaveSymmetricKey(store.GetPrivateKeyFilePath(keyName), keyContext)
-}
-
 // GeneratePoisonSymmetricKey generate symmetric key for poison records
 func (store *KeyStore) GeneratePoisonSymmetricKey() error {
 	keyName := getSymmetricKeyName(PoisonKeyFilename)
@@ -1398,21 +1268,5 @@ func (store *KeyStore) GetClientIDSymmetricKey(id []byte) ([]byte, error) {
 	keyName := getClientIDSymmetricKeyName(id)
 
 	keyContext := keystore.NewClientIDKeyContext(keystore.PurposeStorageClientSymmetricKey, id)
-	return store.getLatestSymmetricKey(keyName, keyContext)
-}
-
-// GetZoneIDSymmetricKeys return symmetric keys for specified zone id
-func (store *KeyStore) GetZoneIDSymmetricKeys(id []byte) ([][]byte, error) {
-	keyName := getZoneIDSymmetricKeyName(id)
-
-	keyContext := keystore.NewZoneIDKeyContext(keystore.PurposeStorageZoneSymmetricKey, id)
-	return store.getSymmetricKeys(keyName, keyContext)
-}
-
-// GetZoneIDSymmetricKey return latest symmetric key for encryption in specified zone id
-func (store *KeyStore) GetZoneIDSymmetricKey(id []byte) ([]byte, error) {
-	keyName := getZoneIDSymmetricKeyName(id)
-
-	keyContext := keystore.NewZoneIDKeyContext(keystore.PurposeStorageZoneSymmetricKey, id)
 	return store.getLatestSymmetricKey(keyName, keyContext)
 }

@@ -24,8 +24,7 @@ def register_common_cli_params(parser):
                         help='Host of database or AcraConnector')
     parser.add_argument('--print', action='store_true',
                         default=get_default('print', False),
-                        help='Print data (use --zone_id to set specific ZoneId '
-                             'which will be used to fetch data)')
+                        help='Print data')
     parser.add_argument('--ssl_mode',
                         default=get_default('ssl_mode', False),
                         help='SSL connection mode')
@@ -53,18 +52,6 @@ def get_default(name, value):
     """return value from environment variables with name EXAMPLE_<name>
     or value"""
     return os.environ.get('EXAMPLE_{}'.format(name.upper()), value)
-
-
-def get_zone(sslcontext=None):
-    """make http response to AcraServer api to generate new zone and return tuple
-    of zone id and public key
-    """
-    ACRA_SERVER_API_ADDRESS = get_default(
-        'acra_server_api_address', 'http://127.0.0.1:9191')
-    response = urlopen('{}/getNewZone'.format(ACRA_SERVER_API_ADDRESS), context=sslcontext)
-    json_data = response.read().decode('utf-8')
-    zone_data = json.loads(json_data)
-    return zone_data['id'], b64decode(zone_data['public_key'])
 
 
 def get_engine(db_host, db_port, db_user, db_password, db_name, is_mysql=False, is_postgresql=False, tls_ca=None,

@@ -27,7 +27,7 @@ func (p *TokenProcessor) OnColumn(ctx context.Context, data []byte) (context.Con
 	accessContext := base.AccessContextFromContext(ctx)
 	columnSetting, ok := encryptor.EncryptionSettingFromContext(ctx)
 	if ok && columnSetting.IsTokenized() {
-		tokenContext := common.TokenContext{ClientID: accessContext.GetClientID(), ZoneID: accessContext.GetZoneID()}
+		tokenContext := common.TokenContext{ClientID: accessContext.GetClientID(), AdditionalContext: accessContext.GetAdditionalContext()}
 		data, err := p.tokenizer.Detokenize(data, tokenContext, columnSetting)
 		return ctx, data, err
 	}

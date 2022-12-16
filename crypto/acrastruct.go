@@ -8,8 +8,6 @@ import (
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/themis/gothemis/keys"
-
 	"github.com/sirupsen/logrus"
 )
 
@@ -48,29 +46,19 @@ func (handler AcraStructHandler) Decrypt(data []byte, context *base.DataProcesso
 		return data, err
 	}
 
-	var privateKeys []*keys.PrivateKey
-	var err error
 	accessContext := base.AccessContextFromContext(context.Context)
-	var zoneID []byte
-
-	if accessContext.IsWithZone() {
-		privateKeys, err = context.Keystore.GetZonePrivateKeys(accessContext.GetZoneID())
-		zoneID = accessContext.GetZoneID()
-	} else {
-		privateKeys, err = context.Keystore.GetServerDecryptionPrivateKeys(accessContext.GetClientID())
-	}
+	privateKeys, err := context.Keystore.GetServerDecryptionPrivateKeys(accessContext.GetClientID())
 	defer utils.ZeroizePrivateKeys(privateKeys)
 	if err != nil {
 		logger.WithError(err).WithFields(
 			logrus.Fields{
 				logging.FieldKeyEventCode: logging.EventCodeErrorCantReadKeys,
 				"client_id":               string(accessContext.GetClientID()),
-				"zone_id":                 string(accessContext.GetZoneID()),
 			}).
 			Debugln("Probably error occurred because: 1. used not appropriate TLS certificate or acra-server configured with inappropriate --client_id=<client_id>; 2. forgot to generate keys for your TLS certificate (or with specified client_id); 3. incorrectly configured keystore: incorrect path to folder or Redis database's number")
-		return []byte{}, fmt.Errorf("can't read private key for matched client_id/zone_id to decrypt AcraStruct: %w", err)
+		return []byte{}, fmt.Errorf("can't read private key for matched client_id to decrypt AcraStruct: %w", err)
 	}
-	return acrastruct.DecryptRotatedAcrastruct(data, privateKeys, zoneID)
+	return acrastruct.DecryptRotatedAcrastruct(data, privateKeys, nil)
 }
 
 // EncryptWithClientID implementation of ContainerHandler method
@@ -85,17 +73,4 @@ func (handler AcraStructHandler) EncryptWithClientID(clientID, data []byte, cont
 	}
 	return acrastruct.CreateAcrastruct(data, publicKey, nil)
 
-}
-
-// EncryptWithZoneID implementation of ContainerHandler method
-func (handler AcraStructHandler) EncryptWithZoneID(zoneID, data []byte, context *encryptor.DataEncryptorContext) ([]byte, error) {
-	if err := acrastruct.ValidateAcraStructLength(data); err == nil {
-		return data, nil
-	}
-	publicKey, err := context.Keystore.GetZonePublicKey(zoneID)
-	if err != nil {
-		logrus.WithError(err).WithField("zone_id", zoneID).WithField("handler", handler.Name()).Warningln("Can't read private key for matched zone_id")
-		return nil, err
-	}
-	return acrastruct.CreateAcrastruct(data, publicKey, zoneID)
 }

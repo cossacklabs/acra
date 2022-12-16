@@ -57,39 +57,6 @@ func (s *ServerKeyStore) GetClientIDSymmetricKey(clientID []byte) ([]byte, error
 	return symmetricKey, nil
 }
 
-// GetZoneIDSymmetricKeys retrieves all symmetric keys used to decrypt data in given zone.
-// The keys are returned from newest to oldest.
-func (s *ServerKeyStore) GetZoneIDSymmetricKeys(zoneID []byte) ([][]byte, error) {
-	log := s.log.WithField("zoneID", zoneID)
-	ring, err := s.OpenKeyRing(s.zoneStorageSymmetricKeyPath(zoneID))
-	if err != nil {
-		log.WithError(err).Debug("Failed to open symmetric storage key ring for zone")
-		return nil, err
-	}
-	symmetricKeys, err := s.allSymmetricKeys(ring)
-	if err != nil {
-		log.WithError(err).Debug("Failed to get storage symmetric keys for zone")
-		return nil, err
-	}
-	return symmetricKeys, nil
-}
-
-// GetZoneIDSymmetricKey retrieves latest symmetric key used to encrypt data in given zone
-func (s *ServerKeyStore) GetZoneIDSymmetricKey(zoneID []byte) ([]byte, error) {
-	log := s.log.WithField("zoneID", zoneID)
-	ring, err := s.OpenKeyRing(s.zoneStorageSymmetricKeyPath(zoneID))
-	if err != nil {
-		log.WithError(err).Debug("Failed to open symmetric storage key ring for zone")
-		return nil, err
-	}
-	symmetricKey, err := s.currentSymmetricKey(ring)
-	if err != nil {
-		log.WithError(err).Debug("Failed to get current storage symmetric key for zone")
-		return nil, err
-	}
-	return symmetricKey, nil
-}
-
 //
 // SymmetricEncryptionKeyStoreGenerator interface
 //
@@ -100,10 +67,6 @@ const (
 
 func (s *ServerKeyStore) clientStorageSymmetricKeyPath(clientID []byte) string {
 	return filepath.Join(clientPrefix, string(clientID), storageSymmetricSuffix)
-}
-
-func (s *ServerKeyStore) zoneStorageSymmetricKeyPath(zoneID []byte) string {
-	return filepath.Join(zonePrefix, string(zoneID), storageSymmetricSuffix)
 }
 
 // GenerateClientIDSymmetricKey generates new storage symmetric key used by given client.
@@ -132,37 +95,6 @@ func (s *ServerKeyStore) importClientIDSymmetricKey(clientID []byte, storageKey 
 	err = s.addCurrentSymmetricKey(ring, storageKey)
 	if err != nil {
 		log.WithError(err).Debug("Failed to add storage symmetric key for client")
-		return err
-	}
-	return nil
-}
-
-// GenerateZoneIDSymmetricKey generates new storage symmetric key used in given zone.
-func (s *ServerKeyStore) GenerateZoneIDSymmetricKey(zoneID []byte) error {
-	log := s.log.WithField("zoneID", zoneID)
-	ring, err := s.OpenKeyRingRW(s.zoneStorageSymmetricKeyPath(zoneID))
-	if err != nil {
-		log.WithError(err).Debug("Failed to open symmetric storage key ring for zone")
-		return err
-	}
-	_, err = s.newCurrentSymmetricKey(ring)
-	if err != nil {
-		log.WithError(err).Debug("Failed to generate storage symmetric key for zone")
-		return err
-	}
-	return nil
-}
-
-func (s *ServerKeyStore) importZoneIDSymmetricKey(zoneID []byte, storageKey []byte) error {
-	log := s.log.WithField("zoneID", zoneID)
-	ring, err := s.OpenKeyRingRW(s.zoneStorageSymmetricKeyPath(zoneID))
-	if err != nil {
-		log.WithError(err).Debug("Failed to open symmetric storage key ring for zone")
-		return err
-	}
-	err = s.addCurrentSymmetricKey(ring, storageKey)
-	if err != nil {
-		log.WithError(err).Debug("Failed to add storage symmetric key for zone")
 		return err
 	}
 	return nil

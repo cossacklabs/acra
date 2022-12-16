@@ -85,7 +85,7 @@ func TestSServer_StartServer(t *testing.T) {
 	serverStop := make(chan struct{})
 	go func() {
 		t.Log("Start server")
-		err = server.StartServer(ctx, &group, false, false)
+		err = server.StartServer(ctx, &group, false)
 		if err != nil {
 			t.Log("Server error")
 			t.Fatal(err)

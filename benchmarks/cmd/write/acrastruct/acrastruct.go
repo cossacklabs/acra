@@ -23,7 +23,7 @@ import (
 
 func main() {
 	db := common.Connect()
-	common.DropCreateWithoutZone(db)
+	common.DropCreate(db)
 
 	write.CheckOneKey()
 	publicKey := write.GetPublicOneKey()

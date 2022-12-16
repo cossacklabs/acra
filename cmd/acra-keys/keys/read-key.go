@@ -34,16 +34,12 @@ var SupportedReadKeyKinds = []string{
 	KeyPoisonPrivate,
 	KeyStoragePublic,
 	KeyStoragePrivate,
-	KeyZonePublic,
-	KeyZonePrivate,
 	KeySymmetric,
-	KeyZoneSymmetric,
 }
 
 // Key parameter errors:
 var (
 	ErrMissingClientID             = errors.New("client ID not specified")
-	ErrMissingZoneID               = errors.New("zone ID not specified")
 	ErrUnknownKeyKind              = errors.New("unknown key kind")
 	ErrMissingKeyPart              = errors.New("key part not specified")
 	ErrExtraKeyPart                = errors.New("both key parts specified")
@@ -55,7 +51,6 @@ var (
 type ReadKeyParams interface {
 	ReadKeyKind() string
 	ClientID() []byte
-	ZoneID() []byte
 }
 
 // ReadKeySubcommand is the "acra-keys read" subcommand.
@@ -116,7 +111,7 @@ func (p *ReadKeySubcommand) Parse(arguments []string) error {
 		return err
 	}
 	switch coarseKind {
-	case KeySymmetric, KeyZoneSymmetric:
+	case KeySymmetric:
 		p.readKeyKind = coarseKind
 		p.contextID = id
 
@@ -141,16 +136,6 @@ func (p *ReadKeySubcommand) Parse(arguments []string) error {
 		}
 		p.contextID = id
 
-	case KeyZoneKeypair:
-		if err := p.validateKeyParts(); err != nil {
-			return err
-		}
-		if p.private {
-			p.readKeyKind = KeyZonePrivate
-		} else {
-			p.readKeyKind = KeyZonePublic
-		}
-		p.contextID = id
 	default:
 		return ErrUnknownKeyKind
 	}
@@ -185,11 +170,6 @@ func (p *ReadKeySubcommand) ReadKeyKind() string {
 
 // ClientID returns client ID of the requested key.
 func (p *ReadKeySubcommand) ClientID() []byte {
-	return p.contextID
-}
-
-// ZoneID returns zone ID of the requested key.
-func (p *ReadKeySubcommand) ZoneID() []byte {
 	return p.contextID
 }
 
@@ -229,32 +209,8 @@ func ReadKeyBytes(params ReadKeyParams, keyStore keystore.ServerKeyStore) ([]byt
 		}
 		return key.Value, nil
 
-	case KeyZonePublic:
-		key, err := keyStore.GetZonePublicKey(params.ZoneID())
-		if err != nil {
-			log.WithError(err).Error("Cannot read zone storage public key")
-			return nil, err
-		}
-		return key.Value, nil
-
-	case KeyZonePrivate:
-		key, err := keyStore.GetZonePrivateKey(params.ZoneID())
-		if err != nil {
-			log.WithError(err).Error("Cannot read zone storage private key")
-			return nil, err
-		}
-		return key.Value, nil
-
 	case KeySymmetric:
 		key, err := keyStore.GetClientIDSymmetricKey(params.ClientID())
-		if err != nil {
-			log.WithError(err).Error("Cannot read client symmetric key")
-			return nil, err
-		}
-		return key, nil
-
-	case KeyZoneSymmetric:
-		key, err := keyStore.GetZoneIDSymmetricKey(params.ZoneID())
 		if err != nil {
 			log.WithError(err).Error("Cannot read client symmetric key")
 			return nil, err

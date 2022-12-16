@@ -62,8 +62,7 @@ table_map = {
 
 
 def print_data(connection, columns, table=test_table):
-    """fetch data from database (use zone_id if not empty/None) and print to
-    console"""
+    """fetch data from database and print to console"""
     default_columns = ['id']
     try:
         if columns:
