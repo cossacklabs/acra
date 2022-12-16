@@ -22,13 +22,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/cossacklabs/acra/sqlparser/dependency/querypb"
 	"github.com/cossacklabs/acra/sqlparser/dependency/sqltypes"
 	"github.com/cossacklabs/acra/sqlparser/dialect"
 	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
 	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
-	"strconv"
-	"strings"
 )
 
 //go:generate goyacc -o sql.go sql.y
@@ -794,7 +795,6 @@ func NewPreparedQueryFromString(query string) (PreparedQuery, error) {
 	default:
 		return nil, nil
 	}
-	return nil, nil
 }
 
 // UsingInExecuteList is a set of case sensitive SQL identifiers
@@ -1131,7 +1131,9 @@ const (
 	InStr                = "in"
 	NotInStr             = "not in"
 	LikeStr              = "like"
+	ILikeStr             = "ilike"
 	NotLikeStr           = "not like"
+	NotILikeStr          = "not ilike"
 	RegexpStr            = "regexp"
 	NotRegexpStr         = "not regexp"
 	JSONExtractOp        = "->"
@@ -1677,9 +1679,28 @@ const (
 	AscNullsLastScr   = "asc nulls last"
 )
 
+// LimitType represents type of statements format
+type LimitType int8
+
+const (
+	// LimitTypeLimitOnly is type of LIMIT row_count format
+	LimitTypeLimitOnly LimitType = iota
+	//LimitTypeCommaSeparated is type of  LIMIT {[offset,] row_count}, MySQL format
+	// https://dev.mysql.com/doc/refman/8.0/en/select.html
+	LimitTypeCommaSeparated
+	// LimitTypeLimitAndOffset is type of LIMIT row_count OFFSET offset
+	LimitTypeLimitAndOffset
+	// LimitTypeLimitAll is type of LIMIT ALL, PostgreSQL format
+	// https://www.postgresql.org/docs/current/sql-select.html#SQL-LIMIT
+	LimitTypeLimitAll
+	// LimitTypeLimitAllAndOffset is type of LIMIT ALL OFFSET offset
+	LimitTypeLimitAllAndOffset
+)
+
 // Limit represents a LIMIT clause.
 type Limit struct {
 	Offset, Rowcount Expr
+	Type             LimitType
 }
 
 // Values represents a VALUES clause.
@@ -1706,17 +1727,25 @@ type SetExpr struct {
 // OnDup represents an ON DUPLICATE KEY clause.
 type OnDup UpdateExprs
 
-// Returning represents RETURNING clause from postgresql syntex
-type Returning Exprs
+// Returning represents RETURNING clause from postgresql syntax
+type Returning SelectExprs
 
-// replace implement Expr interface
-func (node Returning) replace(from, to Expr) bool {
-	for i := range node {
-		if replaceExprs(from, to, &node[i]) {
-			return true
+// Format formats the node.
+func (node Returning) Format(buf *TrackedBuffer) {
+	prefix := " returning "
+	for _, n := range node {
+		buf.Myprintf("%s%v", prefix, n)
+		prefix = ", "
+	}
+}
+
+func (node Returning) walkSubtree(visit Visit) error {
+	for _, n := range node {
+		if err := Walk(visit, n); err != nil {
+			return err
 		}
 	}
-	return false
+	return nil
 }
 
 // ColIdent is a case insensitive SQL identifier. It will be escaped with

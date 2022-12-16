@@ -1,11 +1,15 @@
 package encryptor
 
 import (
+	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
+	"testing"
+
 	"github.com/cossacklabs/acra/decryptor/base/mocks"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
+	"github.com/cossacklabs/acra/sqlparser/dialect"
+	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
 	"github.com/stretchr/testify/mock"
-	"testing"
 )
 
 func TestGetFirstTableWithoutAlias(t *testing.T) {
@@ -50,6 +54,26 @@ func TestGetFirstTableWithoutAlias(t *testing.T) {
 func TestMapColumnsToAliases(t *testing.T) {
 	parser := sqlparser.New(sqlparser.ModeStrict)
 	t.Run("With enumeration fields query", func(t *testing.T) {
+
+		testConfig := `
+schemas:
+  - table: table5
+    columns:
+      - col5
+    encrypted:
+      - column: col5
+
+  - table: table6
+    columns:
+      - col6
+    encrypted:
+      - column: col6
+`
+		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(testConfig), config.UseMySQL)
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		query := `
 select t1.col1, t1.col2, t2.col1, t2.col2, t3.col1, t4.col4, col5, table6.col6
 from table5, table6
@@ -85,7 +109,7 @@ inner join table6 on table6.col1=t1.col1
 		if !ok {
 			t.Fatal("Test query should be Select expression")
 		}
-		columns, err := mapColumnsToAliases(selectExpr)
+		columns, err := mapColumnsToAliases(selectExpr, schemaStore)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -100,6 +124,131 @@ inner join table6 on table6.col1=t1.col1
 
 			if *column != expectedValues[i] {
 				t.Fatalf("[%d] Column info is not equal to expected - %+v, actual - %+v", i, expectedValues[i], *column)
+			}
+		}
+	})
+	t.Run("with aliased table and non-aliased colum name", func(t *testing.T) {
+		testConfig := `
+schemas:
+  - table: users
+    columns:
+      - id
+      - email
+      - mobile_number
+    encrypted:
+      - column: id
+
+  - table: users_duplicate
+    columns:
+      - id
+      - email
+      - mobile_number
+    encrypted:
+      - column: id
+
+  - table: users_temp
+    columns:
+      - id_tmp
+      - email_tmp
+      - mobile_number_tmp
+    encrypted:
+      - column: id_tmp
+`
+		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(testConfig), config.UseMySQL)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		testcases := []struct {
+			query          string
+			dialect        dialect.Dialect
+			expectedValues []*columnInfo
+		}{
+			{
+				query: `SELECT "id", "email", "mobile_number" AS "mobileNumber" FROM "users" AS "User" where "User"."is_active"`,
+				expectedValues: []*columnInfo{
+					{Alias: "User", Table: "users", Name: "id"},
+					{Alias: "User", Table: "users", Name: "email"},
+					{Alias: "User", Table: "users", Name: "mobile_number"},
+				},
+			},
+			{
+				query: `SELECT "id", "email", "mobile_number" AS "mobileNumber" FROM "users" AS "User", "table1" as "test_table"`,
+				expectedValues: []*columnInfo{
+					{Alias: "User", Table: "users", Name: "id"},
+					{Alias: "User", Table: "users", Name: "email"},
+					{Alias: "User", Table: "users", Name: "mobile_number"},
+				},
+			},
+			{
+				query: `SELECT "id", "email", "mobile_number" AS "mobileNumber" FROM "users" AS "User", "users_duplicate" as "User2"`,
+				expectedValues: []*columnInfo{
+					nil, nil, nil,
+				},
+			},
+			{
+				query: `SELECT "id", "email", "mobile_number", "id_tmp", "email_tmp", "mobile_number_tmp"  AS "mobileNumber" FROM "users" AS "User", "users_temp" as "temp"`,
+				expectedValues: []*columnInfo{
+					{Alias: "User", Table: "users", Name: "id"},
+					{Alias: "User", Table: "users", Name: "email"},
+					{Alias: "User", Table: "users", Name: "mobile_number"},
+					{Alias: "temp", Table: "users_temp", Name: "id_tmp"},
+					{Alias: "temp", Table: "users_temp", Name: "email_tmp"},
+					{Alias: "temp", Table: "users_temp", Name: "mobile_number_tmp"},
+				},
+			},
+			{
+				query:   `SELECT id, email, mobile_number FROM users AS alias where alias.is_active`,
+				dialect: mysql.NewMySQLDialect(),
+				expectedValues: []*columnInfo{
+					{Alias: "alias", Table: "users", Name: "id"},
+					{Alias: "alias", Table: "users", Name: "email"},
+					{Alias: "alias", Table: "users", Name: "mobile_number"},
+				},
+			},
+			{
+				// should return nil, nil, nil as all the columns present in both tables which is invalid
+				query:   `SELECT id, email, mobile_number FROM users, users_duplicate`,
+				dialect: mysql.NewMySQLDialect(),
+				expectedValues: []*columnInfo{
+					nil, nil, nil,
+				},
+			},
+		}
+		for i, tcase := range testcases {
+			var dialect dialect.Dialect = postgresql.NewPostgreSQLDialect()
+			if tcase.dialect != nil {
+				dialect = tcase.dialect
+			}
+			sqlparser.SetDefaultDialect(dialect)
+
+			parsed, err := parser.Parse(tcase.query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			selectExpr, ok := parsed.(*sqlparser.Select)
+			if !ok {
+				t.Fatal("Test query should be Select expression")
+			}
+			columns, err := mapColumnsToAliases(selectExpr, schemaStore)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(columns) != len(tcase.expectedValues) {
+				t.Fatal("Returned incorrect length of values")
+			}
+
+			for y, column := range columns {
+				if column == nil {
+					if tcase.expectedValues[y] != nil {
+						t.Fatalf("[%d] expected nil column value ", i)
+					}
+					continue
+				}
+
+				if *column != *tcase.expectedValues[y] {
+					t.Fatalf("[%d] Column info is not equal to expected - %+v, actual - %+v", i, tcase.expectedValues[i], *column)
+				}
 			}
 		}
 	})
@@ -168,7 +317,7 @@ inner join table6 on table6.col1=t1.col1
 				t.Fatal("Test query should be Select expression")
 			}
 
-			columns, err := mapColumnsToAliases(selectExpr)
+			columns, err := mapColumnsToAliases(selectExpr, &config.MapTableSchemaStore{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -226,7 +375,7 @@ inner join table6 on table6.col1=t1.col1
 				t.Fatal("Test query should be Select expression")
 			}
 
-			columns, err := mapColumnsToAliases(selectExpr)
+			columns, err := mapColumnsToAliases(selectExpr, &config.MapTableSchemaStore{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -261,7 +410,7 @@ inner join table6 on table6.col1=t1.col1
 
 		expectedValue := columnInfo{Alias: "*", Table: "test_table", Name: "*"}
 
-		columns, err := mapColumnsToAliases(selectExpr)
+		columns, err := mapColumnsToAliases(selectExpr, &config.MapTableSchemaStore{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -282,6 +431,25 @@ inner join table6 on table6.col1=t1.col1
 	})
 
 	t.Run("Asterisk query with subQuery", func(t *testing.T) {
+		testConfig := `
+schemas:
+  - table: table2
+    columns:
+      - value
+    encrypted:
+      - column: value
+
+  - table: table3
+    columns:
+      - value
+    encrypted:
+      - column: value
+`
+		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(testConfig), config.UseMySQL)
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		queries := []string{
 			`select (select value from table2), (select value from table3), * from table1;`,
 		}
@@ -307,7 +475,7 @@ inner join table6 on table6.col1=t1.col1
 				t.Fatal("Test query should be Select expression")
 			}
 
-			columns, err := mapColumnsToAliases(selectExpr)
+			columns, err := mapColumnsToAliases(selectExpr, schemaStore)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -345,7 +513,7 @@ inner join table6 on table6.col1=t1.col1
 			{Alias: allColumnsName, Table: "test_table", Name: allColumnsName},
 		}
 
-		columns, err := mapColumnsToAliases(selectExpr)
+		columns, err := mapColumnsToAliases(selectExpr, &config.MapTableSchemaStore{})
 		if err != nil {
 			t.Fatal(err)
 		}

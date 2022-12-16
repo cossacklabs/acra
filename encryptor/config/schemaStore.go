@@ -20,6 +20,12 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// UseMySQL represent constant for switching mode of encryptor config
+const (
+	UseMySQL      = true
+	UsePostgreSQL = false
+)
+
 // TableSchemaStore fetches schema for encryptable tables in the database.
 type TableSchemaStore interface {
 	GetDatabaseSettings() DatabaseSettings
@@ -69,7 +75,7 @@ func NewMapTableSchemaStore() (*MapTableSchemaStore, error) {
 }
 
 // MapTableSchemaStoreFromConfig parse config and return MapTableSchemaStore with data from config
-func MapTableSchemaStoreFromConfig(config []byte) (*MapTableSchemaStore, error) {
+func MapTableSchemaStoreFromConfig(config []byte, useMySQL bool) (*MapTableSchemaStore, error) {
 	storeConfig := &storeConfig{}
 	if err := yaml.Unmarshal(config, &storeConfig); err != nil {
 		return nil, err
@@ -87,7 +93,7 @@ func MapTableSchemaStoreFromConfig(config []byte) (*MapTableSchemaStore, error) 
 	for _, schema := range storeConfig.Schemas {
 		for _, setting := range schema.EncryptionColumnSettings {
 			setting.applyDefaults(*storeConfig.Defaults)
-			if err := setting.Init(); err != nil {
+			if err := setting.Init(useMySQL); err != nil {
 				return nil, err
 			}
 

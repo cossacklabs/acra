@@ -44,6 +44,7 @@ type ColumnEncryptionSetting interface {
 	ColumnName() string
 	ClientID() []byte
 
+	GetDBDataTypeID() uint32
 	GetEncryptedDataType() common2.EncryptedType
 	GetDefaultDataValue() *string
 	GetResponseOnFail() common2.ResponseOnFail

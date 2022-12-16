@@ -3,9 +3,17 @@ package aws
 import (
 	"context"
 	"errors"
-	baseKMS "github.com/cossacklabs/acra/keystore/kms/base"
 	"strings"
+	"time"
+
+	baseKMS "github.com/cossacklabs/acra/keystore/kms/base"
+	log "github.com/sirupsen/logrus"
 )
+
+// ErrAliasIsNotAppliedToKey describe the error returned if AWS KMS cant applied alias for created key
+var ErrAliasIsNotAppliedToKey = errors.New("error creating alias for KMS key")
+
+const createAliasCheckAttempts = 10
 
 // KeyManager is AWS implementation of kms.KeyManager
 type KeyManager struct {
@@ -43,9 +51,26 @@ func (k *KeyManager) CreateKey(ctx context.Context, metaData baseKMS.CreateKeyMe
 		return nil, err
 	}
 
-	return &baseKMS.KeyMetadata{
-		KeyID: *keyMetadata.Arn,
-	}, nil
+	// wait some time for alias to be active
+	for i := 0; i < createAliasCheckAttempts; i++ {
+		keyExist, err := k.IsKeyExist(ctx, metaData.KeyName)
+		if err != nil {
+			return nil, err
+		}
+
+		if keyExist {
+			log.WithField("alias", getAliasedName(metaData.KeyName)).WithField("keyId", keyMetadata.KeyId).
+				Info("KMS key Alias created")
+			return &baseKMS.KeyMetadata{
+				KeyID: *keyMetadata.Arn,
+			}, nil
+		}
+
+		log.WithField("key", metaData.KeyName).WithField("attempt", i).Info("Key Alias existence checking")
+		time.Sleep(time.Millisecond * 100)
+	}
+
+	return nil, ErrAliasIsNotAppliedToKey
 }
 
 // IsKeyExist check if key is present on KMS

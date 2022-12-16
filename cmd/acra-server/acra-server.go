@@ -52,6 +52,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/mysql"
 	"github.com/cossacklabs/acra/decryptor/postgresql"
+	"github.com/cossacklabs/acra/encryptor/config_loader"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
@@ -66,7 +67,6 @@ import (
 	"github.com/cossacklabs/acra/pseudonymization/storage"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
-
 	log "github.com/sirupsen/logrus"
 	bolt "go.etcd.io/bbolt"
 )
@@ -158,12 +158,13 @@ func realMain() error {
 	censorConfig := flag.String("acracensor_config_file", "", "Path to AcraCensor configuration file")
 	boltTokebDB := flag.String("token_db", "", "Path to BoltDB database file to store tokens")
 
-	encryptorConfig := flag.String("encryptor_config_file", "", "Path to Encryptor configuration file")
+	encryptorConfigStorageType := flag.String("encryptor_config_storage_type", config_loader.EncryptoConfigStorageTypeFilesystem, fmt.Sprintf("Encryptor configuration file storage types: <%s", strings.Join(config_loader.SupportedEncryptorConfigStorages, "|")))
 
 	enableAuditLog := flag.Bool("audit_log_enable", false, "Enable audit log functionality")
 	cmd.RegisterRedisKeystoreParameters()
 	cmd.RegisterRedisTokenStoreParameters()
 	keyloader.RegisterKeyStoreStrategyParameters()
+	config_loader.RegisterEncryptorConfigLoaderParameters()
 	cmd.RegisterTracingCmdParameters()
 	cmd.RegisterJaegerCmdParameters()
 	logging.RegisterCLIArgs()
@@ -240,19 +241,18 @@ func realMain() error {
 	}
 	serverConfig.SetDBConnectionSettings(*dbHost, *dbPort)
 
-	if *encryptorConfig != "" {
-		log.Infof("Load encryptor configuration from %s ...", *encryptorConfig)
-		if err := serverConfig.LoadMapTableSchemaConfig(*encryptorConfig); err != nil {
-			log.WithError(err).Errorln("Can't load encryptor config")
-			return err
-		}
-		log.Infoln("Encryptor configuration loaded")
-	}
-
 	if err := serverConfig.SetDatabaseType(*useMysql, *usePostgresql); err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
 			Errorln("Can't configure database type")
 		return err
+	}
+
+	if config_loader.IsEncryptorConfigLoaderCLIConfigured() {
+		if err := serverConfig.LoadMapTableSchemaConfig(*encryptorConfigStorageType, *useMysql); err != nil {
+			log.WithError(err).Errorln("Can't load encryptor config")
+			return err
+		}
+		log.Infoln("Encryptor configuration loaded")
 	}
 
 	if err := serverConfig.SetCensor(*censorConfig); err != nil {
@@ -748,9 +748,14 @@ func realMain() error {
 
 	log.Infof("Start listening to connections. Current PID: %v", os.Getpid())
 
+	// by default should be false
+	sqlparser.SetTokenizerVerbosity(false)
+	sqlparser.SetSQLParserErrorVerboseLevel(false)
 	if *debug {
 		log.Infof("Enabling DEBUG log level")
 		logging.SetLogLevel(logging.LogDebug)
+		sqlparser.SetSQLParserErrorVerboseLevel(true)
+		sqlparser.SetTokenizerVerbosity(true)
 	} else if *verbose {
 		log.Infof("Enabling VERBOSE log level")
 		logging.SetLogLevel(logging.LogVerbose)

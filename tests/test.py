@@ -29,6 +29,8 @@ import socket
 import ssl
 import stat
 import subprocess
+
+import consul
 import sys
 import tempfile
 import time
@@ -42,6 +44,7 @@ from urllib.request import urlopen
 
 import asyncpg
 import boto3
+import base64
 import grpc
 import mysql.connector
 import psycopg as psycopg3
@@ -131,7 +134,9 @@ else:
 COLUMN_DATA_SIZE = (TEST_RANDOM_DATA_CONFIG['data_max_size'] + 200) * 2
 metadata = sa.MetaData()
 test_table = sa.Table('test', metadata,
-    sa.Column('id', sa.Integer, primary_key=True),
+    # sometimes MariaDB ignores explicitly set ID and uses auto incremented values
+    # in most of tests we epxlicitly set id value
+    sa.Column('id', sa.Integer, primary_key=True, autoincrement=False),
     sa.Column('data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
     sa.Column('raw_data', sa.Text),
     sa.Column('nullable_column', sa.Text, nullable=True),
@@ -148,9 +153,12 @@ KEYS_FOLDER = None
 ACRA_MASTER_KEY_VAR_NAME = 'ACRA_MASTER_KEY'
 MASTER_KEY_PATH = '/tmp/acra-test-master.key'
 TEST_WITH_VAULT = os.environ.get('TEST_WITH_VAULT', 'off').lower() == 'on'
+TEST_CONSUL_ENCRYPTOR_CONFIG = os.environ.get('TEST_CONSUL_ENCRYPTOR_CONFIG', 'off').lower() == 'on'
 TEST_WITH_AWS_KMS = os.environ.get('TEST_WITH_AWS_KMS', 'off').lower() == 'on'
 TEST_SSL_VAULT = os.environ.get('TEST_SSL_VAULT', 'off').lower() == 'on'
+TEST_SSL_CONSUL = os.environ.get('TEST_SSL_CONSUL', 'off').lower() == 'on'
 TEST_VAULT_TLS_CA = abs_path(os.environ.get('TEST_VAULT_TLS_CA', 'tests/ssl/ca/ca.crt'))
+TEST_CONSUL_TLS_CA = abs_path(os.environ.get('TEST_CONSUL_TLS_CA', 'tests/ssl/ca/ca.crt'))
 VAULT_KV_ENGINE_VERSION=os.environ.get('VAULT_KV_ENGINE_VERSION', 'v1')
 CRYPTO_ENVELOPE_HEADER = b'%%%'
 
@@ -190,6 +198,7 @@ if TEST_MYSQL or TEST_MARIADB:
     TEST_MYSQL = True
     connect_args = {
         'user': DB_USER, 'password': DB_USER_PASSWORD,
+        'database': DB_NAME,
         'read_timeout': SOCKET_CONNECT_TIMEOUT,
         'write_timeout': SOCKET_CONNECT_TIMEOUT,
     }
@@ -517,7 +526,8 @@ def get_engine_connection_string(connection_string, dbname):
     addr = urlparse(connection_string)
     port = addr.port
     if connection_string.startswith('tcp'):
-        return get_postgresql_tcp_connection_string(port, dbname)
+        # we should not change hostname becase connection_string may be for acra-server or database
+        return get_postgresql_tcp_connection_string(port, dbname, host=addr.hostname)
     else:
         port = re.search(r'\.s\.PGSQL\.(\d+)', addr.path)
         if port:
@@ -529,8 +539,8 @@ def get_postgresql_unix_connection_string(port, dbname):
     return '{}:///{}?host={}&port={}'.format(DB_DRIVER, dbname, PG_UNIX_HOST, port)
 
 
-def get_postgresql_tcp_connection_string(port, dbname):
-    return '{}://localhost:{}/{}'.format(DB_DRIVER, port, dbname)
+def get_postgresql_tcp_connection_string(port, dbname, host=DB_HOST):
+    return '{}://{}:{}/{}'.format(DB_DRIVER, host, port, dbname)
 
 
 def get_tcp_connection_string(port):
@@ -749,6 +759,7 @@ def drop_tables():
                 '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
                 connect_args=connect_args)
     metadata.drop_all(engine_raw)
+    engine_raw.dispose()
 
 
 # Set this to False to not rebuild binaries on setup.
@@ -949,9 +960,6 @@ class AsyncpgExecutor(QueryExecutor):
     TextFormat = 'text'
     BinaryFormat = 'binary'
 
-    def _connect(self, loop):
-        return loop.run_until_complete(self.connect())
-
     async def connect(self):
         ssl_context = ssl.create_default_context(cafile=self.connection_args.ssl_ca)
         ssl_context.load_cert_chain(self.connection_args.ssl_cert, self.connection_args.ssl_key)
@@ -963,55 +971,53 @@ class AsyncpgExecutor(QueryExecutor):
                 ssl=ssl_context,
             **asyncpg_connect_args)
 
-    def _set_text_format(self, conn):
+    async def _set_text_format(self, conn):
         """Force text format to numeric types."""
-        loop = asyncio.get_event_loop()
         for pg_type in ['int2', 'int4', 'int8']:
-            loop.run_until_complete(
-                conn.set_type_codec(pg_type,
+          await conn.set_type_codec(pg_type,
                     schema='pg_catalog',
                     encoder=str,
                     decoder=int,
                     format='text')
-            )
         for pg_type in ['float4', 'float8']:
-            loop.run_until_complete(
-                conn.set_type_codec(pg_type,
+            await conn.set_type_codec(pg_type,
                     schema='pg_catalog',
                     encoder=str,
                     decoder=float,
                     format='text')
-            )
 
     def execute_prepared_statement(self, query, args=None):
+        async def _execute_prepared_statement():
+            conn = await self.connect()
+            try:
+                if self.connection_args.format == self.TextFormat:
+                    await self._set_text_format(conn)
+                stmt = await conn.prepare(query, timeout=STATEMENT_TIMEOUT)
+                result = await stmt.fetch(*args, timeout=STATEMENT_TIMEOUT)
+                return result
+            finally:
+                await conn.close()
         if not args:
             args = []
-        loop = asyncio.get_event_loop()
-        conn = self._connect(loop)
-        if self.connection_args.format == self.TextFormat:
-            self._set_text_format(conn)
-        try:
-            stmt = loop.run_until_complete(
-                conn.prepare(query, timeout=STATEMENT_TIMEOUT))
-            result = loop.run_until_complete(
-                stmt.fetch(*args, timeout=STATEMENT_TIMEOUT))
+        with contextlib.closing(asyncio.new_event_loop()) as loop:
+            result = loop.run_until_complete(_execute_prepared_statement())
             return result
-        finally:
-            conn.terminate()
 
     def execute(self, query, args=None):
+        async def _execute():
+            conn = await self.connect()
+            try:
+                if self.connection_args.format == self.TextFormat:
+                    await self._set_text_format(conn)
+                result = await conn.fetch(query, *args, timeout=STATEMENT_TIMEOUT)
+                return result
+            finally:
+                await conn.close()
         if not args:
             args = []
-        loop = asyncio.get_event_loop()
-        conn = self._connect(loop)
-        if self.connection_args.format == self.TextFormat:
-            self._set_text_format(conn)
-        try:
-            result = loop.run_until_complete(
-                conn.fetch(query, *args, timeout=STATEMENT_TIMEOUT))
+        with contextlib.closing(asyncio.new_event_loop()) as loop:
+            result = loop.run_until_complete(_execute())
             return result
-        finally:
-            loop.run_until_complete(conn.close(timeout=STATEMENT_TIMEOUT))
 
 
 class Psycopg2Executor(QueryExecutor):
@@ -1110,17 +1116,17 @@ class ExecutorMixin:
         super().setUp()
         acra_port = self.ACRASERVER_PORT
         self.executor1 = self.executor_with_ssl(
-            TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT, acra_port)
+            TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT, acra_port, 'localhost')
         self.executor2 = self.executor_with_ssl(
-            TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT, acra_port)
+            TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT, acra_port, 'localhost')
         self.raw_executor = self.executor_with_ssl(
-            TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT, DB_PORT)
+            TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT, DB_PORT, DB_HOST)
 
-    def executor_with_ssl(self, ssl_key, ssl_cert, port):
+    def executor_with_ssl(self, ssl_key, ssl_cert, port, host):
         if port is None:
             port = self.ACRASERVER_PORT
         args = ConnectionArgs(
-            host=get_db_host(), port=port, dbname=DB_NAME,
+            host=host, port=port, dbname=DB_NAME,
             user=DB_USER, password=DB_USER_PASSWORD,
             ssl_ca=TEST_TLS_CA,
             ssl_key=ssl_key,
@@ -1365,8 +1371,19 @@ class VaultClient:
 
         if TEST_SSL_VAULT:
             args['vault_tls_transport_enable'] = True
-            args['vault_tls_ca_path'] = TEST_VAULT_TLS_CA
+            args['vault_tls_client_ca'] = TEST_VAULT_TLS_CA
         return args
+
+
+class ConsulClient:
+    def __init__(self, url, verify=True, cert=None):
+        self.url = urlparse(url)
+        self.client = consul.Consul(port=self.url.port, scheme=self.url.scheme, host=self.url.hostname, cert=cert, verify=verify)
+
+    def get_consul_url(self):
+        return self.url.geturl()
+    def set(self, key, value):
+        self.client.kv.put(key, value)
 
 
 class AWSKMSClient:
@@ -1532,7 +1549,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             popen_kwargs = {}
         cli_args = sorted(['--{}={}'.format(k, v) for k, v in args.items() if v is not None])
         print("acra-server args: {}".format(' '.join(cli_args)))
-
         process = fork(lambda: subprocess.Popen([self.get_acraserver_bin_path()] + cli_args,
                                                      **popen_kwargs))
         try:
@@ -1918,10 +1934,17 @@ class BaseBinaryPostgreSQLTestCase(AsyncpgExecutorMixin, BaseTestCase):
         compile_kwargs = {"literal_binds": literal_binds}
         query = str(query.compile(compile_kwargs=compile_kwargs))
         values = []
+        param_counter = 1
         for placeholder, value in parameters.items():
             # SQLAlchemy default dialect has placeholders of form ":name".
             # PostgreSQL syntax is "$n", with 1-based sequential parameters.
             saPlaceholder = ':' + placeholder
+            # SQLAlchemy has placeholders of form ":name_1" for literal value
+            # https://docs.sqlalchemy.org/en/14/core/tutorial.html#operators
+            saPlaceholderIndex = saPlaceholder + '_' + str(param_counter)
+            if saPlaceholderIndex in query:
+                saPlaceholder = saPlaceholderIndex
+                param_counter += 1
             pgPlaceholder = '$' + str(len(values) + 1)
             # Replace and keep values only for those placeholders which
             # are actually used in the query.
@@ -2053,10 +2076,16 @@ class BaseBinaryMySQLTestCase(MysqlExecutorMixin, BaseTestCase):
         # parse all parameters like `:id` in the query
         pattern_string = r'(:\w+)'
         res = re.findall(pattern_string, query, re.IGNORECASE | re.DOTALL)
+        param_counter = 1
         if len(res) > 0:
             for placeholder in res:
                 # parameters map contain values where keys without ':' so we need trim the placeholder before
                 key = placeholder.lstrip(':')
+                if key not in parameters.keys():
+                    index_suffix = '_' + str(param_counter)
+                    if index_suffix in key:
+                        key = key.rstrip(index_suffix)
+                        param_counter += 1
                 values.append(parameters[key])
                 query = query.replace(placeholder, '?')
         return query, tuple(values)
@@ -2132,7 +2161,7 @@ class TestCensorVersionChecks(BaseCensorTest, FailedRunProcessMixin):
 class CensorBlacklistTest(BaseCensorTest):
     CENSOR_CONFIG_FILE = abs_path('tests/acra-censor_configs/acra-censor_blacklist.yaml')
     def testBlacklist(self):
-        connection_args = ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
+        connection_args = ConnectionArgs(host='localhost', port=self.ACRASERVER_PORT,
                            user=DB_USER, password=DB_USER_PASSWORD, raw=True,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                            ssl_key=TEST_TLS_CLIENT_KEY,
@@ -2172,7 +2201,7 @@ class CensorBlacklistTest(BaseCensorTest):
 class CensorWhitelistTest(BaseCensorTest):
     CENSOR_CONFIG_FILE = abs_path('tests/acra-censor_configs/acra-censor_whitelist.yaml')
     def testWhitelist(self):
-        connection_args = ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
+        connection_args = ConnectionArgs(host='localhost', port=self.ACRASERVER_PORT,
                            user=DB_USER, password=DB_USER_PASSWORD, raw=True,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                            ssl_key=TEST_TLS_CLIENT_KEY,
@@ -2419,10 +2448,10 @@ class TestConnectionClosing(BaseTestCase):
             try:
                 if TEST_MYSQL:
                     return TestConnectionClosing.mysql_closing(
-                        pymysql.connect(**get_connect_args(port=self.ACRASERVER_PORT)))
+                        pymysql.connect(host='localhost', **get_connect_args(port=self.ACRASERVER_PORT)))
                 else:
                     return TestConnectionClosing.mysql_closing(psycopg2.connect(
-                        host=get_db_host(), **get_connect_args(port=self.ACRASERVER_PORT)))
+                        host='localhost', **get_connect_args(port=self.ACRASERVER_PORT)))
             except:
                 count -= 1
                 if count == 0:
@@ -2438,11 +2467,11 @@ class TestConnectionClosing(BaseTestCase):
 
     def getActiveConnectionCount(self, cursor):
         if TEST_MYSQL:
-            query = "SHOW STATUS WHERE `variable_name` = 'Threads_connected';"
-            cursor.execute(query)
-            return int(cursor.fetchone()[1])
+            query = "select count(*) from information_schema.processlist where db=%s;"
+            cursor.execute(query, [DB_NAME])
+            return int(cursor.fetchone()[0])
         else:
-            cursor.execute('select count(*) from pg_stat_activity;')
+            cursor.execute('SELECT numbackends FROM pg_stat_database where datname=%s;', [DB_NAME])
             return int(cursor.fetchone()[0])
 
     def getConnectionLimit(self, connection=None):
@@ -2538,7 +2567,6 @@ class TestConnectionClosing(BaseTestCase):
             connection.autocommit = True
             with TestConnectionClosing.mysql_closing(connection.cursor()) as cursor:
                 current_connection_count = self.getActiveConnectionCount(cursor)
-
                 with self.get_connection():
                     self.assertEqual(self.getActiveConnectionCount(cursor),
                                      current_connection_count+1)
@@ -3030,6 +3058,44 @@ class HashiCorpVaultMasterKeyLoaderMixin:
     def tearDown(self):
         super().tearDown()
         self.vault_client.disable_kv_secret_engine(mount_path=self.DEFAULT_MOUNT_PATH)
+
+
+class HashicorpConsulEncryptorConfigLoaderMixin:
+    ENCRYPTOR_CONFIG_KEY_PATH = 'acra/encryptor_config'
+
+    def setUp(self):
+        if not TEST_CONSUL_ENCRYPTOR_CONFIG:
+            self.skipTest("test with HashiCorp Consul EncryptorConfig loader")
+
+        if TEST_SSL_CONSUL:
+            self.consul_client = ConsulClient(url=os.environ.get('CONSUL_ADDRESS', 'https://localhost:8501'),
+                                              verify=TEST_CONSUL_TLS_CA, cert=(TEST_TLS_CLIENT_CERT, TEST_TLS_CLIENT_KEY))
+        else:
+            self.consul_client = ConsulClient(url=os.environ.get('CONSUL_ADDRESS', 'http://localhost:8500'))
+
+        encryptor_config = self.prepare_config()
+        self.consul_client.set(self.ENCRYPTOR_CONFIG_KEY_PATH, encryptor_config)
+        super().setUp()
+
+    def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
+        args = {
+            'consul_connection_api_string': self.consul_client.get_consul_url(),
+            'consul_kv_config_path': self.ENCRYPTOR_CONFIG_KEY_PATH,
+            'encryptor_config_storage_type': 'consul'
+        }
+        if TEST_SSL_CONSUL:
+            args['consul_tls_enable'] = True
+            args['consul_tls_client_ca'] = TEST_CONSUL_TLS_CA
+            args['consul_tls_client_cert'] = TEST_TLS_CLIENT_CERT
+            args['consul_tls_client_key'] = TEST_TLS_CLIENT_KEY
+            args['consul_tls_client_auth'] = 4
+
+        acra_kwargs.update(args)
+        return super(HashicorpConsulEncryptorConfigLoaderMixin, self).fork_acra(popen_kwargs, **acra_kwargs)
+
+    def prepare_config(self):
+        with open(self.get_encryptor_config_path(), 'rb') as config_file:
+            return base64.b64encode(config_file.read())
 
 
 class AWSKMSMasterKeyLoaderMixin:
@@ -3548,7 +3614,7 @@ class TestPostgreSQLParseQueryErrorSkipExit(AcraCatchLogsMixin, BaseTestCase):
 
     def executePreparedStatement(self, query):
         return AsyncpgExecutor(ConnectionArgs(
-            host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
+            host='localhost', port=self.ACRASERVER_PORT, dbname=DB_NAME,
             user=DB_USER, password=DB_USER_PASSWORD, raw=True,
             format=AsyncpgExecutor.BinaryFormat,
             ssl_ca=TEST_TLS_CA,
@@ -3597,7 +3663,7 @@ class TestPostgreSQLParseQueryErrorExit(AcraCatchLogsMixin, BaseTestCase):
 
     def executePreparedStatement(self, query):
         return AsyncpgExecutor(ConnectionArgs(
-            host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
+            host='localhost', port=self.ACRASERVER_PORT, dbname=DB_NAME,
             user=DB_USER, password=DB_USER_PASSWORD, raw=True,
             ssl_ca=TEST_TLS_CA,
             ssl_key=TEST_TLS_CLIENT_KEY,
@@ -3686,7 +3752,7 @@ class TestAcraRollback(BaseTestCase):
             self.sslmode='disable'
         if TEST_MYSQL:
             # https://github.com/go-sql-driver/mysql/
-            connection_string = "{user}:{password}@tcp({host}:{port})/{dbname}".format(
+            connection_string = "{user}:{password}@tcp({host}:{port})/{dbname}?tls=skip-verify".format(
                 user=DB_USER, password=DB_USER_PASSWORD, dbname=DB_NAME,
                 port=DB_PORT, host=DB_HOST
             )
@@ -3887,7 +3953,7 @@ class SSLPostgresqlMixin(AcraCatchLogsMixin):
 
     def get_ssl_engine(self):
         return sa.create_engine(
-                get_postgresql_tcp_connection_string(self.ACRASERVER2_PORT, DB_NAME),
+                get_postgresql_tcp_connection_string(self.ACRASERVER2_PORT, DB_NAME, 'localhost'),
                 connect_args=get_connect_args(port=self.ACRASERVER2_PORT, sslmode='require'))
 
     def testConnectionCloseOnTls(self):
@@ -3921,7 +3987,7 @@ class SSLPostgresqlMixin(AcraCatchLogsMixin):
                     incoming_connection_port=self.ACRASERVER2_PORT,
                     incoming_connection_prometheus_metrics_string=self.get_prometheus_address(self.ACRASERVER2_PROMETHEUS_PORT))
             self.engine1 = sa.create_engine(
-                get_postgresql_tcp_connection_string(self.ACRASERVER_PORT, DB_NAME), connect_args=get_connect_args(port=self.ACRASERVER_PORT))
+                get_postgresql_tcp_connection_string(self.ACRASERVER_PORT, DB_NAME, 'localhost'), connect_args=get_connect_args(port=self.ACRASERVER_PORT))
             self.engine_raw = sa.create_engine(
                 '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
                 connect_args=get_connect_args(DB_PORT))
@@ -3982,7 +4048,7 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
 
     def get_ssl_engine(self):
         return sa.create_engine(
-                get_postgresql_tcp_connection_string(self.ACRASERVER2_PORT, DB_NAME),
+                get_postgresql_tcp_connection_string(self.ACRASERVER2_PORT, DB_NAME, 'localhost'),
                 connect_args=get_connect_args(
                     port=self.ACRASERVER2_PORT, ssl=self.driver_to_acraserver_ssl_settings))
 
@@ -4022,7 +4088,7 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
                 connect_args=get_connect_args(DB_PORT, ssl={'ca': None}))
 
             self.engine1 = sa.create_engine(
-                get_postgresql_tcp_connection_string(self.ACRASERVER_PORT, DB_NAME),
+                get_postgresql_tcp_connection_string(self.ACRASERVER_PORT, DB_NAME, host='localhost'),
                 connect_args=get_connect_args(
                     port=self.ACRASERVER_PORT, ssl=self.driver_to_acraserver_ssl_settings))
 
@@ -4167,7 +4233,7 @@ class TestMysqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
 
     def executePreparedStatement(self, query):
         return PyMysqlExecutor(
-            ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
+            ConnectionArgs(host='localhost', port=self.ACRASERVER_PORT,
                            user=DB_USER, password=DB_USER_PASSWORD,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                            ssl_key=TEST_TLS_CLIENT_KEY,
@@ -4189,7 +4255,7 @@ class TestMysqlBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
 
     def executePreparedStatement(self, query, args=None):
         return MysqlExecutor(
-            ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
+            ConnectionArgs(host='localhost', port=self.ACRASERVER_PORT,
                            user=DB_USER, password=DB_USER_PASSWORD,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                            ssl_key=TEST_TLS_CLIENT_KEY,
@@ -4212,7 +4278,7 @@ class TestPostgresqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCas
     def executePreparedStatement(self, query, args=None):
         if not args:
             args = []
-        return Psycopg2Executor(ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
+        return Psycopg2Executor(ConnectionArgs(host='localhost', port=self.ACRASERVER_PORT,
                            user=DB_USER, password=DB_USER_PASSWORD,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA, raw=True,
                            ssl_key=TEST_TLS_CLIENT_KEY,
@@ -4253,11 +4319,7 @@ class TestClientIDDecryptionWithVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoad
 
 class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
 
-    def setUp(self):
-        self.checkSkip()
 
-    def tearDown(self):
-        pass
 
     def apiEncryptionTest(self, request_func, use_http=False, use_grpc=False):
         # one is set
@@ -4740,7 +4802,7 @@ class TestAcraRotate(BaseTestCase):
 
         if TEST_MYSQL:
             # test:test@tcp(127.0.0.1:3306)/test
-            connection_string = "{user}:{password}@tcp({host}:{port})/{db_name}".format(
+            connection_string = "{user}:{password}@tcp({host}:{port})/{db_name}?tls=skip-verify".format(
                 user=DB_USER, password=DB_USER_PASSWORD, host=DB_HOST,
                 port=DB_PORT, db_name=DB_NAME)
             mode_arg = '--mysql_enable'
@@ -5004,6 +5066,10 @@ class BaseTransparentEncryption(BaseTestCase):
         self.prepare_encryptor_config(client_id=TLS_CERT_CLIENT_ID_1)
         super(BaseTransparentEncryption, self).setUp()
 
+    def get_encryptor_config_path(self):
+        self.prepare_encryptor_config(client_id=TLS_CERT_CLIENT_ID_1)
+        return get_test_encryptor_config(self.ENCRYPTOR_CONFIG)
+
     def prepare_encryptor_config(self, client_id=None):
         prepare_encryptor_config(config_path=self.ENCRYPTOR_CONFIG, client_id=client_id)
 
@@ -5069,9 +5135,12 @@ class TestTransparentEncryption(BaseTransparentEncryption):
         self.assertNotEqual(row['default_client_id'], default_client_id)
         self.assertEqual(row['empty'], b'')
 
-    def insertRow(self, data):
+    def insertRow(self, data, query=None,):
+        insert_query = self.encryptor_table.insert()
+        if query is not None:
+            insert_query = query
         # send through acra-server that authenticates as client_id=keypair2
-        self.engine2.execute(self.encryptor_table.insert(), data)
+        self.engine2.execute(insert_query, data)
 
     def check_all_decryptions(self, **context):
         self.checkDefaultIdEncryption(**context)
@@ -5136,6 +5205,10 @@ class TestTransparentEncryption(BaseTransparentEncryption):
             .where(self.encryptor_table.c.id == context['id']))
         data = result.fetchone()
         return data
+
+
+class TestTransparentEncryptionWithConsulEncryptorConfigLoading(HashicorpConsulEncryptorConfigLoaderMixin, TestTransparentEncryption):
+    pass
 
 
 class TransparentEncryptionNoKeyMixin(AcraCatchLogsMixin):
@@ -5517,7 +5590,7 @@ class TestPgPlaceholders(BaseTestCase):
             self.skipTest("running tests only with TLS")
 
     def testPgPlaceholders(self):
-        connection_args = ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
+        connection_args = ConnectionArgs(host='localhost', port=self.ACRASERVER_PORT,
                                          user=DB_USER, password=DB_USER_PASSWORD, raw=True,
                                          dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                                          ssl_key=TEST_TLS_CLIENT_KEY,
@@ -5936,7 +6009,7 @@ class BaseSearchableTransparentEncryption(TestTransparentEncryption):
         }
         return context
 
-    def insertDifferentRows(self, context, count, search_term=None, search_field='searchable'):
+    def insertDifferentRows(self, context, count, query=None, search_term=None, search_field='searchable'):
         if not search_term:
             search_term = context[search_field]
         temp_context = context.copy()
@@ -5945,8 +6018,11 @@ class BaseSearchableTransparentEncryption(TestTransparentEncryption):
             if new_data != search_term:
                 temp_context[search_field] = new_data
                 temp_context['id'] = context['id'] + count
-                self.insertRow(temp_context)
+                self.insertRow(temp_context, query=query)
                 count -= 1
+
+    def execute_via_2(self, query, parameters):
+        return self.engine2.execute(query, parameters)
 
     def executeSelect2(self, query, parameters):
         """Execute a SELECT query with parameters via AcraServer for "keypair2"."""
@@ -5962,6 +6038,10 @@ class BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin(BaseBinaryPostgre
         query, parameters = self.compileQuery(query, parameters)
         return self.executor2.execute_prepared_statement(query, parameters)
 
+    def execute_via_2(self, query, values):
+        query, parameters = self.compileQuery(query, values)
+        return self.executor2.execute_prepared_statement(query, parameters)
+
     def executeBulkInsert(self, query, values):
         """Execute a Bulk Insert query with list of values via AcraServer for "TEST_TLS_CLIENT_2_CERT"."""
         query, parameters = self.compileBulkInsertQuery(query.values(values), values)
@@ -5972,6 +6052,10 @@ class BaseSearchableTransparentEncryptionBinaryMySQLMixin(BaseBinaryMySQLTestCas
     def executeSelect2(self, query, parameters):
         query, parameters = self.compileQuery(query, parameters)
         return self.executor2.execute_prepared_statement(query, parameters)
+
+    def execute_via_2(self, query, parameters):
+        query, parameters = self.compileQuery(query, parameters)
+        return self.executor2.execute_prepared_statement_no_result(query, parameters)
 
     def executeBulkInsert(self, query, values):
         """Execute a Bulk Insert query with list of values via AcraServer for "TEST_TLS_CLIENT_2_CERT"."""
@@ -5997,6 +6081,83 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
 
         self.checkDefaultIdEncryption(**context)
         self.assertEqual(rows[0]['searchable'], search_term)
+
+    def testExtendedSyntaxSearch(self):
+        context = self.get_context_data()
+        search_term = context['searchable']
+
+        # Insert searchable data and some additional different rows
+        self.insertRow(context)
+        self.insertDifferentRows(context, count=5)
+
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
+            {'searchable': search_term},
+            )
+        self.assertEqual(len(rows), 1)
+
+        self.checkDefaultIdEncryption(**context)
+        self.assertEqual(rows[0]['searchable'], search_term)
+
+        new_token_i32 = random.randint(0, 2 ** 16)
+        update_data = {
+            'token_i32': new_token_i32,
+            'b_searchable': search_term
+        }
+
+        # test searchable tokenization in update where statements
+        query = sa.update(self.encryptor_table).where(self.encryptor_table.c.searchable == sa.bindparam('b_searchable')).values(token_i32=new_token_i32)
+        self.execute_via_2(query, update_data)
+
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
+            {'searchable': search_term},
+            )
+        self.assertEqual(len(rows), 1)
+
+        self.checkDefaultIdEncryption(**context)
+        self.assertEqual(rows[0]['searchable'], search_term)
+        self.assertEqual(rows[0]['token_i32'], new_token_i32)
+
+
+        row_id = get_random_id()
+        insert_data = {
+            'param_1': row_id,
+            'b_searchable': search_term
+        }
+
+        select_columns = ['id', 'default_client_id', 'number', 'specified_client_id', 'raw_data', 'searchable', 'searchable_acrablock', 'empty',
+                          'nullable', 'masking', 'token_bytes', 'token_email', 'token_str', 'token_i32', 'token_i64']
+
+        select_query = sa.select(
+            sa.literal(row_id).label('id'), sa.column('default_client_id'), sa.column('number'), sa.column('specified_client_id'),
+            sa.column('raw_data'), sa.column('searchable'), sa.column('searchable_acrablock'), sa.column('empty'), sa.column('nullable'),
+            sa.column('masking'), sa.column('token_bytes'), sa.column('token_email'), sa.column('token_str'), sa.column('token_i32'), sa.column('token_i64')). \
+            where(self.encryptor_table.c.searchable == sa.bindparam('b_searchable'))
+
+        query = sa.insert(self.encryptor_table).from_select(select_columns, select_query)
+        self.execute_via_2(query, insert_data)
+
+        # after insert there 2 rows should be present in DB
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
+            {'searchable': search_term},
+            )
+        self.assertEqual(len(rows), 2)
+
+        # test searchable encryption in delete statements
+        query = sa.delete(self.encryptor_table).where(self.encryptor_table.c.searchable == sa.bindparam('b_searchable'))
+        self.execute_via_2(query, update_data)
+
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
+            {'searchable': search_term},
+            )
+        self.assertEqual(len(rows), 0)
 
     def testHashValidation(self):
         context = self.get_context_data()
@@ -6327,7 +6488,168 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         self.assertEqual(rows[0]['searchable_acrablock'][33:33+4], encrypted_term[:4])
 
 
+class TestSearchableTransparentEncryptionWithJOINs(BaseSearchableTransparentEncryption):
+    encryptor_table_join = sa.Table(
+        'test_searchable_transparent_encryption_join', metadata,
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('specified_client_id',
+                  sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+        sa.Column('default_client_id',
+                  sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+
+        sa.Column('number', sa.Integer),
+        sa.Column('raw_data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+        sa.Column('nullable', sa.Text, nullable=True),
+        sa.Column('searchable', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+        sa.Column('searchable_acrablock', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+        sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('token_i32', sa.Integer(), nullable=False, default=1),
+        sa.Column('token_i64', sa.BigInteger(), nullable=False, default=1),
+        sa.Column('token_str', sa.Text, nullable=False, default=''),
+        sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('token_email', sa.Text, nullable=False, default=''),
+    )
+
+    def setUp(self):
+        super().setUp()
+        self.engine1.execute(self.encryptor_table_join.delete())
+
+    def testSearchWithJoinedTable(self):
+        context = self.get_context_data()
+        search_term = context['searchable']
+
+        # Insert searchable data and some additional different rows
+        self.insertRow(context)
+        self.insertDifferentRows(context, count=5)
+
+        # Insert the same data into encryptor_table_join table
+        self.insertRow(context, query=self.encryptor_table_join.insert())
+        self.insertDifferentRows(context, count=5, query=self.encryptor_table_join.insert())
+
+        rows = self.executeSelect2(
+            sa.select(
+                self.encryptor_table.c.number,
+                self.encryptor_table_join.c.searchable,
+                self.encryptor_table_join.c.default_client_id,
+                self.encryptor_table_join.c.raw_data,
+                self.encryptor_table_join.c.specified_client_id,
+                self.encryptor_table_join.c.empty,
+            ).
+            join(self.encryptor_table_join, self.encryptor_table_join.c.searchable==sa.bindparam('searchable')).
+            where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
+            {'searchable': search_term})
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+
+        self.assertEqual(row[0], context['number'])
+        self.assertEqual(row[1], search_term)
+
+        # should be decrypted
+        self.assertEqual(row['default_client_id'], context['default_client_id'])
+        # should be as is
+        self.assertEqual(row['raw_data'], context['raw_data'])
+        # other data should be encrypted
+        self.assertNotEqual(row['specified_client_id'], context['specified_client_id'])
+        self.assertEqual(row['empty'], b'')
+
+        # test with invalid search_term
+        rows = self.executeSelect2(
+            sa.select(
+                self.encryptor_table.c.number,
+                self.encryptor_table_join.c.searchable,
+            ).
+            join(self.encryptor_table_join, self.encryptor_table_join.c.searchable==sa.bindparam('searchable')).
+            where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
+            {'searchable': 'invalid-search-term'.encode('utf-8')})
+        self.assertEqual(len(rows), 0)
+
+        rows = self.executeSelect2(
+            sa.select(
+                self.encryptor_table.c.number,
+                self.encryptor_table_join.c.searchable,
+            ).join(self.encryptor_table_join, self.encryptor_table_join.c.searchable==sa.bindparam('searchable')),
+            {'searchable': search_term})
+
+        self.assertEqual(len(rows), 6)
+        self.assertEqual(rows[0][1], search_term)
+
+        # test join with on table1.searchable = table2.searchable
+        rows = self.executeSelect2(
+            sa.select(self.encryptor_table.c.number, self.encryptor_table_join.c.searchable).
+            where(self.encryptor_table.c.searchable == sa.bindparam('searchable')).
+            join(self.encryptor_table_join, self.encryptor_table.c.searchable==self.encryptor_table_join.c.searchable),
+            {'searchable': search_term})
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][0], context['number'])
+        self.assertEqual(rows[0][1], search_term)
+
+    def testSearchWithDefaultTable(self):
+        context = self.get_context_data()
+        search_term = context['searchable']
+
+        # Insert searchable data and some additional different rows
+        self.insertRow(context)
+        self.insertDifferentRows(context, count=5)
+
+        search_term_join = get_pregenerated_random_data().encode('ascii')
+        context['searchable'] = search_term_join
+
+        # Insert the same data into encryptor_table_join table with different search term
+        self.insertRow(context, query=self.encryptor_table_join.insert())
+        self.insertDifferentRows(context, count=5, query=self.encryptor_table_join.insert())
+
+        query = 'SELECT masking, tj.searchable FROM test_searchable_transparent_encryption ' \
+                'JOIN test_searchable_transparent_encryption_join tj ON tj.searchable = :search_term_join ' \
+                'WHERE test_searchable_transparent_encryption.searchable = :searchable'
+        rows = self.executeSelect2(sa.text(query), {'searchable': search_term, 'search_term_join': search_term_join})
+        self.assertEqual(len(rows), 1)
+
+
+class TestSearchableTransparentEncryptionDoubleQuotedTables(BaseSearchableTransparentEncryption):
+    def setUp(self):
+        super().setUp()
+
+        if TEST_MYSQL:
+            self.skipTest("useful only for postgresql")
+            # TODO: double quoted tables can be used in MySQL only with ANSI mode but currently ACRA doest have proper configuration
+            # to use MySQL dialect with ANSI mode
+            # self.sql_mode_wo_ansi = self.engine2.execute('SELECT @@SESSION.sql_mode;').fetchone()[0]
+            # self.set_ansi_mode(True)
+
+    def testEncryptedInsert(self):
+        pass
+
+    def testSearchDoubleQuotedTable(self):
+        context = self.get_context_data()
+        search_term = context['searchable']
+
+        # Insert searchable data and some additional different rows
+        self.insertRow(context)
+        self.insertDifferentRows(context, count=5)
+
+        query = 'SELECT * FROM "test_searchable_transparent_encryption" WHERE "searchable" = :searchable'
+        rows = self.executeSelect2(sa.text(query), {'searchable': search_term})
+        self.assertEqual(len(rows), 1)
+
+        self.checkDefaultIdEncryption(**context)
+
+    # def set_ansi_mode(self, set_ansi):
+    #     query = "SET SESSION sql_mode = '{}'".format(self.sql_mode_wo_ansi)
+    #     if set_ansi:
+    #         query = "SET SESSION sql_mode = '{}'".format(self.sql_mode_wo_ansi + ",ANSI")
+    #     self.engine2.execute(query)
+
+    # def tearDown(self):
+    #     super().tearDown()
+    #     self.set_ansi_mode(False)
+
+
 class TestSearchableTransparentEncryptionWithDefaultsAcraBlockBinaryPostgreSQL(BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin, TestSearchableTransparentEncryption):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_defaults_with_searchable_config.yaml')
+
+
+class TestSearchableTransparentEncryptionWithDefaultsAcraBlockBinaryPostgreSQLWithConsulEncryptorConfigLoader(HashicorpConsulEncryptorConfigLoaderMixin, BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin, TestSearchableTransparentEncryption):
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_acrablock_defaults_with_searchable_config.yaml')
 
 
@@ -6368,15 +6690,19 @@ class BaseTokenization(BaseTestCase):
         """Execute SQLAlchemy INSERT query via AcraServer with "TEST_TLS_CLIENT_CERT"."""
         return self.engine1.execute(query, values)
 
+    def execute_via_1(self, query, values):
+        """Execute SQLAlchemy execute query via AcraServer with "TEST_TLS_CLIENT_CERT"."""
+        return self.engine1.execute(query, values)
+
     def insert_via_1_bulk(self, query, values):
         """Execute SQLAlchemy Bulk INSERT query via AcraServer with "TEST_TLS_CLIENT_CERT"."""
         self.engine1.execute(query.values(values))
 
-    def fetch_from_1(self, query):
+    def fetch_from_1(self, query, parameters={}, literal_binds=True):
         """Execute SQLAlchemy SELECT query via AcraServer with "TEST_TLS_CLIENT_CERT"."""
-        return self.engine1.execute(query).fetchall()
+        return self.engine1.execute(query, parameters).fetchall()
 
-    def fetch_from_2(self, query):
+    def fetch_from_2(self, query, parameters={}, literal_binds=True):
         """Execute SQLAlchemy SELECT query via AcraServer with "TEST_TLS_CLIENT_2_CERT"."""
         return self.engine2.execute(query).fetchall()
 
@@ -6424,12 +6750,16 @@ class BaseTokenizationWithBinaryBindMySQL(BaseTokenization, BaseBinaryMySQLTestC
         query, parameters = self.compileBulkInsertQuery(query.values(values), values)
         return self.executor1.execute_prepared_statement_no_result(query, parameters)
 
-    def fetch_from_1(self, query):
-        query, parameters = self.compileQuery(query, literal_binds=True)
+    def execute_via_1(self, query, values):
+        query, parameters = self.compileQuery(query, values)
+        self.executor1.execute_prepared_statement_no_result(query, parameters)
+
+    def fetch_from_1(self, query, parameters={}, literal_binds=True):
+        query, parameters = self.compileQuery(query, parameters=parameters, literal_binds=literal_binds)
         return self.executor1.execute_prepared_statement(query, parameters)
 
-    def fetch_from_2(self, query):
-        query, parameters = self.compileQuery(query, literal_binds=True)
+    def fetch_from_2(self, query, parameters={}, literal_binds=True):
+        query, parameters = self.compileQuery(query, parameters=parameters, literal_binds=literal_binds)
         return self.executor2.execute_prepared_statement(query, parameters)
 
 
@@ -6451,12 +6781,16 @@ class BaseTokenizationWithBinaryPostgreSQL(BaseTokenization, BaseBinaryPostgreSQ
         query, parameters = self.compileBulkInsertQuery(query.values(values), values)
         return self.executor1.execute_prepared_statement(query, parameters)
 
-    def fetch_from_1(self, query):
-        query, parameters = self.compileQuery(query, literal_binds=True)
+    def execute_via_1(self, query, values):
+        query, parameters = self.compileQuery(query, values)
+        self.executor1.execute_prepared_statement(query, parameters)
+
+    def fetch_from_1(self, query, parameters={}, literal_binds=True):
+        query, parameters = self.compileQuery(query, parameters=parameters, literal_binds=literal_binds)
         return self.executor1.execute_prepared_statement(query, parameters)
 
-    def fetch_from_2(self, query):
-        query, parameters = self.compileQuery(query, literal_binds=True)
+    def fetch_from_2(self, query, parameters={}, literal_binds=True):
+        query, parameters = self.compileQuery(query, parameters=parameters, literal_binds=literal_binds)
         return self.executor2.execute_prepared_statement(query, parameters)
 
 
@@ -6494,7 +6828,7 @@ class BaseTokenizationWithBinaryMySQL(BaseTokenization):
         # protocol on the wire.
         query = query.compile(compile_kwargs={"literal_binds": True}).string
         args = ConnectionArgs(
-            host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
+            host='localhost', port=self.ACRASERVER_PORT, dbname=DB_NAME,
             user=DB_USER, password=DB_USER_PASSWORD,
             ssl_ca=TEST_TLS_CA,
             ssl_key=ssl_key,
@@ -6516,7 +6850,310 @@ class BaseTokenizationWithBinaryMySQL(BaseTokenization):
         return result
 
 
+class TestSearchableTokenization(AcraCatchLogsMixin, BaseTokenization):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_searchable_tokenization_config.yaml')
+
+    def testSearchableTokenizationDefaultClientID(self):
+        default_client_id_table = sa.Table(
+            'test_tokenization_default_client_id', metadata,
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('nullable_column', sa.Text, nullable=True),
+            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_i32', sa.Integer()),
+            sa.Column('token_i64', sa.BigInteger()),
+            sa.Column('token_str', sa.Text),
+            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_email', sa.Text),
+            extend_existing=True,
+        )
+        metadata.create_all(self.engine_raw, [default_client_id_table])
+        self.engine1.execute(default_client_id_table.delete())
+
+        row_id = 1
+        data = {
+            'id': row_id,
+            'nullable_column': None,
+            'empty': b'',
+            'token_i32': random_int32(),
+            'token_i64': random_int64(),
+            'token_str': random_str(),
+            'token_bytes': random_bytes(),
+            'token_email': random_email(),
+        }
+
+        # insert data data
+        self.insert_via_1(default_client_id_table.insert(), data)
+
+        columns = {
+            'id': default_client_id_table.c.id,
+            'token_i32': default_client_id_table.c.token_i32,
+            'token_i64': default_client_id_table.c.token_i64,
+            'token_str': default_client_id_table.c.token_str,
+            'token_bytes': default_client_id_table.c.token_bytes,
+            'token_email': default_client_id_table.c.token_email,
+        }
+        # data owner take source data
+        for key in columns:
+            parameters = {key: data[key]}
+            query = sa.select(default_client_id_table).where(columns[key] == data[key])
+
+            source_data = self.fetch_from_1(query, parameters, literal_binds=False)
+            for k in ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email'):
+                if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+                    self.assertEqual(source_data[0][k], data[k].encode('utf-8'))
+                else:
+                    self.assertEqual(source_data[0][k], data[k])
+
+        new_token_str = random_str()
+        update_data = {
+            'token_str': new_token_str,
+            'token_i32': data['token_i32']
+        }
+
+        # test searchable tokenization in update where statements
+        query = sa.update(default_client_id_table).where(columns['token_i32'] == data['token_i32']).values(token_str=new_token_str)
+        self.execute_via_1(query, update_data)
+
+        parameters = {key: data[key]}
+        query = sa.select(default_client_id_table).where(columns[key] == data[key])
+        source_data = self.fetch_from_1(query, parameters, literal_binds=False)
+
+        if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+            self.assertEqual(source_data[0]['token_str'], new_token_str.encode('utf-8'))
+        else:
+            self.assertEqual(source_data[0]['token_str'], new_token_str)
+
+        row_id += 1
+        insert_data = {
+            'param_1': row_id,
+            'token_i32': data['token_i32']
+        }
+        select_columns = ['id', 'nullable_column', 'empty', 'token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email']
+        select_query = sa.select(sa.literal(row_id).label('id'), sa.column('nullable_column'), sa.column('empty'), columns['token_i32'], columns['token_i64'], columns['token_str'], columns['token_bytes'], columns['token_email']).\
+            where(columns['token_i32'] == data['token_i32'])
+
+        query = sa.insert(default_client_id_table).from_select(select_columns, select_query)
+        self.execute_via_1(query, insert_data)
+
+        # expect that data was encrypted with client_id which used to insert (client_id==keypair1)
+        source_data = self.fetch_from_1(
+            sa.select([default_client_id_table])
+            .where(default_client_id_table.c.id == row_id))
+
+        for k in ('token_i32', 'token_i64', 'token_bytes', 'token_email'):
+            if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+                self.assertEqual(source_data[0][k], data[k].encode('utf-8'))
+            else:
+                self.assertEqual(source_data[0][k], data[k])
+
+        # test searchable tokenization in update where statements
+        query = sa.delete(default_client_id_table).where(columns['token_str'] == update_data['token_str'])
+        self.execute_via_1(query, update_data)
+
+        source_data = self.fetch_from_1(sa.select([default_client_id_table]))
+        self.assertEqual(0, len(source_data))
+
+    def testSearchableTokenizationWithJOINs(self):
+        default_client_id_table = sa.Table(
+            'test_tokenization_default_client_id', metadata,
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('nullable_column', sa.Text, nullable=True),
+            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_i32', sa.Integer()),
+            sa.Column('token_i64', sa.BigInteger()),
+            sa.Column('token_str', sa.Text),
+            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_email', sa.Text),
+            extend_existing=True,
+        )
+        default_client_id_table_join = sa.Table(
+            'test_tokenization_default_client_id_join', metadata,
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('nullable_column', sa.Text, nullable=True),
+            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_i32', sa.Integer()),
+            sa.Column('token_i64', sa.BigInteger()),
+            sa.Column('token_str', sa.Text),
+            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_email', sa.Text),
+            extend_existing=True,
+        )
+        metadata.create_all(self.engine_raw, [default_client_id_table, default_client_id_table_join])
+        self.engine1.execute(default_client_id_table.delete())
+        self.engine1.execute(default_client_id_table_join.delete())
+
+        row_id = 1
+        data = {
+            'id': row_id,
+            'nullable_column': None,
+            'empty': b'',
+            'token_i32': random_int32(),
+            'token_i64': random_int64(),
+            'token_str': random_str(),
+            'token_bytes': random_bytes(),
+            'token_email': random_email(),
+        }
+
+        # insert data data
+        self.insert_via_1(default_client_id_table.insert(), data)
+        self.insert_via_1(default_client_id_table_join.insert(), data)
+
+        columns = {
+            'id': default_client_id_table_join.c.id,
+            'token_i32': default_client_id_table_join.c.token_i32,
+            'token_i64': default_client_id_table_join.c.token_i64,
+            'token_str': default_client_id_table_join.c.token_str,
+            'token_bytes': default_client_id_table_join.c.token_bytes,
+            'token_email': default_client_id_table_join.c.token_email,
+        }
+        # data owner take source data
+        for key in columns:
+            query = sa.select(
+                default_client_id_table.c.token_i32,
+                default_client_id_table.c.token_str,
+                default_client_id_table_join.c.token_i64,
+                default_client_id_table_join.c.token_email,
+            ).join(default_client_id_table_join, columns[key] == data[key])
+
+            parameters = {key: data[key]}
+            source_data = self.fetch_from_1(query, parameters, literal_binds=False)
+            for k in ('token_i32', 'token_i64', 'token_str', 'token_email'):
+                if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+                    self.assertEqual(source_data[0][k], data[k].encode('utf-8'))
+                else:
+                    self.assertEqual(source_data[0][k], data[k])
+
+    def testSearchWithDefaultTableWithAlias(self):
+        default_client_id_table = sa.Table(
+            'test_tokenization_default_client_id', metadata,
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('nullable_column', sa.Text, nullable=True),
+            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_i32', sa.Integer()),
+            sa.Column('token_i64', sa.BigInteger()),
+            sa.Column('token_str', sa.Text),
+            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_email', sa.Text),
+            extend_existing=True,
+        )
+
+        default_client_id_table_join = sa.Table(
+            'test_tokenization_default_client_id_join', metadata,
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('nullable_column', sa.Text, nullable=True),
+            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_i32', sa.Integer()),
+            sa.Column('token_i64', sa.BigInteger()),
+            sa.Column('token_str', sa.Text),
+            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_email', sa.Text),
+            extend_existing=True,
+        )
+
+        metadata.create_all(self.engine_raw, [default_client_id_table, default_client_id_table_join])
+        self.engine1.execute(default_client_id_table.delete())
+        self.engine1.execute(default_client_id_table_join.delete())
+
+        row_id = 1
+        data = {
+            'id': row_id,
+            'nullable_column': None,
+            'empty': b'',
+            'token_i32': random_int32(),
+            'token_i64': random_int64(),
+            'token_str': random_str(),
+            'token_bytes': random_bytes(),
+            'token_email': random_email(),
+        }
+
+        # insert data data
+        self.insert_via_1(default_client_id_table.insert(), data)
+        self.insert_via_1(default_client_id_table_join.insert(), data)
+
+        # with aliased column in where statement
+        query = 'SELECT id, token_i32, token_i64, token_str, token_email FROM test_tokenization_default_client_id as test_table WHERE test_table.token_i64 = :token_i64'
+        parameters = {'token_i64': data['token_i64']}
+
+        source_data = self.fetch_from_1(sa.text(query), parameters, literal_binds=False)
+        for k in ('token_i32', 'token_i64', 'token_str', 'token_email'):
+            if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+                self.assertEqual(source_data[0][k], data[k].encode('utf-8'))
+            else:
+                self.assertEqual(source_data[0][k], data[k])
+
+        # with non-aliased column in where statement
+        query = 'SELECT id, token_i32, token_i64, token_str, token_email FROM test_tokenization_default_client_id as test_table WHERE token_i64 = :token_i64'
+        parameters = {'token_i64': data['token_i64']}
+
+        source_data = self.fetch_from_1(sa.text(query), parameters, literal_binds=False)
+        for k in ('token_i32', 'token_i64', 'token_str', 'token_email'):
+            if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+                self.assertEqual(source_data[0][k], data[k].encode('utf-8'))
+            else:
+                self.assertEqual(source_data[0][k], data[k])
+
+        # expect fail this query in DB, we need to check corresponding log message from Acra
+        query = 'SELECT id, token_i32, token_i64 FROM test_tokenization_default_client_id as test_table, test_tokenization_default_client_id_join as test_table_join'
+        try:
+            self.engine1.execute(query)
+        except (sa.exc.OperationalError, sa.exc.ProgrammingError) as e:
+            self.assertIn("ambiguous", str(e))
+            self.assertIn("Ambiguous column found, several tables contain the same column", self.read_log(self.acra))
+            pass
+
+    def testSearchableTokenizationSpecificClientID(self):
+        specific_client_id_table = sa.Table(
+            'test_tokenization_specific_client_id', metadata,
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('nullable_column', sa.Text, nullable=True),
+            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_i32', sa.Integer()),
+            sa.Column('token_i64', sa.BigInteger()),
+            sa.Column('token_str', sa.Text),
+            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_email', sa.Text),
+            extend_existing=True,
+        )
+
+        data = {
+            'id': 1,
+            'nullable_column': None,
+            'empty': b'',
+            'token_i32': random_int32(),
+            'token_i64': random_int64(),
+            'token_str': random_str(),
+            'token_bytes': random_bytes(),
+            'token_email': random_email(),
+        }
+        metadata.create_all(self.engine_raw, [specific_client_id_table])
+        self.engine1.execute(specific_client_id_table.delete())
+
+        # insert data data using client_id==TEST_TLS_CLIENT_CERT
+        self.insert_via_1(specific_client_id_table.insert(), data)
+
+        columns = {
+            'id': specific_client_id_table.c.id,
+            'token_i32': specific_client_id_table.c.token_i32,
+            'token_i64': specific_client_id_table.c.token_i64,
+            'token_str': specific_client_id_table.c.token_str,
+            'token_bytes': specific_client_id_table.c.token_bytes,
+            'token_email': specific_client_id_table.c.token_email,
+        }
+        # data owner take source data
+        for key in columns:
+            parameters = {key: data[key]}
+            query = sa.select(specific_client_id_table).where(columns[key] == data[key])
+
+            source_data = self.fetch_from_2(query, parameters, literal_binds=False)
+            for k in ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email'):
+                if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
+                    self.assertEqual(source_data[0][k], data[k].encode('utf-8'))
+                else:
+                    self.assertEqual(source_data[0][k], data[k])
+
+
 class TestTokenization(BaseTokenization):
+
     def testTokenizationDefaultClientID(self):
         default_client_id_table = sa.Table(
             'test_tokenization_default_client_id', metadata,
@@ -6601,9 +7238,9 @@ class TestTokenization(BaseTokenization):
         self.insert_via_1_bulk(default_client_id_table.insert(), values)
 
         # expect that data was encrypted with client_id which used to insert (client_id==TEST_TLS_CLIENT_CERT)
-        source_data = self.fetch_from_1(sa.select([default_client_id_table]))
+        source_data = self.fetch_from_1(sa.select([default_client_id_table]).order_by(default_client_id_table.c.id))
 
-        hidden_data = self.fetch_from_2(sa.select([default_client_id_table]))
+        hidden_data = self.fetch_from_2(sa.select([default_client_id_table]).order_by(default_client_id_table.c.id))
 
         if len(source_data) != len(hidden_data):
             self.fail('incorrect len of result data')
@@ -6741,25 +7378,25 @@ class TestReturningProcessingMixing:
 
     def test_insert_returning_with_col_enum(self):
         source, hidden, data = self.insert_with_enum_and_return_data()
-        self.assertEqual(source[1], data['token_str'])
-        self.assertEqual(source[2], data['token_i64'])
-        self.assertEqual(source[3], data['token_email'])
-        self.assertEqual(source[4], data['token_i32'])
-        self.assertNotEqual(hidden[1], data['token_str'])
-        self.assertNotEqual(hidden[2], data['token_i64'])
-        self.assertNotEqual(hidden[3], data['token_email'])
-        self.assertNotEqual(hidden[4], data['token_i32'])
+        self.assertEqual(source['token_str'], data['token_str'])
+        self.assertEqual(source['token_i64'], data['token_i64'])
+        self.assertEqual(source['token_email'], data['token_email'])
+        self.assertEqual(source['token_i32'], data['token_i32'])
+        self.assertNotEqual(hidden['token_str'], data['token_str'])
+        self.assertNotEqual(hidden['token_i64'], data['token_i64'])
+        self.assertNotEqual(hidden['token_email'], data['token_email'])
+        self.assertNotEqual(hidden['token_i32'], data['token_i32'])
 
     def test_insert_returning_with_star(self):
         source, hidden, data = self.insert_with_star_and_return_data()
-        self.assertEqual(source[3], data['token_i32'])
-        self.assertEqual(source[4], data['token_i64'])
-        self.assertEqual(source[5], data['token_str'])
-        self.assertEqual(source[7], data['token_email'])
-        self.assertNotEqual(hidden[3], data['token_i32'])
-        self.assertNotEqual(hidden[4], data['token_i64'])
-        self.assertNotEqual(hidden[5], data['token_str'])
-        self.assertNotEqual(hidden[7], data['token_email'])
+        self.assertEqual(source['token_i32'], data['token_i32'])
+        self.assertEqual(source['token_i64'], data['token_i64'])
+        self.assertEqual(source['token_str'], data['token_str'])
+        self.assertEqual(source['token_email'], data['token_email'])
+        self.assertNotEqual(hidden['token_i32'], data['token_i32'])
+        self.assertNotEqual(hidden['token_i64'], data['token_i64'])
+        self.assertNotEqual(hidden['token_str'], data['token_str'])
+        self.assertNotEqual(hidden['token_email'], data['token_email'])
 
 
 class TestReturningProcessingMariaDB(TestReturningProcessingMixing, BaseTokenization):
@@ -6774,19 +7411,20 @@ class TestReturningProcessingMariaDB(TestReturningProcessingMixing, BaseTokeniza
     }
 
     def checkSkip(self):
-        if not TEST_MARIADB or TEST_WITH_TLS:
+        if not TEST_MARIADB:
             self.skipTest("Only for MariaDB")
         super().checkSkip()
 
     def build_raw_query_with_enum(self):
         id = get_random_id()
         # TODO(zhars, 2021-5-20): rewrite query when sqlalchemy will support RETURNING statements
+        # include literals 0, 1, null to be sure that we support non-column values too
         return 'INSERT INTO test_tokenization_specific_client_id ' \
                '(id, empty, token_bytes, token_i32, token_i64, token_str, token_email) ' \
                'VALUES ({}, {}, {}, {}, {}, \'{}\', \'{}\') ' \
-               'RETURNING test_tokenization_specific_client_id.id, test_tokenization_specific_client_id.token_str,' \
+               'RETURNING 0, 1 as literal, test_tokenization_specific_client_id.id, test_tokenization_specific_client_id.token_str,' \
                ' test_tokenization_specific_client_id.token_i64, test_tokenization_specific_client_id.token_email, ' \
-               'test_tokenization_specific_client_id.token_i32'.format(id, self.data['empty'], self.data['empty'], self.data['token_i32'], self.data['token_i64'], self.data['token_str'], self.data['token_email'])
+               'test_tokenization_specific_client_id.token_i32, NULL'.format(id, self.data['empty'], self.data['empty'], self.data['token_i32'], self.data['token_i64'], self.data['token_str'], self.data['token_email'])
 
     def build_raw_query_with_star(self):
         id = get_random_id()
@@ -6831,9 +7469,12 @@ class TestReturningProcessingPostgreSQL(TestReturningProcessingMixing, BaseToken
 
     def build_raw_query_with_enum(self):
         self.data['id'] = get_random_id()
+        # include literals 0, 1, null to be sure that we support non-column values too
         return self.specific_client_id_table.insert(). \
-            returning(self.specific_client_id_table.c.id, self.specific_client_id_table.c.token_str, self.specific_client_id_table.c.token_i64,
-                      self.specific_client_id_table.c.token_email, self.specific_client_id_table.c.token_i32), self.data
+                   returning(0, sa.literal('1').label('literal'),
+                             self.specific_client_id_table.c.id, self.specific_client_id_table.c.token_str, self.specific_client_id_table.c.token_i64,
+                             self.specific_client_id_table.c.token_email, self.specific_client_id_table.c.token_i32,
+                             sa.text('null')), self.data
 
     def build_raw_query_with_star(self):
         self.data['id'] = get_random_id()
@@ -6855,11 +7496,17 @@ class TestReturningProcessingPostgreSQL(TestReturningProcessingMixing, BaseToken
         self.fetch_from_2(sa.select([self.specific_client_id_table]).where(self.specific_client_id_table.c.id == get_random_id()))
 
         source_query, data = self.build_raw_query_with_star()
-        source = self.engine2.execute(source_query, data).fetchone()
+        with self.engine2.connect() as connection:
+            source = connection.execute(source_query, data).fetchone()
 
         hidden_query, data = self.build_raw_query_with_star()
-        hidden = self.engine1.execute(hidden_query, data).fetchone()
+        with self.engine1.connect() as connection:
+            hidden = connection.execute(hidden_query, data).fetchone()
         return source, hidden, self.data
+
+
+class TestTokenizationWithBoltDB(BaseTokenizationWithBoltDB, TestTokenization):
+    pass
 
 
 class TestTokenizationWithRedis(BaseTokenizationWithRedis, TestTokenization):
@@ -6878,11 +7525,19 @@ class TestTokenizationBinaryPostgreSQL(BaseTokenizationWithBinaryPostgreSQL, Tes
     pass
 
 
+class TestSearchableTokenizationBinaryPostgreSQL(BaseTokenizationWithBinaryPostgreSQL, TestSearchableTokenization):
+    pass
+
+
 class TestTokenizationBinaryPostgreSQLWithAWSKMSMaterKeyLoading(AWSKMSMasterKeyLoaderMixin, BaseTokenizationWithBinaryPostgreSQL, TestTokenization):
     pass
 
 
 class TestTokenizationBinaryBindMySQL(BaseTokenizationWithBinaryBindMySQL, TestTokenization):
+    pass
+
+
+class TestSearchableTokenizationBinaryBindMySQL(BaseTokenizationWithBinaryBindMySQL, TestSearchableTokenization):
     pass
 
 
@@ -7182,7 +7837,7 @@ class TestEmptyPreparedStatementQueryPostgresql(BaseTestCase):
     def testPassedEmptyQuery(self):
         # no matter which connector to use
         executor = AsyncpgExecutor(ConnectionArgs(
-            host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
+            host='localhost', port=self.ACRASERVER_PORT, dbname=DB_NAME,
             user=DB_USER, password=DB_USER_PASSWORD, raw=True,
             format=AsyncpgExecutor.BinaryFormat,
             ssl_ca=TEST_TLS_CA,
@@ -7196,7 +7851,7 @@ class TestEmptyPreparedStatementQueryPostgresql(BaseTestCase):
 
         # just check that Postgresql deny empty queries for SimpleQuery protocol of queries
         executor = Psycopg2Executor(ConnectionArgs(
-            host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
+            host='localhost', port=self.ACRASERVER_PORT, dbname=DB_NAME,
             user=DB_USER, password=DB_USER_PASSWORD, raw=True,
             ssl_ca=TEST_TLS_CA,
             ssl_key=TEST_TLS_CLIENT_KEY,
@@ -7219,7 +7874,7 @@ class TestEmptyPreparedStatementQueryMysql(BaseTestCase):
     def testNotPassedEmptyQuery(self):
         # no matter which client_id to use
         executor = MysqlExecutor(ConnectionArgs(
-            host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
+            host='localhost', port=self.ACRASERVER_PORT, dbname=DB_NAME,
             user=DB_USER, password=DB_USER_PASSWORD, raw=True,
             ssl_ca=TEST_TLS_CA,
             ssl_key=TEST_TLS_CLIENT_KEY,
@@ -7559,6 +8214,7 @@ class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(BaseTransparentEnc
                 continue
             if 'empty' in column:
                 self.assertEqual(row[column], '')
+                self.assertEqual(row[column], data[column])
                 continue
             self.assertNotEqual(data[column], row[column])
             if column in ('value_int32', 'value_int64'):
@@ -7576,6 +8232,16 @@ class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(BaseTransparentEnc
             if column in ('value_str', 'value_bytes'):
                 # length of data should be greater than source data due to encryption overhead
                 self.assertTrue(len(utils.memoryview_to_bytes(row[column])) > len(data[column]))
+
+
+class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaultsAndDataTypeIDs(TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption_postgres_with_data_type_id.yaml')
+    pass
+
+
+class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaultsWithConsulEncryptorConfigLoader(HashicorpConsulEncryptorConfigLoaderMixin,
+                                                                                             TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults):
+    pass
 
 
 class TestMySQLTextFormatTypeAwareDecryptionWithDefaults(BaseBinaryMySQLTestCase, BaseTransparentEncryption):
@@ -7674,6 +8340,11 @@ class TestMySQLTextFormatTypeAwareDecryptionWithDefaults(BaseBinaryMySQLTestCase
                 self.assertTrue(len(utils.memoryview_to_bytes(row[column])) > len(data[column]))
 
 
+class TestMySQLTextFormatTypeAwareDecryptionWithDefaultsWithConsulEncryptorConfigLoader(HashicorpConsulEncryptorConfigLoaderMixin,
+                                                                                        TestMySQLTextFormatTypeAwareDecryptionWithDefaults):
+    pass
+
+
 class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults(
         BaseBinaryPostgreSQLTestCase, TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults):
     def testClientIDRead(self):
@@ -7709,21 +8380,18 @@ class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults(
             .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
         row = self.executor1.execute_prepared_statement(query, args)[0]
         for column in columns:
-            if 'null' in column:
-                # asyncpg decodes None values as empty str/bytes value
-                self.assertFalse(row[column])
-                continue
             self.assertEqual(data[column], row[column])
             self.assertIsInstance(row[column], type(data[column]))
 
         row = self.executor2.execute_prepared_statement(query, args)[0]
         for column in columns:
             if 'null' in column:
-                # asyncpg decodes None values as empty str/bytes value
-                self.assertFalse(row[column])
+                self.assertIsNone(row[column])
+                self.assertIsNone(data[column])
                 continue
             if 'empty' in column:
                 self.assertEqual(data[column], row[column])
+                self.assertEqual(data[column], '')
             else:
                 self.assertNotEqual(data[column], row[column])
                 self.assertEqual(row[column], default_expected_values[column])
@@ -7731,11 +8399,20 @@ class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults(
 
         row = self.executor2.execute_prepared_statement(query, args)[0]
         for column in columns:
-            if 'null' in column or 'empty' in column:
-                # asyncpg decodes None values as empty str/bytes value
-                self.assertFalse(row[column])
+            if 'null' in column:
+                self.assertIsNone(row[column])
+                self.assertEqual(data[column], row[column])
+                continue
+            if 'empty' in column:
+                self.assertEqual(row[column], '')
+                self.assertEqual(row[column], data[column])
                 continue
             self.assertNotEqual(data[column], row[column])
+
+
+class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaultsAndDataTypeIDs(TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption_postgres_with_data_type_id.yaml')
+    pass
 
 
 class TestMySQLBinaryFormatTypeAwareDecryptionWithDefaults(TestMySQLTextFormatTypeAwareDecryptionWithDefaults):
@@ -7786,9 +8463,12 @@ class TestMySQLBinaryFormatTypeAwareDecryptionWithDefaults(TestMySQLTextFormatTy
 
         for column in columns:
             if 'empty' in column:
-                self.assertEqual(data[column], row[column])
+                self.assertEqual(row[column], '')
+                self.assertEqual(row[column], data[column])
+                continue
             elif 'null' in column:
                 self.assertEqual(data[column], row[column])
+                self.assertIsNone(data[column])
             else:
                 self.assertNotEqual(data[column], row[column])
                 self.assertEqual(default_expected_values[column], row[column])
@@ -7862,11 +8542,14 @@ class TestPostgresqlTextTypeAwareDecryptionWithoutDefaults(BaseTransparentEncryp
                 .where(self.test_table.c.id == data['id']))
         row = result.fetchone()
         for column in columns:
-            if 'null' in column or 'empty' in column:
-                # asyncpg decodes None values as empty str/bytes value
-                self.assertFalse(row[column])
+            if 'null' in column:
+                self.assertIsNone(row[column])
+                self.assertEqual(row[column], data[column])
                 continue
             value = utils.memoryview_to_bytes(row[column])
+            if 'empty' in column:
+                self.assertEqual(value, b'')
+                continue
             self.assertIsInstance(value, bytes, column)
             self.assertNotEqual(data[column], value, column)
 
@@ -7959,6 +8642,11 @@ class TestMySQLTextTypeAwareDecryptionWithoutDefaults(BaseBinaryMySQLTestCase, B
             self.assertNotEqual(data[column], value, column)
 
 
+class TestMySQLTextTypeAwareDecryptionWithoutDefaultsAndDataTypeIDs(TestMySQLTextTypeAwareDecryptionWithoutDefaults):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption_mysql_with_data_type_id.yaml')
+    pass
+
+
 class TestPostgresqlBinaryTypeAwareDecryptionWithoutDefaults(TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults):
     # test table used for queries and data mapping into python types
     test_table = sa.Table(
@@ -8026,13 +8714,17 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithoutDefaults(TestPostgresqlBinar
 
         row = self.raw_executor.execute_prepared_statement(query, args)[0]
         for column in columns:
-            if 'null' in column or 'empty' in column:
-                # asyncpg decodes None values as empty str/bytes value
-                self.assertFalse(row[column])
+            if 'null' in column:
+                self.assertIsNone(row[column])
+                self.assertEqual(row[column], data[column])
                 continue
             value = utils.memoryview_to_bytes(row[column])
+            if 'empty' in column:
+                self.assertEqual(value, b'')
+                continue
             self.assertIsInstance(value, bytes, column)
             self.assertNotEqual(data[column], value, column)
+
 
 class TestPostgresqlBinaryTypeAwareDecryptionWithError(TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults):
     # test table used for queries and data mapping into python types
@@ -8104,11 +8796,14 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithError(TestPostgresqlBinaryForma
 
         row = self.raw_executor.execute_prepared_statement(query, args)[0]
         for column in columns:
-            if 'null' in column or 'empty' in column:
-                # asyncpg decodes None values as empty str/bytes value
-                self.assertFalse(row[column])
+            if 'null' in column:
+                self.assertIsNone(row[column])
+                self.assertEqual(row[column], data[column])
                 continue
             value = utils.memoryview_to_bytes(row[column])
+            if 'empty' in column:
+                self.assertEqual(value, b'')
+                continue
             self.assertIsInstance(value, bytes, column)
             self.assertNotEqual(data[column], value, column)
 
@@ -8181,11 +8876,14 @@ class TestPostgresqlTextTypeAwareDecryptionWithError(BaseTransparentEncryption):
                 .where(self.test_table.c.id == data['id']))
         row = result.fetchone()
         for column in columns:
-            if 'null' in column or 'empty' in column:
-                # asyncpg decodes None values as empty str/bytes value
-                self.assertFalse(row[column])
+            if 'null' in column:
+                self.assertIsNone(row[column])
+                self.assertEqual(row[column], data[column])
                 continue
             value = utils.memoryview_to_bytes(row[column])
+            if 'empty' in column:
+                self.assertEqual(value, b'')
+                continue
             self.assertIsInstance(value, bytes, column)
             self.assertNotEqual(data[column], value, column)
 
@@ -8259,13 +8957,17 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithCiphertext(TestPostgresqlBinary
 
         row = self.raw_executor.execute_prepared_statement(query, args)[0]
         for column in columns:
-            if 'null' in column or 'empty' in column:
-                # asyncpg decodes None values as empty str/bytes value
-                self.assertFalse(row[column])
+            if 'null' in column:
+                self.assertIsNone(row[column])
+                self.assertEqual(row[column], data[column])
                 continue
             value = utils.memoryview_to_bytes(row[column])
+            if 'empty' in column:
+                self.assertEqual(value, b'')
+                continue
             self.assertIsInstance(value, bytes, column)
             self.assertNotEqual(data[column], value, column)
+
 
 # `response_on_fail` is `ciphertext` if not defined. That's why the code is
 # exactly the same as inTestPostgresqlTextTypeAwareDecryptionWithoutDefaults
@@ -8335,11 +9037,14 @@ class TestPostgresqlTextTypeAwareDecryptionWithCiphertext(BaseTransparentEncrypt
                 .where(self.test_table.c.id == data['id']))
         row = result.fetchone()
         for column in columns:
-            if 'null' in column or 'empty' in column:
-                # asyncpg decodes None values as empty str/bytes value
-                self.assertFalse(row[column])
+            if 'null' in column:
+                self.assertIsNone(row[column])
+                self.assertEqual(row[column], data[column])
                 continue
             value = utils.memoryview_to_bytes(row[column])
+            if 'empty' in column:
+                self.assertEqual(value, b'')
+                continue
             self.assertIsInstance(value, bytes, column)
             self.assertNotEqual(data[column], value, column)
 
@@ -8479,6 +9184,11 @@ class TestMySQLTextTypeAwareDecryptionWithCiphertext(BaseBinaryMySQLTestCase, Ba
             self.assertNotEqual(data[column], value, column)
 
 
+class TestMySQLTextTypeAwareDecryptionWithCiphertextWithDataTypeIDs(TestMySQLTextTypeAwareDecryptionWithCiphertext):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption_mysql_with_data_type_id.yaml')
+    pass
+
+
 class TestMySQLBinaryTypeAwareDecryptionWithCiphertext(TestMySQLTextTypeAwareDecryptionWithCiphertext):
     def checkSkip(self):
         if not (TEST_MYSQL and TEST_WITH_TLS):
@@ -8524,6 +9234,11 @@ class TestMySQLBinaryTypeAwareDecryptionWithCiphertext(TestMySQLTextTypeAwareDec
             value = utils.memoryview_to_bytes(row[column])
             self.assertIsInstance(value, bytearray, column)
             self.assertNotEqual(data[column], value, column)
+
+
+class TestMySQLBinaryTypeAwareDecryptionWithCiphertextWithDataTypeIDs(TestMySQLBinaryTypeAwareDecryptionWithCiphertext):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption_mysql_with_data_type_id.yaml')
+    pass
 
 
 class TestMySQLTextTypeAwareDecryptionWithError(BaseBinaryMySQLTestCase, BaseTransparentEncryption):
@@ -8602,6 +9317,12 @@ class TestMySQLTextTypeAwareDecryptionWithError(BaseBinaryMySQLTestCase, BaseTra
         self.assertEqual('encoding error in column "value_str"', ex.exception.msg)
         self.assertEqual(ex.exception.errno, MYSQL_ERR_QUERY_INTERRUPTED_CODE)
 
+
+class TestMySQLTextTypeAwareDecryptionWithErrorWithDataTypeIDs(TestMySQLTextTypeAwareDecryptionWithError):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption_mysql_with_data_type_id.yaml')
+    pass
+
+
 class TestMySQLBinaryTypeAwareDecryptionWithError(TestMySQLTextTypeAwareDecryptionWithError):
     def checkSkip(self):
         if not (TEST_MYSQL and TEST_WITH_TLS):
@@ -8642,6 +9363,11 @@ class TestMySQLBinaryTypeAwareDecryptionWithError(TestMySQLTextTypeAwareDecrypti
 
         self.assertEqual('encoding error in column "value_str"', ex.exception.msg)
         self.assertEqual(ex.exception.errno, MYSQL_ERR_QUERY_INTERRUPTED_CODE)
+
+
+class TestMySQLBinaryTypeAwareDecryptionWithErrorWithDataTypeIDs(TestMySQLBinaryTypeAwareDecryptionWithError):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption_mysql_with_data_type_id.yaml')
+    pass
 
 
 class TestMySQLTextCharsetLiterals(TestMySQLTextTypeAwareDecryptionWithoutDefaults):
@@ -8745,16 +9471,17 @@ class TestPostgresqlConnectWithTLSPrefer(BaseTestCase):
 
     def testPlainConnectionAfterDeny(self):
         async def _testPlainConnectionAfterDeny():
-            # We use raw connecitons to specify ssl='prefer'
+            # We use raw connections to specify ssl='prefer'
             # which would ask for ssl connection first.
             # And then after receiving a deny, it would ask for a plain connection
             conn = await asyncpg.connect(
-                host=DB_HOST, port=self.ACRASERVER_PORT, database=DB_NAME,
+                host='localhost', port=self.ACRASERVER_PORT, database=DB_NAME,
                 user=DB_USER, password=DB_USER_PASSWORD,
                 ssl='prefer',
                 **asyncpg_connect_args
             )
             await conn.fetch('SELECT 1', timeout=STATEMENT_TIMEOUT)
+            await conn.close()
 
         loop = asyncio.new_event_loop()  # create new to avoid concurrent usage of the loop in the current thread and allow parallel execution in the future
         loop.run_until_complete(_testPlainConnectionAfterDeny())
@@ -8885,7 +9612,7 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
 
         def executor_with_ssl(ssl_key, ssl_cert, port=self.ACRASERVER_PORT):
             args = ConnectionArgs(
-                host=get_db_host(), port=port, dbname=DB_NAME,
+                host='localhost', port=port, dbname=DB_NAME,
                 user=DB_USER, password=DB_USER_PASSWORD,
                 ssl_ca=TEST_TLS_CA,
                 ssl_key=ssl_key,
@@ -8901,7 +9628,7 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
 
     def testPreparedStatementIsNotAborted(self):
         """
-        Test that connection is not closed in case of "encoding error" when we 
+        Test that connection is not closed in case of "encoding error" when we
         use prepared statements.
         """
         async def test():
@@ -8956,6 +9683,7 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
             await conn.execute(insert_query, data['id'], data['value_bytes'])
             row = await conn.fetchrow(select_query, data['id'])
             self.assertEqual(data['value_bytes'], row['value_bytes'])
+            await conn.close()
 
         loop = asyncio.new_event_loop()
         loop.run_until_complete(test())
@@ -9008,6 +9736,7 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
             # that our data is not saved due to the rollback.
             row = await conn.fetchrow(select_query, data['id'])
             self.assertEqual(row, None)
+            await conn.close()
 
         loop = asyncio.new_event_loop()
         loop.run_until_complete(test())
@@ -9074,6 +9803,7 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
 
             row = await conn.fetchrow(select_query, data['id'])
             self.assertEqual(row, None)
+            await conn.close()
 
         loop = asyncio.new_event_loop()
         loop.run_until_complete(test())
@@ -9397,7 +10127,10 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
 
     def copy_keystore(self):
         new_keystore = tempfile.mkdtemp()
-        return shutil.copytree(KEYS_FOLDER.name, new_keystore, dirs_exist_ok=True)
+        # we don't use shutil.copytree(..., dirs_exist_ok=True) due to unsupported in default python on centos 7, 8
+        # so we remove folder and then copy
+        shutil.rmtree(new_keystore)
+        return shutil.copytree(KEYS_FOLDER.name, new_keystore)
 
     def find_forked_pid(self, filepath):
         with open(filepath, 'r') as f:
@@ -9536,6 +10269,295 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
                 os.kill(pid, signal.SIGKILL)
             stop_process(translator)
             os.remove(config['log_to_file'])
+
+
+class LimitOffsetQueryTest(BaseTransparentEncryption):
+    encryptor_table = sa.Table(
+        'test_searchable_limit_offset', metadata,
+        sa.Column('id', sa.Integer, primary_key=True, autoincrement=False),
+        sa.Column('data',
+                  sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+        sa.Column('raw_data', sa.Text),
+        sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+    )
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_encryptor_config.yaml')
+
+    def setUp(self):
+        # should be before setUp and fork_acra
+        self.log_file = tempfile.NamedTemporaryFile()
+        super().setUp()
+        self.engine_raw.execute(sa.delete(self.encryptor_table))
+        self.engine_raw.execute(sa.delete(test_table))
+
+    def tearDown(self):
+        super().tearDown()
+        os.remove(self.log_file.name)
+
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        acra_kwargs['encryptor_config_file'] = get_test_encryptor_config(
+            self.ENCRYPTOR_CONFIG)
+        acra_kwargs['log_to_file'] = self.log_file.name
+        return super(BaseTransparentEncryption, self).fork_acra(
+            popen_kwargs, **acra_kwargs)
+
+    def testSearchableQueries(self):
+        limit_count = 3
+        offset_index = 3
+        searchable_data = 'searchable data'
+        data_amount = 10
+        testCase = collections.namedtuple('TestCase', ['query', 'limit', 'offset'])
+        test_cases = [
+            testCase(
+                query="select id, data, raw_data, empty from {table_name} where data='{data}' "
+                      "order by id LIMIT {limit}".format(
+                    limit=limit_count, table_name=self.encryptor_table.name, data=searchable_data),
+                limit=limit_count,
+                offset=0,
+            ),
+            testCase(
+                query="select id, data, raw_data, empty from {table_name} where data='{data}' order by id "
+                      "LIMIT {limit} OFFSET {offset}".format(
+                    limit=limit_count, table_name=self.encryptor_table.name, offset=offset_index, data=searchable_data),
+                limit=limit_count,
+                offset=offset_index,
+            ),
+        ]
+        mysql_cases = [
+            testCase(
+                query="select id, data, raw_data, empty from {table_name} where data='{data}' order by id "
+                      "LIMIT {offset}, {limit}".format(
+                    limit=limit_count, table_name=self.encryptor_table.name, offset=offset_index, data=searchable_data),
+                limit=limit_count,
+                offset=offset_index,
+            ),
+        ]
+        postgresql_cases = [
+            testCase(
+                query="select id, data, raw_data, empty from {table_name} where data='{data}' order by id "
+                      "LIMIT ALL".format(
+                    table_name=self.encryptor_table.name, data=searchable_data),
+                limit=data_amount,
+                offset=0,
+            ),
+            testCase(
+                query="select id, data, raw_data, empty from {table_name} where data='{data}' order by id "
+                      "LIMIT ALL OFFSET {offset}".format(
+                    table_name=self.encryptor_table.name, offset=offset_index, data=searchable_data),
+                limit=data_amount,
+                offset=offset_index,
+            ),
+        ]
+        if TEST_MYSQL:
+            test_cases += mysql_cases
+        elif TEST_POSTGRESQL:
+            test_cases += postgresql_cases
+        data_set = []
+
+        for i in range(data_amount):
+            if i % 2 == 0:
+                row = {'id': i, 'data': searchable_data.encode('ascii'), 'raw_data': searchable_data}
+            else:
+                data = get_pregenerated_random_data().encode('ascii')
+                row = {'id': i, 'data': data, 'raw_data': data}
+            data_set.append(row)
+            self.engine1.execute(self.encryptor_table.insert(), row)
+
+        for test_case in test_cases:
+            result = self.engine1.execute(sa.text(test_case.query)).fetchall()
+            # simulate search logic
+            expected_data_slice = [i
+                                   for i in data_set
+                                   if i['id'] % 2 == 0]
+            expected_data_slice = expected_data_slice[test_case.offset:test_case.offset+test_case.limit]
+            self.assertEqual(len(expected_data_slice), len(result))
+            for i, row in enumerate(result):
+                self.assertEqual(row['id'], expected_data_slice[i]['id'])
+                self.assertEqual(utils.memoryview_to_bytes(row['data']),
+                                 expected_data_slice[i]['raw_data'].encode('ascii'))
+                self.assertEqual(row['raw_data'], expected_data_slice[i]['raw_data'])
+                self.assertEqual(row['empty'], b'')
+
+        for test_case in test_cases:
+            result = self.engine2.execute(sa.text(test_case.query)).fetchall()
+            self.assertEqual(len(result), 0)
+
+    def get_testcases(self, data_amount):
+        # randomly chosen
+        limit_count = 3
+        offset_index = 3
+        testCase = collections.namedtuple('TestCase', ['query', 'limit', 'offset'])
+        test_cases = [
+            testCase(
+                query='select id, data, raw_data, empty from {table_name} order by id LIMIT {limit}'.format(
+                    limit=limit_count, table_name=test_table.name),
+                limit=limit_count,
+                offset=0,
+            ),
+            testCase(
+                query='select id, data, raw_data, empty from {table_name} order by id LIMIT {limit} OFFSET {offset}'.format(
+                    limit=limit_count, table_name=test_table.name, offset=offset_index),
+                limit=limit_count,
+                offset=offset_index,
+            ),
+        ]
+        failure_cases = []
+        mysql_cases = [
+            testCase(
+                query='select id, data, raw_data, empty from {table_name} order by id LIMIT {offset}, {limit}'.format(
+                    limit=limit_count, table_name=test_table.name, offset=offset_index),
+                limit=limit_count,
+                offset=offset_index,
+            ),
+        ]
+        postgresql_cases = [
+            testCase(
+                query='select id, data, raw_data, empty from {table_name} order by id LIMIT ALL'.format(
+                    table_name=test_table.name),
+                limit=data_amount,
+                offset=0,
+            ),
+            testCase(
+                query='select id, data, raw_data, empty from {table_name} order by id LIMIT ALL OFFSET {offset}'.format(
+                    table_name=test_table.name, offset=offset_index),
+                limit=data_amount,
+                offset=offset_index,
+            ),
+        ]
+        if TEST_MYSQL:
+            test_cases += mysql_cases
+            failure_cases += postgresql_cases
+        elif TEST_POSTGRESQL:
+            test_cases += postgresql_cases
+            failure_cases += mysql_cases
+        return test_cases, failure_cases
+
+    def testAcrastructRead(self):
+        client_id = TLS_CERT_CLIENT_ID_1
+        server_public1 = read_storage_public_key(client_id, KEYS_FOLDER.name)
+        data_set = []
+        for i in range(10):
+            data = get_pregenerated_random_data()
+            acra_struct = create_acrastruct(
+                data.encode('ascii'), server_public1)
+            self.log(storage_client_id=client_id,
+                     data=acra_struct, expected=data.encode('ascii'))
+            row = {'id': i, 'data': acra_struct, 'raw_data': data}
+            data_set.append(row)
+            self.engine1.execute(test_table.insert(), row)
+
+        test_cases, _ = self.get_testcases(len(data_set))
+        for test_case in test_cases:
+            result = self.engine1.execute(sa.text(test_case.query)).fetchall()
+            expected_data_slice = data_set[test_case.offset:test_case.offset+test_case.limit]
+            self.assertEqual(len(expected_data_slice), len(result))
+            for i, row in enumerate(result):
+                self.assertEqual(row['id'], expected_data_slice[i]['id'])
+                self.assertEqual(utils.memoryview_to_bytes(row['data']),
+                                 expected_data_slice[i]['raw_data'].encode('ascii'))
+                self.assertEqual(row['raw_data'], expected_data_slice[i]['raw_data'])
+                self.assertEqual(row['empty'], b'')
+
+        # requests by another client without permissions
+        for test_case in test_cases:
+            result = self.engine2.execute(sa.text(test_case.query)).fetchall()
+            expected_data_slice = data_set[test_case.offset:test_case.offset+test_case.limit]
+            self.assertEqual(len(expected_data_slice), len(result))
+            for i, row in enumerate(result):
+                self.assertEqual(row['id'], expected_data_slice[i]['id'])
+                self.assertNotEqual(
+                    utils.memoryview_to_bytes(row['data']), expected_data_slice[i]['raw_data'].encode('ascii'))
+                self.assertEqual(row['raw_data'], expected_data_slice[i]['raw_data'])
+                self.assertEqual(row['empty'], b'')
+
+    def testReadAcrastructInAcrastruct(self):
+        client_id = TLS_CERT_CLIENT_ID_1
+        server_public1 = read_storage_public_key(client_id, KEYS_FOLDER.name)
+
+        # use one sample of outer invalid acrastruct
+        fake_offset = (3+45+84) - 4
+        incorrect_data = get_pregenerated_random_data()
+        suffix_data = get_pregenerated_random_data()[:10]
+        fake_acra_struct = create_acrastruct(
+            incorrect_data.encode('ascii'), server_public1)[:fake_offset]
+        data_set = []
+        for i in range(10):
+            correct_data = get_pregenerated_random_data()
+            inner_acra_struct = create_acrastruct(
+                correct_data.encode('ascii'), server_public1)
+            data = fake_acra_struct + inner_acra_struct + suffix_data.encode('ascii')
+            correct_data = correct_data + suffix_data
+            self.log(storage_client_id=client_id,
+                     data=data,
+                     expected=fake_acra_struct+correct_data.encode('ascii'))
+            row = {'id': i, 'data': data, 'raw_data': correct_data}
+            data_set.append(row)
+            self.engine1.execute(test_table.insert(), row)
+
+        test_cases, _ = self.get_testcases(len(data_set))
+        for test_case in test_cases:
+            result = self.engine1.execute(sa.text(test_case.query)).fetchall()
+            expected_data_slice = data_set[test_case.offset:test_case.offset+test_case.limit]
+            self.assertEqual(len(expected_data_slice), len(result))
+            for i, row in enumerate(result):
+                self.assertEqual(utils.memoryview_to_bytes(row['data'][fake_offset:]), row['raw_data'].encode('utf-8'))
+                self.assertEqual(utils.memoryview_to_bytes(row['data'][:fake_offset]), fake_acra_struct[:fake_offset])
+
+                self.assertEqual(row['id'], expected_data_slice[i]['id'])
+                self.assertEqual(row['raw_data'], expected_data_slice[i]['raw_data'])
+                self.assertEqual(row['empty'], b'')
+
+        for test_case in test_cases:
+            result = self.engine2.execute(sa.text(test_case.query)).fetchall()
+            expected_data_slice = data_set[test_case.offset:test_case.offset+test_case.limit]
+            self.assertEqual(len(expected_data_slice), len(result))
+            for i, row in enumerate(result):
+                self.assertNotEqual(utils.memoryview_to_bytes(row['data'][fake_offset:]).decode('ascii', errors='ignore'),
+                                    row['raw_data'])
+
+                self.assertEqual(row['id'], expected_data_slice[i]['id'])
+                self.assertEqual(row['raw_data'], expected_data_slice[i]['raw_data'])
+                self.assertEqual(row['empty'], b'')
+
+    def testFailureQueries(self):
+        _, failure_cases = self.get_testcases(10)
+        for test_case in failure_cases:
+            # clear all previous log entries
+            self.log_file.truncate(0)
+            with self.assertRaises(sa.exc.ProgrammingError) as exc:
+                # check that database doesn't pass it too
+                self.engine1.execute(sa.text(test_case.query))
+            if TEST_POSTGRESQL:
+                self.assertIsInstance(exc.exception.orig, psycopg2.errors.SyntaxError)
+            elif TEST_MYSQL:
+                self.assertIsInstance(exc.exception.orig, pymysql.err.ProgrammingError)
+                self.assertIn("You have an error in your SQL syntax;", exc.exception.orig.args[1])
+            else:
+                raise exc.exception
+
+            # check that acra-server didn't parse it too
+            # find our query in the log output
+            # next after the query should be log entry about parsing error
+            success = False
+            with open(self.log_file.name, 'r', encoding='utf8') as f:
+                while True:
+                    line = f.readline()
+                    if not line:
+                        break
+                    if test_case.query in line:
+                        new_line = f.readline()
+                        self.assertIn('ignoring error of non parsed sql statement', new_line)
+                        if TEST_POSTGRESQL:
+                            self.assertIn("PostgreSQL dialect doesn't allow 'LIMIT offset, limit' syntax of LIMIT "
+                                          "statements", new_line)
+                        elif TEST_MYSQL:
+                            self.assertIn("MySQL dialect doesn't allow 'LIMIT ALL' syntax of LIMIT statements",
+                                          new_line)
+                        else:
+                            self.fail('Unexpected test environment')
+                        success = True
+                        break
+            if not success:
+                self.fail('Not found expected log entry in the acra-server\'s log output')
 
 
 if __name__ == '__main__':

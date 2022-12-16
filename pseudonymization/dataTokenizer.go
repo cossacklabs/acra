@@ -17,9 +17,9 @@
 package pseudonymization
 
 import (
-	"github.com/cossacklabs/acra/encryptor/config"
 	"strconv"
 
+	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/sirupsen/logrus"
 )

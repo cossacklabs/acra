@@ -23,22 +23,19 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"flag"
-	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
-	"github.com/cossacklabs/acra/network"
-	"github.com/cossacklabs/acra/pseudonymization/storage"
-	"github.com/cossacklabs/acra/utils/tests"
 	"io"
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"strconv"
 	"testing"
 
-	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
-
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/keyloader"
+	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
+	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
+	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/pseudonymization/storage"
+	"github.com/cossacklabs/acra/utils/tests"
 )
 
 func newClientTLSConfig(t *testing.T) *tls.Config {
@@ -122,7 +119,7 @@ func TestReadCMD_TLSRedis_V2(t *testing.T) {
 		}
 	}
 
-	os.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
+	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
 	t.Run("read storage-public key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
@@ -200,13 +197,9 @@ func TestReadCMD_TLSRedis_V1(t *testing.T) {
 		}
 	}
 
-	os.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
+	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
-	dirName, err := ioutil.TempDir("", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dirName)
+	dirName := t.TempDir()
 
 	t.Run("read storage-public key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{

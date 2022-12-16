@@ -165,7 +165,7 @@ schemas:
       - column: specified_client_id
         client_id: %s
 `, clientIDStr, clientIDStr)
-	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr))
+	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr), config.UseMySQL)
 	if err != nil {
 		t.Fatalf("Can't parse config: %s", err.Error())
 	}
@@ -476,7 +476,7 @@ schemas:
       - column: specified_client_id
         client_id: %s
 `, clientIDStr, clientIDStr)
-	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr))
+	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr), config.UseMySQL)
 	if err != nil {
 		t.Fatalf("Can't parse config: %s", err.Error())
 	}
@@ -611,7 +611,7 @@ schemas:
       - column: specified_client_id
         client_id: %s
 `, clientIDStr)
-	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr))
+	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr), config.UseMySQL)
 	if err != nil {
 		t.Fatalf("Can't parse config: %s", err.Error())
 	}
@@ -690,7 +690,7 @@ schemas:
         client_id: %s
 
 `, clientIDStr, clientIDStr)
-	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr))
+	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr), config.UseMySQL)
 	if err != nil {
 		t.Fatalf("Can't parse config: %s", err.Error())
 	}
@@ -786,13 +786,13 @@ schemas:
       - column: specified_client_id
         client_id: %s
 `, clientIDStr)
-	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr))
+	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr), config.UseMySQL)
 	if err != nil {
 		t.Fatalf("Can't parse config: %s", err.Error())
 	}
 
 	parser := sqlparser.New(sqlparser.ModeStrict)
-	mysqlParser, err := NewMysqlQueryEncryptor(schemaStore, parser, nil)
+	encryptor, err := NewMysqlQueryEncryptor(schemaStore, parser, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -806,15 +806,15 @@ schemas:
 	})
 	ctx = base.SetClientSessionToContext(ctx, clientSession)
 	t.Run("RETURNING *", func(t *testing.T) {
-		query := `INSERT INTO TableWithColumnSchema ('specified_client_id', 'other_column', 'default_client_id') VALUES (1, 1, 1) RETURNING *`
+		query := `INSERT INTO TableWithColumnSchema ('zone_id', 'specified_client_id', 'other_column', 'default_client_id') VALUES (1, 1, 1, 1) RETURNING *`
 
-		_, _, err := mysqlParser.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
+		_, _, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
 		if err != nil {
 			t.Fatalf("%s", err.Error())
 		}
 
-		if len(columns) != len(mysqlParser.querySelectSettings) {
-			t.Fatalf("Incorrect mysqlParser.querySelectSettings length")
+		if len(columns) != len(encryptor.querySelectSettings) {
+			t.Fatalf("Incorrect encryptor.querySelectSettings length")
 		}
 
 		expectedNilColumns := map[int]struct{}{
@@ -825,7 +825,7 @@ schemas:
 			if _, ok := expectedNilColumns[i]; ok {
 				continue
 			}
-			setting := mysqlParser.querySelectSettings[i]
+			setting := encryptor.querySelectSettings[i]
 
 			if columns[i] != setting.columnName {
 				t.Fatalf("%v. Incorrect QueryDataItem \nTook: %v\nExpected: %v", i, setting.columnName, columns[i])
@@ -838,14 +838,14 @@ schemas:
 		query := fmt.Sprintf(`INSERT INTO TableWithColumnSchema 
 ('specified_client_id', 'other_column', 'default_client_id') VALUES (1, 1, 1) RETURNING %s`, returning)
 
-		_, _, err := mysqlParser.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
+		_, _, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
 		if err != nil {
 			t.Fatalf("%s", err.Error())
 		}
 
 		returningColumns := strings.Split(returning, ", ")
 		if len(columns) != len(returningColumns) {
-			t.Fatalf("Incorrect mysqlParser.querySelectSettings length")
+			t.Fatalf("Incorrect encryptor.querySelectSettings length")
 		}
 
 		expectedNilColumns := map[int]struct{}{
@@ -857,7 +857,44 @@ schemas:
 				continue
 			}
 
-			setting := mysqlParser.querySelectSettings[i]
+			setting := encryptor.querySelectSettings[i]
+
+			if returningColumns[i] != setting.columnName {
+				t.Fatalf("%v. Incorrect QueryDataItem \nTook: %v\nExpected: %v", i, setting.columnName, columns[i])
+			}
+		}
+	})
+
+	t.Run("RETURNING columns with sql literals", func(t *testing.T) {
+		returning := "1, 0 as literal, specified_client_id, other_column, default_client_id, NULL"
+		query := fmt.Sprintf(`INSERT INTO TableWithColumnSchema 
+('specified_client_id', 'other_column', 'default_client_id') VALUES (1, 1, 1) RETURNING %s`, returning)
+
+		_, _, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
+		if err != nil {
+			t.Fatalf("%s", err.Error())
+		}
+
+		returningColumns := strings.Split(returning, ", ")
+		// 1, 0 as literal, NULL
+		extraValuesCount := 3
+		if (len(columns) + extraValuesCount) != len(returningColumns) {
+			t.Fatalf("Incorrect encryptor.querySelectSettings length")
+		}
+
+		expectedNilColumns := map[int]struct{}{
+			0: {},
+			1: {},
+			3: {},
+			5: {},
+		}
+
+		for i := range returningColumns {
+			if _, ok := expectedNilColumns[i]; ok {
+				continue
+			}
+
+			setting := encryptor.querySelectSettings[i]
 
 			if returningColumns[i] != setting.columnName {
 				t.Fatalf("%v. Incorrect QueryDataItem \nTook: %v\nExpected: %v", i, setting.columnName, columns[i])
@@ -1018,7 +1055,7 @@ func TestEncryptionSettingCollection(t *testing.T) {
 	}
 	for i, tcase := range testcases {
 		t.Logf("Test tcase %d\n", i)
-		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(tcase.config), config.UseMySQL)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1097,7 +1134,7 @@ func TestEncryptionSettingCollectionFailures(t *testing.T) {
 	}
 	for i, tcase := range testcases {
 		t.Logf("Test tcase %d\n", i)
-		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(tcase.config), config.UseMySQL)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1177,7 +1214,7 @@ func TestInsertWithIncorrectPlaceholdersAmount(t *testing.T) {
 	for i, tcase := range testcases {
 		outBuffer.Reset()
 		t.Logf("Test tcase %d\n", i)
-		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(tcase.config), config.UseMySQL)
 		if err != nil {
 			t.Fatal(err)
 		}

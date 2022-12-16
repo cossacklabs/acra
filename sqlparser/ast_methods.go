@@ -3,8 +3,8 @@ package sqlparser
 import (
 	"errors"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"io"
-	"log"
 	"strings"
 
 	"github.com/cossacklabs/acra/sqlparser/dependency/querypb"
@@ -72,7 +72,11 @@ func (p Parser) HandleRawSQLQuery(sql string) (normalizedQuery, redactedQuery st
 func (p Parser) Parse(sql string) (Statement, error) {
 	statement, err := ParseWithDialect(defaultDialect, sql)
 	if err != nil && p.parseQueryErrorMode == ModeDefault {
-		log.Println("ignoring error of non parsed sql statement")
+		if log.GetLevel() == log.DebugLevel {
+			log.WithError(err).Debugln("ignoring error of non parsed sql statement")
+		} else {
+			log.Warningln("ignoring error of non parsed sql statement")
+		}
 		return NotParsedStatement{Query: sql}, nil
 	}
 	return statement, err
@@ -1769,10 +1773,21 @@ func (node *Limit) Format(buf *TrackedBuffer) {
 		return
 	}
 	buf.Myprintf(" limit ")
-	if node.Offset != nil {
-		buf.Myprintf("%v, ", node.Offset)
+	switch node.Type {
+	// PostgreSQL + MySQL
+	case LimitTypeLimitOnly:
+		buf.Myprintf("%v", node.Rowcount)
+	case LimitTypeLimitAndOffset:
+		buf.Myprintf("%v offset %v", node.Rowcount, node.Offset)
+	// MySQL only
+	case LimitTypeCommaSeparated:
+		buf.Myprintf("%v, %v", node.Offset, node.Rowcount)
+	// PostgreSQL only
+	case LimitTypeLimitAll:
+		buf.WriteString("all")
+	case LimitTypeLimitAllAndOffset:
+		buf.Myprintf("all offset %v", node.Offset)
 	}
-	buf.Myprintf("%v", node.Rowcount)
 }
 
 func (node *Limit) walkSubtree(visit Visit) error {
@@ -1887,18 +1902,6 @@ func (node OnDup) Format(buf *TrackedBuffer) {
 
 func (node OnDup) walkSubtree(visit Visit) error {
 	return Walk(visit, UpdateExprs(node))
-}
-
-// Format formats the node.
-func (node Returning) Format(buf *TrackedBuffer) {
-	if node == nil {
-		return
-	}
-	buf.Myprintf(" returning %v", Exprs(node))
-}
-
-func (node Returning) walkSubtree(visit Visit) error {
-	return Walk(visit, Exprs(node))
 }
 
 // FormatForDialect formats the node for specified dialect

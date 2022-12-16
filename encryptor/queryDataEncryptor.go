@@ -163,7 +163,7 @@ func UpdateExpressionValue(ctx context.Context, expr sqlparser.Expr, coder DBDat
 		return UpdateExpressionValue(ctx, expr.(*sqlparser.ParenExpr).Expr, coder, updateFunc)
 	case *sqlparser.SQLVal:
 		switch val.Type {
-		case sqlparser.StrVal, sqlparser.HexVal, sqlparser.PgEscapeString, sqlparser.IntVal:
+		case sqlparser.StrVal, sqlparser.HexVal, sqlparser.PgEscapeString, sqlparser.IntVal, sqlparser.HexNum:
 			rawData, err := coder.Decode(val)
 			if err != nil {
 				if err == utils.ErrDecodeOctalString || err == errUnsupportedExpression {
@@ -352,7 +352,7 @@ func (encryptor *QueryDataEncryptor) OnColumn(ctx context.Context, data []byte) 
 const allColumnsName = "*"
 
 func (encryptor *QueryDataEncryptor) onSelect(ctx context.Context, statement *sqlparser.Select) (bool, error) {
-	columns, err := mapColumnsToAliases(statement)
+	columns, err := mapColumnsToAliases(statement, encryptor.schemaStore)
 	if err != nil {
 		logrus.WithError(err).Errorln("Can't extract columns from SELECT statement")
 		return false, err
@@ -424,12 +424,24 @@ func (encryptor *QueryDataEncryptor) onReturning(ctx context.Context, returning 
 		return nil
 	}
 
-	for _, col := range returning {
-		colName, ok := col.(*sqlparser.ColName)
-		if !ok {
-			return errors.New("invalid returning format provided")
+	for _, item := range returning {
+		var colName *sqlparser.ColName
+		switch returningItem := item.(type) {
+		case *sqlparser.AliasedExpr:
+			switch expr := returningItem.Expr.(type) {
+			case *sqlparser.ColName:
+				colName = expr
+				break
+			default:
+				// skip all other not relevant types
+				querySelectSettings = append(querySelectSettings, nil)
+				continue
+			}
+		default:
+			// skip all other not relevant types: StarExpr & Nextval
+			querySelectSettings = append(querySelectSettings, nil)
+			continue
 		}
-
 		rawColName := colName.Name.String()
 		if columnSetting := schema.GetColumnEncryptionSettings(rawColName); columnSetting != nil {
 			querySelectSettings = append(querySelectSettings, &QueryDataItem{

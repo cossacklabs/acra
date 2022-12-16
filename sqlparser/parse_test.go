@@ -212,6 +212,33 @@ var (
 		// mysql allow to use single quote for column/table aliases
 		dialect: mysql.NewMySQLDialect(),
 	}, {
+		input: `select * from mytable where "AGE" = 1 and "TEST" = 'test'`,
+		// postgres allow to use double quote string for columns
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
+		// this is valid query ONLY for MySQL in default mode, for now,
+		// but invalid for PostgreSQL and MySQL in ANSI mode and maybe be changed in future
+		input:  `insert into some_table(id, data) VALUES (10918, "test")`,
+		output: `insert into some_table(id, data) values (10918, 'test')`,
+	}, {
+		input: `insert into some_table(id, data) values (10918, 'test')`,
+	}, {
+		input:  `select * from mytable where "test" = "test"`,
+		output: `select * from mytable where 'test' = 'test'`,
+	}, {
+		input:  `select * from mytable where "test" = 1 and 'value' = 'value'`,
+		output: `select * from mytable where 'test' = 1 and 'value' = 'value'`,
+	}, {
+		input:   `SELECT "id", "landline_number" AS "landlineNumber", "removal" FROM "users" AS "User" where "User"."is_active"`,
+		output:  `select "id", "landline_number" as "landlineNumber", "removal" from "users" as "User" where "User"."is_active"`,
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
+		input:   `select "id" from "users" as "User" where "User"."AGE" = 123`,
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
+		input:   `select "id" from "users" as "User" where "AGE" = '123'`,
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
 		input:  "select /* string table alias without as */ 1 from t 't1'",
 		output: "select /* string table alias without as */ 1 from t as 't1'",
 		// mysql allow to use single quote for column/table aliases
@@ -1318,15 +1345,54 @@ var (
 	}, {
 		input:  "select NULL::text from dual",
 		output: "select null::text from dual",
-	}}
+	}, { // PostgreSQL & MySQL limit&offset format
+		input:  "select * from dual limit 10 offset 10",
+		output: "select * from dual limit 10 offset 10",
+	}, { // PostgreSQL & MySQL limit&offset format
+		input:  "select * from dual limit 10",
+		output: "select * from dual limit 10",
+	}, { // MySQL format
+		input:   "select * from dual limit 10, 10",
+		output:  "select * from dual limit 10, 10",
+		dialect: mysql.NewMySQLDialect(),
+	}, { // PostgreSQL format
+		input:   "select * from dual limit all",
+		output:  "select * from dual limit all",
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, { // PostgreSQL format
+		input:   "select * from dual limit all offset 10",
+		output:  "select * from dual limit all offset 10",
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, { // PostgreSQL format
+		input:   "select * from dual where val ilike 'test%'",
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
+		input:   "select * from dual where val not ilike 'test%'",
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
+		input:   "SELECT * FROM dual WHERE val ILIKE 'test%'",
+		output:  "select * from dual where val ilike 'test%'",
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
+		input:   "SELECT * FROM dual WHERE val NOT ILIKE 'test%'",
+		output:  "select * from dual where val not ilike 'test%'",
+		dialect: postgresql.NewPostgreSQLDialect(),
+	},
+	}
 )
 
 func TestValid(t *testing.T) {
+	var testDialect dialect.Dialect
 	for i, tcase := range validSQL {
 		if tcase.output == "" {
 			tcase.output = tcase.input
 		}
-		tree, err := New(ModeStrict).Parse(tcase.input)
+
+		testDialect = tcase.dialect
+		if tcase.dialect == nil {
+			testDialect = mysql.NewMySQLDialect()
+		}
+		tree, err := ParseWithDialect(testDialect, tcase.input)
 		if err != nil {
 			t.Errorf("Parse(%q) err: %v, want nil", tcase.input, err)
 			continue
@@ -1432,7 +1498,22 @@ func TestCaseSensitivity(t *testing.T) {
 		output: "select next 1 values from t",
 	}, {
 		input: "select /* use */ 1 from t1 use index (A) where b = 1",
-	}}
+	},
+		// RETURNING with literals, aliased literals, column names with table name and without, null value
+		{
+			input: "INSERT INTO test_tokenization_specific_client_id (id, nullable_column, empty, token_i32, token_i64, token_str, token_bytes, token_email) " +
+				"VALUES (76226, NULL, '\\x'::bytea, 922401311,  -8618859720926082254, 'uOY5uD0tvF', '\\x00010203'::bytea, 'HJiJq6EzLK@HRgtzzOE5') " +
+				"RETURNING 0, '1' AS literal, id, test_tokenization_specific_client_id.token_str, test_tokenization_specific_client_id.token_i64, test_tokenization_specific_client_id.token_email, " +
+				"test_tokenization_specific_client_id.token_i32, null",
+			output: "insert into test_tokenization_specific_client_id(id, nullable_column, empty, token_i32, token_i64, token_str, token_bytes, token_email) values (76226, null, '\\x'::bytea, 922401311, -8618859720926082254, 'uOY5uD0tvF', '\\x00010203'::bytea, 'HJiJq6EzLK@HRgtzzOE5') returning 0, '1' as literal, id, test_tokenization_specific_client_id.token_str, test_tokenization_specific_client_id.token_i64, test_tokenization_specific_client_id.token_email, test_tokenization_specific_client_id.token_i32, null",
+		},
+		// RETURNING with literals, aliased literals, column names with table name and without, null value
+		{
+			input: "INSERT INTO test_tokenization_specific_client_id (id, nullable_column, empty, token_i32, token_i64, token_str, token_bytes, token_email) " +
+				"VALUES (76226, NULL, '\\x'::bytea, 922401311,  -8618859720926082254, 'uOY5uD0tvF', '\\x00010203'::bytea, 'HJiJq6EzLK@HRgtzzOE5') " +
+				"RETURNING *",
+			output: "insert into test_tokenization_specific_client_id(id, nullable_column, empty, token_i32, token_i64, token_str, token_bytes, token_email) values (76226, null, '\\x'::bytea, 922401311, -8618859720926082254, 'uOY5uD0tvF', '\\x00010203'::bytea, 'HJiJq6EzLK@HRgtzzOE5') returning *",
+		}}
 
 	parser := New(ModeStrict)
 	for _, tcase := range validSQL {
@@ -1547,6 +1628,7 @@ func TestKeywords(t *testing.T) {
 }
 
 func TestConvert(t *testing.T) {
+	SetTokenizerVerbosity(true)
 	validSQL := []struct {
 		input  string
 		output string
@@ -1641,6 +1723,9 @@ func TestConvert(t *testing.T) {
 		input:  "select convert('abc', decimal(4+9)) from t",
 		output: "syntax error at position 33",
 	},
+	// TODO: added test cases to cover errors for MySQL ANSI mode
+	// `insert into table (id, name) values (125, "data")` currently, in ANSI mod its valid query with contains
+	// Rows {SQLVal(125), ColName("data")} - but it should fail with error
 	}
 
 	var dialect dialect.Dialect
@@ -2151,11 +2236,29 @@ var (
 			input:   "select adddate('2008-01-02', interval 1 year) from t",
 			output:  "PostgreSQL don't support Mysql syntax of interval expression at position 45 near 'year'",
 			dialect: postgresql.NewPostgreSQLDialect(),
-		}}
+		}, {
+			input:   "select * from dual where val ilike 'test%'",
+			output:  "MySQL dialect doesn't support `ILIKE` statement at position 43",
+			dialect: mysql.NewMySQLDialect(),
+		}, {
+			input:   "select * from dual where val not ilike 'test%'",
+			output:  "MySQL dialect doesn't support `ILIKE` statement at position 47",
+			dialect: mysql.NewMySQLDialect(),
+		}, {
+			input:   "SELECT * FROM dual WHERE val ILIKE 'test%'",
+			output:  "MySQL dialect doesn't support `ILIKE` statement at position 43",
+			dialect: mysql.NewMySQLDialect(),
+		}, {
+			input:   "SELECT * FROM dual WHERE val NOT ILIKE 'test%'",
+			output:  "MySQL dialect doesn't support `ILIKE` statement at position 47",
+			dialect: mysql.NewMySQLDialect(),
+		},
+	}
 )
 
 func TestErrors(t *testing.T) {
 	var dialect dialect.Dialect
+	SetTokenizerVerbosity(true)
 	for i, tcase := range invalidSQL {
 		if tcase.dialect == nil {
 			dialect = mysql.NewMySQLDialect()

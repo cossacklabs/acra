@@ -24,13 +24,15 @@ type KeyMaking interface {
 type KeyMakingWrapper struct {
 	KeyMaking
 	kmsKeyManager KeyManager
+	keyMapper     KeyMapper
 }
 
 // NewKeyMakingWrapper create new KeyMakingWrapper
-func NewKeyMakingWrapper(keyMaking KeyMaking, manager KeyManager) KeyMakingWrapper {
+func NewKeyMakingWrapper(keyMaking KeyMaking, manager KeyManager, keyMapper KeyMapper) KeyMakingWrapper {
 	return KeyMakingWrapper{
 		KeyMaking:     keyMaking,
 		kmsKeyManager: manager,
+		keyMapper:     keyMapper,
 	}
 }
 
@@ -124,7 +126,7 @@ func (k KeyMakingWrapper) GenerateClientIDSymmetricKey(id []byte) error {
 func (k KeyMakingWrapper) createKMSKeyFromContext(keyContext keystore.KeyContext, description string) error {
 	ctx, _ := context.WithTimeout(context.Background(), network.DefaultNetworkTimeout)
 
-	keyID, err := getKeyIDFromContext(keyContext)
+	keyID, err := k.keyMapper.GetKeyID(keyContext)
 	if err != nil {
 		return err
 	}
@@ -146,6 +148,7 @@ func (k KeyMakingWrapper) createKMSKeyFromContext(keyContext keystore.KeyContext
 	if err != nil {
 		return err
 	}
+
 	log.WithField("keyID", resp.KeyID).WithField("key-name", string(keyID)).Info("KMS key created")
 	return nil
 }

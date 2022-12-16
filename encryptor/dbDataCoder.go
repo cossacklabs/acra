@@ -17,6 +17,7 @@ limitations under the License.
 package encryptor
 
 import (
+	"bytes"
 	"encoding/hex"
 	"errors"
 	"github.com/cossacklabs/acra/logging"
@@ -28,6 +29,8 @@ import (
 )
 
 var pgHexStringPrefix = []byte{'\\', 'x'}
+
+var hexNumPrefix = []byte{48, 120}
 
 // DBDataCoder encode/decode binary data to correct string form for specific db
 type DBDataCoder interface {
@@ -53,6 +56,17 @@ func (*MysqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 			_, err := hex.Decode(binValue, val.Val)
 			if err != nil {
 				logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeHexData).WithError(err).Errorln("Can't decode hex string literal")
+				return nil, err
+			}
+			return binValue, nil
+		case sqlparser.HexNum:
+			if !bytes.HasPrefix(val.Val, hexNumPrefix) {
+				return val.Val, nil
+			}
+			binValue := make([]byte, hex.DecodedLen(len(val.Val)-2))
+			_, err := hex.Decode(binValue, val.Val[2:])
+			if err != nil {
+				logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeHexData).WithError(err).Errorln("Can't decode hex binary literal")
 				return nil, err
 			}
 			return binValue, nil
@@ -89,6 +103,18 @@ func (*MysqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, error
 			return encodeDataToHex(val, data)
 		case sqlparser.HexVal:
 			return encodeDataToHex(val, data)
+		case sqlparser.HexNum:
+			hexData, err := encodeDataToHex(val, data)
+			if err != nil {
+				return nil, err
+			}
+			val.Type = sqlparser.HexNum
+
+			//add Ox prefix before hexData
+			hexNum := make([]byte, 0, len(hexData)+2)
+			hexNum = append(hexNum, hexNumPrefix...)
+			hexNum = append(hexNum, bytes.ToUpper(hexData)...)
+			return hexNum, nil
 		}
 	}
 	return nil, errUnsupportedExpression

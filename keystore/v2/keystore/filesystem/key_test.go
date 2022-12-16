@@ -27,7 +27,5 @@ func TestKeyInMemory(t *testing.T) {
 }
 
 func TestKeyFilesystem(t *testing.T) {
-	newFilesystemKeyStore, cleanup := testFilesystemKeyStore(t)
-	defer cleanup()
-	tests.TestKey(t, newFilesystemKeyStore)
+	tests.TestKey(t, testFilesystemKeyStore)
 }

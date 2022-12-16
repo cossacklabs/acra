@@ -3,10 +3,10 @@ package common
 import (
 	"errors"
 	"fmt"
-	"strconv"
-	"unicode/utf8"
 
+	"github.com/cossacklabs/acra/decryptor/mysql/base"
 	"github.com/cossacklabs/acra/pseudonymization/common"
+	"github.com/jackc/pgx/pgtype"
 )
 
 // ResponseOnFail represents possible values for `response_on_fail` field
@@ -31,6 +31,38 @@ const (
 	// to a client
 	ResponseOnFailError ResponseOnFail = "error"
 )
+
+// MySQLEncryptedTypeDataTypeIDs used for mapping EncryptedType with MySQL Types
+var MySQLEncryptedTypeDataTypeIDs = map[EncryptedType]uint32{
+	EncryptedType_Int32:  uint32(base.TypeLong),
+	EncryptedType_Int64:  uint32(base.TypeLongLong),
+	EncryptedType_String: uint32(base.TypeString),
+	EncryptedType_Bytes:  uint32(base.TypeBlob),
+}
+
+// PostgreSQLEncryptedTypeDataTypeIDs used for mapping EncryptedType with PostgreSQL OIDs
+var PostgreSQLEncryptedTypeDataTypeIDs = map[EncryptedType]uint32{
+	EncryptedType_Int32:  pgtype.Int4OID,
+	EncryptedType_Int64:  pgtype.Int8OID,
+	EncryptedType_String: pgtype.TextOID,
+	EncryptedType_Bytes:  pgtype.ByteaOID,
+}
+
+// MySQLDataTypeIDEncryptedType used for mapping MySQL Types OIDs with DataType
+var MySQLDataTypeIDEncryptedType = map[uint32]string{
+	uint32(base.TypeLong):     "int32",
+	uint32(base.TypeLongLong): "int64",
+	uint32(base.TypeString):   "str",
+	uint32(base.TypeBlob):     "bytes",
+}
+
+// PostgreSQLDataTypeIDEncryptedType used for mapping PostgreSQL OIDs with DataType
+var PostgreSQLDataTypeIDEncryptedType = map[uint32]string{
+	pgtype.Int4OID:  "int32",
+	pgtype.Int8OID:  "int64",
+	pgtype.TextOID:  "str",
+	pgtype.ByteaOID: "bytes",
+}
 
 // ParseStringEncryptedType parse string value to EncryptedType value
 func ParseStringEncryptedType(value string) (EncryptedType, error) {
@@ -76,7 +108,10 @@ func (x EncryptedType) ToConfigString() (val string, err error) {
 // Validation errors
 var (
 	ErrUnknownEncryptedType     = errors.New("unknown token type")
+	ErrUnsupportedDBDataTypeID  = errors.New("unsupported DB data type id")
 	ErrUnsupportedEncryptedType = errors.New("data type not supported")
+	ErrDataTypeWithDataTypeID   = errors.New("data_type can`t be used along with data_type_db_identifier option")
+	ErrUnsupportedDataTypeID    = errors.New("unsupported data_type_db_identifier option")
 )
 
 // ValidateEncryptedType return true if value is supported EncryptedType
@@ -89,33 +124,6 @@ func ValidateEncryptedType(value EncryptedType) error {
 		return ErrUnsupportedEncryptedType
 	}
 	return nil
-}
-
-// ValidateDefaultValue default value according to EncryptedType
-//
-// str -> validates utf8 string
-// bytes - do nothing
-// int32/64 - try parse string as integer value with base 10
-func ValidateDefaultValue(value *string, dataType EncryptedType) (err error) {
-	if value == nil {
-		return nil
-	}
-	switch dataType {
-	case EncryptedType_Int32:
-		_, err = strconv.ParseInt(*value, 10, 32)
-		return err
-	case EncryptedType_Int64:
-		_, err = strconv.ParseInt(*value, 10, 64)
-		return err
-	case EncryptedType_String:
-		if !utf8.ValidString(*value) {
-			return errors.New("invalid utf8 string")
-		}
-		return nil
-	case EncryptedType_Bytes:
-		return nil
-	}
-	return errors.New("not supported EncryptedType")
 }
 
 // TokenTypeToEncryptedDataType converts value to appropriate EncryptedType

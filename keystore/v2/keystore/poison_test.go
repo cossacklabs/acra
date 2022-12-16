@@ -18,7 +18,6 @@ package keystore
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -27,30 +26,31 @@ import (
 	"github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 )
 
-func getKeystore() (*ServerKeyStore, string, error) {
+func getKeystore(t *testing.T) (*ServerKeyStore, error) {
 	testEncryptionKey := []byte("test encryptionn key")
 	testSignatureKey := []byte("test signature key")
 
-	keyDir, err := ioutil.TempDir(os.TempDir(), "testKeystore")
-
-	suite, err := crypto.NewSCellSuite(testEncryptionKey, testSignatureKey)
-	if err != nil {
-		return nil, "", err
-	}
-	keyDirectoryV2, err := filesystem.OpenDirectoryRW(keyDir, suite)
-	if err != nil {
-		return nil, "", err
-	}
-	return NewServerKeyStore(keyDirectoryV2), keyDir, nil
-}
-
-func TestPoisonKeyGeneration(t *testing.T) {
-	keyStore, path, err := getKeystore()
-	if err != nil {
+	keyDir := t.TempDir()
+	if err := os.Chmod(keyDir, 0700); err != nil {
 		t.Fatal(err)
 	}
 
-	defer os.RemoveAll(path)
+	suite, err := crypto.NewSCellSuite(testEncryptionKey, testSignatureKey)
+	if err != nil {
+		return nil, err
+	}
+	keyDirectoryV2, err := filesystem.OpenDirectoryRW(keyDir, suite)
+	if err != nil {
+		return nil, err
+	}
+	return NewServerKeyStore(keyDirectoryV2), nil
+}
+
+func TestPoisonKeyGeneration(t *testing.T) {
+	keyStore, err := getKeystore(t)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	t.Run("Poison keys don't generate on Get", func(t *testing.T) {
 		_, err := keyStore.GetPoisonKeyPair()

@@ -170,6 +170,7 @@ func ParseKeyKind(keyID string) (string, []byte, error) {
 				return KeyStorageKeypair, id, nil
 			}
 		}
+		log.Warningln("Zone keys are deprecated since 0.94.0 and will be removed soon.")
 	}
 	return "", nil, ErrUnknownKeyKind
 }

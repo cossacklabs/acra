@@ -105,6 +105,9 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 			return nil, err
 		}
 		chainEncryptors = append(chainEncryptors, tokenEncryptor)
+
+		acraBlockStructTokenEncryptor := pseudonymization.NewMySQLTokenizeQuery(schemaStore, tokenEncryptor)
+		proxy.AddQueryObserver(acraBlockStructTokenEncryptor)
 	}
 
 	chainEncryptors = append(chainEncryptors, crypto.NewEncryptHandler(registryHandler))

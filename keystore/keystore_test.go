@@ -19,7 +19,6 @@ package keystore
 import (
 	"bytes"
 	"encoding/base64"
-	"os"
 	"testing"
 )
 
@@ -83,16 +82,12 @@ func TestValidateID(t *testing.T) {
 }
 
 func TestGetMasterKeyFromEnvironment(t *testing.T) {
-	if err := os.Setenv(AcraMasterKeyVarName, ""); err != nil {
-		t.Fatal(err)
-	}
+	t.Setenv(AcraMasterKeyVarName, "")
 	if _, err := GetMasterKeyFromEnvironment(); err != ErrEmptyMasterKey {
 		t.Fatal("expected ErrEmptyMasterKey")
 	}
 	key := []byte("some key")
-	if err := os.Setenv(AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(key)); err != nil {
-		t.Fatal(err)
-	}
+	t.Setenv(AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(key))
 
 	if _, err := GetMasterKeyFromEnvironment(); err != ErrMasterKeyIncorrectLength {
 		t.Fatal("expected ErrMasterKeyIncorrectLength error")
@@ -102,9 +97,7 @@ func TestGetMasterKeyFromEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Setenv(AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(key)); err != nil {
-		t.Fatal(err)
-	}
+	t.Setenv(AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(key))
 
 	if envKey, err := GetMasterKeyFromEnvironment(); err != nil {
 		t.Fatal(err)

@@ -2,13 +2,18 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"testing"
 
+	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
+	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
 	common2 "github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/cossacklabs/acra/masking/common"
+	"github.com/jackc/pgx/pgtype"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCryptoEnvelopeDefaultValuesWithDefinedValue(t *testing.T) {
@@ -28,7 +33,7 @@ schemas:
       - column: data3
         crypto_envelope: acrastruct
 `
-	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig))
+	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig), UseMySQL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +72,7 @@ schemas:
       - column: data3
         crypto_envelope: acrastruct
 `
-	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig))
+	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig), UseMySQL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +113,7 @@ schemas:
       - column: data3
         reencrypting_to_acrablocks: true
 `
-	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig))
+	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig), UseMySQL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +152,7 @@ schemas:
       - column: data3
         reencrypting_to_acrablocks: false
 `
-	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig))
+	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig), UseMySQL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,6 +177,8 @@ schemas:
 }
 
 func TestInvalidMasking(t *testing.T) {
+	registerMySQLDummyEncoders()
+
 	type testcase struct {
 		name   string
 		config string
@@ -571,7 +578,7 @@ schemas:
 	}
 
 	for _, tcase := range testcases {
-		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), UseMySQL)
 		u, ok := err.(interface {
 			Unwrap() error
 		})
@@ -699,7 +706,7 @@ schemas:
 			ErrInvalidEncryptorConfig},
 	}
 	for i, tcase := range testcases {
-		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), UseMySQL)
 		u, ok := err.(interface {
 			Unwrap() error
 		})
@@ -839,7 +846,7 @@ schemas:
 	}
 
 	for _, tcase := range testcases {
-		config, err := MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		config, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), UseMySQL)
 
 		if err != nil {
 			t.Fatalf("[%s] error=%s\n", tcase.name, err)
@@ -916,7 +923,7 @@ schemas:
 	}
 
 	for _, tcase := range testcases {
-		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), UseMySQL)
 
 		if err == nil {
 			t.Fatalf("[%s] expected error, found nil\n", tcase.name)
@@ -940,7 +947,7 @@ schemas:
         tokenized: true
         token_type: %s
 `, token)
-		_, err := MapTableSchemaStoreFromConfig([]byte(config))
+		_, err := MapTableSchemaStoreFromConfig([]byte(config), UseMySQL)
 		if err != nil {
 			t.Fatalf("[tokenize: true, token_type: %s] %s", token, err)
 		}
@@ -954,7 +961,7 @@ schemas:
       - column: data
         token_type: %s
 `, token)
-		_, err = MapTableSchemaStoreFromConfig([]byte(config))
+		_, err = MapTableSchemaStoreFromConfig([]byte(config), UseMySQL)
 		if err != nil {
 			t.Fatalf("[token_type: %s] %s", token, err)
 		}
@@ -969,7 +976,7 @@ schemas:
         consistent_tokenization: true
         token_type: %s
 `, token)
-		_, err = MapTableSchemaStoreFromConfig([]byte(config))
+		_, err = MapTableSchemaStoreFromConfig([]byte(config), UseMySQL)
 		if err != nil {
 			t.Fatalf("[consistent_tokenization: true, token_type: %s] %s", token, err)
 		}
@@ -1018,7 +1025,7 @@ schemas:
 	}
 
 	for _, tcase := range testcases {
-		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), UseMySQL)
 
 		if err == nil {
 			t.Fatalf("[%s] expected error, found nil\n", tcase.name)
@@ -1039,7 +1046,7 @@ func TestTokenizedDeprecationWarning(t *testing.T) {
 
 	buff := bytes.NewBuffer([]byte{})
 	log.SetOutput(buff)
-	_, err := MapTableSchemaStoreFromConfig([]byte(config))
+	_, err := MapTableSchemaStoreFromConfig([]byte(config), UseMySQL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1049,4 +1056,144 @@ func TestTokenizedDeprecationWarning(t *testing.T) {
 	if !bytes.Contains(output, []byte(msg)) {
 		t.Fatal("warning is not found but expected")
 	}
+}
+
+func TestWithDataTypeIDOption(t *testing.T) {
+	type testcase struct {
+		name   string
+		config string
+	}
+	testcases := []testcase{
+		{
+			name: "Schema store with data_type_db_identifier",
+			config: `
+schemas:
+  - table: test_type_aware_decryption_with_defaults
+    columns:
+      - id
+      - value_str
+    
+    encrypted:
+      - column: value_str
+        data_type_db_identifier: 25
+`,
+		},
+		{
+			name: "Schema store with data_type_db_identifier and on_fail options",
+			config: `
+schemas:
+  - table: test_type_aware_decryption_with_defaults
+    columns:
+      - id
+      - value_str
+
+    encrypted:
+      - column: value_str
+        data_type_db_identifier: 25
+        response_on_fail: default_value
+        default_data_value: "value_str"
+`,
+		},
+	}
+
+	type_awareness.RegisterPostgreSQLDataTypeIDEncoder(pgtype.TextOID, &dummyDataTypeEncoder{})
+
+	for _, tcase := range testcases {
+		schemaStore, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), UsePostgreSQL)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		dataTypeID := schemaStore.GetTableSchema("test_type_aware_decryption_with_defaults").
+			GetColumnEncryptionSettings("value_str").GetDBDataTypeID()
+		assert.Equal(t, dataTypeID, uint32(25))
+	}
+}
+
+func TestInvalidWithDataTypeIDOption(t *testing.T) {
+	type testcase struct {
+		name          string
+		config        string
+		expectedError error
+	}
+	testcases := []testcase{
+		{
+			name:          "Schema store with data_type_db_identifier and data_type options",
+			expectedError: common2.ErrDataTypeWithDataTypeID,
+			config: `
+schemas:
+  - table: test_type_aware_decryption_with_defaults
+    columns:
+      - id
+      - value_str
+    
+    encrypted:
+      - column: value_str
+        data_type: str
+        data_type_db_identifier: 25
+`,
+		},
+		{
+			name: "Schema store with not supported data_type options",
+			config: `
+schemas:
+  - table: test_type_aware_decryption_with_defaults
+    columns:
+      - id
+      - value_str
+    
+    encrypted:
+      - column: value_str
+        data_type_db_identifier: 10
+`,
+			expectedError: common2.ErrUnsupportedDataTypeID,
+		},
+	}
+
+	type_awareness.RegisterPostgreSQLDataTypeIDEncoder(pgtype.TextOID, nil)
+
+	for _, tcase := range testcases {
+		_, err := MapTableSchemaStoreFromConfig([]byte(tcase.config), UsePostgreSQL)
+		if err == nil {
+			t.Fatalf("expected got error on invalid config - %s", tcase.name)
+		}
+
+		if err != tcase.expectedError {
+			t.Fatalf("expected got error %s - but found %s", tcase.expectedError.Error(), err.Error())
+		}
+	}
+}
+
+func registerMySQLDummyEncoders() {
+	type_awareness.RegisterMySQLDataTypeIDEncoder(uint32(base_mysql.TypeBlob), &dummyDataTypeEncoder{})
+	type_awareness.RegisterMySQLDataTypeIDEncoder(uint32(base_mysql.TypeString), &dummyDataTypeEncoder{})
+	type_awareness.RegisterMySQLDataTypeIDEncoder(uint32(base_mysql.TypeLong), &dummyDataTypeEncoder{})
+	type_awareness.RegisterMySQLDataTypeIDEncoder(uint32(base_mysql.TypeLongLong), &dummyDataTypeEncoder{})
+}
+
+type dummyDataTypeEncoder struct{}
+
+// Encode implementation of Encode method of DataTypeEncoder interface for TypeLong
+func (t *dummyDataTypeEncoder) Encode(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
+	return nil, nil, nil
+}
+
+// Decode implementation of Decode method of DataTypeEncoder interface for TypeLong
+func (t *dummyDataTypeEncoder) Decode(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
+	return nil, nil, nil
+}
+
+// EncodeOnFail implementation of EncodeOnFail method of DataTypeEncoder interface for TypeLong
+func (t *dummyDataTypeEncoder) EncodeOnFail(ctx context.Context, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
+	return nil, nil, nil
+}
+
+// EncodeDefault implementation of EncodeDefault method of DataTypeEncoder interface for TypeLong
+func (t *dummyDataTypeEncoder) encodeDefault(ctx context.Context, data []byte, format type_awareness.DataTypeFormat) (context.Context, []byte, error) {
+	return nil, nil, nil
+}
+
+// ValidateDefaultValue implementation of ValidateDefaultValue method of DataTypeEncoder interface for TypeLong
+func (t *dummyDataTypeEncoder) ValidateDefaultValue(value *string) error {
+	return nil
 }

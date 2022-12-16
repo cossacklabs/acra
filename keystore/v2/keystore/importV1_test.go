@@ -18,8 +18,6 @@ package keystore
 
 import (
 	"crypto/subtle"
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -46,11 +44,7 @@ func equalPublicKeys(a, b *keys.PublicKey) bool {
 
 func TestImportKeyStoreV1(t *testing.T) {
 	// Prepare root keystore directory (for both versions)
-	rootDirectory, err := ioutil.TempDir(os.TempDir(), "import_test")
-	if err != nil {
-		t.Fatalf("failed to create key directory: %v", err)
-	}
-	defer os.RemoveAll(rootDirectory)
+	rootDirectory := t.TempDir()
 	keyDirV1 := filepath.Join(rootDirectory, "v1")
 	keyDirV2 := filepath.Join(rootDirectory, "v2")
 

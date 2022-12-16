@@ -18,11 +18,12 @@ package sqlparser
 
 import (
 	"bytes"
-	"github.com/cossacklabs/acra/sqlparser/dialect"
-	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/cossacklabs/acra/sqlparser/dialect"
+	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
 )
 
 // TestParseNextValid concatenates all the valid SQL test cases and check it can read
@@ -51,7 +52,6 @@ func TestParseNextValid(t *testing.T) {
 		tree, err := ParseNext(tokenizer)
 		if err != nil {
 			t.Fatalf("[%d] ParseNext(%q) err: %q, want nil", i, input, err)
-			continue
 		}
 
 		if got := String(tree); got != want {
@@ -69,6 +69,7 @@ func TestParseNextValid(t *testing.T) {
 // SQL statement can be passed afterwards.
 func TestParseNextErrors(t *testing.T) {
 	var testDialect dialect.Dialect
+	SetTokenizerVerbosity(true)
 	for _, tcase := range invalidSQL {
 		if tcase.excludeMulti {
 			// Skip tests which leave unclosed strings, or comments.
@@ -87,14 +88,12 @@ func TestParseNextErrors(t *testing.T) {
 		_, err := ParseNext(tokens)
 		if err == nil || err.Error() != tcase.output {
 			t.Fatalf("[0] ParseNext(%q) err: %q, want %q", sql, err, tcase.output)
-			continue
 		}
 
 		// The second should be valid
 		tree, err := ParseNext(tokens)
 		if err != nil {
 			t.Fatalf("[1] ParseNext(%q) err: %q, want nil", sql, err)
-			continue
 		}
 
 		want := "select 1 from t"
@@ -156,7 +155,6 @@ func TestParseNextEdgeCases(t *testing.T) {
 			tree, err := ParseNext(tokens)
 			if err != nil {
 				t.Fatalf("[%d] ParseNext(%q) err = %q, want nil", i, test.input, err)
-				continue
 			}
 
 			if got := String(tree); got != want {

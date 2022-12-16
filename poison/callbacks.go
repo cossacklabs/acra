@@ -18,11 +18,12 @@ package poison
 
 import (
 	"container/list"
+	"os"
+	"os/exec"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
-	"os"
-	"os/exec"
 )
 
 // EmptyCallback implements Callback and log message to show that RecordProcessor works
@@ -41,8 +42,7 @@ type StopCallback struct{}
 func (*StopCallback) Call() error {
 	log.WithField(logging.FieldKeyEventCode, logging.EventCodePoisonRecordDetectionMessage).Warningln("Detected poison record, exit")
 	os.Exit(1)
-	log.WithField(logging.FieldKeyEventCode, logging.EventCodePoisonRecordDetectionMessage).Errorln("executed code after os.Exit")
-	return nil
+	panic("executed code after os.Exit")
 }
 
 // ExecuteScriptCallback represents what script to call on detecting poison record

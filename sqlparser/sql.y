@@ -50,6 +50,19 @@ func forceEOF(yylex interface{}) {
   yylex.(*Tokenizer).ForceEOF = true
 }
 
+// setErrorVerbose configures format of ErrorMessages from parser. If false then only "syntax error" will be shown.
+// Default is false
+func SetSQLParserErrorVerboseLevel(verbose bool) {
+  yyErrorVerbose = verbose
+}
+
+// setDebugLevel configures debug level of log messages from parser. Default is 0
+func setDebugLevel(level int) {
+    if level < 0 {
+        panic("unsupported debug level for sqlparser")
+    }
+    yyDebug = level
+}
 %}
 
 %union {
@@ -142,7 +155,7 @@ func forceEOF(yylex interface{}) {
 %left <bytes> AND
 %right <bytes> NOT '!'
 %left <bytes> BETWEEN CASE WHEN THEN ELSE END
-%left <bytes> '=' '<' '>' LE GE NE NULL_SAFE_EQUAL IS LIKE REGEXP IN
+%left <bytes> '=' '<' '>' LE GE NE NULL_SAFE_EQUAL IS LIKE ILIKE REGEXP IN
 %left <bytes> '|'
 %left <bytes> '&'
 %left <bytes> SHIFT_LEFT SHIFT_RIGHT
@@ -238,7 +251,7 @@ func forceEOF(yylex interface{}) {
 %type <boolVal> boolean_value
 %type <str> compare
 %type <ins> insert_data
-%type <expr> value value_expression num_val
+%type <expr> value value_expression num_val column_name_value_expr
 %type <expr> function_call_keyword function_call_nonkeyword function_call_generic function_call_conflict
 %type <str> is_suffix
 %type <colTuple> col_tuple
@@ -2146,9 +2159,25 @@ condition:
   {
     $$ = &ComparisonExpr{Left: $1, Operator: LikeStr, Right: $3, Escape: $4}
   }
+| value_expression ILIKE value_expression like_escape_opt
+  {
+    if yylex.(*Tokenizer).IsMySQL() {
+       yylex.Error("MySQL dialect doesn't support `ILIKE` statement")
+       return 1
+     }
+    $$ = &ComparisonExpr{Left: $1, Operator: ILikeStr, Right: $3, Escape: $4}
+  }
 | value_expression NOT LIKE value_expression like_escape_opt
   {
     $$ = &ComparisonExpr{Left: $1, Operator: NotLikeStr, Right: $4, Escape: $5}
+  }
+| value_expression NOT ILIKE value_expression like_escape_opt
+  {
+    if yylex.(*Tokenizer).IsMySQL() {
+       yylex.Error("MySQL dialect doesn't support `ILIKE` statement")
+       return 1
+     }
+    $$ = &ComparisonExpr{Left: $1, Operator: NotILikeStr, Right: $4, Escape: $5}
   }
 | value_expression REGEXP value_expression
   {
@@ -2267,12 +2296,7 @@ expression_list:
   }
 
 value_expression:
-// due to conflict of <column_name> and <value> because both work with STRING place <column_name> first to prioritize <column_name>
-column_name
-  {
-    $$ = $1
-  }
-| value
+column_name_value_expr
   {
     $$ = $1
   }
@@ -2713,6 +2737,25 @@ else_expression_opt:
     $$ = $2
   }
 
+column_name_value_expr:
+ DOUBLE_QUOTE_STRING
+  {
+    if yylex.(*Tokenizer).IsMySQL() && !yylex.(*Tokenizer).dialect.(*mysql.MySQLDialect).IsModeANSIOn() {
+       $$ = NewStrVal($1)
+   } else {
+     $$ = &ColName{Name:NewColIdentWithQuotes(string($1), '"')}
+   }
+  }
+// due to conflict of <column_name> and <value> because both work with STRING place <column_name> first to prioritize <column_name>
+| column_name
+  {
+    $$ = $1
+  }
+| value
+  {
+    $$ = $1
+  }
+
 column_name:
   sql_id
   {
@@ -2726,6 +2769,21 @@ column_name:
   {
     $$ = &ColName{Qualifier: TableName{Qualifier: $1, Name: $3}, Name: $5}
   }
+
+sql_id:
+  DOUBLE_QUOTE_STRING
+  {
+    $$ = NewColIdentWithQuotes(string($1), '"')
+  }
+| ID
+  {
+    $$ = NewColIdent(string($1))
+  }
+| non_reserved_keyword
+  {
+    $$ = NewColIdent(string($1))
+  }
+
 
 value:
   SINGLE_QUOTE_STRING
@@ -2901,15 +2959,35 @@ limit_opt:
   }
 | LIMIT expression
   {
-    $$ = &Limit{Rowcount: $2}
+    $$ = &Limit{Rowcount: $2, Type: LimitTypeLimitOnly}
   }
+| LIMIT ALL
+    {
+      if yylex.(*Tokenizer).IsMySQL() {
+        yylex.Error("MySQL dialect doesn't allow 'LIMIT ALL' syntax of LIMIT statements")
+        return 1
+      }
+      $$ = &Limit{Type: LimitTypeLimitAll}
+    }
 | LIMIT expression ',' expression
   {
-    $$ = &Limit{Offset: $2, Rowcount: $4}
+    if yylex.(*Tokenizer).IsPostgreSQL() {
+      yylex.Error("PostgreSQL dialect doesn't allow 'LIMIT offset, limit' syntax of LIMIT statements")
+      return 1
+    }
+    $$ = &Limit{Offset: $2, Rowcount: $4, Type: LimitTypeCommaSeparated}
   }
 | LIMIT expression OFFSET expression
   {
-    $$ = &Limit{Offset: $4, Rowcount: $2}
+    $$ = &Limit{Offset: $4, Rowcount: $2, Type: LimitTypeLimitAndOffset}
+  }
+| LIMIT ALL OFFSET expression
+  {
+    if yylex.(*Tokenizer).IsMySQL() {
+      yylex.Error("MySQL dialect doesn't allow 'LIMIT ALL' syntax of LIMIT statements")
+      return 1
+    }
+    $$ = &Limit{Offset: $4, Type: LimitTypeLimitAllAndOffset}
   }
 
 lock_opt:
@@ -3023,17 +3101,14 @@ tuple_expression:
     }
   }
 
+// according to PGSQL docs, returning supports same expression as SELECT statement
+// https://www.postgresql.org/docs/14/dml-returning.html
 returning_opt:
   {
     $$ = nil
   }
-  |
-  RETURNING '*'
-  {
-    $$ = Returning{&StarExpr{}}
-  }
 |
-  RETURNING expression_list
+  RETURNING select_expression_list
   {
     $$ = Returning($2)
   }
@@ -3177,19 +3252,6 @@ using_opt:
 | USING sql_id
   { $$ = $2 }
 
-sql_id:
-  DOUBLE_QUOTE_STRING
-  {
-    $$ = NewColIdentWithQuotes(string($1), '"')
-  }
-| ID
-  {
-    $$ = NewColIdent(string($1))
-  }
-| non_reserved_keyword
-  {
-    $$ = NewColIdent(string($1))
-  }
 
 reserved_sql_id:
   sql_id
@@ -3321,6 +3383,7 @@ reserved_keyword:
 | KEY
 | LEFT
 | LIKE
+| ILIKE
 | LIMIT
 | LOCALTIME
 | LOCALTIMESTAMP

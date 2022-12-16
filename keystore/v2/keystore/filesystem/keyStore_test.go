@@ -17,7 +17,6 @@
 package filesystem
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -50,40 +49,27 @@ func newInMemoryKeyStore(t *testing.T) api.MutableKeyStore {
 	return store
 }
 
-func testFilesystemKeyStore(t *testing.T) (func(t *testing.T) api.MutableKeyStore, func()) {
-	rootTestDir, err := ioutil.TempDir(os.TempDir(), "keystore-test")
+func testFilesystemKeyStore(t *testing.T) api.MutableKeyStore {
+	testDir := t.TempDir()
+	if err := os.Chmod(testDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := OpenDirectoryRW(testDir, testKeyStoreSuite(t))
 	if err != nil {
-		t.Fatalf("cannot create root test directory: %v", err)
+		t.Fatalf("failed to create keystore: %v", err)
 	}
-	cleanup := func() { os.RemoveAll(rootTestDir) }
-	spawn := func(t *testing.T) api.MutableKeyStore {
-		testDir, err := ioutil.TempDir(rootTestDir, "keystore-test")
-		if err != nil {
-			t.Fatalf("cannot create test directory: %v", err)
-		}
-		store, err := OpenDirectoryRW(testDir, testKeyStoreSuite(t))
-		if err != nil {
-			t.Fatalf("failed to create keystore: %v", err)
-		}
-		return store
-	}
-	return spawn, cleanup
+	return store
 }
 
 func TestKeyStoreOpeningDir(t *testing.T) {
-	testDir, err := ioutil.TempDir(os.TempDir(), "keystore-test")
-	if err != nil {
-		t.Fatalf("cannot create test directory: %v", err)
-	}
-	defer os.RemoveAll(testDir)
-
-	rootPath := filepath.Join(testDir, "root")
+	rootPath := filepath.Join(t.TempDir(), "root")
 
 	if IsKeyDirectory(rootPath) {
 		t.Errorf("missing directory cannot be IsKeyDirectory()")
 	}
 
-	_, err = OpenDirectory(rootPath, testKeyStoreSuite(t))
+	_, err := OpenDirectory(rootPath, testKeyStoreSuite(t))
 	if err != backendAPI.ErrNotExist {
 		t.Errorf("opened non-existent keystore: %v", err)
 	}
@@ -168,11 +154,10 @@ func TestKeyStoreOpeningRings(t *testing.T) {
 }
 
 func TestKeyStorePersistence(t *testing.T) {
-	testDir, err := ioutil.TempDir(os.TempDir(), "keystore-test")
-	if err != nil {
-		t.Fatalf("cannot create test directory: %v", err)
+	testDir := t.TempDir()
+	if err := os.Chmod(testDir, 0700); err != nil {
+		t.Fatal(err)
 	}
-	defer os.RemoveAll(testDir)
 
 	s1, err := OpenDirectoryRW(testDir, testKeyStoreSuite(t))
 	if err != nil {
@@ -198,7 +183,5 @@ func TestKeyStoreInMemory(t *testing.T) {
 }
 
 func TestKeyStoreFilesystem(t *testing.T) {
-	newFilesystemKeyStore, cleanup := testFilesystemKeyStore(t)
-	defer cleanup()
-	tests.TestKeyStore(t, newFilesystemKeyStore)
+	tests.TestKeyStore(t, testFilesystemKeyStore)
 }

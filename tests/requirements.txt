@@ -1,6 +1,7 @@
 pythemis
 psycopg2==2.8.6
-psycopg==3.0.13
+# only this supported on centos 7 due to problems with version of libpq
+psycopg[binary]==3.0.18
 asyncpg==0.23.0
 SQLAlchemy==1.4.15
 PyMySQL==1.0.2
@@ -20,4 +21,5 @@ unittest-xml-reporting==3.0.4
 cryptography==3.4.7
 redis==4.0.1
 hiredis==2.0.0
-boto3==1.24.23
+boto3==1.23.10
+python-consul==1.1.0

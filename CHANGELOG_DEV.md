@@ -1,8 +1,34 @@
+# 0.94.0 - 2022-10-18
+- Extend SQL syntax for searchable encryption with support JOINs query. 
+
+# 0.94.0 - 2022-10-13
+- Improve handling binary format of prepared statements for PostgreSQL with null values in Bind packets.
+
+# 0.94.0 - 2022-10-05
+- Refactored integration tests. Improved finalizing socket connections in AsyncpgExecutor. Allow to run tests with databases accessible via domain name not only localhost.
+- Added additional certificates for integration tests in buildbot runner.
+
+# 0.94.0 - 2022-09-21
+- Extended SQL syntax for searchable encryption for PostgreSQL/MySQL with UPDATE/DELETE/INSERTS queries.
+
+# 0.94.0 - 2022-09-21
+- Implemented searchable tokenization for PostgreSQL/MySQL for text/binary protocols
+
+# 0.94.0 - 2022-09-19
+- Accumulate packets in a queue and handle paired packets in the correct order. Fixes issue with incorrectly linked Bind packet to inappropriate Parse packet and nil dereferences.
+
+# 0.94.0 - 2022-08-25
+- Add support of Hashicorp Consul for `encryptor_config loading`. 
+- Introduce new Hashicorp Consul flags: `consul_connection_api_string` and `consul_kv_config_path` and corresponded `consul` TLS configuration flags.
+
 # 0.94.0 - 2022-08-18
 - Removed deprecated `--tls_db_sni` flag. Now only `--tls_database_sni` is available.
-- Added additional TLS parameters related to OCSP/CRL for connections between App<->AcraServer<->Database: 
+- Added additional TLS parameters related to OCSP/CRL for connections between App<->AcraServer<->Database:
   - CRL: `--tls_crl_client_cache_size`, `--tls_crl_client_cache_time`, `--tls_crl_client_check_only_leaf_certificate`, `--tls_crl_client_from_cert`, `--tls_crl_database_cache_size`, `--tls_crl_database_cache_time`, `--tls_crl_database_check_only_leaf_certificate`, `--tls_crl_database_from_cert`, `--tls_ocsp_client_check_only_leaf_certificate`
   - OCSP: `--tls_ocsp_client_check_only_leaf_certificate`, `--tls_ocsp_client_from_cert`, `--tls_ocsp_client_required`, `--tls_ocsp_database_check_only_leaf_certificate`, `--tls_ocsp_database_from_cert`, `--tls_ocsp_database_required`
+- Updated `go` version in `go.mod` to 1.17.
+- Replace `os.Setenv` with `t.Setenv` in tests.
+- Replace `ioutil.TempDir` with `t.TempDir` in tests.
 
 # 0.94.0 - 2022-08-03
 - Fixed reloading on SIGHUP signal
