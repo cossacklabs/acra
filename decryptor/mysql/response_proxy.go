@@ -381,7 +381,7 @@ func (handler *Handler) ProxyClientConnection(ctx context.Context, errCh chan<- 
 			handler.setQueryHandler(handler.QueryResponseHandler)
 			break
 		case CommandStatementClose, CommandStatementSendLongData:
-			clientLog.Debugln("Close|SendLongData|Reset command")
+			clientLog.Debugln("Close|SendLongData command")
 		case CommandStatementReset:
 			clientLog.Debugln("Reset Request Statement")
 			handler.setQueryHandler(handler.ResetStatementResponseHandler)
@@ -431,12 +431,10 @@ func (handler *Handler) handleStatementExecute(ctx context.Context, packet *Pack
 		}
 
 		// Finally, if the parameter values have been changed, update the packet.
-		// If that fails, send the packet unchanged, as usual.
 		if changed {
-			err := packet.SetParameters(newParameters)
-			if err != nil {
+			if err := packet.SetParameters(newParameters); err != nil {
 				log.WithError(err).Error("Failed to update Bind packet")
-				return nil
+				return err
 			}
 		}
 	}

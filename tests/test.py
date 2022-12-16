@@ -905,10 +905,16 @@ class PyMysqlExecutor(QueryExecutor):
                 return cursor.fetchall()
 
 
+# MysqlConnectorCExecutor uses CMySQLConnection type, which sends the client packets different than standard MySQLConnection
+# the difference is packets order in PreparedStatements processing
+# after sending CommandStatementPrepare, ConnectorC send the CommandStatementReset and expect StatementResetResult(OK|Err)
+# then send the empty CommandStatementExecute without params, params come in next packets
+# to handle such behaviour properly, MySQL proxy should have StatementReset handler
+# and skip params parsing if the params number is 0 in CommandStatementExecute handler
 class MysqlConnectorCExecutor(QueryExecutor):
     def _result_to_dict(self, description, data):
         """convert list of tuples of rows to list of dicts"""
-        columns_name = [bytes(i[0], encoding='utf8').decode('utf8') for i in description]
+        columns_name = [i[0] for i in description]
         result = []
         for row in data:
             row_data = {column_name: value
@@ -920,7 +926,7 @@ class MysqlConnectorCExecutor(QueryExecutor):
         if args is None:
             args = []
         with contextlib.closing(mysql.connector.connect(
-                use_unicode=False, raw=self.connection_args.raw, charset='ascii',
+                use_unicode=True, raw=self.connection_args.raw, charset='ascii',
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user,
                 password=self.connection_args.password,
@@ -940,7 +946,7 @@ class MysqlConnectorCExecutor(QueryExecutor):
         if args is None:
             args = []
         with contextlib.closing(mysql.connector.connect(
-                use_unicode=False, charset='ascii',
+                use_unicode=True, charset='ascii',
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user,
                 password=self.connection_args.password,
@@ -960,7 +966,7 @@ class MysqlConnectorCExecutor(QueryExecutor):
         if args is None:
             args = []
         with contextlib.closing(mysql.connector.connect(
-                use_unicode=False, charset='ascii',
+                use_unicode=True, charset='ascii',
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user,
                 password=self.connection_args.password,
