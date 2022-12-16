@@ -415,7 +415,7 @@ func (handler *Handler) handleStatementExecute(ctx context.Context, packet *Pack
 		parameters, err := packet.GetBindParameters(paramsNum)
 		if err != nil {
 			log.WithError(err).Error("Can't parse OnBind parameters")
-			return nil
+			return err
 		}
 
 		newParameters, changed, err := handler.queryObserverManager.OnBind(ctx, statement.Query(), parameters)
