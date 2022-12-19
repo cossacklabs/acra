@@ -885,6 +885,82 @@ class PyMysqlExecutor(QueryExecutor):
                 return cursor.fetchall()
 
 
+# MysqlConnectorCExecutor uses CMySQLConnection type, which sends the client packets different than standard MySQLConnection
+# the difference is packets order in PreparedStatements processing
+# after sending CommandStatementPrepare, ConnectorC send the CommandStatementReset and expect StatementResetResult(OK|Err)
+# then send the empty CommandStatementExecute without params, params come in next packets
+# to handle such behaviour properly, MySQL proxy should have StatementReset handler
+# and skip params parsing if the params number is 0 in CommandStatementExecute handler
+class MysqlConnectorCExecutor(QueryExecutor):
+    def _result_to_dict(self, description, data):
+        """convert list of tuples of rows to list of dicts"""
+        columns_name = [i[0] for i in description]
+        result = []
+        for row in data:
+            row_data = {column_name: value
+                        for column_name, value in zip(columns_name, row)}
+            result.append(row_data)
+        return result
+
+    def execute(self, query, args=None):
+        if args is None:
+            args = []
+        with contextlib.closing(mysql.connector.connect(
+                use_unicode=True, raw=self.connection_args.raw, charset='ascii',
+                host=self.connection_args.host, port=self.connection_args.port,
+                user=self.connection_args.user,
+                password=self.connection_args.password,
+                database=self.connection_args.dbname,
+                ssl_ca=self.connection_args.ssl_ca,
+                ssl_cert=self.connection_args.ssl_cert,
+                ssl_key=self.connection_args.ssl_key,
+                ssl_disabled=not TEST_WITH_TLS)) as connection:
+
+            with contextlib.closing(connection.cursor()) as cursor:
+                cursor.execute(query, args)
+                data = cursor.fetchall()
+                result = self._result_to_dict(cursor.description, data)
+        return result
+
+    def execute_prepared_statement(self, query, args=None):
+        if args is None:
+            args = []
+        with contextlib.closing(mysql.connector.connect(
+                use_unicode=True, charset='ascii',
+                host=self.connection_args.host, port=self.connection_args.port,
+                user=self.connection_args.user,
+                password=self.connection_args.password,
+                database=self.connection_args.dbname,
+                ssl_ca=self.connection_args.ssl_ca,
+                ssl_cert=self.connection_args.ssl_cert,
+                ssl_key=self.connection_args.ssl_key,
+                ssl_disabled=not TEST_WITH_TLS)) as connection:
+
+            with contextlib.closing(connection.cursor(prepared=True)) as cursor:
+                cursor.execute(query, args)
+                data = cursor.fetchall()
+                result = self._result_to_dict(cursor.description, data)
+        return result
+
+    def execute_prepared_statement_no_result(self, query, args=None):
+        if args is None:
+            args = []
+        with contextlib.closing(mysql.connector.connect(
+                use_unicode=True, charset='ascii',
+                host=self.connection_args.host, port=self.connection_args.port,
+                user=self.connection_args.user,
+                password=self.connection_args.password,
+                database=self.connection_args.dbname,
+                ssl_ca=self.connection_args.ssl_ca,
+                ssl_cert=self.connection_args.ssl_cert,
+                ssl_key=self.connection_args.ssl_key,
+                ssl_disabled=not TEST_WITH_TLS)) as connection:
+
+            with contextlib.closing(connection.cursor(prepared=True)) as cursor:
+                cursor.execute(query, args)
+                connection.commit()
+
+
 class MysqlExecutor(QueryExecutor):
     def _result_to_dict(self, description, data):
         """convert list of tuples of rows to list of dicts"""
@@ -899,7 +975,7 @@ class MysqlExecutor(QueryExecutor):
     def execute(self, query, args=None):
         if args is None:
             args = []
-        with contextlib.closing(mysql.connector.Connect(
+        with contextlib.closing(mysql.connector.connection.MySQLConnection(                                                                                                                                                                                                                                                                                        
                 use_unicode=False, raw=self.connection_args.raw, charset='ascii',
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user,
@@ -919,7 +995,7 @@ class MysqlExecutor(QueryExecutor):
     def execute_prepared_statement(self, query, args=None):
         if args is None:
             args = []
-        with contextlib.closing(mysql.connector.Connect(
+        with contextlib.closing(mysql.connector.connection.MySQLConnection(
                 use_unicode=False, charset='ascii',
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user,
@@ -939,7 +1015,7 @@ class MysqlExecutor(QueryExecutor):
     def execute_prepared_statement_no_result(self, query, args=None):
         if args is None:
             args = []
-        with contextlib.closing(mysql.connector.Connect(
+        with contextlib.closing(mysql.connector.connection.MySQLConnection(
                 use_unicode=False, charset='ascii',
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user,
@@ -4255,6 +4331,24 @@ class TestMysqlBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
 
     def executePreparedStatement(self, query, args=None):
         return MysqlExecutor(
+            ConnectionArgs(host='localhost', port=self.ACRASERVER_PORT,
+                           user=DB_USER, password=DB_USER_PASSWORD,
+                           dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
+                           ssl_key=TEST_TLS_CLIENT_KEY,
+                           raw=True,
+                           ssl_cert=TEST_TLS_CLIENT_CERT)
+        ).execute_prepared_statement(query, args=args)
+
+
+class TestMysqlConnectorCBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
+    def checkSkip(self):
+        if not TEST_MYSQL:
+            self.skipTest("run test only for mysql")
+        elif not TEST_WITH_TLS:
+            self.skipTest("running tests only with TLS")
+
+    def executePreparedStatement(self, query, args=None):
+        return MysqlConnectorCExecutor(
             ConnectionArgs(host='localhost', port=self.ACRASERVER_PORT,
                            user=DB_USER, password=DB_USER_PASSWORD,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA,

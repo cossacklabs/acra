@@ -380,8 +380,11 @@ func (handler *Handler) ProxyClientConnection(ctx context.Context, errCh chan<- 
 
 			handler.setQueryHandler(handler.QueryResponseHandler)
 			break
-		case CommandStatementClose, CommandStatementSendLongData, CommandStatementReset:
-			clientLog.Debugln("Close|SendLongData|Reset command")
+		case CommandStatementClose, CommandStatementSendLongData:
+			clientLog.Debugln("Close|SendLongData command")
+		case CommandStatementReset:
+			clientLog.Debugln("Reset Request Statement")
+			handler.setQueryHandler(handler.ResetStatementResponseHandler)
 		default:
 			clientLog.Debugf("Command %d not supported now", cmd)
 		}
@@ -406,31 +409,33 @@ func (handler *Handler) handleStatementExecute(ctx context.Context, packet *Pack
 		return nil
 	}
 
-	parameters, err := packet.GetBindParameters(statement.ParamsNum())
-	if err != nil {
-		log.WithError(err).Error("Can't parse OnBind parameters")
-		return nil
-	}
-
-	newParameters, changed, err := handler.queryObserverManager.OnBind(ctx, statement.Query(), parameters)
-	if err != nil {
-		// Security: here we should interrupt proxying in case of any keys read related errors
-		// in other cases we just stop the processing to let db protocol handle the error.
-		if filesystem.IsKeyReadError(err) {
+	// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_stmt_execute.html
+	// we expect list of parameters if the paramsNum > 0
+	if paramsNum := statement.ParamsNum(); paramsNum > 0 {
+		parameters, err := packet.GetBindParameters(paramsNum)
+		if err != nil {
+			log.WithError(err).Error("Can't parse OnBind parameters")
 			return err
 		}
 
-		log.WithError(err).Error("Failed to handle Bind packet")
-		return nil
-	}
-
-	// Finally, if the parameter values have been changed, update the packet.
-	// If that fails, send the packet unchanged, as usual.
-	if changed {
-		err := packet.SetParameters(newParameters)
+		newParameters, changed, err := handler.queryObserverManager.OnBind(ctx, statement.Query(), parameters)
 		if err != nil {
-			log.WithError(err).Error("Failed to update Bind packet")
+			// Security: here we should interrupt proxying in case of any keys read related errors
+			// in other cases we just stop the processing to let db protocol handle the error.
+			if filesystem.IsKeyReadError(err) {
+				return err
+			}
+
+			log.WithError(err).Error("Failed to handle Bind packet")
 			return nil
+		}
+
+		// Finally, if the parameter values have been changed, update the packet.
+		if changed {
+			if err := packet.SetParameters(newParameters); err != nil {
+				log.WithError(err).Error("Failed to update Bind packet")
+				return err
+			}
 		}
 	}
 
@@ -580,6 +585,23 @@ func (handler *Handler) expectEOFOnColumnDefinition() bool {
 
 func (handler *Handler) isPreparedStatementResult() bool {
 	return handler.currentCommand == CommandStatementExecute
+}
+
+// ResetStatementResponseHandler handle response for Reset Request Statement
+func (handler *Handler) ResetStatementResponseHandler(ctx context.Context, packet *Packet, dbConnection, clientConnection net.Conn) (err error) {
+	if packet.IsOK() {
+		handler.logger.Debugln("OK Packet on Reset Request Statement")
+	} else {
+		handler.logger.Debugln("Err Packet on Reset Request Statement")
+	}
+
+	handler.resetQueryHandler()
+
+	if _, err := clientConnection.Write(packet.Dump()); err != nil {
+		handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
+			Debugln("Can't proxy output")
+	}
+	return nil
 }
 
 // QueryResponseHandler parses data from database response
