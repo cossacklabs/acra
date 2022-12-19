@@ -780,7 +780,7 @@ func TestOnReturning(t *testing.T) {
 	configStr := fmt.Sprintf(`
 schemas:
   - table: tablewithcolumnschema
-    columns: ["other_column", "default_client_id", "specified_client_id", "zone_id", "common_field"]
+    columns: ["other_column", "default_client_id", "specified_client_id", "common_field"]
     encrypted: 
       - column: "default_client_id"
       - column: specified_client_id
@@ -788,7 +788,7 @@ schemas:
       - column: common_field
 
   - table: tablewithcolumnschema_2
-    columns: ["other_column_2", "default_client_id_2", "specified_client_id_2", "zone_id_2", "common_field"]
+    columns: ["other_column_2", "default_client_id_2", "specified_client_id_2", "common_field"]
     encrypted: 
       - column: "default_client_id_2"
       - column: specified_client_id_2
@@ -815,7 +815,7 @@ schemas:
 	})
 	ctx = base.SetClientSessionToContext(ctx, clientSession)
 	t.Run("RETURNING *", func(t *testing.T) {
-		query := `INSERT INTO TableWithColumnSchema ('zone_id', 'specified_client_id', 'other_column', 'default_client_id') VALUES (1, 1, 1, 1) RETURNING *`
+		query := `INSERT INTO TableWithColumnSchema ('specified_client_id', 'other_column', 'default_client_id') VALUES (1, 1, 1) RETURNING *`
 
 		_, _, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
 		if err != nil {
@@ -877,9 +877,9 @@ schemas:
 	t.Run("RETURNING columns with sql literals", func(t *testing.T) {
 		sqlparser.SetDefaultDialect(postgresql.NewPostgreSQLDialect())
 
-		returning := "1, 0 as literal, zone_id, specified_client_id, other_column, default_client_id, NULL"
+		returning := "1, 0 as literal, specified_client_id, other_column, default_client_id, NULL"
 		queryTemplates := []string{
-			"INSERT INTO TableWithColumnSchema ('zone_id', 'specified_client_id', 'other_column', 'default_client_id') VALUES (1, 1, 1, 1) RETURNING %s",
+			"INSERT INTO TableWithColumnSchema ('specified_client_id', 'other_column', 'default_client_id') VALUES (1, 1, 1) RETURNING %s",
 			"UPDATE TableWithColumnSchema SET price = price * 1.10 WHERE price <= 99.99 RETURNING %s",
 			"DELETE FROM TableWithColumnSchema WHERE price <= 99.99 RETURNING %s",
 		}
@@ -1076,7 +1076,7 @@ schemas:
 
 			expectedNilColumns := map[int]struct{}{
 				0: {},
-				5: {},
+				4: {},
 			}
 
 			if expectSettingNumber != len(encryptor.querySelectSettings) {
