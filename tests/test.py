@@ -8143,6 +8143,7 @@ class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(BaseTransparentEnc
         'test_type_aware_decryption_with_defaults', sa.MetaData(),
         sa.Column('id', sa.Integer, primary_key=True),
         sa.Column('value_str', sa.Text),
+        sa.Column('value_searchable', sa.Text),
         sa.Column('value_bytes', sa.LargeBinary),
         sa.Column('value_int32', sa.Integer),
         sa.Column('value_int64', sa.BigInteger),
@@ -8156,6 +8157,7 @@ class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(BaseTransparentEnc
         'test_type_aware_decryption_with_defaults', metadata,
         sa.Column('id', sa.Integer, primary_key=True),
         sa.Column('value_str', sa.LargeBinary),
+        sa.Column('value_searchable', sa.LargeBinary),
         sa.Column('value_bytes', sa.LargeBinary),
         sa.Column('value_int32', sa.LargeBinary),
         sa.Column('value_int64', sa.LargeBinary),
@@ -8182,17 +8184,19 @@ class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(BaseTransparentEnc
             'value_int64': random_int64(),
             'value_null_str': None,
             'value_null_int32': None,
-            'value_empty_str': ''
+            'value_empty_str': '',
+            'value_searchable': random_str(),
         }
         default_expected_values = {
             'value_int32': 32,
             'value_int64': 64,
             'value_bytes': b'value_bytes',
             'value_str': 'value_str',
+            'value_searchable': 'searchable_str',
         }
 
         self.schema_table.create(bind=self.engine_raw, checkfirst=True)
-        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
+        columns = ('value_str', 'value_searchable', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
                    'value_empty_str')
         self.engine1.execute(self.test_table.insert(), data)
         result = self.engine1.execute(
@@ -8360,17 +8364,19 @@ class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults(
             'value_int64': random_int64(),
             'value_null_str': None,
             'value_null_int32': None,
-            'value_empty_str': ''
+            'value_empty_str': '',
+            'value_searchable': random_str(),
         }
         default_expected_values = {
             'value_int32': 32,
             'value_int64': 64,
             'value_bytes': b'value_bytes',
             'value_str': 'value_str',
+            'value_searchable': 'searchable_str',
         }
 
         self.schema_table.create(bind=self.engine_raw, checkfirst=True)
-        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
+        columns = ('value_str', 'value_searchable', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
                    'value_empty_str')
         query, args = self.compileQuery(self.test_table.insert(), data)
         self.executor1.execute_prepared_statement(query, args)
