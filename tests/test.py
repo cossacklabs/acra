@@ -4319,7 +4319,12 @@ class TestClientIDDecryptionWithVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoad
 
 class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
 
+    # override BaseTestCase's methods to not start acra-server
+    def setUp(self):
+        pass
 
+    def tearDown(self):
+        pass
 
     def apiEncryptionTest(self, request_func, use_http=False, use_grpc=False):
         # one is set
