@@ -352,21 +352,24 @@ type Update struct {
 	Comments   Comments
 	TableExprs TableExprs
 	Exprs      UpdateExprs
+	From       TableExprs
 	Where      *Where
 	OrderBy    OrderBy
 	Limit      *Limit
+	Returning  Returning
 }
 
 // Delete represents a DELETE statement.
 // If you add fields here, consider adding them to calls to validateSubquerySamePlan.
 type Delete struct {
 	Comments   Comments
-	Targets    TableNames
+	Targets    TableExprs
 	TableExprs TableExprs
 	Partitions Partitions
 	Where      *Where
 	OrderBy    OrderBy
 	Limit      *Limit
+	Returning  Returning
 }
 
 // Set represents a SET statement.

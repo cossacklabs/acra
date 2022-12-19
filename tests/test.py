@@ -6788,6 +6788,10 @@ class BaseTokenization(BaseTestCase):
         """Execute SQLAlchemy execute query via AcraServer with "TEST_TLS_CLIENT_CERT"."""
         return self.engine1.execute(query, values)
 
+    def execute_via_2(self, query):
+        """Execute SQLAlchemy execute query via AcraServer with "TEST_TLS_CLIENT_CERT"."""
+        return self.engine2.execute(query).fetchall()
+
     def insert_via_1_bulk(self, query, values):
         """Execute SQLAlchemy Bulk INSERT query via AcraServer with "TEST_TLS_CLIENT_CERT"."""
         self.engine1.execute(query.values(values))
@@ -7470,7 +7474,19 @@ class TestReturningProcessingMixing:
     def insert_with_star_and_return_data(self):
         raise NotImplementedError
 
-    def test_insert_returning_with_col_enum(self):
+    def delete_and_return_data_with_star(self, id):
+        raise NotImplementedError
+
+    def delete_and_return_data_with_enum(self, id):
+        raise NotImplementedError
+
+    def update_and_return_data_with_enum(self, date):
+        raise NotImplementedError
+
+    def update_and_return_data_with_star(self, date):
+        raise NotImplementedError
+
+    def test_returning_with_col_enum(self):
         source, hidden, data = self.insert_with_enum_and_return_data()
         self.assertEqual(source['token_str'], data['token_str'])
         self.assertEqual(source['token_i64'], data['token_i64'])
@@ -7480,8 +7496,24 @@ class TestReturningProcessingMixing:
         self.assertNotEqual(hidden['token_i64'], data['token_i64'])
         self.assertNotEqual(hidden['token_email'], data['token_email'])
         self.assertNotEqual(hidden['token_i32'], data['token_i32'])
+        source = self.delete_and_return_data_with_enum(source['id'])
+        self.assertEqual(source['token_i32'], data['token_i32'])
+        self.assertEqual(source['token_i64'], data['token_i64'])
+        self.assertEqual(source['token_str'], data['token_str'])
+        self.assertEqual(source['token_email'], data['token_email'])
+        if TEST_POSTGRESQL:
+            data['token_i32'] = random_int32()
+            data['token_i64'] = random_int64()
+            data['token_str'] = random_str()
+            data['token_bytes'] = random_bytes()
+            data['token_email'] = random_email()
+            source = self.update_and_return_data_with_enum(data)
+            self.assertEqual(source['token_i32'], data['token_i32'])
+            self.assertEqual(source['token_i64'], data['token_i64'])
+            self.assertEqual(source['token_str'], data['token_str'])
+            self.assertEqual(source['token_email'], data['token_email'])
 
-    def test_insert_returning_with_star(self):
+    def test_returning_with_star(self):
         source, hidden, data = self.insert_with_star_and_return_data()
         self.assertEqual(source['token_i32'], data['token_i32'])
         self.assertEqual(source['token_i64'], data['token_i64'])
@@ -7491,6 +7523,22 @@ class TestReturningProcessingMixing:
         self.assertNotEqual(hidden['token_i64'], data['token_i64'])
         self.assertNotEqual(hidden['token_str'], data['token_str'])
         self.assertNotEqual(hidden['token_email'], data['token_email'])
+        source = self.delete_and_return_data_with_star(source['id'])
+        self.assertEqual(source['token_i32'], data['token_i32'])
+        self.assertEqual(source['token_i64'], data['token_i64'])
+        self.assertEqual(source['token_str'], data['token_str'])
+        self.assertEqual(source['token_email'], data['token_email'])
+        if TEST_POSTGRESQL:
+            data['token_i32'] = random_int32()
+            data['token_i64'] = random_int64()
+            data['token_str'] = random_str()
+            data['token_bytes'] = random_bytes()
+            data['token_email'] = random_email()
+            source = self.update_and_return_data_with_star(data)
+            self.assertEqual(source['token_i32'], data['token_i32'])
+            self.assertEqual(source['token_i64'], data['token_i64'])
+            self.assertEqual(source['token_str'], data['token_str'])
+            self.assertEqual(source['token_email'], data['token_email'])
 
 
 class TestReturningProcessingMariaDB(TestReturningProcessingMixing, BaseTokenization):
@@ -7528,6 +7576,20 @@ class TestReturningProcessingMariaDB(TestReturningProcessingMixing, BaseTokeniza
                'VALUES ({}, {}, {}, {}, {}, \'{}\', \'{}\') ' \
                'RETURNING *'.format(id, self.data['empty'], self.data['empty'], self.data['token_i32'], self.data['token_i64'], self.data['token_str'], self.data['token_email'])
 
+    def build_delete_query_with_star_returning(self, id):
+        # TODO(zhars, 2021-5-20): rewrite query when sqlalchemy will support RETURNING statements
+        return 'DELETE FROM test_tokenization_specific_client_id ' \
+               'WHERE id = {} ' \
+               'RETURNING *'.format(id)
+
+    def build_delete_query_with_enum_returning(self, id):
+        # TODO(zhars, 2021-5-20): rewrite query when sqlalchemy will support RETURNING statements
+        return 'DELETE FROM test_tokenization_specific_client_id ' \
+               'WHERE id = {} ' \
+               'RETURNING 0, 1 as literal, test_tokenization_specific_client_id.id, test_tokenization_specific_client_id.token_str,' \
+               'test_tokenization_specific_client_id.token_i64, test_tokenization_specific_client_id.token_email, ' \
+               'test_tokenization_specific_client_id.token_i32, NULL'.format(id, self.data['empty'], self.data['empty'], self.data['token_i32'], self.data['token_i64'], self.data['token_str'], self.data['token_email'])
+
     def insert_with_enum_and_return_data(self):
         metadata.create_all(self.engine_raw, [self.specific_client_id_table])
         self.fetch_from_2(sa.select([self.specific_client_id_table]).where(self.specific_client_id_table.c.id == id))
@@ -7535,6 +7597,26 @@ class TestReturningProcessingMariaDB(TestReturningProcessingMixing, BaseTokeniza
         source = self.fetch_from_2(self.build_raw_query_with_enum())[0]
         hidden = self.fetch_from_1(self.build_raw_query_with_enum())[0]
         return source, hidden, self.data
+
+    def delete_and_return_data_with_star(self, id):
+        metadata.create_all(self.engine_raw, [self.specific_client_id_table])
+        self.fetch_from_2(sa.select([self.specific_client_id_table]).where(self.specific_client_id_table.c.id == id))
+
+        source = self.execute_via_2(self.build_delete_query_with_star_returning(id))[0]
+        row = self.fetch_from_2(sa.select([self.specific_client_id_table]).where(self.specific_client_id_table.c.id == id))
+        self.assertEqual(len(row), 0)
+
+        return source
+
+    def delete_and_return_data_with_enum(self, id):
+        metadata.create_all(self.engine_raw, [self.specific_client_id_table])
+        self.fetch_from_2(sa.select([self.specific_client_id_table]).where(self.specific_client_id_table.c.id == id))
+
+        source = self.execute_via_2(self.build_delete_query_with_enum_returning(id))[0]
+        row = self.fetch_from_2(sa.select([self.specific_client_id_table]).where(self.specific_client_id_table.c.id == id))
+        self.assertEqual(len(row), 0)
+
+        return source
 
     def insert_with_star_and_return_data(self):
         metadata.create_all(self.engine_raw, [self.specific_client_id_table])
@@ -7574,6 +7656,26 @@ class TestReturningProcessingPostgreSQL(TestReturningProcessingMixing, BaseToken
         self.data['id'] = get_random_id()
         return self.specific_client_id_table.insert().returning(sa.literal_column('*')), self.data
 
+    def build_delete_query_with_star_returning(self, id):
+        return self.specific_client_id_table.delete().where(self.specific_client_id_table.c.id == id).returning(sa.literal_column('*'))
+
+    def build_delete_query_with_enum_returning(self, id):
+        return self.specific_client_id_table.delete().where(self.specific_client_id_table.c.id == id). \
+            returning(0, sa.literal('1').label('literal'),
+                      self.specific_client_id_table.c.id, self.specific_client_id_table.c.token_str, self.specific_client_id_table.c.token_i64,
+                      self.specific_client_id_table.c.token_email, self.specific_client_id_table.c.token_i32,
+                      sa.text('null'))
+
+    def build_update_query_with_star_returning(self, data):
+        return self.specific_client_id_table.update().where(self.specific_client_id_table.c.id == data['id']).returning(sa.literal_column('*'))
+
+    def build_update_query_with_enum_returning(self, data):
+        return self.specific_client_id_table.update().where(self.specific_client_id_table.c.id == data['id']). \
+            returning(0, sa.literal('1').label('literal'),
+                      self.specific_client_id_table.c.id, self.specific_client_id_table.c.token_str, self.specific_client_id_table.c.token_i64,
+                      self.specific_client_id_table.c.token_email, self.specific_client_id_table.c.token_i32,
+                      sa.text('null'))
+
     def insert_with_enum_and_return_data(self):
         metadata.create_all(self.engine_raw, [self.specific_client_id_table])
         self.fetch_from_2(sa.select([self.specific_client_id_table]).where(self.specific_client_id_table.c.id == get_random_id()))
@@ -7597,6 +7699,32 @@ class TestReturningProcessingPostgreSQL(TestReturningProcessingMixing, BaseToken
         with self.engine1.connect() as connection:
             hidden = connection.execute(hidden_query, data).fetchone()
         return source, hidden, self.data
+
+    def delete_and_return_data_with_star(self, id):
+        metadata.create_all(self.engine_raw, [self.specific_client_id_table])
+        self.fetch_from_2(sa.select([self.specific_client_id_table]).where(self.specific_client_id_table.c.id == id))
+
+        source = self.engine2.execute(self.build_delete_query_with_star_returning(id)).fetchone()
+        return source
+
+    def delete_and_return_data_with_enum(self, id):
+        metadata.create_all(self.engine_raw, [self.specific_client_id_table])
+        self.fetch_from_2(sa.select([self.specific_client_id_table]).where(self.specific_client_id_table.c.id == id))
+
+        source = self.engine2.execute(self.build_delete_query_with_enum_returning(id)).fetchone()
+        return source
+
+    def update_and_return_data_with_enum(self, data):
+        source_query = self.build_update_query_with_enum_returning(data)
+        with self.engine2.connect() as connection:
+            source = connection.execute(source_query, data).fetchone()
+        return source
+
+    def update_and_return_data_with_star(self, data):
+        source_query = self.build_update_query_with_star_returning(data)
+        with self.engine2.connect() as connection:
+            source = connection.execute(source_query, data).fetchone()
+        return source
 
 
 class TestTokenizationWithBoltDB(BaseTokenizationWithBoltDB, TestTokenization):

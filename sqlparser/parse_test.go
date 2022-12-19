@@ -701,12 +701,18 @@ var (
 	}, {
 		input: "delete /* limit */ from a limit b",
 	}, {
-		input: "delete a from a join b on a.id = b.id where b.name = 'test'",
+		input:  "delete a from a join b on a.id = b.id where b.name = 'test'",
+		output: "delete from a using  a join b on a.id = b.id where b.name = 'test'",
 	}, {
-		input: "delete a, b from a, b where a.id = b.id and b.name = 'test'",
+		input:  "delete a, b from a, b where a.id = b.id and b.name = 'test'",
+		output: "delete from a, b using  a, b where a.id = b.id and b.name = 'test'",
 	}, {
 		input:  "delete from a1, a2 using t1 as a1 inner join t2 as a2 where a1.id=a2.id",
-		output: "delete a1, a2 from t1 as a1 join t2 as a2 where a1.id = a2.id",
+		output: "delete from a1, a2 using  t1 as a1 join t2 as a2 where a1.id = a2.id",
+	}, {
+		input: "delete from test_table as t1 using  test_table2 where t2.field = true",
+	}, {
+		input: "delete from test_table as t1 where t2.field = true",
 	}, {
 		input: "set /* simple */ a = 3",
 	}, {
@@ -1376,6 +1382,17 @@ var (
 	}, {
 		input:   "SELECT * FROM dual WHERE val NOT ILIKE 'test%'",
 		output:  "select * from dual where val not ilike 'test%'",
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
+		input:   "delete from dual where price <= 99.99 returning 1, 0 as literal, zone_id, specified_client_id, other_column, default_client_id, null",
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
+		input: "delete from dual where price <= 99.99 returning 1, 0 as literal, zone_id, specified_client_id, other_column, default_client_id, null",
+	}, {
+		input:   "update dual set price = price * 1.10 where price <= 99.99 returning 1, 0 as literal, zone_id, specified_client_id, other_column, default_client_id, null",
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
+		input:   "update test_table set price = price * 1.10 from table2 as t2 where price <= 99.99 returning 1, 0 as literal, t2.zone_id, specified_client_id, other_column, default_client_id, null",
 		dialect: postgresql.NewPostgreSQLDialect(),
 	},
 	}
@@ -2251,6 +2268,14 @@ var (
 		}, {
 			input:   "SELECT * FROM dual WHERE val NOT ILIKE 'test%'",
 			output:  "MySQL dialect doesn't support `ILIKE` statement at position 47",
+			dialect: mysql.NewMySQLDialect(),
+		}, {
+			input:   "UPDATE dual SET price = price * 1.1 RETURNING 1, 0 as literal",
+			output:  "MySQL/MariaDB dialect doesn't support returning with update statement at position 62",
+			dialect: mysql.NewMySQLDialect(),
+		}, {
+			input:   "UPDATE table1 SET price = price * 1.1 FROM table2 as t2",
+			output:  "MySQL dialect doesn't support FROM TableExpr with update statement at position 56",
 			dialect: mysql.NewMySQLDialect(),
 		},
 	}
