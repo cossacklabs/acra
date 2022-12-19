@@ -9,7 +9,6 @@ schemas:
       - specified_client_id
       - default_client_id
       - number
-      - zone_id
       - raw_data
       - nullable
       - empty
@@ -22,9 +21,6 @@ schemas:
         client_id: 12824c1c541a615f428a740770291374a8504f84a0682ab4015bc8e792b1bc8240022c5c9faa8c2111e0076b3b929148f4b801414413edaa800cb42492c20cf7
 
       - column: default_client_id
-
-      - column: zone_id
-        zone_id: DDDDDDDDMatNOMYjqVOuhACC
 
       - column: token_i64
         token_type: int64
@@ -40,48 +36,4 @@ schemas:
         masking: "xxxx"
         plaintext_length: 9
         plaintext_side: "right"
-        crypto_envelope: acrastruct
-
-  - table: test_transparent_acrablock_encryption_with_zone
-    columns:
-      - id
-      - specified_client_id
-      - default_client_id
-      - number
-      - zone_id
-      - raw_data
-      - nullable
-      - empty
-      - token_i64
-      - token_str
-      - token_bytes
-      - masked_prefix
-    encrypted:
-      # as a specified client_id we use generated client_id from client certificates from ./ssl/acra-writer/ and /ssl/acra-writer-2/
-      - column: specified_client_id
-        client_id: 12824c1c541a615f428a740770291374a8504f84a0682ab4015bc8e792b1bc8240022c5c9faa8c2111e0076b3b929148f4b801414413edaa800cb42492c20cf7
-
-      - column: default_client_id
-
-      - column: zone_id
-        zone_id: DDDDDDDDMatNOMYjqVOuhACC
-
-      - column: token_i64
-        token_type: int64
-        tokenized: true
-        zone_id: DDDDDDDDMatNOMYjqVOuhACC
-      - column: token_str
-        token_type: str
-        tokenized: true
-        zone_id: DDDDDDDDMatNOMYjqVOuhACC
-      - column: token_bytes
-        token_type: bytes
-        tokenized: true
-        zone_id: DDDDDDDDMatNOMYjqVOuhACC
-
-      - column: masked_prefix
-        masking: "xxxx"
-        plaintext_length: 9
-        plaintext_side: "right"
-        zone_id: DDDDDDDDMatNOMYjqVOuhACC
         crypto_envelope: acrastruct

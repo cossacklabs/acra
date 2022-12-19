@@ -42,7 +42,6 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 	}
 	defer client.FlushAll()
 
-	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
 	clientID := []byte("testclientid")
 	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
 
@@ -112,27 +111,6 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 
 		readCmd.Execute()
 	})
-
-	t.Run("read symmetric-zone-key", func(t *testing.T) {
-		readCmd := &ReadKeySubcommand{
-			FlagSet:     flagSet,
-			contextID:   zoneID,
-			readKeyKind: KeyZoneSymmetric,
-			outWriter:   io.Discard,
-		}
-
-		store, err := openKeyStoreV2(readCmd)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		err = store.GenerateZoneIDSymmetricKey(zoneID)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		readCmd.Execute()
-	})
 }
 
 func TestReadCMD_Redis_V1(t *testing.T) {
@@ -143,7 +121,6 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 	}
 	defer client.FlushAll()
 
-	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
 	clientID := []byte("testclientid")
 	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
 
@@ -216,30 +193,6 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 		}
 
 		err = store.GenerateClientIDSymmetricKey(clientID)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		readCmd.Execute()
-	})
-
-	t.Run("read symmetric-zone-key", func(t *testing.T) {
-		readCmd := &ReadKeySubcommand{
-			CommonKeyStoreParameters: CommonKeyStoreParameters{
-				keyDir: dirName,
-			},
-			FlagSet:     flagSet,
-			contextID:   zoneID,
-			readKeyKind: KeyZoneSymmetric,
-			outWriter:   io.Discard,
-		}
-
-		store, err := openKeyStoreV1(readCmd)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		err = store.GenerateZoneIDSymmetricKey(zoneID)
 		if err != nil {
 			t.Fatal(err)
 		}

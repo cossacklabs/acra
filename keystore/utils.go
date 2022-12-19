@@ -11,7 +11,7 @@ import (
 func PrintKeysTable(keys []KeyDescription, writer io.Writer) error {
 	const (
 		purposeHeader = "Key purpose"
-		extraIDHeader = "Client/Zone ID"
+		extraIDHeader = "Client"
 		idHeader      = "Key ID"
 	)
 
@@ -24,9 +24,6 @@ func PrintKeysTable(keys []KeyDescription, writer io.Writer) error {
 		}
 		if len(key.ClientID) > maxExtraIDLen {
 			maxExtraIDLen = len(key.ClientID)
-		}
-		if len(key.ZoneID) > maxExtraIDLen {
-			maxExtraIDLen = len(key.ZoneID)
 		}
 		if len(key.ID) > maxKeyIDLen {
 			maxKeyIDLen = len(key.ID)
@@ -47,9 +44,6 @@ func PrintKeysTable(keys []KeyDescription, writer io.Writer) error {
 		var extraID string
 		if key.ClientID != nil {
 			extraID = string(key.ClientID)
-		}
-		if key.ZoneID != nil {
-			extraID = string(key.ZoneID)
 		}
 		fmt.Fprintf(writer, "%-*s | %-*s | %s\n", maxPurposeLen, key.Purpose, maxExtraIDLen, extraID, key.ID)
 	}

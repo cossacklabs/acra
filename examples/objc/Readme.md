@@ -2,8 +2,6 @@ See a verbose explanation of how to prepare environment and use the examples in 
 
 This example contains two parts: simple AcraStructs generation, which can be done locally, and decryption using AcraTranslator via HTTP API. For this purpose, AcraConnector and AcraTranslator should be up and running.
   
-# Without zone
-
 Please update AcraStrorage Public key to yours:
 
 ```objc
@@ -15,25 +13,6 @@ NSData * acraStoragePublicKeyData = [[NSData alloc] initWithBase64EncodedString:
 NSError * generationError;
 AcraStruct * acraStruct = [aw createAcraStructFrom:[@"secret message" dataUsingEncoding:NSUTF8StringEncoding]
                                        publicKey:acraStoragePublicKeyData
-                                          zoneID:nil
+                                          additionalContext:nil
                                            error:&generationError];
-```
-
-
-# With zone
-
-Please update AcraStrorage Public key to yours:
-
-```
-AcraWriter * aw = [AcraWriter new];
-NSString * zonePublicKey = @"VUVDMgAAAC1dStsgAwKbjEzpd3Xptt+hjhFX3Kypbd36qjCF0koFzZHBNPLM";
-NSData * zonePublicKeyData = [[NSData alloc] initWithBase64EncodedString:zonePublicKey
-                                                               options:NSDataBase64DecodingIgnoreUnknownCharacters];
-NSString * zoneID = @"DDDDDDDDNVGIGGzYSCklWQPx";
-NSError * generationError;
-
-AcraStruct * acraStructWithZone = [aw createAcraStructFrom:[@"secret message with zones" dataUsingEncoding:NSUTF8StringEncoding]
-                                               publicKey:zonePublicKeyData
-                                                  zoneID:[zoneID dataUsingEncoding:NSUTF8StringEncoding]
-                                                   error:&generationError];
 ```

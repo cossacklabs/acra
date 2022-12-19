@@ -23,7 +23,3 @@ func getSymmetricKeyName(id string) string {
 func getClientIDSymmetricKeyName(id []byte) string {
 	return getSymmetricKeyName(GetServerDecryptionKeyFilename(id))
 }
-
-func getZoneIDSymmetricKeyName(id []byte) string {
-	return getSymmetricKeyName(GetZoneKeyFilename(id))
-}

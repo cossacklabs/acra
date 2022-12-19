@@ -33,19 +33,9 @@ const (
 	historyDirSuffix        = ".old"
 )
 
-// GetZoneKeyFilename return filename for zone keys
-func GetZoneKeyFilename(id []byte) string {
-	return fmt.Sprintf("%s_zone", string(id))
-}
-
 // getPublicKeyFilename
 func getPublicKeyFilename(id []byte) string {
 	return fmt.Sprintf("%s.pub", id)
-}
-
-// getZonePublicKeyFilename
-func getZonePublicKeyFilename(id []byte) string {
-	return getPublicKeyFilename([]byte(GetZoneKeyFilename(id)))
 }
 
 // getServerKeyFilename

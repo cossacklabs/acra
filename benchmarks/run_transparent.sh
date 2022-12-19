@@ -31,7 +31,7 @@ echo "wait $pid"
 wait ${pid}
 
 
-echo "run read scripts without zones"
+echo "run read scripts"
 export PG_CONNECTION_STRING=${DIRECT_CONNECTION_STRING}
 script="./read.bin 2>&1 | tee -a ${BENCHMARK_NAME}.direct.txt"
 echo "run direct read '$script'"

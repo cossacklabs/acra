@@ -34,11 +34,6 @@ func (k *KeyMapper) GetKeyID(ctx keystore.KeyContext) ([]byte, error) {
 			return nil, ErrEmptyClientIDProvided
 		}
 		return []byte("acra_" + string(ctx.ClientID)), nil
-	case keystore.PurposeStorageZoneSymmetricKey, keystore.PurposeStorageZonePrivateKey, keystore.PurposeStorageZoneKeyPair:
-		if ctx.ZoneID == nil {
-			return nil, ErrEmptyZoneIDProvided
-		}
-		return []byte("acra_" + string(ctx.ZoneID)), nil
 	case keystore.PurposePoisonRecordSymmetricKey, keystore.PurposePoisonRecordKeyPair:
 		return []byte("acra_poison"), nil
 	case keystore.PurposeAuditLog:

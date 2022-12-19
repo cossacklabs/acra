@@ -45,16 +45,13 @@ void generate_acrastruct_and_check_structure(uint64_t random_data_length) {
   vector<uint8_t> random_data(random_data_length);
   generate(begin(random_data), end(random_data), ref(rbe));
 
-  static string zone_id_string("DDDDDDDDvTOInNRROHOihRkf");
-  acra::data zone_id_vector(zone_id_string.c_str(), zone_id_string.c_str() + zone_id_string.length());
-
   secure_key_pair_generator_t<EC> key_pair_generator;
   acra::data temp_private_key = key_pair_generator.get_priv();
   acra::data temp_public_key = key_pair_generator.get_pub();
 
   // pack acrastruct
   acra acrawriter;
-  acra::acrastruct as = acrawriter.create_acrastruct(random_data, temp_public_key, zone_id_vector);
+  acra::acrastruct as = acrawriter.create_acrastruct(random_data, temp_public_key, null);
 
   REQUIRE (!as.empty());
 
@@ -119,7 +116,7 @@ void generate_acrastruct_and_check_structure(uint64_t random_data_length) {
   REQUIRE (!encrypted_data.empty());
 
   // decrypt payload data
-  acra::data payload = secure_cell.decrypt(encrypted_data, zone_id_vector);
+  acra::data payload = secure_cell.decrypt(encrypted_data, null);
   REQUIRE (!payload.empty());
   REQUIRE (payload == random_data);
 }
@@ -139,18 +136,11 @@ TEST_CASE ( " different acrastructs") {
   static string message_string("secret message");
   acra::data message_string_vector(message_string.c_str(), message_string.c_str() + message_string.length());
 
-  static string zone_id_string("DDDDDDDDvTOInNRROHOihRkf");
-  acra::data zone_id_vector(zone_id_string.c_str(), zone_id_string.c_str() + zone_id_string.length());
-
   secure_key_pair_generator_t<EC> key_pair_generator;
   acra::data temp_public_key = key_pair_generator.get_pub();
 
   // pack acrastruct
   acra acrawriter;
-  acra::acrastruct as_with_zone = acrawriter.create_acrastruct(message_string_vector, temp_public_key, zone_id_vector);
-
-  REQUIRE (!as_with_zone.empty());
-
   acra::acrastruct as = acrawriter.create_acrastruct(message_string_vector, temp_public_key);
   REQUIRE (!as.empty());
 }

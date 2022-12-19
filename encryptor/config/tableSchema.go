@@ -43,7 +43,6 @@ type ColumnEncryptionSetting interface {
 
 	ColumnName() string
 	ClientID() []byte
-	ZoneID() []byte
 
 	GetDBDataTypeID() uint32
 	GetEncryptedDataType() common2.EncryptedType

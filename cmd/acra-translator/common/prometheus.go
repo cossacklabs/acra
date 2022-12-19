@@ -118,79 +118,79 @@ func NewPrometheusServiceWrapper(service ITranslatorService, metricType string) 
 	return nil, ErrInvalidMetricType
 }
 
-// Decrypt AcraStruct using passed ZoneID if length > 0 otherwise use ClientID (that is required after that)
-func (wrapper *prometheusWrapper) Decrypt(ctx context.Context, acraStruct, clientID, zoneID []byte) ([]byte, error) {
+// Decrypt AcraStruct using ClientID
+func (wrapper *prometheusWrapper) Decrypt(ctx context.Context, acraStruct, clientID, additionalContext []byte) ([]byte, error) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(RequestProcessingTimeHistogram.WithLabelValues(wrapper.metricType, decryptOperation).Observe))
 	defer timer.ObserveDuration()
-	return wrapper.ITranslatorService.Decrypt(ctx, acraStruct, clientID, zoneID)
+	return wrapper.ITranslatorService.Decrypt(ctx, acraStruct, clientID, additionalContext)
 }
 
-// Encrypt AcraStruct using passed ZoneID if length > 0 otherwise use ClientID (that is required after that)
-func (wrapper *prometheusWrapper) Encrypt(ctx context.Context, data, clientID, zoneID []byte) ([]byte, error) {
+// Encrypt AcraStruct using ClientID
+func (wrapper *prometheusWrapper) Encrypt(ctx context.Context, data, clientID, additionalContext []byte) ([]byte, error) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(RequestProcessingTimeHistogram.WithLabelValues(wrapper.metricType, encryptOperation).Observe))
 	defer timer.ObserveDuration()
-	return wrapper.ITranslatorService.Encrypt(ctx, data, clientID, zoneID)
+	return wrapper.ITranslatorService.Encrypt(ctx, data, clientID, additionalContext)
 }
 
-// EncryptSearchable generate AcraStruct using passed ZoneID if length > 0 otherwise use ClientID (that is required after that) and searchable hash
-func (wrapper *prometheusWrapper) EncryptSearchable(ctx context.Context, data, clientID, zoneID []byte) (SearchableResponse, error) {
+// EncryptSearchable generate AcraStruct using ClientID and searchable hash
+func (wrapper *prometheusWrapper) EncryptSearchable(ctx context.Context, data, clientID, additionalContext []byte) (SearchableResponse, error) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(RequestProcessingTimeHistogram.WithLabelValues(wrapper.metricType, encryptSearchableOperation).Observe))
 	defer timer.ObserveDuration()
-	return wrapper.ITranslatorService.EncryptSearchable(ctx, data, clientID, zoneID)
+	return wrapper.ITranslatorService.EncryptSearchable(ctx, data, clientID, additionalContext)
 }
 
-// DecryptSearchable decrypt AcraStruct using passed ZoneID if length > 0 otherwise use ClientID (that is required after that) and then verify hash
-func (wrapper *prometheusWrapper) DecryptSearchable(ctx context.Context, data, hash, clientID, zoneID []byte) ([]byte, error) {
+// DecryptSearchable decrypt AcraStruct using ClientID and then verify hash
+func (wrapper *prometheusWrapper) DecryptSearchable(ctx context.Context, data, hash, clientID, additionalContext []byte) ([]byte, error) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(RequestProcessingTimeHistogram.WithLabelValues(wrapper.metricType, decryptSearchableOperation).Observe))
 	defer timer.ObserveDuration()
-	return wrapper.ITranslatorService.DecryptSearchable(ctx, data, hash, clientID, zoneID)
+	return wrapper.ITranslatorService.DecryptSearchable(ctx, data, hash, clientID, additionalContext)
 }
 
 // GenerateQueryHash generates searchable hash for data
-func (wrapper *prometheusWrapper) GenerateQueryHash(ctx context.Context, data, clientID, zoneID []byte) ([]byte, error) {
+func (wrapper *prometheusWrapper) GenerateQueryHash(ctx context.Context, data, clientID, additionalContext []byte) ([]byte, error) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(RequestProcessingTimeHistogram.WithLabelValues(wrapper.metricType, generateQueryHashOperation).Observe))
 	defer timer.ObserveDuration()
-	return wrapper.ITranslatorService.GenerateQueryHash(ctx, data, clientID, zoneID)
+	return wrapper.ITranslatorService.GenerateQueryHash(ctx, data, clientID, additionalContext)
 }
 
-// Tokenize data from request according to TokenType using passed ZoneID if length > 0 otherwise use ClientID (that is required after that)
-func (wrapper *prometheusWrapper) Tokenize(ctx context.Context, data interface{}, dataType tokenCommon.TokenType, clientID, zoneID []byte) (interface{}, error) {
+// Tokenize data from request according to TokenType using ClientID
+func (wrapper *prometheusWrapper) Tokenize(ctx context.Context, data interface{}, dataType tokenCommon.TokenType, clientID, additionalContext []byte) (interface{}, error) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(RequestProcessingTimeHistogram.WithLabelValues(wrapper.metricType, tokenizeOperation).Observe))
 	defer timer.ObserveDuration()
-	return wrapper.ITranslatorService.Tokenize(ctx, data, dataType, clientID, zoneID)
+	return wrapper.ITranslatorService.Tokenize(ctx, data, dataType, clientID, additionalContext)
 }
 
-// Detokenize data from request according to TokenType using passed ZoneID if length > 0 otherwise use ClientID (that is required after that)
-func (wrapper *prometheusWrapper) Detokenize(ctx context.Context, data interface{}, dataType tokenCommon.TokenType, clientID, zoneID []byte) (interface{}, error) {
+// Detokenize data from request according to TokenType using ClientID
+func (wrapper *prometheusWrapper) Detokenize(ctx context.Context, data interface{}, dataType tokenCommon.TokenType, clientID, additionalContext []byte) (interface{}, error) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(RequestProcessingTimeHistogram.WithLabelValues(wrapper.metricType, detokenizeOperation).Observe))
 	defer timer.ObserveDuration()
-	return wrapper.ITranslatorService.Detokenize(ctx, data, dataType, clientID, zoneID)
+	return wrapper.ITranslatorService.Detokenize(ctx, data, dataType, clientID, additionalContext)
 }
 
-// EncryptSymSearchable encrypts data with AcraBlock using passed ZoneID if length > 0 otherwise use ClientID (that is required after that) and searchable hash
-func (wrapper *prometheusWrapper) EncryptSymSearchable(ctx context.Context, data, clientID, zoneID []byte) (SearchableResponse, error) {
+// EncryptSymSearchable encrypts data with AcraBlock using ClientID and searchable hash
+func (wrapper *prometheusWrapper) EncryptSymSearchable(ctx context.Context, data, clientID, additionalContext []byte) (SearchableResponse, error) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(RequestProcessingTimeHistogram.WithLabelValues(wrapper.metricType, encryptSymSearchableOperation).Observe))
 	defer timer.ObserveDuration()
-	return wrapper.ITranslatorService.EncryptSymSearchable(ctx, data, clientID, zoneID)
+	return wrapper.ITranslatorService.EncryptSymSearchable(ctx, data, clientID, additionalContext)
 }
 
-// DecryptSymSearchable decrypt AcraBlock using passed ZoneID if length > 0 otherwise use ClientID (that is required after that) and verify hash
-func (wrapper *prometheusWrapper) DecryptSymSearchable(ctx context.Context, data, hash, clientID, zoneID []byte) ([]byte, error) {
+// DecryptSymSearchable decrypt AcraBlock using ClientID and verify hash
+func (wrapper *prometheusWrapper) DecryptSymSearchable(ctx context.Context, data, hash, clientID, additionalContext []byte) ([]byte, error) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(RequestProcessingTimeHistogram.WithLabelValues(wrapper.metricType, decryptSymSearchableOperation).Observe))
 	defer timer.ObserveDuration()
-	return wrapper.ITranslatorService.DecryptSymSearchable(ctx, data, hash, clientID, zoneID)
+	return wrapper.ITranslatorService.DecryptSymSearchable(ctx, data, hash, clientID, additionalContext)
 }
 
-// EncryptSym encrypts data with AcraBlock using passed ZoneID if length > 0 otherwise use ClientID (that is required after that)
-func (wrapper *prometheusWrapper) EncryptSym(ctx context.Context, data, clientID, zoneID []byte) ([]byte, error) {
+// EncryptSym encrypts data with AcraBlock using ClientID
+func (wrapper *prometheusWrapper) EncryptSym(ctx context.Context, data, clientID, additionalContext []byte) ([]byte, error) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(RequestProcessingTimeHistogram.WithLabelValues(wrapper.metricType, encryptSymOperation).Observe))
 	defer timer.ObserveDuration()
-	return wrapper.ITranslatorService.EncryptSym(ctx, data, clientID, zoneID)
+	return wrapper.ITranslatorService.EncryptSym(ctx, data, clientID, additionalContext)
 }
 
-// DecryptSym decrypts AcraBlock using passed ZoneID if length > 0 otherwise use ClientID (that is required after that)
-func (wrapper *prometheusWrapper) DecryptSym(ctx context.Context, acraBlock, clientID, zoneID []byte) ([]byte, error) {
+// DecryptSym decrypts AcraBlock using ClientID
+func (wrapper *prometheusWrapper) DecryptSym(ctx context.Context, acraBlock, clientID, additionalContext []byte) ([]byte, error) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(RequestProcessingTimeHistogram.WithLabelValues(wrapper.metricType, decryptSymOperation).Observe))
 	defer timer.ObserveDuration()
-	return wrapper.ITranslatorService.DecryptSym(ctx, acraBlock, clientID, zoneID)
+	return wrapper.ITranslatorService.DecryptSym(ctx, acraBlock, clientID, additionalContext)
 }

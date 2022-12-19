@@ -147,11 +147,6 @@ def read_storage_public_key(client_id, keys_dir='.acrakeys', extra_kwargs: dict 
                     public=True, keys_dir=keys_dir, extra_kwargs=extra_kwargs)
 
 
-def read_zone_public_key(zone_id, keys_dir='.acrakeys'):
-    return read_key('zone/{}/storage'.format(zone_id),
-                    public=True, keys_dir=keys_dir)
-
-
 def deserialize_crypto_envelope_with_acrastruct(data):
     if data[:3] == b'%%%':
         crypto_id = data[8+3]
@@ -161,30 +156,25 @@ def deserialize_crypto_envelope_with_acrastruct(data):
     raise ValueError("Invalid crypto envelope")
 
 
-def deserialize_and_decrypt_acrastruct(data, private_key, client_id=None, zone_id=None):
+def deserialize_and_decrypt_acrastruct(data, private_key, client_id=None, additionalContext=None):
     data = deserialize_crypto_envelope_with_acrastruct(data)
-    return decrypt_acrastruct(data, private_key, client_id, zone_id)
+    return decrypt_acrastruct(data, private_key, client_id, additionalContext)
 
 
-def decrypt_acrastruct(data, private_key, client_id=None, zone_id=None):
+def decrypt_acrastruct(data, private_key, client_id=None, additionalContext=None):
     public_key = data[8:8 + 45]
     encrypted_symmetric = data[8 + 45:8 + 45 + 84]
     smessage_decryptor = smessage.SMessage(private_key, public_key)
     symmetric = smessage_decryptor.unwrap(encrypted_symmetric)
     encrypted_data = data[8 + 45 + 84 + 8:]
-    if zone_id:
-        return scell.SCellSeal(symmetric).decrypt(encrypted_data, zone_id)
+    if additionalContext:
+        return scell.SCellSeal(symmetric).decrypt(encrypted_data, additionalContext)
     else:
         return scell.SCellSeal(symmetric).decrypt(encrypted_data)
 
 
 def read_storage_private_key(keys_folder, key_id):
     return read_key('client/{}/storage'.format(key_id),
-                    public=False, keys_dir=keys_folder)
-
-
-def read_zone_private_key(keys_folder, key_id):
-    return read_key('zone/{}/storage'.format(key_id),
                     public=False, keys_dir=keys_folder)
 
 
@@ -196,14 +186,12 @@ def read_poison_private_key(keys_dir):
     return read_key('poison-record', public=False, keys_dir=keys_dir)
 
 
-def prepare_encryptor_config(zone_id, config_path, client_id=None):
+def prepare_encryptor_config(config_path, client_id=None):
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
 
     for table in config['schemas']:
         for column in table['encrypted']:
-            if 'zone_id' in column:
-                column['zone_id'] = zone_id
             if client_id and 'client_id' in column:
                 column['client_id'] = client_id
     with open(get_test_encryptor_config(config_path), 'w') as f:

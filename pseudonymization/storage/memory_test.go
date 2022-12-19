@@ -37,7 +37,7 @@ func TestNewMemoryTokenStorage(t *testing.T) {
 	testData := []testcase{
 		{[]byte(`some data`), common.TokenContext{}, []byte(`some id0`)},
 		{[]byte(`some data`), common.TokenContext{ClientID: []byte(`some context`)}, []byte(`some id1`)},
-		{[]byte(`some data`), common.TokenContext{ClientID: []byte(`some context`), ZoneID: []byte(`some context2`)}, []byte(`some id2`)},
+		{[]byte(`some data`), common.TokenContext{ClientID: []byte(`some context`), AdditionalContext: []byte(`some context2`)}, []byte(`some id2`)},
 	}
 
 	for _, tcase := range testData {

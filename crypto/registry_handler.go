@@ -51,9 +51,8 @@ type ContainerHandler interface {
 
 	Decrypt(data []byte, context *base.DataProcessorContext) ([]byte, error)
 
-	//EncryptWithClientID and EncryptWithZoneID DataEncryptor's interface methods
+	//EncryptWithClientID DataEncryptor's interface methods
 	EncryptWithClientID(clientID, data []byte, context *encryptor.DataEncryptorContext) ([]byte, error)
-	EncryptWithZoneID(zoneID, data []byte, context *encryptor.DataEncryptorContext) ([]byte, error)
 }
 
 // RegistryHandler implements CryptoContainerHandler that implements DataEncryptor/DataProcessor interfaces and may be used
@@ -118,23 +117,16 @@ func (r RegistryHandler) EncryptWithClientID(clientID, data []byte, setting conf
 	return SerializeEncryptedData(encrypted, handler.ID())
 }
 
-// EncryptWithHandler call EncryptWithClientID/EncryptWithZoneID with specified handler
-func (r RegistryHandler) EncryptWithHandler(handler ContainerHandler, id, data []byte, withZone bool) ([]byte, error) {
+// EncryptWithHandler call EncryptWithClientID with specified handler
+func (r RegistryHandler) EncryptWithHandler(handler ContainerHandler, id, data []byte) ([]byte, error) {
 	// case when data encrypted on app side (for example AcraStructs with AcraWriter) and should not be encrypted second time
 	if handler.MatchDataSignature(data) || r.MatchDataSignature(data) {
 		return data, nil
 	}
-	var err error
-	var encrypted []byte
-	if withZone {
-		encrypted, err = handler.EncryptWithZoneID(id, data, &encryptor.DataEncryptorContext{Keystore: r.keystore})
-	} else {
-		encrypted, err = handler.EncryptWithClientID(id, data, &encryptor.DataEncryptorContext{Keystore: r.keystore})
-	}
+	encrypted, err := handler.EncryptWithClientID(id, data, &encryptor.DataEncryptorContext{Keystore: r.keystore})
 	if err != nil {
 		return nil, err
 	}
-
 	return SerializeEncryptedData(encrypted, handler.ID())
 }
 
@@ -155,26 +147,6 @@ func (r RegistryHandler) DecryptWithHandler(handler ContainerHandler, data []byt
 	}
 
 	return processed, nil
-}
-
-// EncryptWithZoneID implementation of ContainerHandler.EncryptWithZoneID method
-func (r RegistryHandler) EncryptWithZoneID(zoneID, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
-	handler, err := GetHandlerByName(string(setting.GetCryptoEnvelope()))
-	if err != nil {
-		return nil, err
-	}
-
-	// case when data encrypted on app side (for example AcraStructs with AcraWriter) and should not be encrypted second time
-	if handler.MatchDataSignature(data) || r.MatchDataSignature(data) {
-		return data, nil
-	}
-
-	encrypted, err := handler.EncryptWithZoneID(zoneID, data, &encryptor.DataEncryptorContext{Keystore: r.keystore})
-	if err != nil {
-		return nil, err
-	}
-
-	return SerializeEncryptedData(encrypted, handler.ID())
 }
 
 // SerializeEncryptedData wraps encrypted data in new format container

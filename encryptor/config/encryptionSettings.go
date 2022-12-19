@@ -41,7 +41,6 @@ const (
 	SettingTokenTypeFlag
 	SettingSearchFlag
 	SettingClientIDFlag
-	SettingZoneIDFlag
 	SettingAcraBlockEncryptionFlag
 	SettingAcraStructEncryptionFlag
 	SettingDataTypeFlag
@@ -61,12 +60,6 @@ var validSettings = map[SettingMask]struct{}{
 
 	SettingClientIDFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag: {},
 	SettingClientIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:  {},
-	// ZoneID
-	SettingZoneIDFlag | SettingAcraBlockEncryptionFlag:  {},
-	SettingZoneIDFlag | SettingAcraStructEncryptionFlag: {},
-
-	SettingZoneIDFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
-	SettingZoneIDFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
 
 	/////////////
 	// DataType tampering
@@ -88,18 +81,6 @@ var validSettings = map[SettingMask]struct{}{
 	SettingDataTypeFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag | SettingMaskingFlag | SettingMaskingPlaintextLengthFlag | SettingMaskingPlaintextSideFlag:   {},
 	SettingDataTypeIDFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag | SettingMaskingFlag | SettingMaskingPlaintextLengthFlag | SettingMaskingPlaintextSideFlag: {},
 
-	// ZoneID
-
-	SettingDataTypeFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag:                                                   {},
-	SettingDataTypeFlag | SettingOnFailFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag:                               {},
-	SettingDataTypeFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag:                     {},
-	SettingDataTypeFlag | SettingOnFailFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag: {},
-
-	SettingDataTypeIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag:                                                   {},
-	SettingDataTypeIDFlag | SettingOnFailFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag:                               {},
-	SettingDataTypeIDFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag:                     {},
-	SettingDataTypeIDFlag | SettingOnFailFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag | SettingZoneIDFlag: {},
-
 	// AcraStruct
 	// ClientID
 	SettingDataTypeFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag:                                                   {},
@@ -111,18 +92,6 @@ var validSettings = map[SettingMask]struct{}{
 	SettingDataTypeIDFlag | SettingOnFailFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag:                               {},
 	SettingDataTypeIDFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag:                     {},
 	SettingDataTypeIDFlag | SettingOnFailFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag: {},
-
-	// ZoneID
-
-	SettingDataTypeFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag:                                                   {},
-	SettingDataTypeFlag | SettingOnFailFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag:                               {},
-	SettingDataTypeFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag:                     {},
-	SettingDataTypeFlag | SettingOnFailFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag: {},
-
-	SettingDataTypeIDFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag:                                                   {},
-	SettingDataTypeIDFlag | SettingOnFailFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag:                               {},
-	SettingDataTypeIDFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag:                     {},
-	SettingDataTypeIDFlag | SettingOnFailFlag | SettingDefaultDataValueFlag | SettingReEncryptionFlag | SettingAcraStructEncryptionFlag | SettingZoneIDFlag: {},
 
 	/////////////
 	// SEARCHABLE
@@ -168,10 +137,6 @@ var validSettings = map[SettingMask]struct{}{
 	// specified ClientID
 	SettingAcraStructEncryptionFlag | SettingMaskingFlag | SettingMaskingPlaintextSideFlag | SettingMaskingPlaintextLengthFlag | SettingClientIDFlag | SettingReEncryptionFlag: {},
 	SettingAcraBlockEncryptionFlag | SettingMaskingFlag | SettingMaskingPlaintextSideFlag | SettingMaskingPlaintextLengthFlag | SettingClientIDFlag | SettingReEncryptionFlag:  {},
-	// specified ZoneID
-	SettingAcraStructEncryptionFlag | SettingMaskingFlag | SettingMaskingPlaintextSideFlag | SettingMaskingPlaintextLengthFlag | SettingZoneIDFlag | SettingReEncryptionFlag: {},
-	SettingAcraBlockEncryptionFlag | SettingMaskingFlag | SettingMaskingPlaintextSideFlag | SettingMaskingPlaintextLengthFlag | SettingZoneIDFlag | SettingReEncryptionFlag:  {},
-
 	/////////////
 	// TOKENIZATION
 	// default clientID
@@ -187,11 +152,6 @@ var validSettings = map[SettingMask]struct{}{
 	SettingTokenizationFlag | SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingClientIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag: {},
 	SettingTokenTypeFlag | SettingClientIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                                                               {},
 	SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingClientIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                           {},
-	// specified zoneID
-	SettingTokenizationFlag | SettingTokenTypeFlag | SettingZoneIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                                     {},
-	SettingTokenizationFlag | SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingZoneIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag: {},
-	SettingTokenTypeFlag | SettingZoneIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                                                               {},
-	SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingZoneIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                           {},
 }
 
 // Token type names as expected in the configuration file.
@@ -232,7 +192,6 @@ func ValidateCryptoEnvelopeType(value CryptoEnvelopeType) error {
 type BasicColumnEncryptionSetting struct {
 	Name         string `yaml:"column"`
 	UsedClientID string `yaml:"client_id"`
-	UsedZoneID   string `yaml:"zone_id"`
 
 	// same as TokenType but related for encryption operations
 	DataType string `yaml:"data_type"`
@@ -282,8 +241,6 @@ func (s *BasicColumnEncryptionSetting) Init(useMySQL bool) (err error) {
 	s.settingMask = 0
 	if len(s.ClientID()) > 0 {
 		s.settingMask |= SettingClientIDFlag
-	} else if len(s.ZoneID()) > 0 {
-		s.settingMask |= SettingZoneIDFlag
 	} else {
 		// will be used default ClientID
 		s.settingMask |= SettingClientIDFlag
@@ -482,11 +439,6 @@ func (s *BasicColumnEncryptionSetting) ShouldReEncryptAcraStructToAcraBlock() bo
 // ClientID returns client ID to use when encrypting this column.
 func (s *BasicColumnEncryptionSetting) ClientID() []byte {
 	return []byte(s.UsedClientID)
-}
-
-// ZoneID returns zone ID to use when encrypting this column.
-func (s *BasicColumnEncryptionSetting) ZoneID() []byte {
-	return []byte(s.UsedZoneID)
 }
 
 // IsTokenized returns true if the column should be tokenized.

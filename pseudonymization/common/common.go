@@ -100,16 +100,17 @@ type Pseudoanonymizer interface {
 
 // TokenContext used as metadata for each token
 type TokenContext struct {
-	ClientID []byte
-	ZoneID   []byte
+	ClientID          []byte
+	AdditionalContext []byte
 }
 
 // AggregateTokenContextToBytes used as function to return one byte array as value which is digest for context
 func AggregateTokenContextToBytes(context TokenContext) []byte {
 	h := sha256.New()
-	if len(context.ZoneID) != 0 {
+	if len(context.AdditionalContext) != 0 {
+		// leave for backward compatibility when used zones
 		h.Write([]byte(`zone`))
-		h.Write(context.ZoneID)
+		h.Write(context.AdditionalContext)
 	} else {
 		h.Write([]byte(`client`))
 		h.Write(context.ClientID)

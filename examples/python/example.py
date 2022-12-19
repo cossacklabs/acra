@@ -53,7 +53,7 @@ if __name__ == '__main__':
         key = f.read()
 
     test_table = Table(
-        'test_example_without_zone', metadata,
+        'test_example', metadata,
         Column('id', Integer, primary_key=True, nullable=False),
         # here we use acrawriter's wrapper for Binary type in sqlalchemy
         Column('data', AcraBinary(key), nullable=False),

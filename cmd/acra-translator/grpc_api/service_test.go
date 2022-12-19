@@ -147,7 +147,6 @@ func testTranslatorService(storage common.TokenStorage, t *testing.T) {
 		int64(2),
 	}
 	clientID := []byte(`client id`)
-	// zoneID := []byte(`zone id`)
 	ctx := context.Background()
 	for _, data := range testValues {
 		for i := 0; i < 5; i++ {
@@ -170,7 +169,6 @@ func testTranslatorService(storage common.TokenStorage, t *testing.T) {
 func TestTranslatorService_Search(t *testing.T) {
 	type testCase struct {
 		ClientID []byte
-		ZoneID   []byte
 		Data     []byte
 	}
 
@@ -182,24 +180,14 @@ func TestTranslatorService_Search(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	zoneIDKeypair, err := keys.New(keys.TypeEC)
-	if err != nil {
-		t.Fatal(err)
-	}
 	keystore := &mocks.ServerKeyStore{}
 	// return copy of all private keys because of their erasing on every usage by clients
 	keystore.On("GetHMACSecretKey", mock.MatchedBy(func([]byte) bool { return true })).Return(func([]byte) []byte { return append([]byte{}, hmacKey...) }, nil)
-	keystore.On("GetZonePrivateKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
-		func([]byte) []*keys.PrivateKey {
-			return []*keys.PrivateKey{&keys.PrivateKey{Value: append([]byte{}, zoneIDKeypair.Private.Value...)}}
-		},
-		nil)
 	keystore.On("GetServerDecryptionPrivateKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
 		func([]byte) []*keys.PrivateKey {
 			return []*keys.PrivateKey{&keys.PrivateKey{Value: append([]byte{}, clientIDKeypair.Private.Value...)}}
 		},
 		nil)
-	keystore.On("GetZonePublicKey", mock.MatchedBy(func([]byte) bool { return true })).Return(zoneIDKeypair.Public, nil)
 	keystore.On("GetClientIDEncryptionPublicKey", mock.MatchedBy(func([]byte) bool { return true })).Return(clientIDKeypair.Public, nil)
 	translatorData := &translatorCommon.TranslatorData{PoisonRecordCallbacks: poison.NewCallbackStorage(), Keystorage: keystore}
 	serviceImplementation, err := translatorCommon.NewTranslatorService(translatorData)
@@ -211,16 +199,16 @@ func TestTranslatorService_Search(t *testing.T) {
 		t.Fatal(err)
 	}
 	testCases := []testCase{
-		{[]byte(`client id 1`), nil, []byte(`data1`)},
-		{[]byte(`client id 2`), []byte(`zone id 1`), []byte(`data2`)},
+		{[]byte(`client id 1`), []byte(`data1`)},
+		{[]byte(`client id 2`), []byte(`data2`)},
 	}
 	ctx := context.Background()
 	for _, tcase := range testCases {
-		EncryptSearchableResponse, err := service.EncryptSearchable(ctx, &SearchableEncryptionRequest{ClientId: tcase.ClientID, ZoneId: tcase.ZoneID, Data: tcase.Data})
+		EncryptSearchableResponse, err := service.EncryptSearchable(ctx, &SearchableEncryptionRequest{ClientId: tcase.ClientID, Data: tcase.Data})
 		if err != nil {
 			t.Fatal(err)
 		}
-		hashResponse, err := service.GenerateQueryHash(ctx, &QueryHashRequest{ClientId: tcase.ClientID, ZoneId: tcase.ZoneID, Data: tcase.Data})
+		hashResponse, err := service.GenerateQueryHash(ctx, &QueryHashRequest{ClientId: tcase.ClientID, Data: tcase.Data})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -228,7 +216,7 @@ func TestTranslatorService_Search(t *testing.T) {
 			t.Fatal("Hash after EncryptSearchable operation not equal with GenerateQueryHash operation")
 		}
 		// try to decrypt correct AcraStruct with incorrect hash
-		decryptedResponseWithoutHash, err := service.DecryptSearchable(ctx, &SearchableDecryptionRequest{ClientId: tcase.ClientID, ZoneId: tcase.ZoneID, Data: EncryptSearchableResponse.Acrastruct, Hash: []byte(`invalid hash`)})
+		decryptedResponseWithoutHash, err := service.DecryptSearchable(ctx, &SearchableDecryptionRequest{ClientId: tcase.ClientID, Data: EncryptSearchableResponse.Acrastruct, Hash: []byte(`invalid hash`)})
 		if err == nil {
 			t.Fatal("expect error related to invalid hash")
 		}
@@ -237,14 +225,14 @@ func TestTranslatorService_Search(t *testing.T) {
 		}
 
 		acrastructWithHash := append(EncryptSearchableResponse.Hash, EncryptSearchableResponse.Acrastruct...)
-		decryptedResponseWithoutHash, err = service.DecryptSearchable(ctx, &SearchableDecryptionRequest{ClientId: tcase.ClientID, ZoneId: tcase.ZoneID, Data: acrastructWithHash, Hash: nil})
+		decryptedResponseWithoutHash, err = service.DecryptSearchable(ctx, &SearchableDecryptionRequest{ClientId: tcase.ClientID, Data: acrastructWithHash, Hash: nil})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !bytes.Equal(decryptedResponseWithoutHash.Data, tcase.Data) {
 			t.Fatal("decrypted data without hash not equal to raw data")
 		}
-		decryptedResponseWithHash, err := service.DecryptSearchable(ctx, &SearchableDecryptionRequest{ClientId: tcase.ClientID, ZoneId: tcase.ZoneID, Data: EncryptSearchableResponse.Acrastruct, Hash: EncryptSearchableResponse.Hash})
+		decryptedResponseWithHash, err := service.DecryptSearchable(ctx, &SearchableDecryptionRequest{ClientId: tcase.ClientID, Data: EncryptSearchableResponse.Acrastruct, Hash: EncryptSearchableResponse.Hash})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -257,7 +245,6 @@ func TestTranslatorService_Search(t *testing.T) {
 func TestTranslatorService_SearchSym(t *testing.T) {
 	type testCase struct {
 		ClientID []byte
-		ZoneID   []byte
 		Data     []byte
 	}
 
@@ -269,22 +256,8 @@ func TestTranslatorService_SearchSym(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	zoneIDSymKey, err := keystore.GenerateSymmetricKey()
-	if err != nil {
-		t.Fatal(err)
-	}
 	keystore := &mocks.ServerKeyStore{}
 	keystore.On("GetHMACSecretKey", mock.MatchedBy(func([]byte) bool { return true })).Return(func([]byte) []byte { return append([]byte{}, hmacKey...) }, nil)
-	keystore.On("GetZoneIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
-		func([]byte) [][]byte {
-			return [][]byte{append([]byte{}, zoneIDSymKey...)}
-		},
-		nil)
-	keystore.On("GetZoneIDSymmetricKey", mock.MatchedBy(func([]byte) bool { return true })).Return(
-		func([]byte) []byte {
-			return append([]byte{}, zoneIDSymKey...)
-		},
-		nil)
 	keystore.On("GetClientIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
 		func([]byte) [][]byte {
 			return [][]byte{append([]byte{}, clientIDSymKey...)}
@@ -306,16 +279,16 @@ func TestTranslatorService_SearchSym(t *testing.T) {
 		t.Fatal(err)
 	}
 	testCases := []testCase{
-		{[]byte(`client id 1`), nil, []byte(`data1`)},
-		{[]byte(`client id 2`), []byte(`zone id 1`), []byte(`data2`)},
+		{[]byte(`client id 1`), []byte(`data1`)},
+		{[]byte(`client id 2`), []byte(`data2`)},
 	}
 	ctx := context.Background()
 	for _, tcase := range testCases {
-		EncryptSearchableedResponse, err := service.EncryptSymSearchable(ctx, &SearchableSymEncryptionRequest{ClientId: tcase.ClientID, ZoneId: tcase.ZoneID, Data: tcase.Data})
+		EncryptSearchableedResponse, err := service.EncryptSymSearchable(ctx, &SearchableSymEncryptionRequest{ClientId: tcase.ClientID, Data: tcase.Data})
 		if err != nil {
 			t.Fatal(err)
 		}
-		hashResponse, err := service.GenerateQueryHash(ctx, &QueryHashRequest{ClientId: tcase.ClientID, ZoneId: tcase.ZoneID, Data: tcase.Data})
+		hashResponse, err := service.GenerateQueryHash(ctx, &QueryHashRequest{ClientId: tcase.ClientID, Data: tcase.Data})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -323,7 +296,7 @@ func TestTranslatorService_SearchSym(t *testing.T) {
 			t.Fatal("Hash after EncryptSearchable operation not equal with GenerateQueryHash operation")
 		}
 		// try to decrypt correct AcraStruct with incorrect hash
-		decryptedResponseWithoutHash, err := service.DecryptSymSearchable(ctx, &SearchableSymDecryptionRequest{ClientId: tcase.ClientID, ZoneId: tcase.ZoneID, Data: EncryptSearchableedResponse.Acrablock, Hash: []byte(`invalid hash`)})
+		decryptedResponseWithoutHash, err := service.DecryptSymSearchable(ctx, &SearchableSymDecryptionRequest{ClientId: tcase.ClientID, Data: EncryptSearchableedResponse.Acrablock, Hash: []byte(`invalid hash`)})
 		if err == nil {
 			t.Fatal("expect error related to invalid hash")
 		}
@@ -332,14 +305,14 @@ func TestTranslatorService_SearchSym(t *testing.T) {
 		}
 
 		acrastructWithHash := append(EncryptSearchableedResponse.Hash, EncryptSearchableedResponse.Acrablock...)
-		decryptedResponseWithoutHash, err = service.DecryptSymSearchable(ctx, &SearchableSymDecryptionRequest{ClientId: tcase.ClientID, ZoneId: tcase.ZoneID, Data: acrastructWithHash, Hash: nil})
+		decryptedResponseWithoutHash, err = service.DecryptSymSearchable(ctx, &SearchableSymDecryptionRequest{ClientId: tcase.ClientID, Data: acrastructWithHash, Hash: nil})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !bytes.Equal(decryptedResponseWithoutHash.Data, tcase.Data) {
 			t.Fatal("decrypted data without hash not equal to raw data")
 		}
-		decryptedResponseWithHash, err := service.DecryptSymSearchable(ctx, &SearchableSymDecryptionRequest{ClientId: tcase.ClientID, ZoneId: tcase.ZoneID, Data: EncryptSearchableedResponse.Acrablock, Hash: EncryptSearchableedResponse.Hash})
+		decryptedResponseWithHash, err := service.DecryptSymSearchable(ctx, &SearchableSymDecryptionRequest{ClientId: tcase.ClientID, Data: EncryptSearchableedResponse.Acrablock, Hash: EncryptSearchableedResponse.Hash})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -387,7 +360,6 @@ func (s *poisonKeyStorageAndGeneratorStub) GeneratePoisonKeyPair() error {
 func TestTranslatorService_DecryptionPoisonRecord(t *testing.T) {
 	type testCase struct {
 		ClientID []byte
-		ZoneID   []byte
 		Data     []byte
 	}
 	hmacKey := make([]byte, 32)
@@ -424,8 +396,8 @@ func TestTranslatorService_DecryptionPoisonRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 	testCases := []testCase{
-		{[]byte(`client id 1`), nil, poisonRecord},
-		{[]byte(`client id 2`), []byte(`zone id 1`), poisonRecord},
+		{[]byte(`client id 1`), poisonRecord},
+		{[]byte(`client id 2`), poisonRecord},
 	}
 	ctx := context.Background()
 	t.Run("DecryptSymSearchable with poison record", func(t *testing.T) {
@@ -434,16 +406,6 @@ func TestTranslatorService_DecryptionPoisonRecord(t *testing.T) {
 		keyStorage.On("GetPoisonSymmetricKeys").Return(func() [][]byte { return [][]byte{append([]byte{}, poisonSymKey...)} }, nil)
 		keyStorage.On("GetPoisonSymmetricKey").Return(func() []byte { return append([]byte{}, poisonSymKey...) }, nil)
 		keyStorage.On("GetHMACSecretKey", mock.MatchedBy(func([]byte) bool { return true })).Return(func([]byte) []byte { return append([]byte{}, hmacKey...) }, nil)
-		keyStorage.On("GetZoneIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
-			func([]byte) [][]byte {
-				return [][]byte{append([]byte{}, someSymKey...)}
-			},
-			nil)
-		keyStorage.On("GetZoneIDSymmetricKey", mock.MatchedBy(func([]byte) bool { return true })).Return(
-			func([]byte) []byte {
-				return append([]byte{}, someSymKey...)
-			},
-			nil)
 		keyStorage.On("GetClientIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
 			func([]byte) [][]byte {
 				return [][]byte{append([]byte{}, someSymKey...)}
@@ -457,7 +419,7 @@ func TestTranslatorService_DecryptionPoisonRecord(t *testing.T) {
 		for _, tcase := range testCases {
 			// reset value in loop to re-use
 			callback.called = false
-			decryptedResponseWithoutHash, err := service.DecryptSymSearchable(ctx, &SearchableSymDecryptionRequest{ClientId: tcase.ClientID, ZoneId: tcase.ZoneID, Data: tcase.Data, Hash: nil})
+			decryptedResponseWithoutHash, err := service.DecryptSymSearchable(ctx, &SearchableSymDecryptionRequest{ClientId: tcase.ClientID, Data: tcase.Data, Hash: nil})
 			if err != ErrCantDecrypt {
 				t.Fatalf("Expect ErrCantDecrypt, took %s\n", err)
 			}
@@ -474,16 +436,6 @@ func TestTranslatorService_DecryptionPoisonRecord(t *testing.T) {
 		keyStorage.ExpectedCalls = nil
 		keyStorage.On("GetPoisonSymmetricKeys").Return(func() [][]byte { return [][]byte{append([]byte{}, poisonSymKey...)} }, nil)
 		keyStorage.On("GetPoisonSymmetricKey").Return(func() []byte { return append([]byte{}, poisonSymKey...) }, nil)
-		keyStorage.On("GetZoneIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
-			func([]byte) [][]byte {
-				return [][]byte{append([]byte{}, someSymKey...)}
-			},
-			nil)
-		keyStorage.On("GetZoneIDSymmetricKey", mock.MatchedBy(func([]byte) bool { return true })).Return(
-			func([]byte) []byte {
-				return append([]byte{}, someSymKey...)
-			},
-			nil)
 		keyStorage.On("GetClientIDSymmetricKeys", mock.MatchedBy(func([]byte) bool { return true })).Return(
 			func([]byte) [][]byte {
 				return [][]byte{append([]byte{}, someSymKey...)}
@@ -497,7 +449,7 @@ func TestTranslatorService_DecryptionPoisonRecord(t *testing.T) {
 		for _, tcase := range testCases {
 			// reset value in loop to re-use
 			callback.called = false
-			decryptedResponseWithoutHash, err := service.DecryptSym(ctx, &DecryptSymRequest{ClientId: tcase.ClientID, ZoneId: tcase.ZoneID, Acrablock: tcase.Data})
+			decryptedResponseWithoutHash, err := service.DecryptSym(ctx, &DecryptSymRequest{ClientId: tcase.ClientID, Acrablock: tcase.Data})
 			if err != translatorCommon.ErrCantDecrypt {
 				t.Fatalf("Expect ErrCantDecrypt, took %s\n", err)
 			}

@@ -32,8 +32,6 @@ type DataEncryptorContext struct {
 
 // DataEncryptor replace raw data in queries with encrypted
 type DataEncryptor interface {
-	// EncryptWithZoneID encrypt with explicit zone id
-	EncryptWithZoneID(zoneID, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error)
 	// EncryptWithClientID encrypt with explicit client id
 	EncryptWithClientID(clientID, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error)
 }
@@ -49,19 +47,6 @@ func NewChainDataEncryptor(encryptors ...DataEncryptor) *ChainDataEncryptor {
 	return &ChainDataEncryptor{
 		encryptors: encryptors,
 	}
-}
-
-// EncryptWithZoneID encrypt with explicit zone id
-func (chainEncryptor *ChainDataEncryptor) EncryptWithZoneID(zoneID, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
-	outData := data
-	var err error
-	for _, encryptor := range chainEncryptor.encryptors {
-		outData, err = encryptor.EncryptWithZoneID(zoneID, outData, setting)
-		if err != nil {
-			return data, err
-		}
-	}
-	return outData, nil
 }
 
 // EncryptWithClientID encrypt with explicit client id
@@ -116,22 +101,6 @@ func NewAcrawriterDataEncryptor(keystore keystore.PublicKeyStore) (*AcrawriterDa
 // and checks that passed setting configured only for transparent AcraStruct encryption
 func NewStandaloneDataEncryptor(keystore keystore.PublicKeyStore) (*AcrawriterDataEncryptor, error) {
 	return &AcrawriterDataEncryptor{keystore, standaloneEncryptorFilterFunction}, nil
-}
-
-// EncryptWithZoneID encrypt with explicit zone id
-func (encryptor *AcrawriterDataEncryptor) EncryptWithZoneID(zoneID, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
-	if encryptor.checkFunc(setting) {
-		return data, nil
-	}
-
-	if err := acrastruct.ValidateAcraStructLength(data); err == nil {
-		return data, nil
-	}
-	publicKey, err := encryptor.keystore.GetZonePublicKey(zoneID)
-	if err != nil {
-		return nil, err
-	}
-	return acrastruct.CreateAcrastruct(data, publicKey, zoneID)
 }
 
 // EncryptWithClientID encrypt with explicit client id

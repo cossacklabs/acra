@@ -79,7 +79,7 @@ RUN cd "${PATH_ACRA}" && go install -tags netgo ./cmd/...
 RUN for component in keymaker server tools translator; do \
         ADD_COMPONENTS=(); \
         if [ "$component" == 'tools' ]; then \
-            ADD_COMPONENTS+=('addzone' 'backup' 'keymaker' 'keys' 'poisonrecordmaker' 'rollback' 'rotate' 'tokens'); \
+            ADD_COMPONENTS+=('backup' 'keymaker' 'keys' 'poisonrecordmaker' 'rollback' 'rotate' 'tokens'); \
         else \
             ADD_COMPONENTS+=("$component"); \
         fi; \

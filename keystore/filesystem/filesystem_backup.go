@@ -113,15 +113,6 @@ func getContextFromFilename(fname string) keystore.KeyContext {
 	if strings.HasSuffix(fname, "_storage_sym") {
 		return keystore.NewClientIDKeyContext(keystore.PurposeStorageClientSymmetricKey, []byte(fname[:len(fname)-len("_storage_sym")]))
 	}
-	if strings.HasSuffix(fname, "_zone") {
-		return keystore.NewZoneIDKeyContext(keystore.PurposeStorageZonePrivateKey, []byte(fname[:len(fname)-len("_zone")]))
-	}
-	if strings.HasSuffix(fname, "_zone_sym") {
-		return keystore.NewZoneIDKeyContext(keystore.PurposeStorageZoneSymmetricKey, []byte(fname[:len(fname)-len("_zone_sym")]))
-	}
-	if strings.HasSuffix(fname, "_sym") {
-		return keystore.NewKeyContext(keystore.PurposeStorageZoneSymmetricKey, []byte(fname[:len(fname)-len("_sym")]))
-	}
 
 	return keystore.NewKeyContext(keystore.PurposeUndefined, []byte(fname))
 }

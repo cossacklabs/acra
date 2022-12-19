@@ -17,7 +17,6 @@ func TestEncryptHandler(t *testing.T) {
 	}
 
 	clientID := []byte("user0")
-	zoneID := []byte("zone")
 
 	keystore := &mocks.ServerKeyStore{}
 
@@ -93,76 +92,6 @@ func TestEncryptHandler(t *testing.T) {
 			}
 
 			decrypted, err := acraBlock.Decrypt([][]byte{[]byte(`some key`)}, nil)
-			if err != nil {
-				t.Fatal("failed to Decrypt internal container", err)
-			}
-			if !bytes.Equal(decrypted, []byte(rawData)) {
-				t.Fatal("decrypted data is not equals to internal container data")
-			}
-		})
-	})
-
-	t.Run("Encryption with ZoneID", func(t *testing.T) {
-		zoneIDKeypair, err := keys.New(keys.TypeEC)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		keystore.On("GetZonePublicKey", zoneID).Return(zoneIDKeypair.Public, nil)
-
-		keystore.On("GetZoneIDSymmetricKeys", zoneID).Return([][]byte{[]byte(`some key`)}, nil)
-		keystore.On("GetZoneIDSymmetricKey", zoneID).Return([]byte(`some key`), nil)
-
-		t.Run("AcraStruct encryption success", func(t *testing.T) {
-			result, err := encryptor.EncryptWithZoneID(zoneID, []byte(rawData), &config.BasicColumnEncryptionSetting{
-				CryptoEnvelope: &acraStructEnvelopeType,
-			})
-			if err != nil {
-				t.Fatal("failure on encryption with clientID ", err)
-			}
-
-			internal, envelopeID, err := DeserializeEncryptedData(result)
-			if err != nil {
-				t.Fatal("invalid serialized container", err)
-			}
-
-			if envelopeID != AcraStructEnvelopeID {
-				t.Fatal("unexpected envelopeID should be AcraStructEnvelopeID")
-			}
-
-			decrypted, err := acrastruct.DecryptAcrastruct(internal, zoneIDKeypair.Private, zoneID)
-			if err != nil {
-				t.Fatal("failed to Decrypt internal container", err)
-			}
-
-			if !bytes.Equal(decrypted, []byte(rawData)) {
-				t.Fatal("decrypted data is not equals to internal container data")
-			}
-		})
-
-		t.Run("AcraBlock encryption success", func(t *testing.T) {
-			result, err := encryptor.EncryptWithZoneID(zoneID, []byte(rawData), &config.BasicColumnEncryptionSetting{
-				CryptoEnvelope: &acraBlockEnvelopeType,
-			})
-			if err != nil {
-				t.Fatal("failure on encryption with clientID ", err)
-			}
-
-			internal, envelopeID, err := DeserializeEncryptedData(result)
-			if err != nil {
-				t.Fatal("invalid serialized container", err)
-			}
-
-			if envelopeID != AcraBlockEnvelopeID {
-				t.Fatal("unexpected envelopeID should be AcraStructEnvelopeID")
-			}
-
-			acraBlock, err := acrablock.NewAcraBlockFromData(internal)
-			if err != nil {
-				t.Fatal("failed to create acraBlock from internal container", err)
-			}
-
-			decrypted, err := acraBlock.Decrypt([][]byte{[]byte(`some key`)}, zoneID)
 			if err != nil {
 				t.Fatal("failed to Decrypt internal container", err)
 			}

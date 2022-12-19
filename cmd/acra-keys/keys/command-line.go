@@ -59,12 +59,8 @@ const (
 	KeyStorageKeypair = "storage-keypair"
 	KeyStoragePublic  = "storage-public"
 	KeyStoragePrivate = "storage-private"
-	KeyZoneKeypair    = "zone-keypair"
-	KeyZonePublic     = "zone-public"
-	KeyZonePrivate    = "zone-private"
 
-	KeySymmetric     = "symmetric-key"
-	KeyZoneSymmetric = "symmetric-zone-key"
+	KeySymmetric = "symmetric-key"
 )
 
 // Comman-line parsing errors:
@@ -174,15 +170,7 @@ func ParseKeyKind(keyID string) (string, []byte, error) {
 				return KeyStorageKeypair, id, nil
 			}
 		}
-		if parts[0] == "zone" {
-			log.Warningln("Zone keys are deprecated since 0.94.0 and will be removed soon.")
-			switch parts[2] {
-			case "symmetric":
-				return KeyZoneSymmetric, id, nil
-			case "storage":
-				return KeyZoneKeypair, id, nil
-			}
-		}
+		log.Warningln("Zone keys are deprecated since 0.94.0 and will be removed soon.")
 	}
 	return "", nil, ErrUnknownKeyKind
 }

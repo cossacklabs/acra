@@ -128,7 +128,7 @@ func (key SimpleHmacKeyStore) GetHMACSecretKey(id []byte) ([]byte, error) {
 
 // DecryptRotatedSearchableAcraStruct decrypt acrastruct with hash and verify that hash correct
 // Note: function expects that AcraStruct was encrypted with key related to this context and hmacKey passed according to this context
-// context should be ClientID or ZoneID
+// context should be ClientID or AdditionalContext
 func DecryptRotatedSearchableAcraStruct(acrastruct []byte, hmacKey []byte, privateKeys []*keys.PrivateKey, context []byte) ([]byte, error) {
 	hash := ExtractHash(acrastruct)
 	if hash == nil {
@@ -146,7 +146,7 @@ func DecryptRotatedSearchableAcraStruct(acrastruct []byte, hmacKey []byte, priva
 
 // DecryptRotatedSearchableAcraBlock decrypt AcraBlock with hash and verify that hash correct
 // Note: function expects that AcraBlock was encrypted with key related to this context and hmacKey passed according to this context
-// context should be ClientID or ZoneID
+// context should be ClientID or AdditionalContext
 func DecryptRotatedSearchableAcraBlock(acraBlock []byte, hmacKey []byte, symKeys [][]byte, context []byte) ([]byte, error) {
 	hash := ExtractHash(acraBlock)
 	if hash == nil {

@@ -1,35 +1,23 @@
 #!/usr/bin/env bash
-export ACRA_CONNECTION_STRING='dbname=benchmark user=postgres password=postgres host=127.0.0.1 port=9494'
-export PG_CONNECTION_STRING='dbname=benchmark user=postgres password=postgres host=172.17.0.2 port=5432'
+export ACRA_CONNECTION_STRING='dbname=benchmark user=test password=test host=127.0.0.1 port=9393'
+export PG_CONNECTION_STRING='dbname=benchmark user=test password=test host=127.0.0.1 port=5432'
 
-declare -a read_without_zone_scripts=("read/direct/direct.go" "read/onekey_without_acrastruct/onekey_without_acrastruct.go" "read/onekey_acrastruct/onekey_acrastruct.go")
-declare -a read_with_zone_scripts=("read/zone_without_acrastruct/zone_without_acrastruct.go" "read/zone_acrastruct/zone_acrastruct.go")
-declare -a write_scripts=("write/raw/raw.go" "write/withzone/withzone.go" "write/withoutzone/withoutzone.go")
+declare -a read_scripts=("read/direct/direct.go" "read/onekey_without_acrastruct/onekey_without_acrastruct.go" "read/onekey_acrastruct/onekey_acrastruct.go")
+declare -a write_scripts=("write/raw/raw.go" "write/acrastruct/acrastruct.go")
 
 echo "run write scripts"
 for i in "${write_scripts[@]}"
 do
-   script="go run src/github.com/cossacklabs/acra/benchmarks/cmd/$i"
+   script="go run ./benchmarks/cmd/$i"
    echo "run '$script'"
    eval $script
 done
 
 
-echo "run read scripts without zones"
-for i in "${read_without_zone_scripts[@]}"
+echo "run read scripts"
+for i in "${read_scripts[@]}"
 do
-   script="go run src/github.com/cossacklabs/acra/benchmarks/cmd/$i"
-   echo "run '$script'"
-   eval $script
-done
-
-echo "run AcraServer in zonemode and press ENTER"
-read -e
-
-echo "run read scripts with zones"
-for i in "${read_with_zone_scripts[@]}"
-do
-   script="go run src/github.com/cossacklabs/acra/benchmarks/cmd/$i"
+   script="go run ./benchmarks/cmd/$i"
    echo "run '$script'"
    eval $script
 done

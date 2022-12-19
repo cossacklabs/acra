@@ -23,10 +23,8 @@
  * @brief AcraWriter generates AcraStructs, specially encrypted data, from provided plaintext.
  * @discussion AcraStruct encrypts data using mix of symmetric and asymmetric encryption,
  * using Themis Secure Cell and Themis Secure Message. Data is encrypted with publicKey,
- * that represents AcraStorage public key (known as <client_id>_storage.pub) or
- * with AcraZonePublicKeys (known as <zone_id>_zone.pub).
+ * that represents AcraStorage public key (known as <client_id>_storage.pub).
  * @see What is AcraWriter and how it works https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter
- * @see What is Zone https://github.com/cossacklabs/acra/wiki/Zones
  */
 @interface AcraWriter : NSObject
 
@@ -43,15 +41,14 @@ typedef NS_ENUM(NSUInteger, AcraWriterError) {
 };
 
 /**
- * @discussion Method to generate AcraStruct from plain text message. Two option are possible: without Zones or with Zones.
- * Without zones: `publicKey` is AcraStorage public key.
- * With zones: `zoneID` is required, `publicKey` is Zone public key.
+ * @discussion Method to generate AcraStruct from plain text message.
+ * `publicKey` is AcraStorage public key.
  * @param [in] message plaintext data to encrypt into AcraStruct.
- * @param [in] publicKey either storage key or zone key, depending if client wants to use Zones.
- * @param [in] zoneID is optional, when client is using Zones. If zoneId is represented as string Id, expected input is [@"some zone id here" dataUsingEncoding:NSUTF8StringEncoding]
+ * @param [in] publicKey either storage key.
+ * @param [in] additionalContext is optional, may be used for AEAD encryption.
  * @param [in] error is optional, pointer to Error on failure
  * @return data encrypted into AcraStruct format, or nil on error
  */
-- (nullable AcraStruct *)createAcraStructFrom:(nonnull NSData *)message publicKey:(nonnull NSData *)publicKey zoneID:(nullable NSData *)zoneID error:(NSError * __autoreleasing *)error;
+- (nullable AcraStruct *)createAcraStructFrom:(nonnull NSData *)message publicKey:(nonnull NSData *)publicKey additionalContext:(nullable NSData *)additionalContext error:(NSError * __autoreleasing *)error;
 
 @end

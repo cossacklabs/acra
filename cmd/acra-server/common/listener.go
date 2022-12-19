@@ -182,7 +182,7 @@ func (server *SServer) handleClientSession(clientID []byte, clientSession *Clien
 		sessionLogger.WithError(err).Errorln("Can't create new proxy for connection")
 		return
 	}
-	accessContext := base.NewAccessContext(base.WithClientID(clientID), base.WithZoneMode(server.config.GetWithZone()))
+	accessContext := base.NewAccessContext(base.WithClientID(clientID))
 	// subscribe on clientID changes after switching connection to TLS and using ClientID from TLS certificates
 	proxy.AddClientIDObserver(accessContext)
 	clientSession.ctx = base.SetAccessContextToContext(clientSession.ctx, accessContext)

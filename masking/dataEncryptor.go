@@ -37,11 +37,6 @@ func NewMaskingDataEncryptor(keystore keystore.DecryptionKeyStore, dataEncryptor
 	return &DataEncryptor{dataEncryptor, keystore, base.DecryptProcessor{}}, nil
 }
 
-// EncryptWithZoneID mask data according to setting
-func (e *DataEncryptor) EncryptWithZoneID(zoneID, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
-	return e.encryptByFunction(zoneID, data, setting, e.acrawriterEncryptor.EncryptWithZoneID)
-}
-
 // EncryptWithClientID mask data according to setting
 func (e *DataEncryptor) EncryptWithClientID(clientID, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
 	return e.encryptByFunction(clientID, data, setting, e.acrawriterEncryptor.EncryptWithClientID)

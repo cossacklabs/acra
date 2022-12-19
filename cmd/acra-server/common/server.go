@@ -38,8 +38,8 @@ func (server *SServer) Exit(err error) {
 }
 
 // StartServer starts SServer
-func (server *SServer) StartServer(parentContext context.Context, group *sync.WaitGroup, withZones, enableHTTPApi bool) error {
-	if withZones || enableHTTPApi {
+func (server *SServer) StartServer(parentContext context.Context, group *sync.WaitGroup, enableHTTPApi bool) error {
+	if enableHTTPApi {
 		group.Add(1)
 		go func() {
 			defer group.Done()
@@ -60,8 +60,8 @@ func (server *SServer) StartServer(parentContext context.Context, group *sync.Wa
 }
 
 // StartServerFromFileDescriptor starts SServer with appropriate file descriptors
-func (server *SServer) StartServerFromFileDescriptor(parentContext context.Context, group *sync.WaitGroup, withZones, enableHTTPApi bool, fdAcra, fdAPI uintptr) error {
-	if withZones || enableHTTPApi {
+func (server *SServer) StartServerFromFileDescriptor(parentContext context.Context, group *sync.WaitGroup, enableHTTPApi bool, fdAcra, fdAPI uintptr) error {
+	if enableHTTPApi {
 		group.Add(1)
 		go func() {
 			defer group.Done()

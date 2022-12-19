@@ -73,7 +73,7 @@ func TestImportKeyStoreV1(t *testing.T) {
 	// Prepare various keys for testing.
 	err = keyStoreV1.GenerateDataEncryptionKeys(clientID)
 	if err != nil {
-		t.Errorf("GetZonePublicKey() failed: %v", err)
+		t.Errorf("GenerateDataEncryptionKeys() failed: %v", err)
 	}
 	storagePublicKeyV1, err := keyStoreV1.GetClientIDEncryptionPublicKey(clientID)
 	if err != nil {
@@ -82,18 +82,6 @@ func TestImportKeyStoreV1(t *testing.T) {
 	storagePrivateKeyV1, err := keyStoreV1.GetServerDecryptionPrivateKey(clientID)
 	if err != nil {
 		t.Errorf("GetServerDecryptionPrivateKey() failed: %v", err)
-	}
-	zoneID, _, err := keyStoreV1.GenerateZoneKey()
-	if err != nil {
-		t.Errorf("GenerateZoneKey() failed: %v", err)
-	}
-	zonePublicKeyV1, err := keyStoreV1.GetZonePublicKey(zoneID)
-	if err != nil {
-		t.Errorf("GetZonePublicKey() failed: %v", err)
-	}
-	zonePrivateKeyV1, err := keyStoreV1.GetZonePrivateKey(zoneID)
-	if err != nil {
-		t.Errorf("GetZonePrivateKey() failed: %v", err)
 	}
 
 	if err = keyStoreV1.GeneratePoisonKeyPair(); err != nil {
@@ -138,20 +126,6 @@ func TestImportKeyStoreV1(t *testing.T) {
 	}
 	if !equalPrivateKeys(storagePrivateKeyV1, storagePrivateKeyV2) {
 		t.Errorf("client storage private key corrupted")
-	}
-	zonePublicKeyV2, err := keyStoreV2.GetZonePublicKey(zoneID)
-	if err != nil {
-		t.Errorf("GetZonePublicKey() failed: %v", err)
-	}
-	zonePrivateKeyV2, err := keyStoreV2.GetZonePrivateKey(zoneID)
-	if err != nil {
-		t.Errorf("GetZonePrivateKey() failed: %v", err)
-	}
-	if !equalPublicKeys(zonePublicKeyV1, zonePublicKeyV2) {
-		t.Errorf("zone storage public key corrupted")
-	}
-	if !equalPrivateKeys(zonePrivateKeyV1, zonePrivateKeyV2) {
-		t.Errorf("zone storage private key corrupted")
 	}
 }
 

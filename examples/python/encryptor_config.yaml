@@ -14,32 +14,25 @@ schemas:
       - token_email
     encrypted:
       - column: data
-        zone_id: DDDDDDDDHHNqiSYFXkpxopYZ
       - column: masking
         masking: "xxxx"
         plaintext_length: 3
         plaintext_side: "left"
-        zone_id: DDDDDDDDHHNqiSYFXkpxopYZ
       - column: token_i32
         token_type: int32
         tokenized: true
-        zone_id: DDDDDDDDHHNqiSYFXkpxopYZ
       - column: token_i64
         token_type: int64
         tokenized: true
-        zone_id: DDDDDDDDHHNqiSYFXkpxopYZ
       - column: token_bytes
         token_type: bytes
         tokenized: true
-        zone_id: DDDDDDDDHHNqiSYFXkpxopYZ
       - column: token_str
         token_type: str
         tokenized: true
-        zone_id: DDDDDDDDHHNqiSYFXkpxopYZ
       - column: token_email
         token_type: email
         tokenized: true
-        zone_id: DDDDDDDDHHNqiSYFXkpxopYZ
 
   - table: users
     columns:
@@ -48,7 +41,7 @@ schemas:
     encrypted:
       - column: email
 
-  - table: test_example_with_zone
+  - table: test_example
     columns:
       - id
       - data
@@ -57,4 +50,4 @@ schemas:
       - column: data
         data_type: bytes
         # base64 bytes value `test-data`
-        default_data_value: dGVzdC1kYXRhCg==
+        default_data_value: dGVzdC1kYXRhCg

@@ -6,7 +6,6 @@ schemas:
       - specified_client_id
       - default_client_id
       - number
-      - zone_id
       - raw_data
       - nullable
       - empty
@@ -23,10 +22,6 @@ schemas:
       - column: default_client_id
         crypto_envelope: acrablock
 
-      - column: zone_id
-        zone_id: DDDDDDDDMatNOMYjqVOuhACC
-        crypto_envelope: acrablock
-
       - column: token_i64
         token_type: int64
         tokenized: true
@@ -41,49 +36,3 @@ schemas:
         masking: "xxxx"
         plaintext_length: 9
         plaintext_side: "right"
-
-  - table: test_transparent_acrablock_encryption_with_zone
-    columns:
-      - id
-      - specified_client_id
-      - default_client_id
-      - number
-      - zone_id
-      - raw_data
-      - nullable
-      - empty
-      - token_i64
-      - token_str
-      - token_bytes
-      - masked_prefix
-    encrypted:
-      - column: specified_client_id
-        client_id: 12824c1c541a615f428a740770291374a8504f84a0682ab4015bc8e792b1bc8240022c5c9faa8c2111e0076b3b929148f4b801414413edaa800cb42492c20cf7
-        crypto_envelope: acrablock
-
-      - column: default_client_id
-        crypto_envelope: acrablock
-
-      - column: zone_id
-        zone_id: DDDDDDDDMatNOMYjqVOuhACC
-        crypto_envelope: acrablock
-
-      - column: token_i64
-        token_type: int64
-        tokenized: true
-        zone_id: DDDDDDDDMatNOMYjqVOuhACC
-      - column: token_str
-        token_type: str
-        tokenized: true
-        zone_id: DDDDDDDDMatNOMYjqVOuhACC
-      - column: token_bytes
-        token_type: bytes
-        tokenized: true
-        zone_id: DDDDDDDDMatNOMYjqVOuhACC
-
-      - column: masked_prefix
-        masking: "xxxx"
-        plaintext_length: 9
-        plaintext_side: "right"
-        zone_id: DDDDDDDDMatNOMYjqVOuhACC
-

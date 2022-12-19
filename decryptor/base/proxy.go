@@ -50,7 +50,6 @@ type ProxySetting interface {
 	TableSchemaStore() config.TableSchemaStore
 	Censor() acracensor.AcraCensorInterface
 	TLSConnectionWrapper() TLSConnectionWrapper
-	WithZone() bool
 }
 
 type proxySetting struct {
@@ -60,7 +59,6 @@ type proxySetting struct {
 	connectionWrapper           TLSConnectionWrapper
 	poisonRecordCallbackStorage PoisonRecordCallbackStorage
 	parser                      *sqlparser.Parser
-	withZone                    bool
 }
 
 // SQLParser return sqlparser.Parser
@@ -93,14 +91,9 @@ func (p *proxySetting) TLSConnectionWrapper() TLSConnectionWrapper {
 	return p.connectionWrapper
 }
 
-// WithZone return is turned on zonemode or not
-func (p *proxySetting) WithZone() bool {
-	return p.withZone
-}
-
 // NewProxySetting return new ProxySetting implementation with data from params
-func NewProxySetting(parser *sqlparser.Parser, tableSchema config.TableSchemaStore, keystore keystore.DecryptionKeyStore, wrapper TLSConnectionWrapper, censor acracensor.AcraCensorInterface, callbackStorage PoisonRecordCallbackStorage, zoneMode bool) ProxySetting {
-	return &proxySetting{keystore: keystore, parser: parser, tableSchemaStore: tableSchema, censor: censor, connectionWrapper: wrapper, poisonRecordCallbackStorage: callbackStorage, withZone: zoneMode}
+func NewProxySetting(parser *sqlparser.Parser, tableSchema config.TableSchemaStore, keystore keystore.DecryptionKeyStore, wrapper TLSConnectionWrapper, censor acracensor.AcraCensorInterface, callbackStorage PoisonRecordCallbackStorage) ProxySetting {
+	return &proxySetting{keystore: keystore, parser: parser, tableSchemaStore: tableSchema, censor: censor, connectionWrapper: wrapper, poisonRecordCallbackStorage: callbackStorage}
 }
 
 // Proxy interface to process client's requests to database and responses

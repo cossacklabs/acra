@@ -25,8 +25,8 @@ namespace acrawriter {
         typedef vector<uint8_t> data;
         typedef vector<uint8_t> acrastruct;
 
-        acrastruct create_acrastruct(const data &message, const data &zone_public_key, const data &zone_id) {
-          return create_and_pack_acrastruct(message, zone_public_key, zone_id);
+        acrastruct create_acrastruct(const data &message, const data &public_key, const data &additionalContext) {
+          return create_and_pack_acrastruct(message, public_key, additionalContext);
         }
 
         acrastruct create_acrastruct(const data &message, const data &public_key) {
@@ -41,7 +41,7 @@ namespace acrawriter {
         const uint8_t acrastruct_header_byte = 34;
 
         // private
-        acrastruct create_and_pack_acrastruct(const data &message, const data &public_key, const data &zone_id = data()) {
+        acrastruct create_and_pack_acrastruct(const data &message, const data &public_key, const data &additionalContext = data()) {
           // 1. generate EC keypair
           secure_key_pair_generator_t<EC> key_pair_generator;
           data temp_private_key = key_pair_generator.get_priv();
@@ -53,7 +53,7 @@ namespace acrawriter {
           vector<uint8_t> symmertic_key(symmetric_key_length);
           generate(begin(symmertic_key), end(symmertic_key), ref(rbe));
 
-          // 3. encrypt random symmetric key using asymmetric encryption with random private key and acra/zone public key
+          // 3. encrypt random symmetric key using asymmetric encryption with random private key and acra public key
           secure_message_t secure_message(temp_private_key, public_key);
           data encrypted_symm_key = secure_message.encrypt(symmertic_key);
 
@@ -62,7 +62,7 @@ namespace acrawriter {
 
           // 4. encrypt payload using symmetric encryption and random symm key
           secure_cell_seal_t secure_cell(symmertic_key);
-          data encrypted_message = zone_id.empty() ? secure_cell.encrypt(message) : secure_cell.encrypt(message, zone_id);
+          data encrypted_message = additionalContext.empty() ? secure_cell.encrypt(message) : secure_cell.encrypt(message, additionalContext);
 
           // pack into array because I don't know how to push uint64_t into vector<uint8_t>
           uint64_t em_length = encrypted_message.size();

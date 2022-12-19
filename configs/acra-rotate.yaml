@@ -11,7 +11,7 @@ dry-run: false
 # dump config
 dump_config: false
 
-# Path to file with map of <ZoneId>: <FilePaths> in json format {"zone_id1": ["filepath1", "filepath2"], "zone_id2": ["filepath1", "filepath2"]} (zones support deprecated since 0.94.0, will map ClientIDs only to file paths)
+# Path to file with map of <ClientId>: <FilePaths> in json format {"client_id1": ["filepath1", "filepath2"], "client_id2": ["filepath1", "filepath2"]}
 file_map_config: 
 
 # Generate with yaml config markdown text file with descriptions of all args
@@ -89,7 +89,7 @@ redis_tls_ocsp_client_required: denyUnknown
 # OCSP service URL
 redis_tls_ocsp_client_url: 
 
-# Select query with ? as placeholders where last columns in result must be ClientId/ZoneId and AcraStruct. Other columns will be passed into insert/update query into placeholders (zones support deprecated since 0.94.0 and will be ignored).
+# Select query with ? as placeholders where last columns in result must be ClientId and AcraStruct. Other columns will be passed into insert/update query into placeholders
 sql_select: 
 
 # Insert/Update query with ? as placeholder where into first will be placed rotated AcraStruct
@@ -148,7 +148,4 @@ vault_tls_ocsp_client_url:
 
 # Use TLS to encrypt transport with HashiCorp Vault
 vault_tls_transport_enable: false
-
-# Rotate acrastructs as it was encrypted with zonemode or without. With zonemode_enable=true will be used zoneID for encryption/decryption. If false then key id will not be used
-zonemode_enable: true
 

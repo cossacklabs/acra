@@ -65,11 +65,11 @@ var (
 
 // Encrypt encrypt data from gRPC request and returns AcraStruct or error.
 func (service *TranslatorService) Encrypt(ctx context.Context, request *EncryptRequest) (*EncryptResponse, error) {
-	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Encrypt"})
+	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "Encrypt"})
 	logger.Debugln("New request")
-	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Encrypt"}).Debugln("End processing request")
+	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "Encrypt"}).Debugln("End processing request")
 
-	response, err := service.service.Encrypt(ctx, request.Data, request.ClientId, request.ZoneId)
+	response, err := service.service.Encrypt(ctx, request.Data, request.ClientId, nil)
 	if err != nil {
 		base.APIEncryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
 		msg := "Unexpected error with AcraStruct generation"
@@ -81,11 +81,11 @@ func (service *TranslatorService) Encrypt(ctx context.Context, request *EncryptR
 
 // Decrypt decrypts AcraStruct from gRPC request and returns decrypted data or error.
 func (service *TranslatorService) Decrypt(ctx context.Context, request *DecryptRequest) (*DecryptResponse, error) {
-	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Decrypt"})
+	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "Decrypt"})
 	logger.Debugln("New request")
-	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Decrypt"}).Debugln("End processing request")
+	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "Decrypt"}).Debugln("End processing request")
 
-	response, err := service.service.Decrypt(ctx, request.Acrastruct, request.ClientId, request.ZoneId)
+	response, err := service.service.Decrypt(ctx, request.Acrastruct, request.ClientId, nil)
 	if err != nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraStruct).WithError(err).Errorln("Can't decrypt AcraStruct")
 		return nil, err
@@ -95,11 +95,11 @@ func (service *TranslatorService) Decrypt(ctx context.Context, request *DecryptR
 
 // EncryptSearchable encrypt data with AcraStruct and calculate hash for searching
 func (service *TranslatorService) EncryptSearchable(ctx context.Context, request *SearchableEncryptionRequest) (*SearchableEncryptionResponse, error) {
-	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Encrypt (searchable)"})
+	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "Encrypt (searchable)"})
 	logger.Debugln("New request")
-	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Encrypt (searchable)"}).Debugln("End processing request")
+	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "Encrypt (searchable)"}).Debugln("End processing request")
 
-	response, err := service.service.EncryptSearchable(ctx, request.Data, request.ClientId, request.ZoneId)
+	response, err := service.service.EncryptSearchable(ctx, request.Data, request.ClientId, nil)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't create AcraStruct")
 		return nil, err
@@ -110,11 +110,11 @@ func (service *TranslatorService) EncryptSearchable(ctx context.Context, request
 
 // DecryptSearchable decrypt AcraStruct and verify hash
 func (service *TranslatorService) DecryptSearchable(ctx context.Context, request *SearchableDecryptionRequest) (*SearchableDecryptionResponse, error) {
-	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Decrypt (searchable)"})
+	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "Decrypt (searchable)"})
 	logger.Debugln("New request")
-	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Decrypt (searchable)"}).Debugln("End processing request")
+	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "Decrypt (searchable)"}).Debugln("End processing request")
 
-	response, err := service.service.DecryptSearchable(ctx, request.Data, request.Hash, request.ClientId, request.ZoneId)
+	response, err := service.service.DecryptSearchable(ctx, request.Data, request.Hash, request.ClientId, nil)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't decrypt AcraStruct")
 		return nil, err
@@ -124,11 +124,11 @@ func (service *TranslatorService) DecryptSearchable(ctx context.Context, request
 
 // GenerateQueryHash generates searchable hash for data
 func (service *TranslatorService) GenerateQueryHash(ctx context.Context, request *QueryHashRequest) (*QueryHashResponse, error) {
-	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "GenerateQueryHash"})
+	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "GenerateQueryHash"})
 	logger.Debugln("New request")
-	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "GenerateQueryHash"}).Debugln("End processing request")
+	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "GenerateQueryHash"}).Debugln("End processing request")
 
-	response, err := service.service.GenerateQueryHash(ctx, request.Data, request.ClientId, request.ZoneId)
+	response, err := service.service.GenerateQueryHash(ctx, request.Data, request.ClientId, nil)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't generate hash")
 		return nil, err
@@ -138,9 +138,9 @@ func (service *TranslatorService) GenerateQueryHash(ctx context.Context, request
 
 // Tokenize data from request
 func (service *TranslatorService) Tokenize(ctx context.Context, request *TokenizeRequest) (*TokenizeResponse, error) {
-	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Tokenize"})
+	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "Tokenize"})
 	logger.Debugln("New request")
-	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Tokenize"}).Debugln("End processing request")
+	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "Tokenize"}).Debugln("End processing request")
 
 	var data interface{}
 	var tokenType tokenCommon.TokenType
@@ -165,7 +165,7 @@ func (service *TranslatorService) Tokenize(ctx context.Context, request *Tokeniz
 		return nil, errors.New("unsupported value type")
 	}
 
-	response, err := service.service.Tokenize(ctx, data, tokenType, request.ClientId, request.ZoneId)
+	response, err := service.service.Tokenize(ctx, data, tokenType, request.ClientId, nil)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't tokenize data")
 		return nil, err
@@ -189,9 +189,9 @@ func (service *TranslatorService) Tokenize(ctx context.Context, request *Tokeniz
 
 // Detokenize data from request
 func (service *TranslatorService) Detokenize(ctx context.Context, request *TokenizeRequest) (*TokenizeResponse, error) {
-	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Detokenize"})
+	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "Detokenize"})
 	logger.Debugln("New request")
-	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Detokenize"}).Debugln("End processing request to detokenize token")
+	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "Detokenize"}).Debugln("End processing request to detokenize token")
 
 	var data interface{}
 	var tokenType tokenCommon.TokenType
@@ -216,7 +216,7 @@ func (service *TranslatorService) Detokenize(ctx context.Context, request *Token
 		return nil, errors.New("unsupported value type")
 	}
 
-	response, err := service.service.Detokenize(ctx, data, tokenType, request.ClientId, request.ZoneId)
+	response, err := service.service.Detokenize(ctx, data, tokenType, request.ClientId, nil)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't detokenize data")
 		return nil, err
@@ -246,21 +246,15 @@ var (
 
 // EncryptSymSearchable encrypts data using AcraBlock and calculate searchable hash
 func (service *TranslatorService) EncryptSymSearchable(ctx context.Context, request *SearchableSymEncryptionRequest) (*SearchableSymEncryptionResponse, error) {
-	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "EncryptSym (searchable)"})
+	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "EncryptSym (searchable)"})
 	logger.Debugln("New request")
-	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "EncryptSym (searchable)"}).Debugln("End processing request")
+	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "EncryptSym (searchable)"}).Debugln("End processing request")
 	if request.ClientId == nil {
 		logger.Errorln("Empty ClientID")
 		return nil, ErrEmptyClientID
 	}
-	var symKey []byte
-	var err error
 	logger.Debugln("Load encryption symmetric key from KeyStore")
-	if request.ZoneId != nil {
-		symKey, err = service.data.Keystorage.GetZoneIDSymmetricKey(request.ZoneId)
-	} else {
-		symKey, err = service.data.Keystorage.GetClientIDSymmetricKey(request.ClientId)
-	}
+	symKey, err := service.data.Keystorage.GetClientIDSymmetricKey(request.ClientId)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't load symmetric keys")
 		return nil, ErrKeysNotFound
@@ -275,7 +269,7 @@ func (service *TranslatorService) EncryptSymSearchable(ctx context.Context, requ
 	logger.Debugln("Generate HMAC")
 	dataHash := hmac.GenerateHMAC(hmacKey, request.Data)
 	logger.Debugln("Create AcraBlock")
-	acrastruct, err := acrablock.CreateAcraBlock(request.Data, symKey, request.ZoneId)
+	acrastruct, err := acrablock.CreateAcraBlock(request.Data, symKey, nil)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't create AcraBlock")
 		return nil, ErrEncryptionFailed
@@ -285,15 +279,15 @@ func (service *TranslatorService) EncryptSymSearchable(ctx context.Context, requ
 
 // DecryptSymSearchable AcraBlock and verify hash
 func (service *TranslatorService) DecryptSymSearchable(ctx context.Context, request *SearchableSymDecryptionRequest) (*SearchableSymDecryptionResponse, error) {
-	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "DecryptSym (searchable)"})
+	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "DecryptSym (searchable)"})
 	logger.Debugln("New request")
-	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "DecryptSym (searchable)"}).Debugln("End processing request")
+	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "DecryptSym (searchable)"}).Debugln("End processing request")
 	if request.ClientId == nil {
 		logger.Errorln("Empty ClientID")
 		return nil, ErrEmptyClientID
 	}
 
-	decrypted, err := service.service.DecryptSymSearchable(ctx, request.Data, request.Hash, request.ClientId, request.ZoneId)
+	decrypted, err := service.service.DecryptSymSearchable(ctx, request.Data, request.Hash, request.ClientId, nil)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't decrypt searchable AcraBlock")
 		return nil, ErrCantDecrypt
@@ -304,10 +298,10 @@ func (service *TranslatorService) DecryptSymSearchable(ctx context.Context, requ
 
 // EncryptSym encrypts data using AcraBlock
 func (service *TranslatorService) EncryptSym(ctx context.Context, request *EncryptSymRequest) (*EncryptSymResponse, error) {
-	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "EncryptSym"})
+	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "EncryptSym"})
 	logger.Debugln("New request")
-	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "EncryptSym"}).Debugln("End processing request")
-	response, err := service.service.EncryptSym(ctx, request.Data, request.ClientId, request.ZoneId)
+	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "EncryptSym"}).Debugln("End processing request")
+	response, err := service.service.EncryptSym(ctx, request.Data, request.ClientId, nil)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't create AcraBlock")
 		return nil, err
@@ -318,10 +312,10 @@ func (service *TranslatorService) EncryptSym(ctx context.Context, request *Encry
 
 // DecryptSym decrypts AcraBlock
 func (service *TranslatorService) DecryptSym(ctx context.Context, request *DecryptSymRequest) (*DecryptSymResponse, error) {
-	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "DecryptSym"})
+	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "DecryptSym"})
 	logger.Debugln("New request")
-	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "DecryptSym"}).Debugln("End processing request")
-	response, err := service.service.DecryptSym(ctx, request.Acrablock, request.ClientId, request.ZoneId)
+	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "operation": "DecryptSym"}).Debugln("End processing request")
+	response, err := service.service.DecryptSym(ctx, request.Acrablock, request.ClientId, nil)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't create AcraStruct")
 		return nil, err

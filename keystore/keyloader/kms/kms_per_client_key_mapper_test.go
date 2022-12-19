@@ -25,15 +25,6 @@ func TestKMSPerClientKeyMapper(t *testing.T) {
 		assert.Equal(t, ErrEmptyClientIDProvided, err)
 	})
 
-	t.Run("map zone related keys with empty zoneID", func(t *testing.T) {
-		_, err := keyMapper.GetKeyID(keystore.KeyContext{
-			Purpose: keystore.PurposeStorageZoneSymmetricKey,
-		})
-
-		assert.NotNil(t, err)
-		assert.Equal(t, ErrEmptyZoneIDProvided, err)
-	})
-
 	t.Run("map client related keys", func(t *testing.T) {
 		clientID := "test_client_id"
 		res, err := keyMapper.GetKeyID(keystore.KeyContext{
@@ -43,17 +34,6 @@ func TestKMSPerClientKeyMapper(t *testing.T) {
 
 		assert.Nil(t, err)
 		assert.Equal(t, "acra_"+clientID, string(res))
-	})
-
-	t.Run("map zone related keys", func(t *testing.T) {
-		zoneID := "test_zone_id"
-		res, err := keyMapper.GetKeyID(keystore.KeyContext{
-			Purpose: keystore.PurposeStorageZoneSymmetricKey,
-			ZoneID:  []byte(zoneID),
-		})
-
-		assert.Nil(t, err)
-		assert.Equal(t, "acra_"+zoneID, string(res))
 	})
 
 	t.Run("map poison record related keys", func(t *testing.T) {

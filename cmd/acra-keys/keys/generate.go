@@ -27,8 +27,6 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
-	"github.com/cossacklabs/acra/zone"
-	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -48,11 +46,6 @@ type GenerateKeyParams interface {
 	SetClientID(clientID string)
 	TLSClientCert() string
 	TLSIdentifierExtractorType() string
-
-	ZoneID() []byte
-	GenerateNewZone() bool
-	GenerateZoneKeys() bool
-	GenerateZoneSymmetricKey() bool
 
 	SpecificKeysRequested() bool
 }
@@ -75,12 +68,8 @@ type GenerateKeySubcommand struct {
 	outKeyDir       string
 	outKeyDirPublic string
 	clientID        string
-	zoneID          string
 	masterKeyFile   string
 	acraWriter      bool
-	newZone         bool
-	rotateZone      bool
-	rotateZoneSym   bool
 	acraBlocks      bool
 	auditLog        bool
 	searchHMAC      bool
@@ -133,31 +122,10 @@ func (g *GenerateKeySubcommand) GenerateSearchHMAC() bool {
 	return g.searchHMAC
 }
 
-// ZoneID returns zone ID.
-func (g *GenerateKeySubcommand) ZoneID() []byte {
-	return []byte(g.zoneID)
-}
-
-// GenerateNewZone returns true if a new zone was requested.
-func (g *GenerateKeySubcommand) GenerateNewZone() bool {
-	return g.newZone
-}
-
-// GenerateZoneKeys returns true if a new key for a zone was requested.
-func (g *GenerateKeySubcommand) GenerateZoneKeys() bool {
-	return g.rotateZone
-}
-
-// GenerateZoneSymmetricKey returns true if a new sym key for a zone was requested.
-func (g *GenerateKeySubcommand) GenerateZoneSymmetricKey() bool {
-	return g.rotateZoneSym
-}
-
 // SpecificKeysRequested returns true if the user has requested any key specifically.
 // It returns false if no keys were requested.
 func (g *GenerateKeySubcommand) SpecificKeysRequested() bool {
-	return g.acraWriter || g.newZone ||
-		g.rotateZone || g.acraBlocks || g.auditLog || g.searchHMAC || g.poisonRecord || g.rotateZoneSym
+	return g.acraWriter || g.acraBlocks || g.auditLog || g.searchHMAC || g.poisonRecord
 }
 
 // Name returns the same of this subcommand.
@@ -177,11 +145,7 @@ func (g *GenerateKeySubcommand) RegisterFlags() {
 	g.CommonExtractClientIDParameters.Register(g.flagSet)
 	g.flagSet.StringVar(&g.keystoreVersion, "keystore", "", "Keystore format: v1 (current), v2 (new)")
 	g.flagSet.StringVar(&g.clientID, "client_id", "", "Client ID")
-	g.flagSet.StringVar(&g.zoneID, "zone_id", "", "Zone ID (deprecated since 0.94.0, will be removed)")
 	g.flagSet.BoolVar(&g.acraWriter, "client_storage_key", false, "Generate keypair for data encryption/decryption (for a client)")
-	g.flagSet.BoolVar(&g.newZone, "zone", false, "Generate new Acra storage zone (deprecated since 0.94.0, will be removed)")
-	g.flagSet.BoolVar(&g.rotateZone, "zone_storage_key", false, "Rotate existing Acra zone storage keypair (deprecated since 0.94.0, will be removed)")
-	g.flagSet.BoolVar(&g.rotateZoneSym, "zone_symmetric_key", false, "Rotate existing Acra zone symmetric key (deprecated since 0.94.0, will be removed)")
 	g.flagSet.BoolVar(&g.acraBlocks, "client_storage_symmetric_key", false, "Generate symmetric key for data encryption (using AcraBlocks)")
 	g.flagSet.BoolVar(&g.auditLog, "audit_log_symmetric_key", false, "Generate symmetric key for log integrity checks")
 	g.flagSet.BoolVar(&g.searchHMAC, "search_hmac_symmetric_key", false, "Generate symmetric key for searchable encryption HMAC")
@@ -203,10 +167,6 @@ func (g *GenerateKeySubcommand) Parse(arguments []string) error {
 		return err
 	}
 	err = ValidateClientID(g)
-	if err != nil {
-		return err
-	}
-	err = ValidateZoneID(g)
 	if err != nil {
 		return err
 	}
@@ -259,19 +219,6 @@ func ValidateClientID(params GenerateKeyParams) error {
 
 			log.Error("--client_id or --tls_cert is required to generate keys")
 			return ErrMissingClientID
-		}
-	}
-	return nil
-}
-
-// ValidateZoneID checks that zone ID is specified correctly.
-func ValidateZoneID(params GenerateKeyParams) error {
-	zoneID := params.ZoneID()
-	// Zone ID is required to generate some of the keys.
-	if len(zoneID) == 0 {
-		if params.GenerateZoneKeys() {
-			log.Error("--zone_id is required to generate zone keys")
-			return ErrMissingZoneID
 		}
 	}
 	return nil
@@ -412,47 +359,6 @@ func GenerateAcraKeys(params GenerateKeyParams, keyStore keystore.KeyMaking, def
 			return didSomething, err
 		}
 		log.Info("Generated client storage key")
-		didSomething = true
-	}
-
-	if params.GenerateNewZone() {
-		id, publicKey, err := keyStore.GenerateZoneKey()
-		if err != nil {
-			log.WithError(err).Error("Failed to generate new zone")
-			return didSomething, err
-		}
-		json, err := zone.DataToJSON(id, &keys.PublicKey{Value: publicKey})
-		if err != nil {
-			log.WithError(err).Error("Failed to serialize new zone parameters")
-			return didSomething, err
-		}
-		fmt.Println(string(json))
-		log.Info("Generated new Acra zone")
-		didSomething = true
-	}
-	if params.GenerateZoneKeys() {
-		zoneID := params.ZoneID()
-		publicKey, err := keyStore.RotateZoneKey(zoneID)
-		if err != nil {
-			log.WithError(err).Error("Failed to rotate zone key")
-			return didSomething, err
-		}
-		json, err := zone.DataToJSON(zoneID, &keys.PublicKey{Value: publicKey})
-		if err != nil {
-			log.WithError(err).Error("Failed to serialize zone parameters")
-			return didSomething, err
-		}
-		fmt.Println(string(json))
-		log.Info("Generated zone storage key")
-		didSomething = true
-	}
-	if params.GenerateZoneSymmetricKey() {
-		err := keyStore.RotateSymmetricZoneKey(params.ZoneID())
-		if err != nil {
-			log.WithError(err).Error("Failed to rotate zone key")
-			return didSomething, err
-		}
-		log.Info("Generated zone storage symmetric key")
 		didSomething = true
 	}
 

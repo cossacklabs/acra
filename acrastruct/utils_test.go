@@ -237,18 +237,17 @@ func TestDecryptAcrastruct(t *testing.T) {
 		t.Fatal("decrypted != test_data")
 	}
 
-	t.Log("Test with something like zone")
-	// don't use zone.GenerateZoneID due to import cycle
-	zoneID := make([]byte, 100)
-	if _, err = rand.Read(zoneID); err != nil {
+	t.Log("Test with additional context")
+	additionalContext := make([]byte, 100)
+	if _, err = rand.Read(additionalContext); err != nil {
 		t.Fatal(err)
 	}
-	acraStruct, err = CreateAcrastruct(testData, keypair.Public, zoneID)
+	acraStruct, err = CreateAcrastruct(testData, keypair.Public, additionalContext)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	decrypted, err = DecryptAcrastruct(acraStruct, keypair.Private, zoneID)
+	decrypted, err = DecryptAcrastruct(acraStruct, keypair.Private, additionalContext)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -31,15 +31,6 @@ func NewTokenEncryptor(tokenizer *DataTokenizer) (*TokenEncryptor, error) {
 	return &TokenEncryptor{tokenizer}, nil
 }
 
-// EncryptWithZoneID tokenize data according to setting
-func (e *TokenEncryptor) EncryptWithZoneID(zoneID, data []byte, setting configCE.ColumnEncryptionSetting) ([]byte, error) {
-	if setting.IsTokenized() {
-		tokenContext := common.TokenContext{ZoneID: zoneID}
-		return e.tokenizer.Tokenize(data, tokenContext, setting)
-	}
-	return data, nil
-}
-
 // EncryptWithClientID tokenize data according to setting
 func (e *TokenEncryptor) EncryptWithClientID(clientID, data []byte, setting configCE.ColumnEncryptionSetting) ([]byte, error) {
 	if setting.IsTokenized() {

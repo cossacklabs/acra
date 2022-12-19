@@ -185,20 +185,14 @@ func (encryptor *TokenizeQuery) getTokenizerDataWithSetting(setting config.Colum
 		logger.Debugln("Searchable TokenizeQuery")
 
 		accessContext := base.AccessContextFromContext(ctx)
-
-		if accessContext.IsWithZone() {
-			tokenized, err = encryptor.tokenEncryptor.EncryptWithZoneID(accessContext.GetZoneID(), dataToTokenize, setting)
+		clientID := setting.ClientID()
+		if len(clientID) > 0 {
+			logger.WithField("client_id", string(clientID)).Debugln("Tokenize with specific ClientID for column")
 		} else {
-			clientID := setting.ClientID()
-			if len(clientID) > 0 {
-				logger.WithField("client_id", string(clientID)).Debugln("Tokenize with specific ClientID for column")
-			} else {
-				logger.WithField("client_id", string(accessContext.GetClientID())).Debugln("Tokenize with ClientID from connection")
-				clientID = accessContext.GetClientID()
-			}
-			tokenized, err = encryptor.tokenEncryptor.EncryptWithClientID(clientID, dataToTokenize, setting)
+			logger.WithField("client_id", string(accessContext.GetClientID())).Debugln("Tokenize with ClientID from connection")
+			clientID = accessContext.GetClientID()
 		}
-
+		tokenized, err = encryptor.tokenEncryptor.EncryptWithClientID(clientID, dataToTokenize, setting)
 		return
 	}
 }

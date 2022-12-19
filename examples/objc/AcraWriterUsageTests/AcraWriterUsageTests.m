@@ -28,13 +28,13 @@
   NSError * error;
   
   AcraStruct * as = [[AcraWriter new] createAcraStructFrom:data publicKey:nil
-                                                    zoneID:nil error:&error];
+                                                    additionalContext:nil error:&error];
   XCTAssertNotNil(error, @"should throw error if empty public key");
   XCTAssertTrue(error.code == AcraWriterErrorWrongPublicKey, @"error code should be correct");
   XCTAssertNil(as, @"AcraStruct should not be created");
   
   as = [[AcraWriter new] createAcraStructFrom:data publicKey:[@"wrong public key" dataUsingEncoding:NSUTF8StringEncoding]
-                                  zoneID:nil error:&error];
+                                  additionalContext:nil error:&error];
   XCTAssertNotNil(error, @"should throw error if wrong public key");
   XCTAssertTrue(error.code == AcraWriterErrorCantEncryptRandomKey, @"error code should be correct");
   XCTAssertNil(as, @"AcraStruct should not be created");
@@ -43,7 +43,7 @@
   NSData * pubKey = [[NSData alloc] initWithBase64EncodedString:@"VUVDMgAAAC26myz0A0MBRd1y1Pm24W0mMWwT4cWW4jTATXIr7E7kbL//EGhy"
                                                         options:NSDataBase64DecodingIgnoreUnknownCharacters];
   as = [[AcraWriter new] createAcraStructFrom:data publicKey:pubKey
-                                       zoneID:nil error:&error];
+                                       additionalContext:nil error:&error];
   XCTAssertNil(error, @"should NOT throw error if correct public key");
   XCTAssertNotNil(as, @"AcraStruct should be created");
   XCTAssertNotNil(as.data, @"AcraStruct binary data should be created");
@@ -56,14 +56,14 @@
   
   NSError * error;
   AcraStruct * as = [[AcraWriter new] createAcraStructFrom:nil publicKey:pubKey
-                                                    zoneID:nil error:&error];
+                                                    additionalContext:nil error:&error];
   XCTAssertNotNil(error, @"should throw error if empty data");
   XCTAssertTrue(error.code == AcraWriterErrorEmptyData, @"error code should be correct");
   XCTAssertNil(as, @"AcraStruct should not be created");
   
   error = nil;
   as = [[AcraWriter new] createAcraStructFrom:[NSData data] publicKey:pubKey
-                                       zoneID:nil error:&error];
+                                       additionalContext:nil error:&error];
   XCTAssertNotNil(error, @"should throw error if zero data");
   XCTAssertTrue(error.code == AcraWriterErrorEmptyData, @"error code should be correct");
   XCTAssertNil(as, @"AcraStruct should not be created");
@@ -94,7 +94,7 @@
   
   NSError * error;
   AcraStruct * as = [[AcraWriter new] createAcraStructFrom:data publicKey:keygenEC.publicKey
-                                                    zoneID:nil
+                                                    additionalContext:nil
                                                      error:&error];
   XCTAssertNil(error, @"should NOT throw error if correct public key");
   XCTAssertNotNil(as, @"AcraStruct should be created");

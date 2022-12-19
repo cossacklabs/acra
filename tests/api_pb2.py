@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'Z8github.com/cossacklabs/acra/cmd/acra-translator/grpc_api',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\tapi.proto\x12\x08grpc_api\"H\n\x0e\x44\x65\x63ryptRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x0f\n\x07zone_id\x18\x02 \x01(\x0c\x12\x12\n\nacrastruct\x18\x03 \x01(\x0c\"\x1f\n\x0f\x44\x65\x63ryptResponse\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\"B\n\x0e\x45ncryptRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x0f\n\x07zone_id\x18\x02 \x01(\x0c\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0c\"%\n\x0f\x45ncryptResponse\x12\x12\n\nacrastruct\x18\x01 \x01(\x0c\"\xaf\x01\n\x0fTokenizeRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x0f\n\x07zone_id\x18\x02 \x01(\x0c\x12\x13\n\tstr_value\x18\x03 \x01(\tH\x00\x12\x15\n\x0b\x65mail_value\x18\x04 \x01(\tH\x00\x12\x15\n\x0bint32_value\x18\x05 \x01(\x05H\x00\x12\x15\n\x0bint64_value\x18\x06 \x01(\x03H\x00\x12\x15\n\x0b\x62ytes_value\x18\x07 \x01(\x0cH\x00\x42\x07\n\x05value\"\x8f\x01\n\x10TokenizeResponse\x12\x13\n\tstr_token\x18\x01 \x01(\tH\x00\x12\x15\n\x0b\x65mail_token\x18\x02 \x01(\tH\x00\x12\x15\n\x0bint32_token\x18\x03 \x01(\x05H\x00\x12\x15\n\x0bint64_token\x18\x04 \x01(\x03H\x00\x12\x15\n\x0b\x62ytes_token\x18\x05 \x01(\x0cH\x00\x42\n\n\x08response\"O\n\x1bSearchableEncryptionRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x0f\n\x07zone_id\x18\x02 \x01(\x0c\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0c\"@\n\x1cSearchableEncryptionResponse\x12\x0c\n\x04hash\x18\x01 \x01(\x0c\x12\x12\n\nacrastruct\x18\x02 \x01(\x0c\"]\n\x1bSearchableDecryptionRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x0f\n\x07zone_id\x18\x02 \x01(\x0c\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0c\x12\x0c\n\x04hash\x18\x04 \x01(\x0c\",\n\x1cSearchableDecryptionResponse\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\"R\n\x1eSearchableSymEncryptionRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x0f\n\x07zone_id\x18\x02 \x01(\x0c\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0c\"B\n\x1fSearchableSymEncryptionResponse\x12\x0c\n\x04hash\x18\x01 \x01(\x0c\x12\x11\n\tacrablock\x18\x02 \x01(\x0c\"`\n\x1eSearchableSymDecryptionRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x0f\n\x07zone_id\x18\x02 \x01(\x0c\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0c\x12\x0c\n\x04hash\x18\x04 \x01(\x0c\"/\n\x1fSearchableSymDecryptionResponse\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\"D\n\x10QueryHashRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x0f\n\x07zone_id\x18\x02 \x01(\x0c\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0c\"!\n\x11QueryHashResponse\x12\x0c\n\x04hash\x18\x01 \x01(\x0c\"J\n\x11\x44\x65\x63ryptSymRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x0f\n\x07zone_id\x18\x02 \x01(\x0c\x12\x11\n\tacrablock\x18\x03 \x01(\x0c\"\"\n\x12\x44\x65\x63ryptSymResponse\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\"E\n\x11\x45ncryptSymRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x0f\n\x07zone_id\x18\x02 \x01(\x0c\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0c\"\'\n\x12\x45ncryptSymResponse\x12\x11\n\tacrablock\x18\x01 \x01(\x0c\x32J\n\x06Reader\x12@\n\x07\x44\x65\x63rypt\x12\x18.grpc_api.DecryptRequest\x1a\x19.grpc_api.DecryptResponse\"\x00\x32J\n\x06Writer\x12@\n\x07\x45ncrypt\x12\x18.grpc_api.EncryptRequest\x1a\x19.grpc_api.EncryptResponse\"\x00\x32\x99\x01\n\x0bTokenizator\x12\x43\n\x08Tokenize\x12\x19.grpc_api.TokenizeRequest\x1a\x1a.grpc_api.TokenizeResponse\"\x00\x12\x45\n\nDetokenize\x12\x19.grpc_api.TokenizeRequest\x1a\x1a.grpc_api.TokenizeResponse\"\x00\x32V\n\tReaderSym\x12I\n\nDecryptSym\x12\x1b.grpc_api.DecryptSymRequest\x1a\x1c.grpc_api.DecryptSymResponse\"\x00\x32V\n\tWriterSym\x12I\n\nEncryptSym\x12\x1b.grpc_api.EncryptSymRequest\x1a\x1c.grpc_api.EncryptSymResponse\"\x00\x32\x90\x04\n\x14SearchableEncryption\x12\x64\n\x11\x45ncryptSearchable\x12%.grpc_api.SearchableEncryptionRequest\x1a&.grpc_api.SearchableEncryptionResponse\"\x00\x12\x64\n\x11\x44\x65\x63ryptSearchable\x12%.grpc_api.SearchableDecryptionRequest\x1a&.grpc_api.SearchableDecryptionResponse\"\x00\x12m\n\x14\x45ncryptSymSearchable\x12(.grpc_api.SearchableSymEncryptionRequest\x1a).grpc_api.SearchableSymEncryptionResponse\"\x00\x12m\n\x14\x44\x65\x63ryptSymSearchable\x12(.grpc_api.SearchableSymDecryptionRequest\x1a).grpc_api.SearchableSymDecryptionResponse\"\x00\x12N\n\x11GenerateQueryHash\x12\x1a.grpc_api.QueryHashRequest\x1a\x1b.grpc_api.QueryHashResponse\"\x00\x42:Z8github.com/cossacklabs/acra/cmd/acra-translator/grpc_apib\x06proto3'
+  serialized_pb=b'\n\tapi.proto\x12\x08grpc_api\"@\n\x0e\x44\x65\x63ryptRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x12\n\nacrastruct\x18\x03 \x01(\x0cR\x07zone_id\"\x1f\n\x0f\x44\x65\x63ryptResponse\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\":\n\x0e\x45ncryptRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0cR\x07zone_id\"%\n\x0f\x45ncryptResponse\x12\x12\n\nacrastruct\x18\x01 \x01(\x0c\"\xa7\x01\n\x0fTokenizeRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x13\n\tstr_value\x18\x03 \x01(\tH\x00\x12\x15\n\x0b\x65mail_value\x18\x04 \x01(\tH\x00\x12\x15\n\x0bint32_value\x18\x05 \x01(\x05H\x00\x12\x15\n\x0bint64_value\x18\x06 \x01(\x03H\x00\x12\x15\n\x0b\x62ytes_value\x18\x07 \x01(\x0cH\x00\x42\x07\n\x05valueR\x07zone_id\"\x8f\x01\n\x10TokenizeResponse\x12\x13\n\tstr_token\x18\x01 \x01(\tH\x00\x12\x15\n\x0b\x65mail_token\x18\x02 \x01(\tH\x00\x12\x15\n\x0bint32_token\x18\x03 \x01(\x05H\x00\x12\x15\n\x0bint64_token\x18\x04 \x01(\x03H\x00\x12\x15\n\x0b\x62ytes_token\x18\x05 \x01(\x0cH\x00\x42\n\n\x08response\"G\n\x1bSearchableEncryptionRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0cR\x07zone_id\"@\n\x1cSearchableEncryptionResponse\x12\x0c\n\x04hash\x18\x01 \x01(\x0c\x12\x12\n\nacrastruct\x18\x02 \x01(\x0c\"U\n\x1bSearchableDecryptionRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0c\x12\x0c\n\x04hash\x18\x04 \x01(\x0cR\x07zone_id\",\n\x1cSearchableDecryptionResponse\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\"J\n\x1eSearchableSymEncryptionRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0cR\x07zone_id\"B\n\x1fSearchableSymEncryptionResponse\x12\x0c\n\x04hash\x18\x01 \x01(\x0c\x12\x11\n\tacrablock\x18\x02 \x01(\x0c\"X\n\x1eSearchableSymDecryptionRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0c\x12\x0c\n\x04hash\x18\x04 \x01(\x0cR\x07zone_id\"/\n\x1fSearchableSymDecryptionResponse\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\"<\n\x10QueryHashRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0cR\x07zone_id\"!\n\x11QueryHashResponse\x12\x0c\n\x04hash\x18\x01 \x01(\x0c\"B\n\x11\x44\x65\x63ryptSymRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x11\n\tacrablock\x18\x03 \x01(\x0cR\x07zone_id\"\"\n\x12\x44\x65\x63ryptSymResponse\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\"=\n\x11\x45ncryptSymRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0cR\x07zone_id\"\'\n\x12\x45ncryptSymResponse\x12\x11\n\tacrablock\x18\x01 \x01(\x0c\x32J\n\x06Reader\x12@\n\x07\x44\x65\x63rypt\x12\x18.grpc_api.DecryptRequest\x1a\x19.grpc_api.DecryptResponse\"\x00\x32J\n\x06Writer\x12@\n\x07\x45ncrypt\x12\x18.grpc_api.EncryptRequest\x1a\x19.grpc_api.EncryptResponse\"\x00\x32\x99\x01\n\x0bTokenizator\x12\x43\n\x08Tokenize\x12\x19.grpc_api.TokenizeRequest\x1a\x1a.grpc_api.TokenizeResponse\"\x00\x12\x45\n\nDetokenize\x12\x19.grpc_api.TokenizeRequest\x1a\x1a.grpc_api.TokenizeResponse\"\x00\x32V\n\tReaderSym\x12I\n\nDecryptSym\x12\x1b.grpc_api.DecryptSymRequest\x1a\x1c.grpc_api.DecryptSymResponse\"\x00\x32V\n\tWriterSym\x12I\n\nEncryptSym\x12\x1b.grpc_api.EncryptSymRequest\x1a\x1c.grpc_api.EncryptSymResponse\"\x00\x32\x90\x04\n\x14SearchableEncryption\x12\x64\n\x11\x45ncryptSearchable\x12%.grpc_api.SearchableEncryptionRequest\x1a&.grpc_api.SearchableEncryptionResponse\"\x00\x12\x64\n\x11\x44\x65\x63ryptSearchable\x12%.grpc_api.SearchableDecryptionRequest\x1a&.grpc_api.SearchableDecryptionResponse\"\x00\x12m\n\x14\x45ncryptSymSearchable\x12(.grpc_api.SearchableSymEncryptionRequest\x1a).grpc_api.SearchableSymEncryptionResponse\"\x00\x12m\n\x14\x44\x65\x63ryptSymSearchable\x12(.grpc_api.SearchableSymDecryptionRequest\x1a).grpc_api.SearchableSymDecryptionResponse\"\x00\x12N\n\x11GenerateQueryHash\x12\x1a.grpc_api.QueryHashRequest\x1a\x1b.grpc_api.QueryHashResponse\"\x00\x42:Z8github.com/cossacklabs/acra/cmd/acra-translator/grpc_apib\x06proto3'
 )
 
 
@@ -41,14 +41,7 @@ _DECRYPTREQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='zone_id', full_name='grpc_api.DecryptRequest.zone_id', index=1,
-      number=2, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='acrastruct', full_name='grpc_api.DecryptRequest.acrastruct', index=2,
+      name='acrastruct', full_name='grpc_api.DecryptRequest.acrastruct', index=1,
       number=3, type=12, cpp_type=9, label=1,
       has_default_value=False, default_value=b"",
       message_type=None, enum_type=None, containing_type=None,
@@ -67,7 +60,7 @@ _DECRYPTREQUEST = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=23,
-  serialized_end=95,
+  serialized_end=87,
 )
 
 
@@ -98,8 +91,8 @@ _DECRYPTRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=97,
-  serialized_end=128,
+  serialized_start=89,
+  serialized_end=120,
 )
 
 
@@ -119,14 +112,7 @@ _ENCRYPTREQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='zone_id', full_name='grpc_api.EncryptRequest.zone_id', index=1,
-      number=2, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='data', full_name='grpc_api.EncryptRequest.data', index=2,
+      name='data', full_name='grpc_api.EncryptRequest.data', index=1,
       number=3, type=12, cpp_type=9, label=1,
       has_default_value=False, default_value=b"",
       message_type=None, enum_type=None, containing_type=None,
@@ -144,8 +130,8 @@ _ENCRYPTREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=130,
-  serialized_end=196,
+  serialized_start=122,
+  serialized_end=180,
 )
 
 
@@ -176,8 +162,8 @@ _ENCRYPTRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=198,
-  serialized_end=235,
+  serialized_start=182,
+  serialized_end=219,
 )
 
 
@@ -197,42 +183,35 @@ _TOKENIZEREQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='zone_id', full_name='grpc_api.TokenizeRequest.zone_id', index=1,
-      number=2, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='str_value', full_name='grpc_api.TokenizeRequest.str_value', index=2,
+      name='str_value', full_name='grpc_api.TokenizeRequest.str_value', index=1,
       number=3, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='email_value', full_name='grpc_api.TokenizeRequest.email_value', index=3,
+      name='email_value', full_name='grpc_api.TokenizeRequest.email_value', index=2,
       number=4, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='int32_value', full_name='grpc_api.TokenizeRequest.int32_value', index=4,
+      name='int32_value', full_name='grpc_api.TokenizeRequest.int32_value', index=3,
       number=5, type=5, cpp_type=1, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='int64_value', full_name='grpc_api.TokenizeRequest.int64_value', index=5,
+      name='int64_value', full_name='grpc_api.TokenizeRequest.int64_value', index=4,
       number=6, type=3, cpp_type=2, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='bytes_value', full_name='grpc_api.TokenizeRequest.bytes_value', index=6,
+      name='bytes_value', full_name='grpc_api.TokenizeRequest.bytes_value', index=5,
       number=7, type=12, cpp_type=9, label=1,
       has_default_value=False, default_value=b"",
       message_type=None, enum_type=None, containing_type=None,
@@ -255,8 +234,8 @@ _TOKENIZEREQUEST = _descriptor.Descriptor(
       create_key=_descriptor._internal_create_key,
     fields=[]),
   ],
-  serialized_start=238,
-  serialized_end=413,
+  serialized_start=222,
+  serialized_end=389,
 )
 
 
@@ -320,8 +299,8 @@ _TOKENIZERESPONSE = _descriptor.Descriptor(
       create_key=_descriptor._internal_create_key,
     fields=[]),
   ],
-  serialized_start=416,
-  serialized_end=559,
+  serialized_start=392,
+  serialized_end=535,
 )
 
 
@@ -341,14 +320,7 @@ _SEARCHABLEENCRYPTIONREQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='zone_id', full_name='grpc_api.SearchableEncryptionRequest.zone_id', index=1,
-      number=2, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='data', full_name='grpc_api.SearchableEncryptionRequest.data', index=2,
+      name='data', full_name='grpc_api.SearchableEncryptionRequest.data', index=1,
       number=3, type=12, cpp_type=9, label=1,
       has_default_value=False, default_value=b"",
       message_type=None, enum_type=None, containing_type=None,
@@ -366,8 +338,8 @@ _SEARCHABLEENCRYPTIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=561,
-  serialized_end=640,
+  serialized_start=537,
+  serialized_end=608,
 )
 
 
@@ -405,8 +377,8 @@ _SEARCHABLEENCRYPTIONRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=642,
-  serialized_end=706,
+  serialized_start=610,
+  serialized_end=674,
 )
 
 
@@ -426,21 +398,14 @@ _SEARCHABLEDECRYPTIONREQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='zone_id', full_name='grpc_api.SearchableDecryptionRequest.zone_id', index=1,
-      number=2, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='data', full_name='grpc_api.SearchableDecryptionRequest.data', index=2,
+      name='data', full_name='grpc_api.SearchableDecryptionRequest.data', index=1,
       number=3, type=12, cpp_type=9, label=1,
       has_default_value=False, default_value=b"",
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='hash', full_name='grpc_api.SearchableDecryptionRequest.hash', index=3,
+      name='hash', full_name='grpc_api.SearchableDecryptionRequest.hash', index=2,
       number=4, type=12, cpp_type=9, label=1,
       has_default_value=False, default_value=b"",
       message_type=None, enum_type=None, containing_type=None,
@@ -458,8 +423,8 @@ _SEARCHABLEDECRYPTIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=708,
-  serialized_end=801,
+  serialized_start=676,
+  serialized_end=761,
 )
 
 
@@ -490,8 +455,8 @@ _SEARCHABLEDECRYPTIONRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=803,
-  serialized_end=847,
+  serialized_start=763,
+  serialized_end=807,
 )
 
 
@@ -511,14 +476,7 @@ _SEARCHABLESYMENCRYPTIONREQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='zone_id', full_name='grpc_api.SearchableSymEncryptionRequest.zone_id', index=1,
-      number=2, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='data', full_name='grpc_api.SearchableSymEncryptionRequest.data', index=2,
+      name='data', full_name='grpc_api.SearchableSymEncryptionRequest.data', index=1,
       number=3, type=12, cpp_type=9, label=1,
       has_default_value=False, default_value=b"",
       message_type=None, enum_type=None, containing_type=None,
@@ -536,8 +494,8 @@ _SEARCHABLESYMENCRYPTIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=849,
-  serialized_end=931,
+  serialized_start=809,
+  serialized_end=883,
 )
 
 
@@ -575,8 +533,8 @@ _SEARCHABLESYMENCRYPTIONRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=933,
-  serialized_end=999,
+  serialized_start=885,
+  serialized_end=951,
 )
 
 
@@ -596,21 +554,14 @@ _SEARCHABLESYMDECRYPTIONREQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='zone_id', full_name='grpc_api.SearchableSymDecryptionRequest.zone_id', index=1,
-      number=2, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='data', full_name='grpc_api.SearchableSymDecryptionRequest.data', index=2,
+      name='data', full_name='grpc_api.SearchableSymDecryptionRequest.data', index=1,
       number=3, type=12, cpp_type=9, label=1,
       has_default_value=False, default_value=b"",
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='hash', full_name='grpc_api.SearchableSymDecryptionRequest.hash', index=3,
+      name='hash', full_name='grpc_api.SearchableSymDecryptionRequest.hash', index=2,
       number=4, type=12, cpp_type=9, label=1,
       has_default_value=False, default_value=b"",
       message_type=None, enum_type=None, containing_type=None,
@@ -628,8 +579,8 @@ _SEARCHABLESYMDECRYPTIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1001,
-  serialized_end=1097,
+  serialized_start=953,
+  serialized_end=1041,
 )
 
 
@@ -660,8 +611,8 @@ _SEARCHABLESYMDECRYPTIONRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1099,
-  serialized_end=1146,
+  serialized_start=1043,
+  serialized_end=1090,
 )
 
 
@@ -681,14 +632,7 @@ _QUERYHASHREQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='zone_id', full_name='grpc_api.QueryHashRequest.zone_id', index=1,
-      number=2, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='data', full_name='grpc_api.QueryHashRequest.data', index=2,
+      name='data', full_name='grpc_api.QueryHashRequest.data', index=1,
       number=3, type=12, cpp_type=9, label=1,
       has_default_value=False, default_value=b"",
       message_type=None, enum_type=None, containing_type=None,
@@ -706,8 +650,8 @@ _QUERYHASHREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1148,
-  serialized_end=1216,
+  serialized_start=1092,
+  serialized_end=1152,
 )
 
 
@@ -738,8 +682,8 @@ _QUERYHASHRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1218,
-  serialized_end=1251,
+  serialized_start=1154,
+  serialized_end=1187,
 )
 
 
@@ -759,14 +703,7 @@ _DECRYPTSYMREQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='zone_id', full_name='grpc_api.DecryptSymRequest.zone_id', index=1,
-      number=2, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='acrablock', full_name='grpc_api.DecryptSymRequest.acrablock', index=2,
+      name='acrablock', full_name='grpc_api.DecryptSymRequest.acrablock', index=1,
       number=3, type=12, cpp_type=9, label=1,
       has_default_value=False, default_value=b"",
       message_type=None, enum_type=None, containing_type=None,
@@ -784,8 +721,8 @@ _DECRYPTSYMREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1253,
-  serialized_end=1327,
+  serialized_start=1189,
+  serialized_end=1255,
 )
 
 
@@ -816,8 +753,8 @@ _DECRYPTSYMRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1329,
-  serialized_end=1363,
+  serialized_start=1257,
+  serialized_end=1291,
 )
 
 
@@ -837,14 +774,7 @@ _ENCRYPTSYMREQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='zone_id', full_name='grpc_api.EncryptSymRequest.zone_id', index=1,
-      number=2, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='data', full_name='grpc_api.EncryptSymRequest.data', index=2,
+      name='data', full_name='grpc_api.EncryptSymRequest.data', index=1,
       number=3, type=12, cpp_type=9, label=1,
       has_default_value=False, default_value=b"",
       message_type=None, enum_type=None, containing_type=None,
@@ -862,8 +792,8 @@ _ENCRYPTSYMREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1365,
-  serialized_end=1434,
+  serialized_start=1293,
+  serialized_end=1354,
 )
 
 
@@ -894,8 +824,8 @@ _ENCRYPTSYMRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1436,
-  serialized_end=1475,
+  serialized_start=1356,
+  serialized_end=1395,
 )
 
 _TOKENIZEREQUEST.oneofs_by_name['value'].fields.append(
@@ -1100,8 +1030,8 @@ _READER = _descriptor.ServiceDescriptor(
   index=0,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=1477,
-  serialized_end=1551,
+  serialized_start=1397,
+  serialized_end=1471,
   methods=[
   _descriptor.MethodDescriptor(
     name='Decrypt',
@@ -1126,8 +1056,8 @@ _WRITER = _descriptor.ServiceDescriptor(
   index=1,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=1553,
-  serialized_end=1627,
+  serialized_start=1473,
+  serialized_end=1547,
   methods=[
   _descriptor.MethodDescriptor(
     name='Encrypt',
@@ -1152,8 +1082,8 @@ _TOKENIZATOR = _descriptor.ServiceDescriptor(
   index=2,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=1630,
-  serialized_end=1783,
+  serialized_start=1550,
+  serialized_end=1703,
   methods=[
   _descriptor.MethodDescriptor(
     name='Tokenize',
@@ -1188,8 +1118,8 @@ _READERSYM = _descriptor.ServiceDescriptor(
   index=3,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=1785,
-  serialized_end=1871,
+  serialized_start=1705,
+  serialized_end=1791,
   methods=[
   _descriptor.MethodDescriptor(
     name='DecryptSym',
@@ -1214,8 +1144,8 @@ _WRITERSYM = _descriptor.ServiceDescriptor(
   index=4,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=1873,
-  serialized_end=1959,
+  serialized_start=1793,
+  serialized_end=1879,
   methods=[
   _descriptor.MethodDescriptor(
     name='EncryptSym',
@@ -1240,8 +1170,8 @@ _SEARCHABLEENCRYPTION = _descriptor.ServiceDescriptor(
   index=5,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=1962,
-  serialized_end=2490,
+  serialized_start=1882,
+  serialized_end=2410,
   methods=[
   _descriptor.MethodDescriptor(
     name='EncryptSearchable',

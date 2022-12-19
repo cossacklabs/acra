@@ -36,7 +36,6 @@ func (d DecryptHandler) OnCryptoEnvelope(ctx context.Context, container []byte) 
 		logger.WithFields(log.Fields{
 			logging.FieldKeyEventCode: logging.EventCodeErrorDecryptorCantDecryptBinary,
 			"client_id":               string(accessContext.GetClientID()),
-			"zone_id":                 string(accessContext.GetZoneID()),
 		}).WithError(err).Warningln("Can't decrypt SerializedContainer")
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 		return container, nil

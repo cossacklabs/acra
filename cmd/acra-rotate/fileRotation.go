@@ -35,32 +35,32 @@ func loadFileMap(path string) (KeyIDFileMap, error) {
 	return ParseConfig(configData)
 }
 
-// ZoneRotateData store new public key and paths of files that was rotated
-type ZoneRotateData struct {
+// RotateData store new public key and paths of files that was rotated
+type RotateData struct {
 	NewPublicKey []byte   `json:"new_public_key"`
 	FilePaths    []string `json:"file_paths"`
 }
 
-// ZoneRotateResult store result of rotation
-type ZoneRotateResult map[string]*ZoneRotateData
+// RotateResult store result of rotation
+type RotateResult map[string]*RotateData
 
-// rotateFiles generate new key pair for each zone in KeyIDFileMap and re-encrypt all files encrypted with each zone
-func rotateFiles(fileMap KeyIDFileMap, keyStore RotateStorageKeyStore, zoneMode, dryRun bool) (ZoneRotateResult, error) {
-	rotator, err := newRotator(keyStore, zoneMode)
+// rotateFiles generate new key pair for each clientID in KeyIDFileMap and re-encrypt all files encrypted with each id
+func rotateFiles(fileMap KeyIDFileMap, keyStore RotateStorageKeyStore, dryRun bool) (RotateResult, error) {
+	rotator, err := newRotator(keyStore)
 	if err != nil {
 		return nil, err
 	}
 	defer rotator.clearKeys()
-	output := ZoneRotateResult{}
-	for zoneID, paths := range fileMap {
-		logger := log.WithField("Key ID", zoneID)
-		binZoneID := []byte(zoneID)
-		newPublicKey, err := rotator.getRotatedPublicKey(binZoneID)
+	output := RotateResult{}
+	for clientID, paths := range fileMap {
+		logger := log.WithField("Key ID", clientID)
+		binID := []byte(clientID)
+		newPublicKey, err := rotator.getRotatedPublicKey(binID)
 		if err != nil {
-			logger.WithError(err).Errorln("Can't rotate zone key")
+			logger.WithError(err).Errorln("Can't rotate key")
 			return nil, err
 		}
-		result := &ZoneRotateData{NewPublicKey: newPublicKey.Value}
+		result := &RotateData{NewPublicKey: newPublicKey.Value}
 		for _, path := range paths {
 			fileLogger := logger.WithField("filepath", path)
 			result.FilePaths = append(result.FilePaths, path)
@@ -70,7 +70,7 @@ func rotateFiles(fileMap KeyIDFileMap, keyStore RotateStorageKeyStore, zoneMode,
 				return nil, err
 			}
 
-			rotated, err := rotator.rotateAcrastruct(binZoneID, acraStruct)
+			rotated, err := rotator.rotateAcrastruct(binID, acraStruct)
 			if err != nil {
 				fileLogger.WithField("acrastruct", hex.EncodeToString(acraStruct)).WithError(err).Errorln("Can't rotate data")
 				return nil, err
@@ -82,14 +82,14 @@ func rotateFiles(fileMap KeyIDFileMap, keyStore RotateStorageKeyStore, zoneMode,
 			}
 			if !dryRun {
 				if err := ioutil.WriteFile(path, rotated, stat.Mode()); err != nil {
-					fileLogger.WithError(err).Errorln("Can't write rotated AcraStruct with zone")
+					fileLogger.WithError(err).Errorln("Can't write rotated AcraStruct")
 					return nil, err
 				}
 			}
 			fileLogger.Infof("Finish rotate file")
 		}
-		output[zoneID] = result
-		logger.Infoln("Finish rotate zone")
+		output[clientID] = result
+		logger.Infoln("Finish rotate")
 	}
 	if !dryRun {
 		if err := rotator.saveRotatedKeys(); err != nil {
@@ -99,14 +99,14 @@ func rotateFiles(fileMap KeyIDFileMap, keyStore RotateStorageKeyStore, zoneMode,
 	return output, nil
 }
 
-// runFileRotation read map zones to files, re-generate zone key pairs and re-encrypt files
-func runFileRotation(fileMapConfigPath string, keystorage RotateStorageKeyStore, zoneMode, dryRun bool) {
+// runFileRotation read map clientIDs to files, re-generate key pairs and re-encrypt files
+func runFileRotation(fileMapConfigPath string, keystorage RotateStorageKeyStore, dryRun bool) {
 	fileMap, err := loadFileMap(fileMapConfigPath)
 	if err != nil {
-		log.WithError(err).Errorln("Can't load config with map <ZoneId>: <FilePath>")
+		log.WithError(err).Errorln("Can't load config with map <ClientId>: <FilePath>")
 		os.Exit(1)
 	}
-	result, err := rotateFiles(fileMap, keystorage, zoneMode, dryRun)
+	result, err := rotateFiles(fileMap, keystorage, dryRun)
 	if err != nil {
 		log.WithError(err).Errorln("Can't rotate files")
 		os.Exit(1)
