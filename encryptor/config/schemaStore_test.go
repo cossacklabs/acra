@@ -749,8 +749,11 @@ schemas:
       - data_bytes
       - data_int32
       - data_int64
+      - data_searchable_str
     encrypted:
       - column: data_str
+        data_type: str
+      - column: data_searchable_str
         data_type: str
       - column: data_bytes
         data_type: bytes
@@ -759,7 +762,7 @@ schemas:
       - column: data_int64
         data_type: int64`},
 
-		{"onFail is 'default_vaue' if explicitly defined",
+		{"onFail is 'default_value' if explicitly defined",
 			common2.ResponseOnFailDefault,
 			`
 schemas:
@@ -769,11 +772,18 @@ schemas:
       - data_bytes
       - data_int32
       - data_int64
+      - data_searchable_str
     encrypted:
       - column: data_str
         data_type: str
         response_on_fail: default_value
         default_data_value: string
+
+      - column: data_searchable_str
+        data_type: str
+        response_on_fail: default_value
+        default_data_value: string
+        searchable: true
 
       - column: data_bytes
         data_type: bytes
@@ -800,8 +810,13 @@ schemas:
       - data_bytes
       - data_int32
       - data_int64
+      - data_searchable_str
     encrypted:
       - column: data_str
+        data_type: str
+        response_on_fail: error
+
+      - column: data_searchable_str
         data_type: str
         response_on_fail: error
 
@@ -827,8 +842,13 @@ schemas:
       - data_bytes
       - data_int32
       - data_int64
+      - data_searchable_str
     encrypted:
     - column: data_str
+      data_type: str
+      default_data_value: string
+
+    - column: data_searchable_str
       data_type: str
       default_data_value: string
 

@@ -4,6 +4,7 @@ schemas:
     columns:
       - id
       - value_str
+      - value_searchable
       - value_bytes
       - value_int32
       - value_int64
@@ -12,6 +13,12 @@ schemas:
       - value_empty_str
 
     encrypted:
+      - column: value_searchable
+        data_type: "str"
+        response_on_fail: default_value
+        default_data_value: "searchable_str"
+        searchable: true
+
       - column: value_str
         data_type: "str"
         response_on_fail: default_value
