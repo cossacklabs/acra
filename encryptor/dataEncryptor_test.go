@@ -64,6 +64,10 @@ func TestAcrawriterDataEncryptor_EncryptWithClientID(t *testing.T) {
 
 type emptyEncryptionSetting struct{}
 
+func (s *emptyEncryptionSetting) GetConsistentTokenization() bool {
+	panic("implement me")
+}
+
 func (s *emptyEncryptionSetting) GetDBDataTypeID() uint32 {
 	panic("implement me")
 }

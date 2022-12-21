@@ -25,6 +25,7 @@ import (
 type Defaults interface {
 	GetCryptoEnvelope() CryptoEnvelopeType
 	ShouldReEncryptAcraStructToAcraBlock() bool
+	GetConsistentTokenization() bool
 }
 
 // TableSchema describes a table and its encryption settings per column.

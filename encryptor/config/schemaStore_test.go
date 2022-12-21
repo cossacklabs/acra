@@ -57,6 +57,57 @@ schemas:
 	}
 }
 
+func TestConsistentTokenizationDefaultValuesWithDefinedValue(t *testing.T) {
+	testConfig := `
+defaults:
+  consistent_tokenization: true
+schemas:
+  - table: test_table
+    columns:
+      - data1
+      - data2
+      - data3
+      - data4
+    encrypted:
+      - column: data1
+        token_type: str
+      - column: data2
+        token_type: int64
+      - column: data3
+        token_type: int32
+      - column: data4
+        token_type: int32
+        consistent_tokenization: false
+`
+	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(testConfig), UseMySQL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tableSchema := schemaStore.GetTableSchema("test_table")
+	// check default value
+	setting := tableSchema.GetColumnEncryptionSettings("data1")
+	if !setting.GetConsistentTokenization() {
+		t.Fatalf("Expect consistent tokenization to be true, but got false: %s", "data1")
+	}
+
+	// check same value as default
+	setting = tableSchema.GetColumnEncryptionSettings("data2")
+	if !setting.GetConsistentTokenization() {
+		t.Fatalf("Expect consistent tokenization to be true, but got false: %s", "data2")
+	}
+
+	setting = tableSchema.GetColumnEncryptionSettings("data3")
+	if !setting.GetConsistentTokenization() {
+		t.Fatalf("Expect consistent tokenization to be true, but got false: %s", "data3")
+	}
+
+	// expect different value on forced consistent_tokenization
+	setting = tableSchema.GetColumnEncryptionSettings("data4")
+	if setting.GetConsistentTokenization() {
+		t.Fatalf("Expect consistent tokenization to be false, but got true: %s", "data4")
+	}
+}
+
 func TestCryptoEnvelopeDefaultValuesWithoutDefinedValue(t *testing.T) {
 	testConfig := `
 schemas:

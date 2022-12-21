@@ -7751,6 +7751,11 @@ class TestSearchableTokenizationBinaryPostgreSQL(BaseTokenizationWithBinaryPostg
     pass
 
 
+class TestSearchableTokenizationBinaryPostgreSQLWithDefaults(BaseTokenizationWithBinaryPostgreSQL, TestSearchableTokenization):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_searchable_tokenization_config_with_defaults.yaml')
+    pass
+
+
 class TestTokenizationBinaryPostgreSQLWithAWSKMSMaterKeyLoading(AWSKMSMasterKeyLoaderMixin, BaseTokenizationWithBinaryPostgreSQL, TestTokenization):
     pass
 
@@ -7760,6 +7765,11 @@ class TestTokenizationBinaryBindMySQL(BaseTokenizationWithBinaryBindMySQL, TestT
 
 
 class TestSearchableTokenizationBinaryBindMySQL(BaseTokenizationWithBinaryBindMySQL, TestSearchableTokenization):
+    pass
+
+
+class TestSearchableTokenizationBinaryBindMySQLWithDefaults(BaseTokenizationWithBinaryBindMySQL, TestSearchableTokenization):
+    ENCRYPTOR_CONFIG = get_encryptor_config('tests/ee_searchable_tokenization_config_with_defaults.yaml')
     pass
 
 

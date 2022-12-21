@@ -209,7 +209,7 @@ type BasicColumnEncryptionSetting struct {
 	// Was used to enable tokenization. Right now the `TokenType` serves that
 	// purpose: if it's not empty, tokenization is enabled.
 	Tokenized              *bool  `yaml:"tokenized"`
-	ConsistentTokenization bool   `yaml:"consistent_tokenization"`
+	ConsistentTokenization *bool  `yaml:"consistent_tokenization"`
 	TokenType              string `yaml:"token_type"`
 
 	// Searchable encryption
@@ -380,7 +380,7 @@ func (s *BasicColumnEncryptionSetting) Init(useMySQL bool) (err error) {
 	if s.TokenType != "" {
 		s.settingMask |= SettingTokenizationFlag
 		s.settingMask |= SettingTokenTypeFlag
-		if s.ConsistentTokenization {
+		if s.ConsistentTokenization != nil && *s.ConsistentTokenization {
 			s.settingMask |= SettingConsistentTokenizationFlag
 		}
 		// due to tokenization supports only AcraBlock and for backward compatibility, we reconfigure CryptoEnvelope always for AcraBlock
@@ -448,7 +448,10 @@ func (s *BasicColumnEncryptionSetting) IsTokenized() bool {
 
 // IsConsistentTokenization returns true if column tokens should be consistent.
 func (s *BasicColumnEncryptionSetting) IsConsistentTokenization() bool {
-	return s.ConsistentTokenization
+	if s.ConsistentTokenization != nil {
+		return *s.ConsistentTokenization
+	}
+	return false
 }
 
 // GetTokenType return the type of tokenization to apply to the column.
@@ -515,12 +518,28 @@ func (s *BasicColumnEncryptionSetting) applyDefaults(defaults defaultValues) {
 			s.ReEncryptToAcraBlock = &v
 		}
 	}
+
+	if s.TokenType != "" && s.ConsistentTokenization == nil {
+		if ct := defaults.GetConsistentTokenization(); ct {
+			if s.settingMask&(SettingConsistentTokenizationFlag) == 0 {
+				s.ConsistentTokenization = &ct
+			}
+		}
+	}
 }
 
 // GetResponseOnFail returns the action that should be performed on failure
 // Valid values are "", "ciphertext", "error" and "default"
 func (s *BasicColumnEncryptionSetting) GetResponseOnFail() common.ResponseOnFail {
 	return s.ResponseOnFail
+}
+
+// GetConsistentTokenization return ConsistentTokenization bool option
+func (s *BasicColumnEncryptionSetting) GetConsistentTokenization() bool {
+	if s.ConsistentTokenization != nil {
+		return *s.ConsistentTokenization
+	}
+	return false
 }
 
 // HasTypeAwareSupport return true if setting configured for decryption with type awareness

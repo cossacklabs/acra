@@ -113,9 +113,10 @@ schemas:
 
 		encryptor := NewPostgresqlTokenizeQuery(schema, tokenEncryptor)
 
+		consistentTokenization := true
 		setting := config.BasicColumnEncryptionSetting{
 			TokenType:              tcase.TokenType,
-			ConsistentTokenization: true,
+			ConsistentTokenization: &consistentTokenization,
 		}
 		anonymized, err := tokenizer.Tokenize(tcase.Value, common.TokenContext{ClientID: clientID}, &setting)
 		assert.NoError(t, err)
@@ -249,9 +250,10 @@ func TestSearchableTokenizationWithDefaultTablesTextFormat(t *testing.T) {
 
 		encryptor := NewPostgresqlTokenizeQuery(schema, tokenEncryptor)
 
+		consistentTokenization := true
 		setting := config.BasicColumnEncryptionSetting{
 			TokenType:              "str",
-			ConsistentTokenization: true,
+			ConsistentTokenization: &consistentTokenization,
 		}
 		anonymized, err := tokenizer.Tokenize(dataToTokenize, common.TokenContext{ClientID: tcase.ClientID}, &setting)
 		assert.NoError(t, err)
