@@ -6239,7 +6239,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
             'b_searchable': search_term
         }
 
-        select_columns = ['id', 'default_client_id', 'number', 'zone_id', 'specified_client_id', 'raw_data', 'searchable',
+        select_columns = ['id', 'default_client_id', 'number', 'specified_client_id', 'raw_data', 'searchable',
                           'searchable_acrablock', 'empty', 'nullable', 'masking', 'token_bytes', 'token_email',
                           'token_str', 'token_i32', 'token_i64']
 
@@ -6250,7 +6250,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
             # https://dev.mysql.com/doc/refman/8.0/en/example-auto-increment.html
             id_sequence = None
         select_query = sa.select(
-            id_sequence, sa.column('default_client_id'), sa.column('number'), sa.column('zone_id'),
+            id_sequence, sa.column('default_client_id'), sa.column('number'),
             sa.column('specified_client_id'), sa.column('raw_data'), sa.column('searchable'),
             sa.column('searchable_acrablock'), sa.column('empty'), sa.column('nullable'), sa.column('masking'),
             sa.column('token_bytes'), sa.column('token_email'), sa.column('token_str'), sa.column('token_i32'),
