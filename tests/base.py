@@ -756,7 +756,7 @@ CLEAN_BINARIES = utils.get_bool_env('TEST_CLEAN_BINARIES', default=True)
 BUILD_BINARIES = True
 
 
-def setUpModule():
+def baseSetUpModule():
     global KEYS_FOLDER
     global TLS_CERT_CLIENT_ID_1
     global TLS_CERT_CLIENT_ID_2
@@ -793,7 +793,7 @@ def extract_client_id_from_cert(tls_cert, extractor=TLS_CLIENT_ID_SOURCE_DN):
     return res['client_id']
 
 
-def tearDownModule():
+def baseTearDownModule():
     if CLEAN_BINARIES:
         clean_binaries()
     clean_misc()
