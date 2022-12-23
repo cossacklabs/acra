@@ -25,8 +25,9 @@ import yaml
 from ddt import ddt, data
 from prometheus_client.parser import text_string_to_metric_families
 from sqlalchemy.exc import DatabaseError, OperationalError
-from type_aware import *
-from tokenization import *
+from test_tokenization import *
+from test_type_aware import *
+from test_searchable_transparent_encryption import *
 from random_utils import random_bytes, random_email, random_int32, random_int64, random_str
 from utils import (read_storage_public_key, read_storage_private_key,
                    decrypt_acrastruct, deserialize_and_decrypt_acrastruct,
@@ -4468,11 +4469,9 @@ class TestSetupCustomApiPort(BaseTestCase):
 if __name__ == '__main__':
     import xmlrunner
 
-    baseSetUpModule()
     output_path = os.environ.get('TEST_XMLOUTPUT', '')
     if output_path:
         with open(output_path, 'wb') as output:
             unittest.main(testRunner=xmlrunner.XMLTestRunner(output=output))
     else:
         unittest.main()
-    baseTearDownModule()

@@ -1,5 +1,5 @@
 import base
-from integrations import *
+from test_integrations import *
 from random_utils import random_bytes, random_email, random_int32, random_int64, random_str
 from utils import (prepare_encryptor_config,
                    get_encryptor_config, get_test_encryptor_config)

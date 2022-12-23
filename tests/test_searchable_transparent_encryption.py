@@ -1,6 +1,6 @@
 import base
 
-from integrations import *
+from test_integrations import *
 from base import *
 from utils import (destroy_server_storage_key,
                    prepare_encryptor_config,

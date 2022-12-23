@@ -756,6 +756,23 @@ CLEAN_BINARIES = utils.get_bool_env('TEST_CLEAN_BINARIES', default=True)
 BUILD_BINARIES = True
 
 
+hasSetUp = False
+
+
+def setUpModule():
+    global hasSetUp
+    if hasSetUp is False:
+        baseSetUpModule()
+        hasSetUp = True
+
+
+def tearDownModule():
+    global hasSetUp
+    if hasSetUp is True:
+        baseTearDownModule()
+        hasSetUp = False
+
+
 def baseSetUpModule():
     global KEYS_FOLDER
     global TLS_CERT_CLIENT_ID_1

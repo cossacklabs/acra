@@ -1,5 +1,5 @@
 from random_utils import random_bytes, random_int32, random_int64, random_str
-from searchable_transparent_encryption import *
+from test_searchable_transparent_encryption import *
 from utils import (get_encryptor_config)
 from sqlalchemy.sql import expression, operators
 from sqlalchemy.exc import ProgrammingError
