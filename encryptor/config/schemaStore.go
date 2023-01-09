@@ -36,8 +36,9 @@ type TableSchemaStore interface {
 
 // defaultValues store default values for config
 type defaultValues struct {
-	CryptoEnvelope       *CryptoEnvelopeType `yaml:"crypto_envelope"`
-	ReEncryptToAcraBlock *bool               `yaml:"reencrypting_to_acrablocks"`
+	CryptoEnvelope         *CryptoEnvelopeType `yaml:"crypto_envelope"`
+	ReEncryptToAcraBlock   *bool               `yaml:"reencrypting_to_acrablocks"`
+	ConsistentTokenization *bool               `yaml:"consistent_tokenization"`
 }
 
 // GetCryptoEnvelope returns type of crypto envelope
@@ -46,6 +47,14 @@ func (d defaultValues) GetCryptoEnvelope() CryptoEnvelopeType {
 		return CryptoEnvelopeTypeAcraBlock
 	}
 	return *d.CryptoEnvelope
+}
+
+// GetConsistentTokenization returns if consistent tokenization by default
+func (d defaultValues) GetConsistentTokenization() bool {
+	if d.ConsistentTokenization == nil {
+		return false
+	}
+	return *d.ConsistentTokenization
 }
 
 // ShouldReEncryptAcraStructToAcraBlock return true if should  re-encrypt data with AcraBlock
