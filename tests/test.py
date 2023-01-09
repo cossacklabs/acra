@@ -4471,14 +4471,9 @@ class TestSetupCustomApiPort(BaseTestCase):
 if __name__ == '__main__':
     import xmlrunner
 
-    baseSetUpModule()
-    try:
-        output_path = os.environ.get('TEST_XMLOUTPUT', '')
-        if output_path:
-            with open(output_path, 'wb') as output:
-                unittest.main(testRunner=xmlrunner.XMLTestRunner(output=output))
-        else:
-            unittest.main()
-    finally:
-        baseTearDownModule()
-        sys.exit(0)
+    output_path = os.environ.get('TEST_XMLOUTPUT', '')
+    if output_path:
+        with open(output_path, 'wb') as output:
+            unittest.main(testRunner=xmlrunner.XMLTestRunner(output=output))
+    else:
+        unittest.main()
