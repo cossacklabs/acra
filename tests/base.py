@@ -100,6 +100,8 @@ TEST_WITH_TRACING = os.environ.get('TEST_TRACE', 'off').lower() == 'on'
 TEST_WITH_REDIS = os.environ.get('TEST_REDIS', 'off').lower() == 'on'
 TEST_TRACE_TO_JAEGER = os.environ.get('TEST_TRACE_JAEGER', 'off').lower() == 'on'
 
+SET_UP_INTERNAL_TEST = utils.get_bool_env('SET_UP_INTERNAL_TEST', default=False)
+
 TEST_RANDOM_DATA_CONFIG = load_random_data_config()
 TEST_RANDOM_DATA_FILES = get_random_data_files()
 
@@ -760,17 +762,16 @@ hasSetUp = False
 
 
 def setUpModule():
-    global hasSetUp
-    if hasSetUp is False:
+    if SET_UP_INTERNAL_TEST:
         baseSetUpModule()
-        hasSetUp = True
+    pass
+
 
 
 def tearDownModule():
-    global hasSetUp
-    if hasSetUp is True:
+    if SET_UP_INTERNAL_TEST:
         baseTearDownModule()
-        hasSetUp = False
+    pass
 
 
 def baseSetUpModule():

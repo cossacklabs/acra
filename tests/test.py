@@ -15,6 +15,7 @@
 import collections.abc
 import os.path
 import stat
+import sys
 from tempfile import NamedTemporaryFile
 from urllib.request import urlopen
 
@@ -4469,9 +4470,14 @@ class TestSetupCustomApiPort(BaseTestCase):
 if __name__ == '__main__':
     import xmlrunner
 
-    output_path = os.environ.get('TEST_XMLOUTPUT', '')
-    if output_path:
-        with open(output_path, 'wb') as output:
-            unittest.main(testRunner=xmlrunner.XMLTestRunner(output=output))
-    else:
-        unittest.main()
+    baseSetUpModule()
+    try:
+        output_path = os.environ.get('TEST_XMLOUTPUT', '')
+        if output_path:
+            with open(output_path, 'wb') as output:
+                unittest.main(testRunner=xmlrunner.XMLTestRunner(output=output))
+        else:
+            unittest.main()
+    finally:
+        baseTearDownModule()
+        sys.exit(0)
