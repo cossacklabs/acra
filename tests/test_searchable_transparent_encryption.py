@@ -1,24 +1,37 @@
-import base
+import os
+import random
+import signal
+import tempfile
 
-from test_integrations import *
-from base import *
+import sqlalchemy as sa
+
+import base
+import test_integrations
 from utils import (destroy_server_storage_key,
                    prepare_encryptor_config,
                    get_encryptor_config, get_test_encryptor_config, send_signal_by_process_name)
 
 
-class BaseTransparentEncryption(BaseTestCase):
+def setUpModule():
+    base.setUpModule()
+
+
+def tearDownModule():
+    base.tearDownModule()
+
+
+class BaseTransparentEncryption(base.BaseTestCase):
     encryptor_table = sa.Table(
-        'test_transparent_encryption', metadata,
+        'test_transparent_encryption', base.metadata,
         sa.Column('id', sa.Integer, primary_key=True),
         sa.Column('specified_client_id',
-                  sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+                  sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
         sa.Column('default_client_id',
-                  sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+                  sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
         sa.Column('number', sa.Integer),
-        sa.Column('raw_data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+        sa.Column('raw_data', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
         sa.Column('nullable', sa.Text, nullable=True),
-        sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
     )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/encryptor_config.yaml')
 
@@ -52,11 +65,11 @@ class TestTransparentEncryption(BaseTransparentEncryption):
 
     def get_context_data(self):
         context = {
-            'id': get_random_id(),
-            'default_client_id': get_pregenerated_random_data().encode('ascii'),
-            'number': get_random_id(),
-            'specified_client_id': get_pregenerated_random_data().encode('ascii'),
-            'raw_data': get_pregenerated_random_data().encode('ascii'),
+            'id': base.get_random_id(),
+            'default_client_id': base.get_pregenerated_random_data().encode('ascii'),
+            'number': base.get_random_id(),
+            'specified_client_id': base.get_pregenerated_random_data().encode('ascii'),
+            'raw_data': base.get_pregenerated_random_data().encode('ascii'),
             'empty': b'',
         }
         return context
@@ -169,21 +182,22 @@ class TestTransparentEncryption(BaseTransparentEncryption):
 
 class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
     WHOLECELL_MODE = False
-    encryptor_table = sa.Table('test_transparent_acrablock_encryption', metadata,
+    encryptor_table = sa.Table('test_transparent_acrablock_encryption', base.metadata,
                                sa.Column('id', sa.Integer, primary_key=True),
                                sa.Column('specified_client_id',
-                                         sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+                                         sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
                                sa.Column('default_client_id',
-                                         sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+                                         sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
                                sa.Column('number', sa.Integer),
-                               sa.Column('raw_data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+                               sa.Column('raw_data', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
                                sa.Column('nullable', sa.Text, nullable=True),
-                               sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+                               sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False,
+                                         default=b''),
                                sa.Column('token_i64', sa.BigInteger(), nullable=False, default=1),
                                sa.Column('token_str', sa.Text, nullable=False, default=''),
-                               sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False,
+                               sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False,
                                          default=b''),
-                               sa.Column('masked_prefix', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False,
+                               sa.Column('masked_prefix', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False,
                                          default=b''),
                                )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_acrablock_config.yaml')
@@ -191,17 +205,17 @@ class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
     def testAcraStructReEncryption(self):
         specified_id = base.TLS_CERT_CLIENT_ID_1
         default_id = base.TLS_CERT_CLIENT_ID_2
-        test_data = get_pregenerated_random_data().encode('utf-8')
-        specified_acrastruct = create_acrastruct_with_client_id(test_data, specified_id)
-        default_acrastruct = create_acrastruct_with_client_id(test_data, default_id)
-        row_id = get_random_id()
+        test_data = base.get_pregenerated_random_data().encode('utf-8')
+        specified_acrastruct = base.create_acrastruct_with_client_id(test_data, specified_id)
+        default_acrastruct = base.create_acrastruct_with_client_id(test_data, default_id)
+        row_id = base.get_random_id()
         data = {'specified_client_id': specified_acrastruct,
                 'default_client_id': default_acrastruct,
                 'id': row_id,
-                'masked_prefix': get_pregenerated_random_data().encode('ascii'),
-                'token_bytes': get_pregenerated_random_data().encode('ascii'),
-                'token_str': get_pregenerated_random_data(),
-                'token_i64': random.randint(0, 2 ** 32),
+                'masked_prefix': base.get_pregenerated_random_data().encode('ascii'),
+                'token_bytes': base.get_pregenerated_random_data().encode('ascii'),
+                'token_str': base.get_pregenerated_random_data(),
+                'token_i64': base.random.randint(0, 2 ** 32),
                 }
         self.insertRow(data)
         raw_data = self.engine_raw.execute(
@@ -216,8 +230,8 @@ class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
         raw_data = raw_data.fetchone()
         self.assertNotEqual(raw_data['specified_client_id'], test_data)
         self.assertNotEqual(raw_data['default_client_id'], test_data)
-        self.assertEqual(raw_data['specified_client_id'][:3], CRYPTO_ENVELOPE_HEADER)
-        self.assertEqual(raw_data['default_client_id'][:3], CRYPTO_ENVELOPE_HEADER)
+        self.assertEqual(raw_data['specified_client_id'][:3], base.CRYPTO_ENVELOPE_HEADER)
+        self.assertEqual(raw_data['default_client_id'][:3], base.CRYPTO_ENVELOPE_HEADER)
         for i in ('masked_prefix', 'token_bytes', 'token_str', 'token_i64'):
             self.assertNotEqual(raw_data[i], data[i])
 
@@ -236,12 +250,13 @@ class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
             self.assertEqual(decrypted_data[i], data[i])
 
 
-class TestTransparentEncryptionWithConsulEncryptorConfigLoading(HashicorpConsulEncryptorConfigLoaderMixin,
-                                                                TestTransparentEncryption):
+class TestTransparentEncryptionWithConsulEncryptorConfigLoading(
+    test_integrations.HashicorpConsulEncryptorConfigLoaderMixin,
+    TestTransparentEncryption):
     pass
 
 
-class TransparentEncryptionNoKeyMixin(AcraCatchLogsMixin):
+class TransparentEncryptionNoKeyMixin(base.AcraCatchLogsMixin):
     def setUp(self):
         self.checkSkip()
         try:
@@ -256,7 +271,7 @@ class TransparentEncryptionNoKeyMixin(AcraCatchLogsMixin):
 
     def tearDown(self):
         if hasattr(self, 'acra'):
-            stop_process(self.acra)
+            base.stop_process(self.acra)
         send_signal_by_process_name('acra-server', signal.SIGKILL)
         self.server_keystore.cleanup()
         super().tearDown()
@@ -266,7 +281,7 @@ class TransparentEncryptionNoKeyMixin(AcraCatchLogsMixin):
         self.server_keystore = tempfile.TemporaryDirectory()
         self.server_keys_dir = os.path.join(self.server_keystore.name, '.acrakeys')
 
-        create_client_keypair(name=self.client_id, keys_dir=self.server_keys_dir, only_storage=True)
+        base.create_client_keypair(name=self.client_id, keys_dir=self.server_keys_dir, only_storage=True)
 
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
         args = {'keys_dir': self.server_keys_dir, 'client_id': self.client_id}
@@ -275,13 +290,13 @@ class TransparentEncryptionNoKeyMixin(AcraCatchLogsMixin):
 
     def testEncryptedInsert(self):
         destroy_server_storage_key(client_id=self.client_id, keys_dir=self.server_keys_dir,
-                                   keystore_version=KEYSTORE_VERSION)
+                                   keystore_version=base.KEYSTORE_VERSION)
         try:
             super().testEncryptedInsert()
 
         except:
             log = self.read_log(self.acra)
-            if KEYSTORE_VERSION == 'v1':
+            if base.KEYSTORE_VERSION == 'v1':
                 no_key_error_msg = 'open {}/.acrakeys/{}_storage_sym: no such file or directory'.format(
                     self.server_keystore.name, self.client_id)
             else:
@@ -294,9 +309,9 @@ class TestTransparentEncryptionWithNoEncryptionKey(TransparentEncryptionNoKeyMix
     pass
 
 
-class TestPostgresqlBinaryPreparedTransparentEncryption(BaseBinaryPostgreSQLTestCase, TestTransparentEncryption):
+class TestPostgresqlBinaryPreparedTransparentEncryption(base.BaseBinaryPostgreSQLTestCase, TestTransparentEncryption):
     """Testing transparent encryption of prepared statements in PostgreSQL (binary format)."""
-    FORMAT = AsyncpgExecutor.BinaryFormat
+    FORMAT = base.AsyncpgExecutor.BinaryFormat
 
     def filterContext(self, context):
         # Context contains some extra fields which do not correspond
@@ -326,47 +341,50 @@ class TestPostgresqlBinaryPreparedTransparentEncryption(BaseBinaryPostgreSQLTest
         self.executor2.execute_prepared_statement(query, parameters)
 
 
-class TestPostgresqlBinaryPreparedTransparentEncryptionWithAWSKMSKeystore(KMSAWSType, KMSPerClientEncryptorMixin,
+class TestPostgresqlBinaryPreparedTransparentEncryptionWithAWSKMSKeystore(test_integrations.KMSAWSType,
+                                                                          test_integrations.KMSPerClientEncryptorMixin,
                                                                           TestPostgresqlBinaryPreparedTransparentEncryption):
     pass
 
 
-class TestPostgresqlBinaryPreparedTransparentEncryptionWithAWSKMSMasterKeyLoader(AWSKMSMasterKeyLoaderMixin,
-                                                                                 TestPostgresqlBinaryPreparedTransparentEncryption):
+class TestPostgresqlBinaryPreparedTransparentEncryptionWithAWSKMSMasterKeyLoader(
+    test_integrations.AWSKMSMasterKeyLoaderMixin,
+    TestPostgresqlBinaryPreparedTransparentEncryption):
     pass
 
 
 class TestPostgresqlTextPreparedTransparentEncryption(TestPostgresqlBinaryPreparedTransparentEncryption):
     """Testing transparent encryption of prepared statements in PostgreSQL (text format)."""
-    FORMAT = AsyncpgExecutor.TextFormat
+    FORMAT = base.AsyncpgExecutor.TextFormat
 
 
-class TestPostgresqlTextPreparedTransparentEncryptionWithAWSKMSMasterKeyLoader(AWSKMSMasterKeyLoaderMixin,
-                                                                               TestPostgresqlTextPreparedTransparentEncryption):
+class TestPostgresqlTextPreparedTransparentEncryptionWithAWSKMSMasterKeyLoader(
+    test_integrations.AWSKMSMasterKeyLoaderMixin,
+    TestPostgresqlTextPreparedTransparentEncryption):
     pass
 
 
 class BaseSearchableTransparentEncryption(TestTransparentEncryption):
     encryptor_table = sa.Table(
-        'test_searchable_transparent_encryption', metadata,
+        'test_searchable_transparent_encryption', base.metadata,
         sa.Column('id', sa.Integer, primary_key=True),
         sa.Column('specified_client_id',
-                  sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+                  sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
         sa.Column('default_client_id',
-                  sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+                  sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
 
         sa.Column('number', sa.Integer),
-        sa.Column('raw_data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+        sa.Column('raw_data', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
         sa.Column('nullable', sa.Text, nullable=True),
-        sa.Column('searchable', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
-        sa.Column('searchable_acrablock', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
-        sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('searchable', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+        sa.Column('searchable_acrablock', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+        sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
         sa.Column('token_i32', sa.Integer(), nullable=False, default=1),
         sa.Column('token_i64', sa.BigInteger(), nullable=False, default=1),
         sa.Column('token_str', sa.Text, nullable=False, default=''),
-        sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
         sa.Column('token_email', sa.Text, nullable=False, default=''),
-        sa.Column('masking', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('masking', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
     )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_encryptor_config.yaml')
 
@@ -402,21 +420,21 @@ class BaseSearchableTransparentEncryption(TestTransparentEncryption):
 
     def get_context_data(self):
         context = {
-            'id': get_random_id(),
-            'default_client_id': get_pregenerated_random_data().encode('ascii'),
-            'number': get_random_id(),
-            'specified_client_id': get_pregenerated_random_data().encode('ascii'),
-            'raw_data': get_pregenerated_random_data().encode('ascii'),
-            'searchable': get_pregenerated_random_data().encode('ascii'),
-            'searchable_acrablock': get_pregenerated_random_data().encode('ascii'),
+            'id': base.get_random_id(),
+            'default_client_id': base.get_pregenerated_random_data().encode('ascii'),
+            'number': base.get_random_id(),
+            'specified_client_id': base.get_pregenerated_random_data().encode('ascii'),
+            'raw_data': base.get_pregenerated_random_data().encode('ascii'),
+            'searchable': base.get_pregenerated_random_data().encode('ascii'),
+            'searchable_acrablock': base.get_pregenerated_random_data().encode('ascii'),
             'empty': b'',
             'nullable': None,
-            'masking': get_pregenerated_random_data().encode('ascii'),
-            'token_bytes': get_pregenerated_random_data().encode('ascii'),
-            'token_email': get_pregenerated_random_data(),
-            'token_str': get_pregenerated_random_data(),
-            'token_i32': random.randint(0, 2 ** 16),
-            'token_i64': random.randint(0, 2 ** 32),
+            'masking': base.get_pregenerated_random_data().encode('ascii'),
+            'token_bytes': base.get_pregenerated_random_data().encode('ascii'),
+            'token_email': base.get_pregenerated_random_data(),
+            'token_str': base.get_pregenerated_random_data(),
+            'token_i32': base.random.randint(0, 2 ** 16),
+            'token_i64': base.random.randint(0, 2 ** 32),
         }
         return context
 
@@ -425,7 +443,7 @@ class BaseSearchableTransparentEncryption(TestTransparentEncryption):
             search_term = context[search_field]
         temp_context = context.copy()
         while count != 0:
-            new_data = get_pregenerated_random_data().encode('utf-8')
+            new_data = base.get_pregenerated_random_data().encode('utf-8')
             if new_data != search_term:
                 temp_context[search_field] = new_data
                 temp_context['id'] = context['id'] + count
@@ -444,7 +462,7 @@ class BaseSearchableTransparentEncryption(TestTransparentEncryption):
         return self.engine2.execute(query.values(values))
 
 
-class BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin(BaseBinaryPostgreSQLTestCase, BaseTestCase):
+class BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin(base.BaseBinaryPostgreSQLTestCase, base.BaseTestCase):
     def executeSelect2(self, query, parameters):
         query, parameters = self.compileQuery(query, parameters)
         return self.executor2.execute_prepared_statement(query, parameters)
@@ -459,7 +477,7 @@ class BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin(BaseBinaryPostgre
         return self.executor2.execute_prepared_statement(query, parameters)
 
 
-class BaseSearchableTransparentEncryptionBinaryMySQLMixin(BaseBinaryMySQLTestCase, BaseTestCase):
+class BaseSearchableTransparentEncryptionBinaryMySQLMixin(base.BaseBinaryMySQLTestCase, base.BaseTestCase):
     def executeSelect2(self, query, parameters):
         query, parameters = self.compileQuery(query, parameters)
         return self.executor2.execute_prepared_statement(query, parameters)
@@ -545,7 +563,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
             self.assertNotEqual(row['searchable'], search_term)
             self.assertEqual(row['token_i32'], new_token_i32)
 
-        row_id = get_random_id()
+        row_id = base.get_random_id()
         insert_data = {
             'param_1': row_id,
             'b_searchable': search_term
@@ -555,7 +573,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
                           'searchable_acrablock', 'empty', 'nullable', 'masking', 'token_bytes', 'token_email',
                           'token_str', 'token_i32', 'token_i64']
 
-        if TEST_POSTGRESQL:
+        if base.TEST_POSTGRESQL:
             id_sequence = sa.text("nextval('test_searchable_transparent_encryption_id_seq')")
         else:
             # use null as value for auto incremented column
@@ -638,7 +656,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         self.assertEqual(rows[0]['searchable'], search_term)
         self.assertEqual(rows[0]['token_i32'], new_token_i32)
 
-        row_id = get_random_id()
+        row_id = base.get_random_id()
         insert_data = {
             'param_1': row_id,
             'b_searchable': search_term
@@ -725,7 +743,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         values = [search_context]
         for idx in range(5):
             insert_context = self.get_context_data()
-            new_data = get_pregenerated_random_data().encode('utf-8')
+            new_data = base.get_pregenerated_random_data().encode('utf-8')
             if new_data != search_term:
                 insert_context['searchable'] = new_data
                 values.append(insert_context.copy())
@@ -758,11 +776,11 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
             .where(self.encryptor_table.c.id == row_id)).fetchall()
         self.assertTrue(rows)
 
-        temp_acrastruct = create_acrastruct_with_client_id(b'somedata', base.TLS_CERT_CLIENT_ID_1)
+        temp_acrastruct = base.create_acrastruct_with_client_id(b'somedata', base.TLS_CERT_CLIENT_ID_1)
         # AcraBlock should have half of AcraStruct begin tag. Check that searchable_acrablock is not AcraStruct
         self.assertNotEqual(rows[0]['searchable_acrablock'][:8], temp_acrastruct[:8])
         # skip 33 bytes of hash
-        self.assertEqual(rows[0]['searchable_acrablock'][33:33 + 3], CRYPTO_ENVELOPE_HEADER)
+        self.assertEqual(rows[0]['searchable_acrablock'][33:33 + 3], base.CRYPTO_ENVELOPE_HEADER)
 
         rows = self.executeSelect2(
             sa.select([self.encryptor_table])
@@ -794,7 +812,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
             self.assertNotEqual(row['id'], context['id'])
 
     def testDeserializeOldContainerOnDecryptionFail(self):
-        acrastruct = create_acrastruct_with_client_id(b'somedata', base.TLS_CERT_CLIENT_ID_1)
+        acrastruct = base.create_acrastruct_with_client_id(b'somedata', base.TLS_CERT_CLIENT_ID_1)
 
         context = self.get_context_data()
         context['raw_data'] = acrastruct
@@ -817,7 +835,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         context = self.get_context_data()
         not_encrypted_term = context['raw_data']
         search_term = context['searchable']
-        encrypted_term = create_acrastruct_with_client_id(
+        encrypted_term = base.create_acrastruct_with_client_id(
             search_term, base.TLS_CERT_CLIENT_ID_2)
         context['searchable'] = encrypted_term
 
@@ -852,7 +870,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         context = self.get_context_data()
         not_encrypted_term = context['raw_data']
         search_term = context['searchable']
-        encrypted_term = create_acrastruct_with_client_id(
+        encrypted_term = base.create_acrastruct_with_client_id(
             search_term, base.TLS_CERT_CLIENT_ID_2)
         context['searchable'] = encrypted_term
 
@@ -883,7 +901,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         row_id = context['id']
         not_encrypted_term = context['raw_data']
         search_term = context['searchable_acrablock']
-        encrypted_term = create_acrastruct_with_client_id(
+        encrypted_term = base.create_acrastruct_with_client_id(
             search_term, base.TLS_CERT_CLIENT_ID_2)
         context['searchable_acrablock'] = encrypted_term
 
@@ -929,7 +947,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         row_id = context['id']
         not_encrypted_term = context['raw_data']
         search_term = context['searchable_acrablock']
-        encrypted_term = create_acrastruct_with_client_id(
+        encrypted_term = base.create_acrastruct_with_client_id(
             search_term, base.TLS_CERT_CLIENT_ID_2)
         context['searchable_acrablock'] = encrypted_term
 
@@ -961,7 +979,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         context = self.get_context_data()
         # Encrypt searchable data with epoch 1 key
         search_term = context['searchable']
-        encrypted_term = create_acrastruct_with_client_id(
+        encrypted_term = base.create_acrastruct_with_client_id(
             search_term, base.TLS_CERT_CLIENT_ID_2)
         context['searchable'] = encrypted_term
 
@@ -972,7 +990,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
 
         # Encrypt the search term again with the same epoch 1 key,
         # this will result in different encrypted data on outside
-        encrypted_term_1 = create_acrastruct_with_client_id(
+        encrypted_term_1 = base.create_acrastruct_with_client_id(
             search_term, base.TLS_CERT_CLIENT_ID_2)
         self.assertNotEqual(encrypted_term_1, encrypted_term)
 
@@ -986,10 +1004,10 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         self.assertEqual(rows[0]['searchable'], search_term)
 
         # Now, rotate the encryption keys
-        create_client_keypair(base.TLS_CERT_CLIENT_ID_2, only_storage=True)
+        base.create_client_keypair(base.TLS_CERT_CLIENT_ID_2, only_storage=True)
 
         # Encrypt the search term again, now with the epoch 2 key
-        encrypted_term_2 = create_acrastruct_with_client_id(
+        encrypted_term_2 = base.create_acrastruct_with_client_id(
             search_term, base.TLS_CERT_CLIENT_ID_2)
         self.assertNotEqual(encrypted_term_2, encrypted_term)
         self.assertNotEqual(encrypted_term_2, encrypted_term_1)
@@ -1018,7 +1036,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         row_id = context['id']
         # Encrypt searchable data with epoch 1 key
         search_term = context['searchable_acrablock']
-        encrypted_term = create_acrastruct_with_client_id(
+        encrypted_term = base.create_acrastruct_with_client_id(
             search_term, base.TLS_CERT_CLIENT_ID_2)
         context['searchable_acrablock'] = encrypted_term
 
@@ -1039,7 +1057,7 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
 
         # Encrypt the search term again with the same epoch 1 key,
         # this will result in different encrypted data on outside
-        encrypted_term_1 = create_acrastruct_with_client_id(
+        encrypted_term_1 = base.create_acrastruct_with_client_id(
             search_term, base.TLS_CERT_CLIENT_ID_2)
         self.assertNotEqual(encrypted_term_1, encrypted_term)
 
@@ -1053,10 +1071,10 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
         self.assertEqual(rows[0]['searchable_acrablock'], search_term)
 
         # Now, rotate the encryption keys
-        create_client_keypair(base.TLS_CERT_CLIENT_ID_2, only_storage=True)
+        base.create_client_keypair(base.TLS_CERT_CLIENT_ID_2, only_storage=True)
 
         # Encrypt the search term again, now with the epoch 2 key
-        encrypted_term_2 = create_acrastruct_with_client_id(
+        encrypted_term_2 = base.create_acrastruct_with_client_id(
             search_term, base.TLS_CERT_CLIENT_ID_2)
         self.assertNotEqual(encrypted_term_2, encrypted_term)
         self.assertNotEqual(encrypted_term_2, encrypted_term_1)
@@ -1092,23 +1110,23 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
 
 class TestSearchableTransparentEncryptionWithJOINs(BaseSearchableTransparentEncryption):
     encryptor_table_join = sa.Table(
-        'test_searchable_transparent_encryption_join', metadata,
+        'test_searchable_transparent_encryption_join', base.metadata,
         sa.Column('id', sa.Integer, primary_key=True),
         sa.Column('specified_client_id',
-                  sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+                  sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
         sa.Column('default_client_id',
-                  sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+                  sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
 
         sa.Column('number', sa.Integer),
-        sa.Column('raw_data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+        sa.Column('raw_data', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
         sa.Column('nullable', sa.Text, nullable=True),
-        sa.Column('searchable', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
-        sa.Column('searchable_acrablock', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
-        sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('searchable', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+        sa.Column('searchable_acrablock', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+        sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
         sa.Column('token_i32', sa.Integer(), nullable=False, default=1),
         sa.Column('token_i64', sa.BigInteger(), nullable=False, default=1),
         sa.Column('token_str', sa.Text, nullable=False, default=''),
-        sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
         sa.Column('token_email', sa.Text, nullable=False, default=''),
     )
 
@@ -1195,7 +1213,7 @@ class TestSearchableTransparentEncryptionWithJOINs(BaseSearchableTransparentEncr
         self.insertRow(context)
         self.insertDifferentRows(context, count=5)
 
-        search_term_join = get_pregenerated_random_data().encode('ascii')
+        search_term_join = base.get_pregenerated_random_data().encode('ascii')
         context['searchable'] = search_term_join
 
         # Insert the same data into encryptor_table_join table with different search term
@@ -1213,7 +1231,7 @@ class TestSearchableTransparentEncryptionDoubleQuotedTables(BaseSearchableTransp
     def setUp(self):
         super().setUp()
 
-        if TEST_MYSQL:
+        if base.TEST_MYSQL:
             self.skipTest("useful only for postgresql")
             # TODO: double quoted tables can be used in MySQL only with ANSI mode but currently ACRA doest have proper configuration
             # to use MySQL dialect with ANSI mode
@@ -1237,16 +1255,6 @@ class TestSearchableTransparentEncryptionDoubleQuotedTables(BaseSearchableTransp
 
         self.checkDefaultIdEncryption(**context)
 
-    # def set_ansi_mode(self, set_ansi):
-    #     query = "SET SESSION sql_mode = '{}'".format(self.sql_mode_wo_ansi)
-    #     if set_ansi:
-    #         query = "SET SESSION sql_mode = '{}'".format(self.sql_mode_wo_ansi + ",ANSI")
-    #     self.engine2.execute(query)
-
-    # def tearDown(self):
-    #     super().tearDown()
-    #     self.set_ansi_mode(False)
-
 
 class TestSearchableTransparentEncryptionWithDefaultsAcraBlockBinaryPostgreSQL(
     BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin, TestSearchableTransparentEncryption):
@@ -1254,7 +1262,8 @@ class TestSearchableTransparentEncryptionWithDefaultsAcraBlockBinaryPostgreSQL(
 
 
 class TestSearchableTransparentEncryptionWithDefaultsAcraBlockBinaryPostgreSQLWithConsulEncryptorConfigLoader(
-    HashicorpConsulEncryptorConfigLoaderMixin, BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin,
+    test_integrations.HashicorpConsulEncryptorConfigLoaderMixin,
+    BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin,
     TestSearchableTransparentEncryption):
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_acrablock_defaults_with_searchable_config.yaml')
 
@@ -1266,12 +1275,14 @@ class TestSearchableTransparentEncryptionWithDefaultsAcraBlockBinaryMySQL(
 
 class TestSearchableTransparentEncryptionWithDefaultsAcraStructBinaryPostgreSQL(
     BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin, TestSearchableTransparentEncryption):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_acrastruct_defaults_with_searchable_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config(
+        'tests/encryptor_configs/ee_acrastruct_defaults_with_searchable_config.yaml')
 
 
 class TestSearchableTransparentEncryptionWithDefaultsAcraStructBinaryMySQL(
     BaseSearchableTransparentEncryptionBinaryMySQLMixin, TestSearchableTransparentEncryption):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_acrastruct_defaults_with_searchable_config.yaml')
+    ENCRYPTOR_CONFIG = get_encryptor_config(
+        'tests/encryptor_configs/ee_acrastruct_defaults_with_searchable_config.yaml')
 
 
 class TestSearchableTransparentEncryptionBinaryPostgreSQL(BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin,
@@ -1310,25 +1321,25 @@ class TestTransparentAcraBlockEncryptionWithDefaults(TestTransparentAcraBlockEnc
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_acrablock_config_with_defaults.yaml')
 
 
-class TestTransparentEncryptionConnectorlessWithTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin,
+class TestTransparentEncryptionConnectorlessWithTLSBySerialNumber(base.TLSAuthenticationBySerialNumberMixin,
                                                                   TestTransparentEncryption,
-                                                                  TLSAuthenticationDirectlyToAcraMixin):
+                                                                  base.TLSAuthenticationDirectlyToAcraMixin):
     pass
 
 
-class TestTransparentEncryptionConnectorlessWithTLSByDN(TLSAuthenticationByDistinguishedNameMixin,
+class TestTransparentEncryptionConnectorlessWithTLSByDN(base.TLSAuthenticationByDistinguishedNameMixin,
                                                         TestTransparentEncryption,
-                                                        TLSAuthenticationDirectlyToAcraMixin):
+                                                        base.TLSAuthenticationDirectlyToAcraMixin):
     pass
 
 
-class TestSearchableTransparentEncryptionConnectorlessWithTLSByDN(TLSAuthenticationByDistinguishedNameMixin,
+class TestSearchableTransparentEncryptionConnectorlessWithTLSByDN(base.TLSAuthenticationByDistinguishedNameMixin,
                                                                   TestSearchableTransparentEncryption,
-                                                                  TLSAuthenticationDirectlyToAcraMixin):
+                                                                  base.TLSAuthenticationDirectlyToAcraMixin):
     pass
 
 
-class TestSearchableTransparentEncryptionConnectorlessWithTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin,
+class TestSearchableTransparentEncryptionConnectorlessWithTLSBySerialNumber(base.TLSAuthenticationBySerialNumberMixin,
                                                                             TestSearchableTransparentEncryption,
-                                                                            TLSAuthenticationDirectlyToAcraMixin):
+                                                                            base.TLSAuthenticationDirectlyToAcraMixin):
     pass

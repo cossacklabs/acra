@@ -1,11 +1,26 @@
 import base64
+import json
+import os
+import subprocess
+import tempfile
+import time
+import unittest
+from urllib.parse import urlparse
 
 import boto3
 import consul
 import hvac
 
-from base import *
+import base
 from utils import (BINARY_OUTPUT_FOLDER)
+
+
+def setUpModule():
+    base.setUpModule()
+
+
+def tearDownModule():
+    base.tearDownModule()
 
 
 class AWSKMSClient:
@@ -82,7 +97,7 @@ class VaultClient:
         self.vault_client.sys.enable_secrets_engine(
             backend_type='kv',
             path=mount_path,
-            options=self.version_options[VAULT_KV_ENGINE_VERSION],
+            options=self.version_options[base.VAULT_KV_ENGINE_VERSION],
         )
         time.sleep(2)
 
@@ -90,7 +105,7 @@ class VaultClient:
         self.vault_client.sys.disable_secrets_engine(path=mount_path)
 
     def put_master_key_by_version(self, path, version, mount_point=None):
-        self.master_key = get_master_key()
+        self.master_key = base.get_master_key()
         master_secret = {
             'acra_master_key': self.master_key
         }
@@ -114,9 +129,9 @@ class VaultClient:
             'keystore_encryption_type': keystore_encryption_type
         }
 
-        if TEST_SSL_VAULT:
+        if base.TEST_SSL_VAULT:
             args['vault_tls_transport_enable'] = True
-            args['vault_tls_client_ca'] = TEST_VAULT_TLS_CA
+            args['vault_tls_client_ca'] = base.TEST_VAULT_TLS_CA
         return args
 
 
@@ -138,16 +153,16 @@ class HashiCorpVaultMasterKeyLoaderMixin:
     secret_path = 'foo'
 
     def setUp(self):
-        if not TEST_WITH_VAULT:
+        if not base.TEST_WITH_VAULT:
             self.skipTest("test with HashiCorp Vault ACRA_MASTER_KEY loader")
 
-        if TEST_SSL_VAULT:
-            self.vault_client = VaultClient(verify=TEST_VAULT_TLS_CA)
+        if base.TEST_SSL_VAULT:
+            self.vault_client = VaultClient(verify=base.TEST_VAULT_TLS_CA)
         else:
             self.vault_client = VaultClient()
 
         self.vault_client.enable_kv_secret_engine(mount_path=self.DEFAULT_MOUNT_PATH)
-        self.vault_client.put_master_key_by_version(self.secret_path, VAULT_KV_ENGINE_VERSION,
+        self.vault_client.put_master_key_by_version(self.secret_path, base.VAULT_KV_ENGINE_VERSION,
                                                     mount_point=self.DEFAULT_MOUNT_PATH)
         super().setUp()
 
@@ -178,7 +193,7 @@ class HashiCorpVaultMasterKeyLoaderMixin:
 
 class KMSAWSType:
     def setUp(self):
-        if not TEST_WITH_AWS_KMS:
+        if not base.TEST_WITH_AWS_KMS:
             self.skipTest("test with AWS KMS ACRA_MASTER_KEY loader")
 
         configuration = {
@@ -210,12 +225,12 @@ class KMSPerClientEncryptorMixin:
             'kms_credentials_path': self.get_kms_configuration_path(),
             'keystore_encryption_type': "kms_per_client",
         }
-        assert create_client_keypair_from_certificate(TEST_TLS_CLIENT_CERT, keys_dir=self.keys_dir,
-                                                      extra_kwargs=extra_args) == 0
-        assert create_client_keypair_from_certificate(TEST_TLS_CLIENT_2_CERT, keys_dir=self.keys_dir,
-                                                      extra_kwargs=extra_args) == 0
+        assert base.create_client_keypair_from_certificate(base.TEST_TLS_CLIENT_CERT, keys_dir=self.keys_dir,
+                                                           extra_kwargs=extra_args) == 0
+        assert base.create_client_keypair_from_certificate(base.TEST_TLS_CLIENT_2_CERT, keys_dir=self.keys_dir,
+                                                           extra_kwargs=extra_args) == 0
 
-        self.poison_record = get_new_poison_record(extra_kwargs=extra_args, keys_dir=self.keys_dir)
+        self.poison_record = base.get_new_poison_record(extra_kwargs=extra_args, keys_dir=self.keys_dir)
         super().setUp()
 
     def get_poison_records(self):
@@ -245,13 +260,13 @@ class HashicorpConsulEncryptorConfigLoaderMixin:
     ENCRYPTOR_CONFIG_KEY_PATH = 'acra/encryptor_config'
 
     def setUp(self):
-        if not TEST_CONSUL_ENCRYPTOR_CONFIG:
+        if not base.TEST_CONSUL_ENCRYPTOR_CONFIG:
             self.skipTest("test with HashiCorp Consul EncryptorConfig loader")
 
-        if TEST_SSL_CONSUL:
+        if base.TEST_SSL_CONSUL:
             self.consul_client = ConsulClient(url=os.environ.get('CONSUL_ADDRESS', 'https://localhost:8501'),
-                                              verify=TEST_CONSUL_TLS_CA,
-                                              cert=(TEST_TLS_CLIENT_CERT, TEST_TLS_CLIENT_KEY))
+                                              verify=base.TEST_CONSUL_TLS_CA,
+                                              cert=(base.TEST_TLS_CLIENT_CERT, base.TEST_TLS_CLIENT_KEY))
         else:
             self.consul_client = ConsulClient(url=os.environ.get('CONSUL_ADDRESS', 'http://localhost:8500'))
 
@@ -265,11 +280,11 @@ class HashicorpConsulEncryptorConfigLoaderMixin:
             'consul_kv_config_path': self.ENCRYPTOR_CONFIG_KEY_PATH,
             'encryptor_config_storage_type': 'consul'
         }
-        if TEST_SSL_CONSUL:
+        if base.TEST_SSL_CONSUL:
             args['consul_tls_enable'] = True
-            args['consul_tls_client_ca'] = TEST_CONSUL_TLS_CA
-            args['consul_tls_client_cert'] = TEST_TLS_CLIENT_CERT
-            args['consul_tls_client_key'] = TEST_TLS_CLIENT_KEY
+            args['consul_tls_client_ca'] = base.TEST_CONSUL_TLS_CA
+            args['consul_tls_client_cert'] = base.TEST_TLS_CLIENT_CERT
+            args['consul_tls_client_key'] = base.TEST_TLS_CLIENT_KEY
             args['consul_tls_client_auth'] = 4
 
         acra_kwargs.update(args)
@@ -282,17 +297,17 @@ class HashicorpConsulEncryptorConfigLoaderMixin:
 
 class AWSKMSMasterKeyLoaderMixin:
     def setUp(self):
-        if not TEST_WITH_AWS_KMS:
+        if not base.TEST_WITH_AWS_KMS:
             self.skipTest("test with AWS KMS ACRA_MASTER_KEY loader")
 
         self.kms_client = AWSKMSClient()
         self.master_key_kek_uri = self.kms_client.create_key()
         self.kms_client.create_alias(keyId=self.master_key_kek_uri, alias_name='alias/acra_master_key')
 
-        master_key = b64decode(get_master_key())
+        master_key = base.b64decode(base.get_master_key())
         response = self.kms_client.encrypt(keyId=self.master_key_kek_uri, data=master_key)
 
-        self.master_key_ciphertext = b64encode(response['CiphertextBlob']).decode("utf-8")
+        self.master_key_ciphertext = base.b64encode(response['CiphertextBlob']).decode("utf-8")
         self.create_configuration_file()
 
         super().setUp()
@@ -314,7 +329,7 @@ class AWSKMSMasterKeyLoaderMixin:
             'kms_type': 'aws',
             'keystore_encryption_type': 'kms_encrypted_master_key'
         }
-        os.environ[ACRA_MASTER_KEY_VAR_NAME] = self.master_key_ciphertext
+        os.environ[base.ACRA_MASTER_KEY_VAR_NAME] = self.master_key_ciphertext
         acra_kwargs.update(args)
         return super(AWSKMSMasterKeyLoaderMixin, self).fork_acra(popen_kwargs, **acra_kwargs)
 
@@ -324,7 +339,7 @@ class AWSKMSMasterKeyLoaderMixin:
             'kms_type': 'aws',
             'keystore_encryption_type': 'kms_encrypted_master_key'
         }
-        os.environ[ACRA_MASTER_KEY_VAR_NAME] = self.master_key_ciphertext
+        os.environ[base.ACRA_MASTER_KEY_VAR_NAME] = self.master_key_ciphertext
         translator_kwargs.update(args)
         return super(AWSKMSMasterKeyLoaderMixin, self).fork_translator(translator_kwargs, popen_kwargs)
 
@@ -333,12 +348,12 @@ class AWSKMSMasterKeyLoaderMixin:
         self.kms_client.delete_alias(alias_name='alias/acra_master_key')
         self.kms_client.disable_key(keyId=self.master_key_kek_uri)
         self.kms_client.close()
-        os.environ[ACRA_MASTER_KEY_VAR_NAME] = get_master_key()
+        os.environ[base.ACRA_MASTER_KEY_VAR_NAME] = base.get_master_key()
 
 
 class KeyMakerTestWithAWSKMS(unittest.TestCase):
     def setUp(self):
-        if not TEST_WITH_AWS_KMS:
+        if not base.TEST_WITH_AWS_KMS:
             self.skipTest("test with AWS KMS ACRA_MASTER_KEY loader")
 
         self.kms_client = AWSKMSClient()
@@ -358,7 +373,7 @@ class KeyMakerTestWithAWSKMS(unittest.TestCase):
     def test_generate_master_key_with_kms_create(self):
         master_key_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
         subprocess.check_output(
-            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
+            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(base.KEYSTORE_VERSION),
              '--generate_master_key={}'.format(master_key_file.name),
              '--kms_type=aws',
              '--keystore_encryption_type=kms_encrypted_master_key',
@@ -376,7 +391,7 @@ class KeyMakerTestWithAWSKMS(unittest.TestCase):
         with tempfile.NamedTemporaryFile('w+', encoding='utf-8') as master_key_file:
             try:
                 subprocess.check_output(
-                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(KEYSTORE_VERSION),
+                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(base.KEYSTORE_VERSION),
                      '--generate_master_key={}'.format(master_key_file.name),
                      '--kms_type=aws',
                      '--keystore_encryption_type=kms_encrypted_master_key',
@@ -388,7 +403,8 @@ class KeyMakerTestWithAWSKMS(unittest.TestCase):
         self.kms_client.delete_alias(alias_name='alias/acra_master_key')
 
 
-class TestEnableCachedOnStartupAWSKMSKeystore(KMSAWSType, KMSPerClientEncryptorMixin, TestEnableCachedOnStartupTest):
+class TestEnableCachedOnStartupAWSKMSKeystore(KMSAWSType, KMSPerClientEncryptorMixin,
+                                              base.TestEnableCachedOnStartupTest):
     # just passed test to check if cache on start is working with KMS
     def testReadAcrastructInAcrastruct(self):
         pass
@@ -402,7 +418,7 @@ class TestEnableCachedOnStartupAWSKMSKeystore(KMSAWSType, KMSPerClientEncryptorM
 #         return self.get_poison_records()
 
 
-class AcraTranslatorTestWithAWSKMS(AWSKMSMasterKeyLoaderMixin, AcraTranslatorTest):
+class AcraTranslatorTestWithAWSKMS(AWSKMSMasterKeyLoaderMixin, base.AcraTranslatorTest):
     # ignore test as test logic contains some internal keys generation with ENV MasterKey loading
     def testGRPCApi(self):
         pass
@@ -411,37 +427,38 @@ class AcraTranslatorTestWithAWSKMS(AWSKMSMasterKeyLoaderMixin, AcraTranslatorTes
         pass
 
 
-class TestTranslatorDisableCachedOnStartupWithAWSKMS(AWSKMSMasterKeyLoaderMixin, TestTranslatorDisableCachedOnStartup):
+class TestTranslatorDisableCachedOnStartupWithAWSKMS(AWSKMSMasterKeyLoaderMixin,
+                                                     base.TestTranslatorDisableCachedOnStartup):
     pass
 
 
 class TestTranslatorDisableCachedOnStartupWithAWSKMSKeystore(KMSAWSType, KMSPerClientEncryptorMixin,
-                                                             TestTranslatorDisableCachedOnStartup):
+                                                             base.TestTranslatorDisableCachedOnStartup):
     pass
 
 
 class TestAcraTranslatorWithVaultMasterKeyLoaderByDistinguishedName(HashiCorpVaultMasterKeyLoaderMixin,
-                                                                    TLSAuthenticationByDistinguishedNameMixin,
-                                                                    AcraTranslatorTest):
+                                                                    base.TLSAuthenticationByDistinguishedNameMixin,
+                                                                    base.AcraTranslatorTest):
     pass
 
 
 class TestAcraTranslatorWithVaultMasterKeyLoaderBySerialNumber(HashiCorpVaultMasterKeyLoaderMixin,
-                                                               TLSAuthenticationBySerialNumberMixin,
-                                                               AcraTranslatorTest):
+                                                               base.TLSAuthenticationBySerialNumberMixin,
+                                                               base.AcraTranslatorTest):
     pass
 
 
 class TestAcraTranslatorClientIDFromTLSByDistinguishedNameVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoaderMixin,
-                                                                               TestAcraTranslatorClientIDFromTLSByDistinguishedName):
+                                                                               base.TestAcraTranslatorClientIDFromTLSByDistinguishedName):
     pass
 
 
-class TestKeyRotationWithVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoaderMixin, TestKeyRotation):
+class TestKeyRotationWithVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoaderMixin, base.TestKeyRotation):
     pass
 
 
 class TestAcraTranslatorClientIDFromTLSBySerialNumberVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoaderMixin,
-                                                                          TLSAuthenticationBySerialNumberMixin,
-                                                                          TestAcraTranslatorClientIDFromTLSByDistinguishedName):
+                                                                          base.TLSAuthenticationBySerialNumberMixin,
+                                                                          base.TestAcraTranslatorClientIDFromTLSByDistinguishedName):
     pass

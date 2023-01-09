@@ -37,7 +37,6 @@ import semver
 import sqlalchemy as sa
 from sqlalchemy.dialects import mysql as mysql_dialect
 from sqlalchemy.dialects import postgresql as postgresql_dialect
-from sqlalchemy.exc import DatabaseError
 
 import api_pb2
 import api_pb2_grpc
@@ -757,21 +756,37 @@ CLEAN_BINARIES = utils.get_bool_env('TEST_CLEAN_BINARIES', default=True)
 # Set this to False to not build binaries in principle.
 BUILD_BINARIES = True
 
-
 hasSetUp = False
 
 
-def setUpModule():
-    if SET_UP_INTERNAL_TEST:
-        baseSetUpModule()
-    pass
+def collectTests(source: unittest.TestSuite, tests=[]):
+    if not isinstance(source, unittest.TestSuite):
+        raise TypeError('invalid source of tests')
+    for tcase in source._tests:
+        if not tcase:
+            continue
+        if isinstance(tcase, unittest.TestSuite):
+            collectTests(tcase, tests)
+        if isinstance(tcase, unittest.TestCase):
+            tests.append(tcase)
 
+
+def load_tests(loader, standard_tests, pattern):
+    tests = []
+    collectTests(standard_tests, tests)
+    for tcase in tests:
+        if not tcase:
+            continue
+        tcase.__class__.__module__ = 'base'
+    return unittest.TestSuite(tests)
+
+
+def setUpModule():
+    baseSetUpModule()
 
 
 def tearDownModule():
-    if SET_UP_INTERNAL_TEST:
-        baseTearDownModule()
-    pass
+    baseTearDownModule()
 
 
 def baseSetUpModule():

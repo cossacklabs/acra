@@ -1,11 +1,23 @@
+import os
+
+import sqlalchemy as sa
+
 import base
-from test_integrations import *
+import test_integrations
 from random_utils import random_bytes, random_email, random_int32, random_int64, random_str
 from utils import (prepare_encryptor_config,
-                   get_encryptor_config, get_test_encryptor_config)
+                   get_encryptor_config, get_test_encryptor_config, memoryview_to_bytes)
 
 
-class BaseTokenization(BaseTestCase):
+def setUpModule():
+    base.setUpModule()
+
+
+def tearDownModule():
+    base.tearDownModule()
+
+
+class BaseTokenization(base.BaseTestCase):
     WHOLECELL_MODE = True
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_tokenization_config.yaml')
 
@@ -53,27 +65,27 @@ class BaseTokenizationWithBoltDB(BaseTokenization):
         os.remove('token1.db')
 
 
-class BaseTokenizationWithRedis(RedisMixin, BaseTokenization):
+class BaseTokenizationWithRedis(base.RedisMixin, BaseTokenization):
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
         acra_kwargs.update(
             redis_host_port=os.environ.get('TEST_REDIS_HOSTPORT', 'localhost:6379'),
             redis_db_tokens=self.TEST_REDIS_TOKEN_DB,
             encryptor_config_file=get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
-        if TEST_WITH_TLS:
+        if base.TEST_WITH_TLS:
             acra_kwargs.update(
                 redis_tls_client_auth=4,
-                redis_tls_client_ca=TEST_TLS_CA,
-                redis_tls_client_cert=TEST_TLS_CLIENT_CERT,
-                redis_tls_client_key=TEST_TLS_CLIENT_KEY,
+                redis_tls_client_ca=base.TEST_TLS_CA,
+                redis_tls_client_cert=base.TEST_TLS_CLIENT_CERT,
+                redis_tls_client_key=base.TEST_TLS_CLIENT_KEY,
                 redis_tls_enable=True,
             )
         return super(BaseTokenizationWithRedis, self).fork_acra(popen_kwargs, **acra_kwargs)
 
 
-class BaseTokenizationWithBinaryBindMySQL(BaseTokenization, BaseBinaryMySQLTestCase):
+class BaseTokenizationWithBinaryBindMySQL(BaseTokenization, base.BaseBinaryMySQLTestCase):
 
     def checkSkip(self):
-        if not TEST_MYSQL:
+        if not base.TEST_MYSQL:
             self.skipTest("Only for MySQL")
         super().checkSkip()
 
@@ -99,12 +111,12 @@ class BaseTokenizationWithBinaryBindMySQL(BaseTokenization, BaseBinaryMySQLTestC
         return self.executor2.execute_prepared_statement(query, parameters)
 
 
-class BaseTokenizationWithBinaryPostgreSQL(BaseTokenization, BaseBinaryPostgreSQLTestCase):
+class BaseTokenizationWithBinaryPostgreSQL(BaseTokenization, base.BaseBinaryPostgreSQLTestCase):
     """Verify tokenization with PostgreSQL extended protocol (binary format)."""
-    FORMAT = AsyncpgExecutor.BinaryFormat
+    FORMAT = base.AsyncpgExecutor.BinaryFormat
 
     def checkSkip(self):
-        if not TEST_POSTGRESQL:
+        if not base.TEST_POSTGRESQL:
             self.skipTest("Only for postgresql")
         super().checkSkip()
 
@@ -132,7 +144,7 @@ class BaseTokenizationWithBinaryPostgreSQL(BaseTokenization, BaseBinaryPostgreSQ
 
 class BaseTokenizationWithTextPostgreSQL(BaseTokenizationWithBinaryPostgreSQL):
     """Verify tokenization with PostgreSQL extended protocol (text format)."""
-    FORMAT = AsyncpgExecutor.TextFormat
+    FORMAT = base.AsyncpgExecutor.TextFormat
 
     # TODO(ilammy, 2020-10-19): test binary formats
     # We need to skip this test only for MySQL but perform it for PostgreSQL.
@@ -140,38 +152,38 @@ class BaseTokenizationWithTextPostgreSQL(BaseTokenizationWithBinaryPostgreSQL):
     # overrides checkSkip(). When parent's override is removed, this one
     # becomes unnecessary and should be removed too.
     def checkSkip(self):
-        BaseBinaryPostgreSQLTestCase.checkSkip(self)
+        base.BaseBinaryPostgreSQLTestCase.checkSkip(self)
 
 
 class BaseTokenizationWithBinaryMySQL(BaseTokenization):
     """Verify tokenization with MySQL binary protocol."""
 
     def checkSkip(self):
-        if not TEST_MYSQL:
+        if not base.TEST_MYSQL:
             self.skipTest('this test is only for MySQL')
-        elif not TEST_WITH_TLS:
+        elif not base.TEST_WITH_TLS:
             self.skipTest("running tests only with TLS")
 
     def fetch_from_1(self, query):
-        return self.execute(query, TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
+        return self.execute(query, base.TEST_TLS_CLIENT_KEY, base.TEST_TLS_CLIENT_CERT)
 
     def fetch_from_2(self, query):
-        return self.execute(query, TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
+        return self.execute(query, base.TEST_TLS_CLIENT_2_KEY, base.TEST_TLS_CLIENT_2_CERT)
 
     def execute(self, query, ssl_key, ssl_cert):
         # We need a rendered SQL query here. It will be converted into
         # a prepared statement (without arguments) to use MySQL binary
         # protocol on the wire.
         query = query.compile(compile_kwargs={"literal_binds": True}).string
-        args = ConnectionArgs(
-            host='localhost', port=self.ACRASERVER_PORT, dbname=DB_NAME,
-            user=DB_USER, password=DB_USER_PASSWORD,
-            ssl_ca=TEST_TLS_CA,
+        args = base.ConnectionArgs(
+            host='localhost', port=self.ACRASERVER_PORT, dbname=base.DB_NAME,
+            user=base.DB_USER, password=base.DB_USER_PASSWORD,
+            ssl_ca=base.TEST_TLS_CA,
             ssl_key=ssl_key,
             ssl_cert=ssl_cert,
             raw=True,
         )
-        result = MysqlExecutor(args).execute_prepared_statement(query)
+        result = base.MysqlExecutor(args).execute_prepared_statement(query)
         # For some weird reason MySQL connector in prepared statement mode
         # does not decode TEXT columns into Python strings. In text mode
         # it tries to decode the bytes and returns strings if they decode.
@@ -191,7 +203,7 @@ class BaseMasking(BaseTokenization):
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_masking_config.yaml')
 
     def check_crypto_envelope(self, table, row_id):
-        temp_acrastruct = create_acrastruct_with_client_id(b'somedata', base.TLS_CERT_CLIENT_ID_1)
+        temp_acrastruct = base.create_acrastruct_with_client_id(b'somedata', base.TLS_CERT_CLIENT_ID_1)
         # expect that data was encrypted with client_id from acra-server which used to insert (client_id==TEST_TLS_CLIENT_CERT)
         source_data = self.engine_raw.execute(
             sa.select([table])
@@ -227,7 +239,7 @@ class BaseMasking(BaseTokenization):
         os.remove('token1.db')
 
 
-class BaseMaskingBinaryPostgreSQLMixin(BaseBinaryPostgreSQLTestCase, BaseTestCase):
+class BaseMaskingBinaryPostgreSQLMixin(base.BaseBinaryPostgreSQLTestCase, base.BaseTestCase):
     def executeInsert(self, query, values):
         """Execute a Insert query with list of values via AcraServer for "TEST_TLS_CLIENT_CERT"."""
         query, parameters = self.compileInsertQuery(query, values)
@@ -239,7 +251,7 @@ class BaseMaskingBinaryPostgreSQLMixin(BaseBinaryPostgreSQLTestCase, BaseTestCas
         return self.executor1.execute_prepared_statement(query, parameters)
 
 
-class BaseMaskingBinaryMySQLMixin(BaseBinaryMySQLTestCase, BaseTestCase):
+class BaseMaskingBinaryMySQLMixin(base.BaseBinaryMySQLTestCase, base.BaseTestCase):
     def executeInsert(self, query, values):
         """Execute a Insert query with list of values via AcraServer for "TEST_TLS_CLIENT_CERT"."""
         query, parameters = self.compileInsertQuery(query, values)
@@ -255,18 +267,18 @@ class TestTokenization(BaseTokenization):
 
     def testTokenizationDefaultClientID(self):
         default_client_id_table = sa.Table(
-            'test_tokenization_default_client_id', metadata,
+            'test_tokenization_default_client_id', base.metadata,
             sa.Column('id', sa.Integer, primary_key=True),
             sa.Column('nullable_column', sa.Text, nullable=True),
-            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_i32', sa.Integer()),
             sa.Column('token_i64', sa.BigInteger()),
             sa.Column('token_str', sa.Text),
-            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_email', sa.Text),
             extend_existing=True,
         )
-        metadata.create_all(self.engine_raw, [default_client_id_table])
+        base.metadata.create_all(self.engine_raw, [default_client_id_table])
         self.engine1.execute(default_client_id_table.delete())
         data = {
             'id': 1,
@@ -305,18 +317,18 @@ class TestTokenization(BaseTokenization):
 
     def testTokenizationDefaultClientIDWithBulkInsert(self):
         default_client_id_table = sa.Table(
-            'test_tokenization_default_client_id', metadata,
+            'test_tokenization_default_client_id', base.metadata,
             sa.Column('id', sa.Integer, primary_key=True),
             sa.Column('nullable_column', sa.Text, nullable=True),
-            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_i32', sa.Integer()),
             sa.Column('token_i64', sa.BigInteger()),
             sa.Column('token_str', sa.Text),
-            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_email', sa.Text),
             extend_existing=True,
         )
-        metadata.create_all(self.engine_raw, [default_client_id_table])
+        base.metadata.create_all(self.engine_raw, [default_client_id_table])
         self.engine1.execute(default_client_id_table.delete())
 
         values = []
@@ -355,14 +367,14 @@ class TestTokenization(BaseTokenization):
 
     def testTokenizationSpecificClientID(self):
         specific_client_id_table = sa.Table(
-            'test_tokenization_specific_client_id', metadata,
+            'test_tokenization_specific_client_id', base.metadata,
             sa.Column('id', sa.Integer, primary_key=True),
             sa.Column('nullable_column', sa.Text, nullable=True),
-            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_i32', sa.Integer()),
             sa.Column('token_i64', sa.BigInteger()),
             sa.Column('token_str', sa.Text),
-            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_email', sa.Text),
             extend_existing=True,
         )
@@ -376,7 +388,7 @@ class TestTokenization(BaseTokenization):
             'token_bytes': random_bytes(),
             'token_email': random_email(),
         }
-        metadata.create_all(self.engine_raw, [specific_client_id_table])
+        base.metadata.create_all(self.engine_raw, [specific_client_id_table])
         self.engine1.execute(specific_client_id_table.delete())
 
         # insert data data using client_id==TEST_TLS_CLIENT_CERT
@@ -404,18 +416,18 @@ class TestTokenization(BaseTokenization):
 
     def testTokenizationDefaultClientIDStarExpression(self):
         default_client_id_table = sa.Table(
-            'test_tokenization_default_client_id', metadata,
+            'test_tokenization_default_client_id', base.metadata,
             sa.Column('id', sa.Integer, primary_key=True),
             sa.Column('nullable_column', sa.Text, nullable=True),
-            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_i32', sa.Integer()),
             sa.Column('token_i64', sa.BigInteger()),
             sa.Column('token_str', sa.Text),
-            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_email', sa.Text),
             extend_existing=True,
         )
-        metadata.create_all(self.engine_raw, [default_client_id_table])
+        base.metadata.create_all(self.engine_raw, [default_client_id_table])
         self.engine1.execute(default_client_id_table.delete())
         data = {
             'id': 1,
@@ -448,30 +460,30 @@ class TestTokenization(BaseTokenization):
             # successfully decrypted data returned as string otherwise as bytes
             # always encode to bytes to compare values with same type coercions
             if isinstance(source_data[0][k], (bytearray, bytes, memoryview)) and isinstance(data[k], str):
-                self.assertEqual(utils.memoryview_to_bytes(source_data[0][k]), data[k].encode('utf-8'))
-                self.assertNotEqual(utils.memoryview_to_bytes(hidden_data[0][k]), data[k].encode('utf-8'))
+                self.assertEqual(memoryview_to_bytes(source_data[0][k]), data[k].encode('utf-8'))
+                self.assertNotEqual(memoryview_to_bytes(hidden_data[0][k]), data[k].encode('utf-8'))
             else:
-                self.assertEqual(utils.memoryview_to_bytes(source_data[0][k]), data[k])
-                self.assertNotEqual(utils.memoryview_to_bytes(hidden_data[0][k]), data[k])
+                self.assertEqual(memoryview_to_bytes(source_data[0][k]), data[k])
+                self.assertNotEqual(memoryview_to_bytes(hidden_data[0][k]), data[k])
 
 
-class TestSearchableTokenization(AcraCatchLogsMixin, BaseTokenization):
+class TestSearchableTokenization(base.AcraCatchLogsMixin, BaseTokenization):
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_searchable_tokenization_config.yaml')
 
     def testSearchableTokenizationDefaultClientID(self):
         default_client_id_table = sa.Table(
-            'test_tokenization_default_client_id', metadata,
+            'test_tokenization_default_client_id', base.metadata,
             sa.Column('id', sa.Integer, primary_key=True),
             sa.Column('nullable_column', sa.Text, nullable=True),
-            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_i32', sa.Integer()),
             sa.Column('token_i64', sa.BigInteger()),
             sa.Column('token_str', sa.Text),
-            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_email', sa.Text),
             extend_existing=True,
         )
-        metadata.create_all(self.engine_raw, [default_client_id_table])
+        base.metadata.create_all(self.engine_raw, [default_client_id_table])
         self.engine1.execute(default_client_id_table.delete())
 
         row_id = 1
@@ -564,18 +576,18 @@ class TestSearchableTokenization(AcraCatchLogsMixin, BaseTokenization):
 
     def testSearchableTokenizationNotEqualQuery(self):
         default_client_id_table = sa.Table(
-            'test_tokenization_default_client_id', metadata,
+            'test_tokenization_default_client_id', base.metadata,
             sa.Column('id', sa.Integer, primary_key=True),
             sa.Column('nullable_column', sa.Text, nullable=True),
-            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_i32', sa.Integer()),
             sa.Column('token_i64', sa.BigInteger()),
             sa.Column('token_str', sa.Text),
-            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_email', sa.Text),
             extend_existing=True,
         )
-        metadata.create_all(self.engine_raw, [default_client_id_table])
+        base.metadata.create_all(self.engine_raw, [default_client_id_table])
         self.engine1.execute(default_client_id_table.delete())
         # sqlalchemy's sa.insert().values() generates INSERT statement with 'id' column that should be assigned with
         # value or None and it will place configure default value. But this testcase used by different Executors that
@@ -662,7 +674,7 @@ class TestSearchableTokenization(AcraCatchLogsMixin, BaseTokenization):
 
         # update sequence counter because INSERT FROM SELECT will use default value but previously we explicitly
         # set values
-        if TEST_POSTGRESQL:
+        if base.TEST_POSTGRESQL:
             self.engine_raw.execute("select setval('{}_id_seq', {})".format(
                 default_client_id_table.name, next(id_generator)))
             id_sequence = sa.text("nextval('{}_id_seq')".format(default_client_id_table.name))
@@ -707,30 +719,30 @@ class TestSearchableTokenization(AcraCatchLogsMixin, BaseTokenization):
 
     def testSearchableTokenizationWithJOINs(self):
         default_client_id_table = sa.Table(
-            'test_tokenization_default_client_id', metadata,
+            'test_tokenization_default_client_id', base.metadata,
             sa.Column('id', sa.Integer, primary_key=True),
             sa.Column('nullable_column', sa.Text, nullable=True),
-            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_i32', sa.Integer()),
             sa.Column('token_i64', sa.BigInteger()),
             sa.Column('token_str', sa.Text),
-            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_email', sa.Text),
             extend_existing=True,
         )
         default_client_id_table_join = sa.Table(
-            'test_tokenization_default_client_id_join', metadata,
+            'test_tokenization_default_client_id_join', base.metadata,
             sa.Column('id', sa.Integer, primary_key=True),
             sa.Column('nullable_column', sa.Text, nullable=True),
-            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_i32', sa.Integer()),
             sa.Column('token_i64', sa.BigInteger()),
             sa.Column('token_str', sa.Text),
-            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_email', sa.Text),
             extend_existing=True,
         )
-        metadata.create_all(self.engine_raw, [default_client_id_table, default_client_id_table_join])
+        base.metadata.create_all(self.engine_raw, [default_client_id_table, default_client_id_table_join])
         self.engine1.execute(default_client_id_table.delete())
         self.engine1.execute(default_client_id_table_join.delete())
 
@@ -777,32 +789,32 @@ class TestSearchableTokenization(AcraCatchLogsMixin, BaseTokenization):
 
     def testSearchWithDefaultTableWithAlias(self):
         default_client_id_table = sa.Table(
-            'test_tokenization_default_client_id', metadata,
+            'test_tokenization_default_client_id', base.metadata,
             sa.Column('id', sa.Integer, primary_key=True),
             sa.Column('nullable_column', sa.Text, nullable=True),
-            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_i32', sa.Integer()),
             sa.Column('token_i64', sa.BigInteger()),
             sa.Column('token_str', sa.Text),
-            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_email', sa.Text),
             extend_existing=True,
         )
 
         default_client_id_table_join = sa.Table(
-            'test_tokenization_default_client_id_join', metadata,
+            'test_tokenization_default_client_id_join', base.metadata,
             sa.Column('id', sa.Integer, primary_key=True),
             sa.Column('nullable_column', sa.Text, nullable=True),
-            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_i32', sa.Integer()),
             sa.Column('token_i64', sa.BigInteger()),
             sa.Column('token_str', sa.Text),
-            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_email', sa.Text),
             extend_existing=True,
         )
 
-        metadata.create_all(self.engine_raw, [default_client_id_table, default_client_id_table_join])
+        base.metadata.create_all(self.engine_raw, [default_client_id_table, default_client_id_table_join])
         self.engine1.execute(default_client_id_table.delete())
         self.engine1.execute(default_client_id_table_join.delete())
 
@@ -855,14 +867,14 @@ class TestSearchableTokenization(AcraCatchLogsMixin, BaseTokenization):
 
     def testSearchableTokenizationSpecificClientID(self):
         specific_client_id_table = sa.Table(
-            'test_tokenization_specific_client_id', metadata,
+            'test_tokenization_specific_client_id', base.metadata,
             sa.Column('id', sa.Integer, primary_key=True),
             sa.Column('nullable_column', sa.Text, nullable=True),
-            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_i32', sa.Integer()),
             sa.Column('token_i64', sa.BigInteger()),
             sa.Column('token_str', sa.Text),
-            sa.Column('token_bytes', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_email', sa.Text),
             extend_existing=True,
         )
@@ -877,7 +889,7 @@ class TestSearchableTokenization(AcraCatchLogsMixin, BaseTokenization):
             'token_bytes': random_bytes(),
             'token_email': random_email(),
         }
-        metadata.create_all(self.engine_raw, [specific_client_id_table])
+        base.metadata.create_all(self.engine_raw, [specific_client_id_table])
         self.engine1.execute(specific_client_id_table.delete())
 
         # insert data data using client_id==TEST_TLS_CLIENT_CERT
@@ -928,7 +940,7 @@ class TestSearchableTokenizationBinaryPostgreSQL(BaseTokenizationWithBinaryPostg
     pass
 
 
-class TestTokenizationBinaryPostgreSQLWithAWSKMSMaterKeyLoading(AWSKMSMasterKeyLoaderMixin,
+class TestTokenizationBinaryPostgreSQLWithAWSKMSMaterKeyLoading(test_integrations.AWSKMSMasterKeyLoaderMixin,
                                                                 BaseTokenizationWithBinaryPostgreSQL, TestTokenization):
     pass
 
@@ -941,35 +953,37 @@ class TestSearchableTokenizationBinaryBindMySQL(BaseTokenizationWithBinaryBindMy
     pass
 
 
-class TestTokenizationConnectorlessWithTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin,
-                                                         TLSAuthenticationDirectlyToAcraMixin, TestTokenization):
+class TestTokenizationConnectorlessWithTLSBySerialNumber(base.TLSAuthenticationBySerialNumberMixin,
+                                                         base.TLSAuthenticationDirectlyToAcraMixin, TestTokenization):
     def get_specified_client_id(self):
-        return extract_client_id_from_cert(tls_cert=base.TEST_TLS_CLIENT_2_CERT,
-                                           extractor=self.get_identifier_extractor_type())
+        return base.extract_client_id_from_cert(tls_cert=base.TEST_TLS_CLIENT_2_CERT,
+                                                extractor=self.get_identifier_extractor_type())
 
 
-class TestTokenizationConnectorlessWithTLSByDN(TLSAuthenticationByDistinguishedNameMixin,
-                                               TLSAuthenticationDirectlyToAcraMixin, TestTokenization):
+class TestTokenizationConnectorlessWithTLSByDN(base.TLSAuthenticationByDistinguishedNameMixin,
+                                               base.TLSAuthenticationDirectlyToAcraMixin, TestTokenization):
     def get_specified_client_id(self):
-        return extract_client_id_from_cert(tls_cert=base.TEST_TLS_CLIENT_2_CERT,
-                                           extractor=self.get_identifier_extractor_type())
+        return base.extract_client_id_from_cert(tls_cert=base.TEST_TLS_CLIENT_2_CERT,
+                                                extractor=self.get_identifier_extractor_type())
 
 
 class TestMasking(BaseMasking):
     def test_masking_default_client_id(self):
         default_client_id_table = sa.Table(
-            'test_masking_default_client_id', metadata,
+            'test_masking_default_client_id', base.metadata,
             sa.Column('id', sa.Integer, primary_key=True),
             sa.Column('nullable_column', sa.Text, nullable=True),
-            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('masked_prefix', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('masked_suffix', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('masked_without_plaintext', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('exact_plaintext_length', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('shorter_plaintext', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('masked_prefix', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('masked_suffix', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('masked_without_plaintext', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False,
+                      default=b''),
+            sa.Column('exact_plaintext_length', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False,
+                      default=b''),
+            sa.Column('shorter_plaintext', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             extend_existing=True
         )
-        metadata.create_all(self.engine_raw, [default_client_id_table])
+        base.metadata.create_all(self.engine_raw, [default_client_id_table])
         self.engine_raw.execute(default_client_id_table.delete())
         data = {
             'id': 1,
@@ -1036,18 +1050,20 @@ class TestMasking(BaseMasking):
 
     def test_masking_specific_client_id(self):
         specific_client_id_table = sa.Table(
-            'test_masking_specific_client_id', metadata,
+            'test_masking_specific_client_id', base.metadata,
             sa.Column('id', sa.Integer, primary_key=True),
             sa.Column('nullable_column', sa.Text, nullable=True),
-            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('masked_prefix', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('masked_suffix', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('masked_without_plaintext', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('exact_plaintext_length', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('shorter_plaintext', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('masked_prefix', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('masked_suffix', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('masked_without_plaintext', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False,
+                      default=b''),
+            sa.Column('exact_plaintext_length', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False,
+                      default=b''),
+            sa.Column('shorter_plaintext', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             extend_existing=True
         )
-        metadata.create_all(self.engine_raw, [specific_client_id_table])
+        base.metadata.create_all(self.engine_raw, [specific_client_id_table])
         self.engine_raw.execute(specific_client_id_table.delete())
         data = {
             'id': 1,
@@ -1117,7 +1133,7 @@ class BaseAcraBlockMasking:
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_masking_acrablock_config.yaml')
 
     def check_crypto_envelope(self, table, row_id):
-        temp_acrastruct = create_acrastruct_with_client_id(b'somedata', base.TLS_CERT_CLIENT_ID_1)
+        temp_acrastruct = base.create_acrastruct_with_client_id(b'somedata', base.TLS_CERT_CLIENT_ID_1)
         # expect that data was encrypted with client_id from acra-server which used to insert (client_id==TEST_TLS_CLIENT_CERT)
         source_data = self.engine_raw.execute(
             sa.select([table])
@@ -1147,15 +1163,15 @@ class TestMaskingAcraBlockWithDefaults(BaseAcraBlockMasking, TestMasking):
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_masking_acrablock_with_defaults_config.yaml')
 
 
-class TestMaskingConnectorlessWithTLSByDN(TLSAuthenticationByDistinguishedNameMixin,
-                                          TLSAuthenticationDirectlyToAcraMixin, TestMasking):
+class TestMaskingConnectorlessWithTLSByDN(base.TLSAuthenticationByDistinguishedNameMixin,
+                                          base.TLSAuthenticationDirectlyToAcraMixin, TestMasking):
     def get_specified_client_id(self):
-        return extract_client_id_from_cert(tls_cert=base.TEST_TLS_CLIENT_2_CERT,
-                                           extractor=self.get_identifier_extractor_type())
+        return base.extract_client_id_from_cert(tls_cert=base.TEST_TLS_CLIENT_2_CERT,
+                                                extractor=self.get_identifier_extractor_type())
 
 
-class TestMaskingConnectorlessWithTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin,
-                                                    TLSAuthenticationDirectlyToAcraMixin, TestMasking):
+class TestMaskingConnectorlessWithTLSBySerialNumber(base.TLSAuthenticationBySerialNumberMixin,
+                                                    base.TLSAuthenticationDirectlyToAcraMixin, TestMasking):
     def get_specified_client_id(self):
-        return extract_client_id_from_cert(tls_cert=base.TEST_TLS_CLIENT_2_CERT,
-                                           extractor=self.get_identifier_extractor_type())
+        return base.extract_client_id_from_cert(tls_cert=base.TEST_TLS_CLIENT_2_CERT,
+                                                extractor=self.get_identifier_extractor_type())

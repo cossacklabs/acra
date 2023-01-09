@@ -15,7 +15,6 @@
 import collections.abc
 import os.path
 import stat
-import sys
 from tempfile import NamedTemporaryFile
 from urllib.request import urlopen
 
@@ -26,18 +25,20 @@ import yaml
 from ddt import ddt, data
 from prometheus_client.parser import text_string_to_metric_families
 from sqlalchemy.exc import DatabaseError, OperationalError
+
+from base import *
+from test_integrations import *
+from test_searchable_transparent_encryption import *
 from test_tokenization import *
 from test_type_aware import *
-from test_searchable_transparent_encryption import *
-from random_utils import random_bytes, random_email, random_int32, random_int64, random_str
 from utils import (read_storage_public_key, read_storage_private_key,
                    decrypt_acrastruct, deserialize_and_decrypt_acrastruct,
                    safe_string, get_encryptor_config, abs_path, get_test_encryptor_config, send_signal_by_process_name,
                    load_yaml_config, dump_yaml_config, BINARY_OUTPUT_FOLDER)
-from acrawriter import create_acrastruct
 
 # add to path our wrapper until not published to PYPI
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'wrappers/python'))
+from acrawriter import create_acrastruct
 
 
 class TestCensorVersionChecks(BaseCensorTest, FailedRunProcessMixin):
