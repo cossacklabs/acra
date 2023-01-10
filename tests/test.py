@@ -4342,130 +4342,130 @@ class TestSetupCustomApiPort(BaseTestCase):
         pass
 
 
-# class TestPoisonRecordShutdown(BasePoisonRecordTest):
-#     SHUTDOWN = True
-#
-#     def testShutdown(self):
-#         """fetch data from table by specifying row id
-#
-#         acra-server should find poison record on data decryption failure
-#         """
-#         row_id = get_random_id()
-#         data = self.get_poison_record_data()
-#         self.engine1.execute(
-#             test_table.insert(),
-#             {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
-#         with self.assertRaises(DatabaseError):
-#             result = self.engine1.execute(
-#                 sa.select([test_table])
-#                 .where(test_table.c.id == row_id))
-#             row = result.fetchone()
-#             if row['data'] == data:
-#                 self.fail("unexpected response")
-#         log = self.read_log(self.acra)
-#         self.assertIn('code=101', log)
-#         self.assertIn('Detected poison record, exit', log)
-#         self.assertNotIn('executed code after os.Exit', log)
-#
-#     def testShutdown2(self):
-#         """check working poison record callback on full select
-#
-#         acra-server should find poison record on data decryption failure
-#         """
-#         row_id = get_random_id()
-#         data = self.get_poison_record_data()
-#         self.engine1.execute(
-#             test_table.insert(),
-#             {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
-#         with self.assertRaises(DatabaseError):
-#             result = self.engine1.execute(
-#                 sa.select([test_table]))
-#             rows = result.fetchall()
-#             for row in rows:
-#                 if row['id'] == row_id and row['data'] == data:
-#                     self.fail("unexpected response")
-#         log = self.read_log(self.acra)
-#         self.assertIn('code=101', log)
-#         self.assertIn('Detected poison record, exit', log)
-#         self.assertNotIn('executed code after os.Exit', log)
-#
-#     def testShutdown3(self):
-#         """check working poison record callback on full select inside another data
-#
-#         acra-server should find poison record on data decryption failure
-#         """
-#         row_id = get_random_id()
-#         poison_record = self.get_poison_record_data()
-#         begin_tag = poison_record[:4]
-#         # test with extra long begin tag
-#         data = os.urandom(100) + begin_tag + poison_record + os.urandom(100)
-#         self.engine1.execute(
-#             test_table.insert(),
-#             {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
-#         with self.assertRaises(DatabaseError):
-#             result = self.engine1.execute(
-#                 sa.select([test_table]))
-#             rows = result.fetchall()
-#             for row in rows:
-#                 if row['id'] == row_id and row['data'] == data:
-#                     self.fail("unexpected response")
-#         log = self.read_log(self.acra)
-#         self.assertIn('code=101', log)
-#         self.assertIn('Detected poison record, exit', log)
-#         self.assertNotIn('executed code after os.Exit', log)
-#
-#     def testShutdownTranslatorHTTP(self):
-#         """check poison record decryption via acra-translator using HTTP v1 API
-#
-#         acra-translator should match poison record on data decryption failure
-#         """
-#         http_port = 3356
-#         http_connection_string = 'tcp://127.0.0.1:{}'.format(http_port)
-#         translator_kwargs = self.get_base_translator_args()
-#         translator_kwargs.update({
-#             'incoming_connection_http_string': http_connection_string,
-#         })
-#
-#         data = self.get_poison_record_data()
-#         with ProcessContextManager(self.fork_translator(translator_kwargs)):
-#             with self.assertRaises(requests.exceptions.ConnectionError) as exc:
-#                 response = self.http_decrypt_request(http_port, base.TLS_CERT_CLIENT_ID_1, data)
-#         self.assertEqual(exc.exception.args[0].args[0], 'Connection aborted.')
-#
-#         # check that port not listening anymore
-#         with self.assertRaises(Exception) as exc:
-#             wait_connection(http_port, count=1, sleep=0)
-#         self.assertEqual(exc.exception.args[0], WAIT_CONNECTION_ERROR_MESSAGE)
-#
-#     def testShutdownTranslatorgRPC(self):
-#         """check poison record decryption via acra-translator using gRPC API
-#
-#         acra-translator should match poison record on data decryption failure
-#         """
-#         grpc_port = 3357
-#         grpc_connection_string = 'tcp://127.0.0.1:{}'.format(grpc_port)
-#         translator_kwargs = self.get_base_translator_args()
-#         translator_kwargs.update({
-#             'incoming_connection_grpc_string': grpc_connection_string,
-#         })
-#
-#         data = self.get_poison_record_data()
-#
-#         with ProcessContextManager(self.fork_translator(translator_kwargs)):
-#             with self.assertRaises(grpc.RpcError) as exc:
-#                 response = self.grpc_decrypt_request(grpc_port, base.TLS_CERT_CLIENT_ID_1, data,
-#                                                      raise_exception_on_failure=True)
-#         self.assertEqual(exc.exception.code(), grpc.StatusCode.UNAVAILABLE)
-#
-#         # check that port not listening anymore
-#         with self.assertRaises(Exception) as exc:
-#             wait_connection(grpc_port, count=1, sleep=0)
-#         self.assertEqual(exc.exception.args[0], WAIT_CONNECTION_ERROR_MESSAGE)
-#
-#
-# class TestPoisonRecordShutdownWithAcraBlock(TestPoisonRecordShutdown):
-#     def get_poison_record_data(self):
-#         return get_poison_record_with_acrablock()
+class TestPoisonRecordShutdown(BasePoisonRecordTest):
+    SHUTDOWN = True
+
+    def testShutdown(self):
+        """fetch data from table by specifying row id
+
+        acra-server should find poison record on data decryption failure
+        """
+        row_id = get_random_id()
+        data = self.get_poison_record_data()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
+        with self.assertRaises(DatabaseError):
+            result = self.engine1.execute(
+                sa.select([test_table])
+                .where(test_table.c.id == row_id))
+            row = result.fetchone()
+            if row['data'] == data:
+                self.fail("unexpected response")
+        log = self.read_log(self.acra)
+        self.assertIn('code=101', log)
+        self.assertIn('Detected poison record, exit', log)
+        self.assertNotIn('executed code after os.Exit', log)
+
+    def testShutdown2(self):
+        """check working poison record callback on full select
+
+        acra-server should find poison record on data decryption failure
+        """
+        row_id = get_random_id()
+        data = self.get_poison_record_data()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
+        with self.assertRaises(DatabaseError):
+            result = self.engine1.execute(
+                sa.select([test_table]))
+            rows = result.fetchall()
+            for row in rows:
+                if row['id'] == row_id and row['data'] == data:
+                    self.fail("unexpected response")
+        log = self.read_log(self.acra)
+        self.assertIn('code=101', log)
+        self.assertIn('Detected poison record, exit', log)
+        self.assertNotIn('executed code after os.Exit', log)
+
+    def testShutdown3(self):
+        """check working poison record callback on full select inside another data
+
+        acra-server should find poison record on data decryption failure
+        """
+        row_id = get_random_id()
+        poison_record = self.get_poison_record_data()
+        begin_tag = poison_record[:4]
+        # test with extra long begin tag
+        data = os.urandom(100) + begin_tag + poison_record + os.urandom(100)
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
+        with self.assertRaises(DatabaseError):
+            result = self.engine1.execute(
+                sa.select([test_table]))
+            rows = result.fetchall()
+            for row in rows:
+                if row['id'] == row_id and row['data'] == data:
+                    self.fail("unexpected response")
+        log = self.read_log(self.acra)
+        self.assertIn('code=101', log)
+        self.assertIn('Detected poison record, exit', log)
+        self.assertNotIn('executed code after os.Exit', log)
+
+    def testShutdownTranslatorHTTP(self):
+        """check poison record decryption via acra-translator using HTTP v1 API
+
+        acra-translator should match poison record on data decryption failure
+        """
+        http_port = 3356
+        http_connection_string = 'tcp://127.0.0.1:{}'.format(http_port)
+        translator_kwargs = self.get_base_translator_args()
+        translator_kwargs.update({
+            'incoming_connection_http_string': http_connection_string,
+        })
+
+        data = self.get_poison_record_data()
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            with self.assertRaises(requests.exceptions.ConnectionError) as exc:
+                response = self.http_decrypt_request(http_port, base.TLS_CERT_CLIENT_ID_1, data)
+        self.assertEqual(exc.exception.args[0].args[0], 'Connection aborted.')
+
+        # check that port not listening anymore
+        with self.assertRaises(Exception) as exc:
+            wait_connection(http_port, count=1, sleep=0)
+        self.assertEqual(exc.exception.args[0], WAIT_CONNECTION_ERROR_MESSAGE)
+
+    def testShutdownTranslatorgRPC(self):
+        """check poison record decryption via acra-translator using gRPC API
+
+        acra-translator should match poison record on data decryption failure
+        """
+        grpc_port = 3357
+        grpc_connection_string = 'tcp://127.0.0.1:{}'.format(grpc_port)
+        translator_kwargs = self.get_base_translator_args()
+        translator_kwargs.update({
+            'incoming_connection_grpc_string': grpc_connection_string,
+        })
+
+        data = self.get_poison_record_data()
+
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            with self.assertRaises(grpc.RpcError) as exc:
+                response = self.grpc_decrypt_request(grpc_port, base.TLS_CERT_CLIENT_ID_1, data,
+                                                     raise_exception_on_failure=True)
+        self.assertEqual(exc.exception.code(), grpc.StatusCode.UNAVAILABLE)
+
+        # check that port not listening anymore
+        with self.assertRaises(Exception) as exc:
+            wait_connection(grpc_port, count=1, sleep=0)
+        self.assertEqual(exc.exception.args[0], WAIT_CONNECTION_ERROR_MESSAGE)
+
+
+class TestPoisonRecordShutdownWithAcraBlock(TestPoisonRecordShutdown):
+    def get_poison_record_data(self):
+        return get_poison_record_with_acrablock()
 
 
 if __name__ == '__main__':
