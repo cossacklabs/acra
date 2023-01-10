@@ -137,7 +137,7 @@ func realMain() error {
 	cmd.RegisterTracingCmdParameters()
 	cmd.RegisterJaegerCmdParameters()
 	logging.RegisterCLIArgs()
-	network.RegisterTLSBaseArgs()
+	network.RegisterTLSBaseArgs(flag.CommandLine)
 
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 	debug := flag.Bool("d", false, "Log everything to stderr")

@@ -134,33 +134,43 @@ func NewCRLConfigByName(flags *flag.FlagSet, name string, namerFunc CLIParamName
 	var crlURL, crlFromCert string
 	var crlCheckOnlyLeafCertificate bool
 	var crlCacheSize, crlCacheTime uint
-	if f := flags.Lookup(namerFunc(name, "url", "crl")); f != nil {
+
+	crlURL = tlsCrlURL
+	if isFlagSet(namerFunc(name, "url", "crl"), flags) {
+		f := flags.Lookup(namerFunc(name, "url", "crl"))
 		crlURL = f.Value.String()
-		if crlURL == "" {
-			crlURL = tlsCrlURL
-		}
 	}
-	if f := flags.Lookup(namerFunc(name, "from_cert", "crl")); f != nil {
+
+	crlFromCert = tlsCrlFromCert
+	if isFlagSet(namerFunc(name, "from_cert", "crl"), flags) {
+		f := flags.Lookup(namerFunc(name, "from_cert", "crl"))
 		crlFromCert = f.Value.String()
-		if crlFromCert == "" {
-			crlFromCert = tlsCrlFromCert
-		}
 	}
-	if f := flags.Lookup(namerFunc(name, "check_only_leaf_certificate", "crl")); f != nil {
+
+	// use common flag if named option not set
+	crlCheckOnlyLeafCertificate = tlsCrlCheckOnlyLeafCertificate
+	if isFlagSet(namerFunc(name, "check_only_leaf_certificate", "crl"), flags) {
+		f := flags.Lookup(namerFunc(name, "check_only_leaf_certificate", "crl"))
 		v, err := strconv.ParseBool(f.Value.String())
 		if err != nil {
 			log.WithField("value", f.Value.String).Fatalf("Can't cast %s to boolean value", namerFunc(name, "check_only_leaf_certificate", "crl"))
 		}
 		crlCheckOnlyLeafCertificate = v
 	}
-	if f := flags.Lookup(namerFunc(name, "cache_size", "crl")); f != nil {
+
+	crlCacheSize = tlsCrlCacheSize
+	if isFlagSet(namerFunc(name, "cache_size", "crl"), flags) {
+		f := flags.Lookup(namerFunc(name, "cache_size", "crl"))
 		size, err := strconv.ParseUint(f.Value.String(), 10, 64)
 		if err != nil {
 			log.WithField("value", f.Value.String).Fatalf("Can't cast %s to integer value", namerFunc(name, "cache_size", "crl"))
 		}
 		crlCacheSize = uint(size)
 	}
-	if f := flags.Lookup(namerFunc(name, "cache_time", "crl")); f != nil {
+
+	crlCacheTime = tlsCrlCacheTime
+	if isFlagSet(namerFunc(name, "cache_time", "crl"), flags) {
+		f := flags.Lookup(namerFunc(name, "cache_time", "crl"))
 		cacheTime, err := strconv.ParseUint(f.Value.String(), 10, 64)
 		if err != nil {
 			log.WithField("value", f.Value.String).Fatalf("Can't cast %s to integer value", namerFunc(name, "cache_time", "crl"))

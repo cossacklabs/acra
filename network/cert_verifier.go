@@ -68,21 +68,21 @@ func RegisterCertVerifierArgsForService(flags *flag.FlagSet, serviceName string,
 }
 
 // RegisterCertVerifierArgs register CLI args which allow to get CertVerifier by NewCertVerifier()
-func RegisterCertVerifierArgs() {
-	flag.StringVar(&tlsOcspURL, "tls_ocsp_url", "", "OCSP service URL")
-	flag.StringVar(&tlsOcspRequired, "tls_ocsp_required", OcspRequiredDenyUnknownStr,
+func RegisterCertVerifierArgs(flags *flag.FlagSet) {
+	flags.StringVar(&tlsOcspURL, "tls_ocsp_url", "", "OCSP service URL")
+	flags.StringVar(&tlsOcspRequired, "tls_ocsp_required", OcspRequiredDenyUnknownStr,
 		fmt.Sprintf("How to treat certificates unknown to OCSP: <%s>", strings.Join(OcspRequiredValuesList, "|")))
-	flag.StringVar(&tlsOcspFromCert, "tls_ocsp_from_cert", OcspFromCertPreferStr,
+	flags.StringVar(&tlsOcspFromCert, "tls_ocsp_from_cert", OcspFromCertPreferStr,
 		fmt.Sprintf("How to treat OCSP server described in certificate itself: <%s>", strings.Join(OcspFromCertValuesList, "|")))
-	flag.BoolVar(&tlsOcspCheckOnlyLeafCertificate, "tls_ocsp_check_only_leaf_certificate", false,
+	flags.BoolVar(&tlsOcspCheckOnlyLeafCertificate, "tls_ocsp_check_only_leaf_certificate", false,
 		"Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using OCSP")
-	flag.StringVar(&tlsCrlURL, "tls_crl_url", "", "URL of the Certificate Revocation List (CRL) to use")
-	flag.StringVar(&tlsCrlFromCert, "tls_crl_from_cert", CrlFromCertPreferStr,
+	flags.StringVar(&tlsCrlURL, "tls_crl_url", "", "URL of the Certificate Revocation List (CRL) to use")
+	flags.StringVar(&tlsCrlFromCert, "tls_crl_from_cert", CrlFromCertPreferStr,
 		fmt.Sprintf("How to treat CRL URL described in certificate itself: <%s>", strings.Join(CrlFromCertValuesList, "|")))
-	flag.BoolVar(&tlsCrlCheckOnlyLeafCertificate, "tls_crl_check_only_leaf_certificate", false,
+	flags.BoolVar(&tlsCrlCheckOnlyLeafCertificate, "tls_crl_check_only_leaf_certificate", false,
 		"Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using CRL")
-	flag.UintVar(&tlsCrlCacheSize, "tls_crl_cache_size", CrlDefaultCacheSize, "How many CRLs to cache in memory (use 0 to disable caching)")
-	flag.UintVar(&tlsCrlCacheTime, "tls_crl_cache_time", CrlDisableCacheTime,
+	flags.UintVar(&tlsCrlCacheSize, "tls_crl_cache_size", CrlDefaultCacheSize, "How many CRLs to cache in memory (use 0 to disable caching)")
+	flags.UintVar(&tlsCrlCacheTime, "tls_crl_cache_time", CrlDisableCacheTime,
 		fmt.Sprintf("How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: %d s)", CrlCacheTimeMax))
 }
 

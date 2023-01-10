@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -56,6 +57,9 @@ const (
 
 	// CRL that contains self-revoked root CA
 	TestCRLFilenameRootSelfRevoked = "ca/crl_with_root.pem"
+
+	// special port value force kernel to choose free port
+	freePort = 0
 )
 
 type TestCertGroup struct {
@@ -198,8 +202,8 @@ func pemToX509Cert(data []byte) (*x509.Certificate, error) {
 
 // Starts HTTP server on some random port, uses `mux` to handle requests,
 // returns created server and IP:port of listening socket
-func getTestHTTPServer(t *testing.T, mux *http.ServeMux) (*http.Server, string) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+func getTestHTTPServer(t *testing.T, port int, mux *http.ServeMux) (*http.Server, string) {
+	listener, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(port))
 	if err != nil {
 		t.Fatalf("Cannot create TCP socket for HTTP server: %v", err)
 	}
@@ -356,7 +360,7 @@ func TestDefaultCRLClientHTTP(t *testing.T) {
 		res.Write(rawCRL)
 	})
 
-	httpServer, addr := getTestHTTPServer(t, mux)
+	httpServer, addr := getTestHTTPServer(t, freePort, mux)
 	defer httpServer.Close()
 
 	crlClient := NewDefaultCRLClient()
@@ -479,7 +483,7 @@ func testDefaultCRLVerifierWithGroupValid(t *testing.T, certGroup TestCertGroup)
 		res.Write(rawCRL)
 	})
 
-	httpServer, addr := getTestHTTPServer(t, mux)
+	httpServer, addr := getTestHTTPServer(t, freePort, mux)
 	defer httpServer.Close()
 
 	// Test with valid URL
@@ -513,7 +517,7 @@ func testDefaultCRLVerifierWithGroupRevoked(t *testing.T, certGroup TestCertGrou
 		res.Write(rawCRL)
 	})
 
-	httpServer, addr := getTestHTTPServer(t, mux)
+	httpServer, addr := getTestHTTPServer(t, freePort, mux)
 	defer httpServer.Close()
 
 	// Test with valid URL

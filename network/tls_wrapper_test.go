@@ -7,12 +7,19 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"errors"
+	"flag"
 	"fmt"
 	"github.com/cossacklabs/acra/network/testutils"
+	"github.com/cossacklabs/acra/utils/tests"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/crypto/ocsp"
 	"google.golang.org/grpc/credentials"
 	"net"
+	"net/http"
+	"path"
+	"reflect"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -615,5 +622,223 @@ func TestClientAuth0WithClientIDExtraction(t *testing.T) {
 	_, err := NewTLSAuthenticationConnectionWrapper(true, nil, &tls.Config{}, nil)
 	if err != ErrInvalidTLSConfiguration {
 		t.Fatalf("Expect ErrInvalidTLSConfiguration, took %s\n", err.Error())
+	}
+}
+
+func TestNewTLSConfigByName(t *testing.T) {
+	// copy-pasted from ocsp_test.go
+	certGroup := getTestCertGroup(t)
+	goodData := &ocspTestCase{
+		cert:           certGroup.validVerifiedChains[0][0],
+		issuer:         getIssuerForTestChain(t, certGroup.validVerifiedChains),
+		expectedStatus: ocsp.Good,
+	}
+	ocspCertificate, ocspSigningKey := getTestOCSPCertAndKey(t, certGroup.prefix, certGroup.ocspCert, certGroup.ocspKey)
+	ocspServerConf := ocspServerConfig{
+		issuerCert:    goodData.issuer,
+		responderCert: ocspCertificate,
+		responderKey:  ocspSigningKey,
+		testCases:     []*ocspTestCase{goodData},
+	}
+
+	ocspServer, addr := getTestOCSPServer(t, ocspServerConf, freePort)
+	defer ocspServer.Close()
+	ocspURL := "http://" + addr
+
+	// copy-pasted from crl_test.go
+	var rawCRL []byte
+	if certGroup.validCRL != "" {
+		rawCRL, _ = getTestCRL(t, path.Join(certGroup.prefix, certGroup.validCRL))
+	} else {
+		rawCRL, _ = getTestCRL(t, path.Join(certGroup.prefix, certGroup.crl))
+	}
+	mux := http.NewServeMux()
+	crlEndpoint := "/test_crl.pem"
+	mux.HandleFunc(crlEndpoint, func(res http.ResponseWriter, req *http.Request) {
+		res.WriteHeader(200)
+		res.Header().Add("Content-Type", "application/pem-certificate-chain")
+		res.Write(rawCRL)
+	})
+
+	crlServer, addr := getTestHTTPServer(t, freePort, mux)
+	defer crlServer.Close()
+	crlURL := "http://" + addr + crlEndpoint
+
+	flagset := flag.FlagSet{}
+	RegisterTLSBaseArgs(&flagset)
+	RegisterTLSArgsForService(&flagset, true, "", ClientNameConstructorFunc())
+	type testcase struct {
+		baseCa           *string
+		baseCrt          *string
+		baseKey          *string
+		baseAuth         *int
+		baseOCSPUrl      *string
+		baseOCSPRequired *string
+		baseOCSPFromCert *string
+		baseCRLUrl       *string
+		baseCRLFromCert  *string
+
+		clientCa           *string
+		clientCrt          *string
+		clientKey          *string
+		clientAuth         *int
+		clientCRLUrl       *string
+		clientCRLFromCert  *string
+		clientOCSPUrl      *string
+		clientOCSPRequired *string
+		clientOCSPFromCert *string
+
+		expectedCa        string
+		expectedCrt       string
+		expectedKey       string
+		expectedAuth      int
+		verificationErr   error
+		expectedConfigErr error
+	}
+	rootPath := tests.GetSourceRootDirectory(t)
+	baseCa := rootPath + "/tests/ssl/ca/ca.crt"
+	baseCrt := rootPath + "/tests/ssl/acra-client/acra-client.crt"
+	baseKey := rootPath + "/tests/ssl/acra-client/acra-client.key"
+	baseAuth := 4
+	invalidAuth := 0
+	emptyStr := ""
+
+	invalidPath := "invalid"
+	getRefForConst := func(val string) *string {
+		return &val
+	}
+
+	testcases := []testcase{
+		// used configuration from base args
+		{
+			baseCa: &baseCa, baseKey: &baseKey, baseCrt: &baseCrt, baseAuth: &baseAuth, baseOCSPUrl: &ocspURL,
+			baseCRLUrl: &crlURL, baseCRLFromCert: getRefForConst(CrlFromCertIgnoreStr),
+			baseOCSPRequired: getRefForConst(OcspRequiredGoodStr), baseOCSPFromCert: getRefForConst(OcspFromCertIgnoreStr),
+
+			clientCa: nil, clientCrt: nil, clientKey: nil, clientAuth: nil, clientOCSPUrl: nil, clientCRLUrl: nil,
+			clientCRLFromCert: nil, clientOCSPRequired: nil, clientOCSPFromCert: nil,
+
+			expectedCa: baseCa, expectedCrt: baseCrt, expectedKey: baseKey, expectedAuth: baseAuth, verificationErr: nil},
+
+		// used invalid client's args with empty values
+		{
+			baseCa: &baseCa, baseKey: &baseKey, baseCrt: &baseCrt, baseAuth: &baseAuth, baseOCSPUrl: &ocspURL,
+			baseCRLUrl: &crlURL, baseCRLFromCert: getRefForConst(CrlFromCertIgnoreStr),
+			baseOCSPRequired: getRefForConst(OcspRequiredGoodStr), baseOCSPFromCert: getRefForConst(OcspFromCertIgnoreStr),
+
+			clientCa: &emptyStr, clientCrt: &emptyStr, clientKey: &emptyStr, clientAuth: &baseAuth,
+			clientOCSPUrl: &emptyStr, clientCRLUrl: &emptyStr,
+			clientCRLFromCert: &emptyStr, clientOCSPRequired: &emptyStr, clientOCSPFromCert: &emptyStr,
+
+			expectedCa: baseCa, expectedCrt: baseCrt, expectedKey: baseKey, expectedAuth: baseAuth, verificationErr: nil,
+			expectedConfigErr: ErrInvalidConfigOCSPRequired},
+
+		// used configuration from client args
+		{
+			baseCa: nil, baseCrt: nil, baseKey: nil, baseAuth: nil, baseOCSPUrl: nil, baseCRLUrl: nil,
+			baseCRLFromCert: nil, baseOCSPRequired: nil, baseOCSPFromCert: nil,
+
+			clientCa: &baseCa, clientKey: &baseKey, clientCrt: &baseCrt, clientAuth: &baseAuth, clientOCSPUrl: &ocspURL,
+			clientCRLUrl: &crlURL, clientCRLFromCert: getRefForConst(CrlFromCertIgnoreStr),
+			clientOCSPRequired: getRefForConst(OcspRequiredGoodStr), clientOCSPFromCert: getRefForConst(OcspFromCertIgnoreStr),
+
+			expectedCa: baseCa, expectedCrt: baseCrt, expectedKey: baseKey, expectedAuth: baseAuth, verificationErr: nil},
+
+		// client args override base args
+		{
+			baseCa: &invalidPath, baseCrt: &invalidPath, baseKey: &invalidPath, baseAuth: &invalidAuth, baseOCSPUrl: &invalidPath, baseCRLUrl: &invalidPath,
+			baseCRLFromCert: &invalidPath, baseOCSPRequired: &invalidPath, baseOCSPFromCert: &invalidPath,
+
+			clientCa: &baseCa, clientKey: &baseKey, clientCrt: &baseCrt, clientAuth: &baseAuth, clientOCSPUrl: &ocspURL,
+			clientCRLUrl: &crlURL, clientCRLFromCert: getRefForConst(CrlFromCertIgnoreStr),
+			clientOCSPRequired: getRefForConst(OcspRequiredGoodStr), clientOCSPFromCert: getRefForConst(OcspFromCertIgnoreStr),
+
+			expectedCa: baseCa, expectedCrt: baseCrt, expectedKey: baseKey, expectedAuth: baseAuth, verificationErr: nil},
+	}
+
+	generateArgs := func(tcase testcase) (out []string) {
+		if tcase.baseCa != nil {
+			out = append(out, "-tls_ca="+*tcase.baseCa)
+		}
+		if tcase.baseCrt != nil {
+			out = append(out, "-tls_cert="+*tcase.baseCrt)
+		}
+		if tcase.baseKey != nil {
+			out = append(out, "-tls_key="+*tcase.baseKey)
+		}
+		if tcase.baseAuth != nil {
+			out = append(out, "-tls_auth="+strconv.Itoa(*tcase.baseAuth))
+		}
+		if tcase.baseCRLFromCert != nil {
+			out = append(out, "-tls_crl_from_cert="+*tcase.baseCRLFromCert)
+		}
+		if tcase.baseOCSPUrl != nil {
+			out = append(out, "-tls_ocsp_url="+*tcase.baseOCSPUrl)
+		}
+		if tcase.baseOCSPRequired != nil {
+			out = append(out, "-tls_ocsp_required="+*tcase.baseOCSPRequired)
+		}
+		if tcase.baseOCSPFromCert != nil {
+			out = append(out, "-tls_ocsp_from_cert="+*tcase.baseOCSPFromCert)
+		}
+
+		if tcase.clientCa != nil {
+			out = append(out, "-tls_client_ca="+*tcase.clientCa)
+		}
+		if tcase.clientCrt != nil {
+			out = append(out, "-tls_client_cert="+*tcase.clientCrt)
+		}
+		if tcase.clientKey != nil {
+			out = append(out, "-tls_client_key="+*tcase.clientKey)
+		}
+		if tcase.clientAuth != nil {
+			out = append(out, "-tls_client_auth="+strconv.Itoa(*tcase.clientAuth))
+		}
+		if tcase.clientCRLFromCert != nil {
+			out = append(out, "-tls_crl_client_from_cert="+*tcase.clientCRLFromCert)
+		}
+		if tcase.clientOCSPUrl != nil {
+			out = append(out, "-tls_ocsp_client_url="+*tcase.clientOCSPUrl)
+		}
+		if tcase.clientOCSPRequired != nil {
+			out = append(out, "-tls_ocsp_client_required="+*tcase.clientOCSPRequired)
+		}
+		if tcase.clientOCSPFromCert != nil {
+			out = append(out, "-tls_ocsp_client_from_cert="+*tcase.clientOCSPFromCert)
+		}
+		return
+	}
+	for _, tcase := range testcases {
+		args := generateArgs(tcase)
+		if err := flagset.Parse(args); err != nil {
+			t.Fatal(err)
+		}
+		tlsConfig, err := NewTLSConfigByName(&flagset, "", "localhost", ClientNameConstructorFunc())
+		if err != tcase.expectedConfigErr {
+			t.Fatalf("Unexpected err value, took %v", err)
+		}
+		// next steps requires config
+		if err != nil {
+			continue
+		}
+
+		if len(tlsConfig.Certificates) != 1 {
+			t.Fatal("Incorrect amount of certificates")
+		}
+		expectedCert, err := tls.LoadX509KeyPair(tcase.expectedCrt, tcase.expectedKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(expectedCert, tlsConfig.Certificates[0]) {
+			t.Fatal("Config's certificate not equal to the expected")
+		}
+
+		if int(tlsConfig.ClientAuth) != tcase.expectedAuth {
+			t.Fatal("Incorrect ClientAuth value")
+		}
+		err = tlsConfig.VerifyPeerCertificate(certGroup.validRawCerts, certGroup.validVerifiedChains)
+		if err != tcase.verificationErr {
+			t.Fatalf("Unexpected verification error, took %v", err)
+		}
 	}
 }
