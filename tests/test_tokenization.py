@@ -1175,3 +1175,17 @@ class TestMaskingConnectorlessWithTLSBySerialNumber(base.TLSAuthenticationBySeri
     def get_specified_client_id(self):
         return base.extract_client_id_from_cert(tls_cert=base.TEST_TLS_CLIENT_2_CERT,
                                                 extractor=self.get_identifier_extractor_type())
+
+
+class TestSearchableTokenizationBinaryPostgreSQLWithDefaults(BaseTokenizationWithBinaryPostgreSQL,
+                                                             TestSearchableTokenization):
+    ENCRYPTOR_CONFIG = get_encryptor_config(
+        'tests/encryptor_configs/ee_searchable_tokenization_config_with_defaults.yaml')
+    pass
+
+
+class TestSearchableTokenizationBinaryBindMySQLWithDefaults(BaseTokenizationWithBinaryBindMySQL,
+                                                            TestSearchableTokenization):
+    ENCRYPTOR_CONFIG = get_encryptor_config(
+        'tests/encryptor_configs/ee_searchable_tokenization_config_with_defaults.yaml')
+    pass
