@@ -3,6 +3,8 @@ import os
 import random
 import string
 
+TEMP_DATA_FOLDER_VARNAME = 'TEST_RANDOM_DATA_FOLDER'
+
 
 def get_random_data(config):
     size = random.randint(config['data_min_size'], config['data_max_size'])
@@ -10,7 +12,7 @@ def get_random_data(config):
 
 
 if __name__ == '__main__':
-    data_folder = os.environ.get('TEST_RANDOM_DATA_FOLDER')
+    data_folder = os.environ.get(TEMP_DATA_FOLDER_VARNAME)
     if not data_folder:
         print("You must set TEST_RANDOM_DATA_FOLDER env variable")
         exit(1)

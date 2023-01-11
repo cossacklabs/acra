@@ -35,6 +35,8 @@ from pythemis import smessage, scell
 from sqlalchemy.dialects import mysql as mysql_dialect
 from sqlalchemy.dialects import postgresql as postgresql_dialect
 
+import generate_random_data
+
 # add to path our wrapper until not published to PYPI
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'wrappers/python'))
 
@@ -47,16 +49,16 @@ def load_random_data_config():
 
 
 def get_random_data_files():
-    folder = os.environ.get(TEMP_DATA_FOLDER_VARNAME)
+    folder = os.environ.get(generate_random_data.TEMP_DATA_FOLDER_VARNAME)
     if not folder:
         folder = tempfile.mkdtemp(None, 'test_data', None)
         # set temp folder before call generator
-        os.environ.setdefault(TEMP_DATA_FOLDER_VARNAME, folder)
+        os.environ.setdefault(generate_random_data.TEMP_DATA_FOLDER_VARNAME, folder)
         # remember that we generated from script to cleanup at end
         os.environ.setdefault(TEMP_DATA_GENERATED, folder)
         print("You didn't set {} env var. Test data will be generated to <{}> "
               "folder and removed at end".format(
-            TEMP_DATA_FOLDER_VARNAME, folder))
+            generate_random_data.TEMP_DATA_FOLDER_VARNAME, folder))
     if not os.path.exists(folder) or len(os.listdir(folder)) == 0:
         command = [sys.executable, abs_path('tests/generate_random_data.py')]
         print('call {}'.format(' '.join(command)))
@@ -85,7 +87,6 @@ BINARY_OUTPUT_FOLDER = os.environ.get('TEST_BINARY_OUTPUT_FOLDER', '/tmp/')
 # used to mark case when user didn't declare explicitly variable and we generated new temporary folder
 # in this case we clean temporary folder, otherwise don't touch user specified path
 TEMP_DATA_GENERATED = 'TEST_RANDOM_DATA_FOLDER_GENERATE'
-TEMP_DATA_FOLDER_VARNAME = 'TEST_RANDOM_DATA_FOLDER'
 
 TEST_RANDOM_DATA_CONFIG = load_random_data_config()
 TEST_RANDOM_DATA_FILES = get_random_data_files()
