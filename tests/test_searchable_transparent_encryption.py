@@ -6,21 +6,11 @@ import tempfile
 import sqlalchemy as sa
 
 import base
+import test_common
 import test_integrations
-from utils import (destroy_server_storage_key,
-                   prepare_encryptor_config,
-                   get_encryptor_config, get_test_encryptor_config, send_signal_by_process_name)
 
 
-def setUpModule():
-    base.setUpModule()
-
-
-def tearDownModule():
-    base.tearDownModule()
-
-
-class BaseTransparentEncryption(base.BaseTestCase):
+class BaseTransparentEncryption(test_common.BaseTestCase):
     encryptor_table = sa.Table(
         'test_transparent_encryption', base.metadata,
         sa.Column('id', sa.Integer, primary_key=True),
@@ -33,7 +23,7 @@ class BaseTransparentEncryption(base.BaseTestCase):
         sa.Column('nullable', sa.Text, nullable=True),
         sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/encryptor_config.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/encryptor_config.yaml')
 
     def setUp(self):
         self.prepare_encryptor_config(client_id=base.TLS_CERT_CLIENT_ID_1)
@@ -41,21 +31,21 @@ class BaseTransparentEncryption(base.BaseTestCase):
 
     def get_encryptor_config_path(self):
         self.prepare_encryptor_config(client_id=base.TLS_CERT_CLIENT_ID_1)
-        return get_test_encryptor_config(self.ENCRYPTOR_CONFIG)
+        return base.get_test_encryptor_config(self.ENCRYPTOR_CONFIG)
 
     def prepare_encryptor_config(self, client_id=None):
-        prepare_encryptor_config(config_path=self.ENCRYPTOR_CONFIG, client_id=client_id)
+        base.prepare_encryptor_config(config_path=self.ENCRYPTOR_CONFIG, client_id=client_id)
 
     def tearDown(self):
         self.engine_raw.execute(self.encryptor_table.delete())
         super(BaseTransparentEncryption, self).tearDown()
         try:
-            os.remove(get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
+            os.remove(base.get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
         except FileNotFoundError:
             pass
 
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
-        acra_kwargs['encryptor_config_file'] = get_test_encryptor_config(
+        acra_kwargs['encryptor_config_file'] = base.get_test_encryptor_config(
             self.ENCRYPTOR_CONFIG)
         return super(BaseTransparentEncryption, self).fork_acra(
             popen_kwargs, **acra_kwargs)
@@ -200,7 +190,7 @@ class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
                                sa.Column('masked_prefix', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False,
                                          default=b''),
                                )
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_acrablock_config.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/ee_acrablock_config.yaml')
 
     def testAcraStructReEncryption(self):
         specified_id = base.TLS_CERT_CLIENT_ID_1
@@ -256,7 +246,7 @@ class TestTransparentEncryptionWithConsulEncryptorConfigLoading(
     pass
 
 
-class TransparentEncryptionNoKeyMixin(base.AcraCatchLogsMixin):
+class TransparentEncryptionNoKeyMixin(test_common.AcraCatchLogsMixin):
     def setUp(self):
         self.checkSkip()
         try:
@@ -272,7 +262,7 @@ class TransparentEncryptionNoKeyMixin(base.AcraCatchLogsMixin):
     def tearDown(self):
         if hasattr(self, 'acra'):
             base.stop_process(self.acra)
-        send_signal_by_process_name('acra-server', signal.SIGKILL)
+        base.send_signal_by_process_name('acra-server', signal.SIGKILL)
         self.server_keystore.cleanup()
         super().tearDown()
 
@@ -289,8 +279,8 @@ class TransparentEncryptionNoKeyMixin(base.AcraCatchLogsMixin):
         return super().fork_acra(popen_kwargs, **acra_kwargs)
 
     def testEncryptedInsert(self):
-        destroy_server_storage_key(client_id=self.client_id, keys_dir=self.server_keys_dir,
-                                   keystore_version=base.KEYSTORE_VERSION)
+        base.destroy_server_storage_key(client_id=self.client_id, keys_dir=self.server_keys_dir,
+                                        keystore_version=base.KEYSTORE_VERSION)
         try:
             super().testEncryptedInsert()
 
@@ -309,7 +299,8 @@ class TestTransparentEncryptionWithNoEncryptionKey(TransparentEncryptionNoKeyMix
     pass
 
 
-class TestPostgresqlBinaryPreparedTransparentEncryption(base.BaseBinaryPostgreSQLTestCase, TestTransparentEncryption):
+class TestPostgresqlBinaryPreparedTransparentEncryption(test_common.BaseBinaryPostgreSQLTestCase,
+                                                        TestTransparentEncryption):
     """Testing transparent encryption of prepared statements in PostgreSQL (binary format)."""
     FORMAT = base.AsyncpgExecutor.BinaryFormat
 
@@ -386,7 +377,7 @@ class BaseSearchableTransparentEncryption(TestTransparentEncryption):
         sa.Column('token_email', sa.Text, nullable=False, default=''),
         sa.Column('masking', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_encryptor_config.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/ee_encryptor_config.yaml')
 
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
         # Disable keystore cache since it can interfere with rotation tests
@@ -462,7 +453,8 @@ class BaseSearchableTransparentEncryption(TestTransparentEncryption):
         return self.engine2.execute(query.values(values))
 
 
-class BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin(base.BaseBinaryPostgreSQLTestCase, base.BaseTestCase):
+class BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin(test_common.BaseBinaryPostgreSQLTestCase,
+                                                               test_common.BaseTestCase):
     def executeSelect2(self, query, parameters):
         query, parameters = self.compileQuery(query, parameters)
         return self.executor2.execute_prepared_statement(query, parameters)
@@ -477,7 +469,8 @@ class BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin(base.BaseBinaryPo
         return self.executor2.execute_prepared_statement(query, parameters)
 
 
-class BaseSearchableTransparentEncryptionBinaryMySQLMixin(base.BaseBinaryMySQLTestCase, base.BaseTestCase):
+class BaseSearchableTransparentEncryptionBinaryMySQLMixin(test_common.BaseBinaryMySQLTestCase,
+                                                          test_common.BaseTestCase):
     def executeSelect2(self, query, parameters):
         query, parameters = self.compileQuery(query, parameters)
         return self.executor2.execute_prepared_statement(query, parameters)
@@ -1258,30 +1251,33 @@ class TestSearchableTransparentEncryptionDoubleQuotedTables(BaseSearchableTransp
 
 class TestSearchableTransparentEncryptionWithDefaultsAcraBlockBinaryPostgreSQL(
     BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin, TestSearchableTransparentEncryption):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_acrablock_defaults_with_searchable_config.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config(
+        'tests/encryptor_configs/ee_acrablock_defaults_with_searchable_config.yaml')
 
 
 class TestSearchableTransparentEncryptionWithDefaultsAcraBlockBinaryPostgreSQLWithConsulEncryptorConfigLoader(
     test_integrations.HashicorpConsulEncryptorConfigLoaderMixin,
     BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin,
     TestSearchableTransparentEncryption):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_acrablock_defaults_with_searchable_config.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config(
+        'tests/encryptor_configs/ee_acrablock_defaults_with_searchable_config.yaml')
 
 
 class TestSearchableTransparentEncryptionWithDefaultsAcraBlockBinaryMySQL(
     BaseSearchableTransparentEncryptionBinaryMySQLMixin, TestSearchableTransparentEncryption):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_acrablock_defaults_with_searchable_config.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config(
+        'tests/encryptor_configs/ee_acrablock_defaults_with_searchable_config.yaml')
 
 
 class TestSearchableTransparentEncryptionWithDefaultsAcraStructBinaryPostgreSQL(
     BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin, TestSearchableTransparentEncryption):
-    ENCRYPTOR_CONFIG = get_encryptor_config(
+    ENCRYPTOR_CONFIG = base.get_encryptor_config(
         'tests/encryptor_configs/ee_acrastruct_defaults_with_searchable_config.yaml')
 
 
 class TestSearchableTransparentEncryptionWithDefaultsAcraStructBinaryMySQL(
     BaseSearchableTransparentEncryptionBinaryMySQLMixin, TestSearchableTransparentEncryption):
-    ENCRYPTOR_CONFIG = get_encryptor_config(
+    ENCRYPTOR_CONFIG = base.get_encryptor_config(
         'tests/encryptor_configs/ee_acrastruct_defaults_with_searchable_config.yaml')
 
 
@@ -1318,28 +1314,37 @@ class TestTransparentAcraBlockEncryptionMissingExtraLog(TestTransparentAcraBlock
 
 
 class TestTransparentAcraBlockEncryptionWithDefaults(TestTransparentAcraBlockEncryption):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_acrablock_config_with_defaults.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/ee_acrablock_config_with_defaults.yaml')
 
 
-class TestTransparentEncryptionConnectorlessWithTLSBySerialNumber(base.TLSAuthenticationBySerialNumberMixin,
+class TestTransparentEncryptionConnectorlessWithTLSBySerialNumber(test_common.TLSAuthenticationBySerialNumberMixin,
                                                                   TestTransparentEncryption,
-                                                                  base.TLSAuthenticationDirectlyToAcraMixin):
+                                                                  test_common.TLSAuthenticationDirectlyToAcraMixin):
     pass
 
 
-class TestTransparentEncryptionConnectorlessWithTLSByDN(base.TLSAuthenticationByDistinguishedNameMixin,
+class TestTransparentEncryptionConnectorlessWithTLSByDN(test_common.TLSAuthenticationByDistinguishedNameMixin,
                                                         TestTransparentEncryption,
-                                                        base.TLSAuthenticationDirectlyToAcraMixin):
+                                                        test_common.TLSAuthenticationDirectlyToAcraMixin):
     pass
 
 
-class TestSearchableTransparentEncryptionConnectorlessWithTLSByDN(base.TLSAuthenticationByDistinguishedNameMixin,
+class TestSearchableTransparentEncryptionConnectorlessWithTLSByDN(test_common.TLSAuthenticationByDistinguishedNameMixin,
                                                                   TestSearchableTransparentEncryption,
-                                                                  base.TLSAuthenticationDirectlyToAcraMixin):
+                                                                  test_common.TLSAuthenticationDirectlyToAcraMixin):
     pass
 
 
-class TestSearchableTransparentEncryptionConnectorlessWithTLSBySerialNumber(base.TLSAuthenticationBySerialNumberMixin,
-                                                                            TestSearchableTransparentEncryption,
-                                                                            base.TLSAuthenticationDirectlyToAcraMixin):
+class TestSearchableTransparentEncryptionConnectorlessWithTLSBySerialNumber(
+    test_common.TLSAuthenticationBySerialNumberMixin,
+    TestSearchableTransparentEncryption,
+    test_common.TLSAuthenticationDirectlyToAcraMixin):
     pass
+
+
+def setUpModule():
+    base.setUpModule()
+
+
+def tearDownModule():
+    base.tearDownModule()

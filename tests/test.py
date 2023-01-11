@@ -21,20 +21,15 @@ from urllib.request import urlopen
 import mysql.connector
 import psycopg2.errors
 import psycopg2.extras
-import yaml
 from ddt import ddt, data
 from prometheus_client.parser import text_string_to_metric_families
 from sqlalchemy.exc import DatabaseError, OperationalError
 
 from base import *
-from test_integrations import *
+from test_common import *
 from test_searchable_transparent_encryption import *
 from test_tokenization import *
 from test_type_aware import *
-from utils import (read_storage_public_key, read_storage_private_key,
-                   decrypt_acrastruct, deserialize_and_decrypt_acrastruct,
-                   safe_string, get_encryptor_config, abs_path, get_test_encryptor_config, send_signal_by_process_name,
-                   load_yaml_config, dump_yaml_config, BINARY_OUTPUT_FOLDER)
 
 # add to path our wrapper until not published to PYPI
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'wrappers/python'))
@@ -3938,7 +3933,7 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
             # turn off due to unsupported for keystore v2
             config['keystore_cache_on_start_enable'] = False
             config['keystore_cache_size'] = -1
-            test_port = utils.get_free_port()
+            test_port = get_free_port()
             connection_string = self.get_acraserver_connection_string(test_port)
             config['incoming_connection_string'] = connection_string
             dump_yaml_config(config, temp_config.name)
@@ -3970,7 +3965,7 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
         '''verify keys_dir changing on SIGHUP after changing config file and keep PORT same due to re-use of socket
         descriptors
         '''
-        grpc_port = utils.get_free_port()
+        grpc_port = get_free_port()
         temp_keystore = self.copy_keystore()
         default_args = self.get_base_translator_args()
         default_args.update({
@@ -4004,7 +3999,7 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
             # load default config
             shutil.rmtree(temp_keystore)
             config['keys_dir'] = base.KEYS_FOLDER.name
-            new_grpc_port = utils.get_free_port()
+            new_grpc_port = get_free_port()
             config['incoming_connection_grpc_string'] = 'tcp://127.0.0.1:{}'.format(new_grpc_port)
             dump_yaml_config(config, temp_config.name)
             translator.send_signal(signal.SIGHUP)
@@ -4129,7 +4124,7 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
             self.assertEqual(len(expected_data_slice), len(result))
             for i, row in enumerate(result):
                 self.assertEqual(row['id'], expected_data_slice[i]['id'])
-                self.assertEqual(utils.memoryview_to_bytes(row['data']),
+                self.assertEqual(memoryview_to_bytes(row['data']),
                                  expected_data_slice[i]['raw_data'].encode('ascii'))
                 self.assertEqual(row['raw_data'], expected_data_slice[i]['raw_data'])
                 self.assertEqual(row['empty'], b'')
@@ -4209,7 +4204,7 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
             self.assertEqual(len(expected_data_slice), len(result))
             for i, row in enumerate(result):
                 self.assertEqual(row['id'], expected_data_slice[i]['id'])
-                self.assertEqual(utils.memoryview_to_bytes(row['data']),
+                self.assertEqual(memoryview_to_bytes(row['data']),
                                  expected_data_slice[i]['raw_data'].encode('ascii'))
                 self.assertEqual(row['raw_data'], expected_data_slice[i]['raw_data'])
                 self.assertEqual(row['empty'], b'')
@@ -4222,7 +4217,7 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
             for i, row in enumerate(result):
                 self.assertEqual(row['id'], expected_data_slice[i]['id'])
                 self.assertNotEqual(
-                    utils.memoryview_to_bytes(row['data']), expected_data_slice[i]['raw_data'].encode('ascii'))
+                    memoryview_to_bytes(row['data']), expected_data_slice[i]['raw_data'].encode('ascii'))
                 self.assertEqual(row['raw_data'], expected_data_slice[i]['raw_data'])
                 self.assertEqual(row['empty'], b'')
 
@@ -4256,8 +4251,8 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
             expected_data_slice = data_set[test_case.offset:test_case.offset + test_case.limit]
             self.assertEqual(len(expected_data_slice), len(result))
             for i, row in enumerate(result):
-                self.assertEqual(utils.memoryview_to_bytes(row['data'][fake_offset:]), row['raw_data'].encode('utf-8'))
-                self.assertEqual(utils.memoryview_to_bytes(row['data'][:fake_offset]), fake_acra_struct[:fake_offset])
+                self.assertEqual(memoryview_to_bytes(row['data'][fake_offset:]), row['raw_data'].encode('utf-8'))
+                self.assertEqual(memoryview_to_bytes(row['data'][:fake_offset]), fake_acra_struct[:fake_offset])
 
                 self.assertEqual(row['id'], expected_data_slice[i]['id'])
                 self.assertEqual(row['raw_data'], expected_data_slice[i]['raw_data'])
@@ -4269,7 +4264,7 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
             self.assertEqual(len(expected_data_slice), len(result))
             for i, row in enumerate(result):
                 self.assertNotEqual(
-                    utils.memoryview_to_bytes(row['data'][fake_offset:]).decode('ascii', errors='ignore'),
+                    memoryview_to_bytes(row['data'][fake_offset:]).decode('ascii', errors='ignore'),
                     row['raw_data'])
 
                 self.assertEqual(row['id'], expected_data_slice[i]['id'])

@@ -12,15 +12,7 @@ import consul
 import hvac
 
 import base
-from utils import (BINARY_OUTPUT_FOLDER)
-
-
-def setUpModule():
-    base.setUpModule()
-
-
-def tearDownModule():
-    base.tearDownModule()
+import test_common
 
 
 class AWSKMSClient:
@@ -373,7 +365,7 @@ class KeyMakerTestWithAWSKMS(unittest.TestCase):
     def test_generate_master_key_with_kms_create(self):
         master_key_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
         subprocess.check_output(
-            [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(base.KEYSTORE_VERSION),
+            [os.path.join(base.BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(base.KEYSTORE_VERSION),
              '--generate_master_key={}'.format(master_key_file.name),
              '--kms_type=aws',
              '--keystore_encryption_type=kms_encrypted_master_key',
@@ -391,7 +383,8 @@ class KeyMakerTestWithAWSKMS(unittest.TestCase):
         with tempfile.NamedTemporaryFile('w+', encoding='utf-8') as master_key_file:
             try:
                 subprocess.check_output(
-                    [os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keymaker'), '--keystore={}'.format(base.KEYSTORE_VERSION),
+                    [os.path.join(base.BINARY_OUTPUT_FOLDER, 'acra-keymaker'),
+                     '--keystore={}'.format(base.KEYSTORE_VERSION),
                      '--generate_master_key={}'.format(master_key_file.name),
                      '--kms_type=aws',
                      '--keystore_encryption_type=kms_encrypted_master_key',
@@ -404,7 +397,7 @@ class KeyMakerTestWithAWSKMS(unittest.TestCase):
 
 
 class TestEnableCachedOnStartupAWSKMSKeystore(KMSAWSType, KMSPerClientEncryptorMixin,
-                                              base.TestEnableCachedOnStartupTest):
+                                              test_common.TestEnableCachedOnStartupTest):
     # just passed test to check if cache on start is working with KMS
     def testReadAcrastructInAcrastruct(self):
         pass
@@ -418,7 +411,7 @@ class TestEnableCachedOnStartupAWSKMSKeystore(KMSAWSType, KMSPerClientEncryptorM
 #         return self.get_poison_records()
 
 
-class AcraTranslatorTestWithAWSKMS(AWSKMSMasterKeyLoaderMixin, base.AcraTranslatorTest):
+class AcraTranslatorTestWithAWSKMS(AWSKMSMasterKeyLoaderMixin, test_common.AcraTranslatorTest):
     # ignore test as test logic contains some internal keys generation with ENV MasterKey loading
     def testGRPCApi(self):
         pass
@@ -428,37 +421,45 @@ class AcraTranslatorTestWithAWSKMS(AWSKMSMasterKeyLoaderMixin, base.AcraTranslat
 
 
 class TestTranslatorDisableCachedOnStartupWithAWSKMS(AWSKMSMasterKeyLoaderMixin,
-                                                     base.TestTranslatorDisableCachedOnStartup):
+                                                     test_common.TestTranslatorDisableCachedOnStartup):
     pass
 
 
 class TestTranslatorDisableCachedOnStartupWithAWSKMSKeystore(KMSAWSType, KMSPerClientEncryptorMixin,
-                                                             base.TestTranslatorDisableCachedOnStartup):
+                                                             test_common.TestTranslatorDisableCachedOnStartup):
     pass
 
 
 class TestAcraTranslatorWithVaultMasterKeyLoaderByDistinguishedName(HashiCorpVaultMasterKeyLoaderMixin,
-                                                                    base.TLSAuthenticationByDistinguishedNameMixin,
-                                                                    base.AcraTranslatorTest):
+                                                                    test_common.TLSAuthenticationByDistinguishedNameMixin,
+                                                                    test_common.AcraTranslatorTest):
     pass
 
 
 class TestAcraTranslatorWithVaultMasterKeyLoaderBySerialNumber(HashiCorpVaultMasterKeyLoaderMixin,
-                                                               base.TLSAuthenticationBySerialNumberMixin,
-                                                               base.AcraTranslatorTest):
+                                                               test_common.TLSAuthenticationBySerialNumberMixin,
+                                                               test_common.AcraTranslatorTest):
     pass
 
 
 class TestAcraTranslatorClientIDFromTLSByDistinguishedNameVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoaderMixin,
-                                                                               base.TestAcraTranslatorClientIDFromTLSByDistinguishedName):
+                                                                               test_common.TestAcraTranslatorClientIDFromTLSByDistinguishedName):
     pass
 
 
-class TestKeyRotationWithVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoaderMixin, base.TestKeyRotation):
+class TestKeyRotationWithVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoaderMixin, test_common.TestKeyRotation):
     pass
 
 
 class TestAcraTranslatorClientIDFromTLSBySerialNumberVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoaderMixin,
-                                                                          base.TLSAuthenticationBySerialNumberMixin,
-                                                                          base.TestAcraTranslatorClientIDFromTLSByDistinguishedName):
+                                                                          test_common.TLSAuthenticationBySerialNumberMixin,
+                                                                          test_common.TestAcraTranslatorClientIDFromTLSByDistinguishedName):
     pass
+
+
+def setUpModule():
+    base.setUpModule()
+
+
+def tearDownModule():
+    base.tearDownModule()

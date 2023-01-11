@@ -3,31 +3,22 @@ import os
 import sqlalchemy as sa
 
 import base
+import test_common
 import test_integrations
 from random_utils import random_bytes, random_email, random_int32, random_int64, random_str
-from utils import (prepare_encryptor_config,
-                   get_encryptor_config, get_test_encryptor_config, memoryview_to_bytes)
 
 
-def setUpModule():
-    base.setUpModule()
-
-
-def tearDownModule():
-    base.tearDownModule()
-
-
-class BaseTokenization(base.BaseTestCase):
+class BaseTokenization(test_common.BaseTestCase):
     WHOLECELL_MODE = True
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_tokenization_config.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/ee_tokenization_config.yaml')
 
     def get_specified_client_id(self):
         return base.TLS_CERT_CLIENT_ID_2
 
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
-        prepare_encryptor_config(
+        base.prepare_encryptor_config(
             client_id=self.get_specified_client_id(), config_path=self.ENCRYPTOR_CONFIG)
-        acra_kwargs.update(encryptor_config_file=get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
+        acra_kwargs.update(encryptor_config_file=base.get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
         return super(BaseTokenization, self).fork_acra(popen_kwargs, **acra_kwargs)
 
     def insert_via_1(self, query, values):
@@ -65,12 +56,12 @@ class BaseTokenizationWithBoltDB(BaseTokenization):
         os.remove('token1.db')
 
 
-class BaseTokenizationWithRedis(base.RedisMixin, BaseTokenization):
+class BaseTokenizationWithRedis(test_common.RedisMixin, BaseTokenization):
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
         acra_kwargs.update(
             redis_host_port=os.environ.get('TEST_REDIS_HOSTPORT', 'localhost:6379'),
             redis_db_tokens=self.TEST_REDIS_TOKEN_DB,
-            encryptor_config_file=get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
+            encryptor_config_file=base.get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
         if base.TEST_WITH_TLS:
             acra_kwargs.update(
                 redis_tls_client_auth=4,
@@ -82,7 +73,7 @@ class BaseTokenizationWithRedis(base.RedisMixin, BaseTokenization):
         return super(BaseTokenizationWithRedis, self).fork_acra(popen_kwargs, **acra_kwargs)
 
 
-class BaseTokenizationWithBinaryBindMySQL(BaseTokenization, base.BaseBinaryMySQLTestCase):
+class BaseTokenizationWithBinaryBindMySQL(BaseTokenization, test_common.BaseBinaryMySQLTestCase):
 
     def checkSkip(self):
         if not base.TEST_MYSQL:
@@ -111,7 +102,7 @@ class BaseTokenizationWithBinaryBindMySQL(BaseTokenization, base.BaseBinaryMySQL
         return self.executor2.execute_prepared_statement(query, parameters)
 
 
-class BaseTokenizationWithBinaryPostgreSQL(BaseTokenization, base.BaseBinaryPostgreSQLTestCase):
+class BaseTokenizationWithBinaryPostgreSQL(BaseTokenization, test_common.BaseBinaryPostgreSQLTestCase):
     """Verify tokenization with PostgreSQL extended protocol (binary format)."""
     FORMAT = base.AsyncpgExecutor.BinaryFormat
 
@@ -152,7 +143,7 @@ class BaseTokenizationWithTextPostgreSQL(BaseTokenizationWithBinaryPostgreSQL):
     # overrides checkSkip(). When parent's override is removed, this one
     # becomes unnecessary and should be removed too.
     def checkSkip(self):
-        base.BaseBinaryPostgreSQLTestCase.checkSkip(self)
+        test_common.BaseBinaryPostgreSQLTestCase.checkSkip(self)
 
 
 class BaseTokenizationWithBinaryMySQL(BaseTokenization):
@@ -200,7 +191,7 @@ class BaseTokenizationWithBinaryMySQL(BaseTokenization):
 
 class BaseMasking(BaseTokenization):
     WHOLECELL_MODE = False
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_masking_config.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/ee_masking_config.yaml')
 
     def check_crypto_envelope(self, table, row_id):
         temp_acrastruct = base.create_acrastruct_with_client_id(b'somedata', base.TLS_CERT_CLIENT_ID_1)
@@ -220,10 +211,10 @@ class BaseMasking(BaseTokenization):
         return base.TLS_CERT_CLIENT_ID_2
 
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
-        prepare_encryptor_config(
+        base.prepare_encryptor_config(
             client_id=self.get_specified_client_id(), config_path=self.ENCRYPTOR_CONFIG)
         acra_kwargs.update(token_db='token1.db',
-                           encryptor_config_file=get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
+                           encryptor_config_file=base.get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
         return super(BaseTokenization, self).fork_acra(popen_kwargs, **acra_kwargs)
 
     def executeInsert(self, query, values):
@@ -239,7 +230,7 @@ class BaseMasking(BaseTokenization):
         os.remove('token1.db')
 
 
-class BaseMaskingBinaryPostgreSQLMixin(base.BaseBinaryPostgreSQLTestCase, base.BaseTestCase):
+class BaseMaskingBinaryPostgreSQLMixin(test_common.BaseBinaryPostgreSQLTestCase, test_common.BaseTestCase):
     def executeInsert(self, query, values):
         """Execute a Insert query with list of values via AcraServer for "TEST_TLS_CLIENT_CERT"."""
         query, parameters = self.compileInsertQuery(query, values)
@@ -251,7 +242,7 @@ class BaseMaskingBinaryPostgreSQLMixin(base.BaseBinaryPostgreSQLTestCase, base.B
         return self.executor1.execute_prepared_statement(query, parameters)
 
 
-class BaseMaskingBinaryMySQLMixin(base.BaseBinaryMySQLTestCase, base.BaseTestCase):
+class BaseMaskingBinaryMySQLMixin(test_common.BaseBinaryMySQLTestCase, test_common.BaseTestCase):
     def executeInsert(self, query, values):
         """Execute a Insert query with list of values via AcraServer for "TEST_TLS_CLIENT_CERT"."""
         query, parameters = self.compileInsertQuery(query, values)
@@ -460,15 +451,15 @@ class TestTokenization(BaseTokenization):
             # successfully decrypted data returned as string otherwise as bytes
             # always encode to bytes to compare values with same type coercions
             if isinstance(source_data[0][k], (bytearray, bytes, memoryview)) and isinstance(data[k], str):
-                self.assertEqual(memoryview_to_bytes(source_data[0][k]), data[k].encode('utf-8'))
-                self.assertNotEqual(memoryview_to_bytes(hidden_data[0][k]), data[k].encode('utf-8'))
+                self.assertEqual(base.memoryview_to_bytes(source_data[0][k]), data[k].encode('utf-8'))
+                self.assertNotEqual(base.memoryview_to_bytes(hidden_data[0][k]), data[k].encode('utf-8'))
             else:
-                self.assertEqual(memoryview_to_bytes(source_data[0][k]), data[k])
-                self.assertNotEqual(memoryview_to_bytes(hidden_data[0][k]), data[k])
+                self.assertEqual(base.memoryview_to_bytes(source_data[0][k]), data[k])
+                self.assertNotEqual(base.memoryview_to_bytes(hidden_data[0][k]), data[k])
 
 
-class TestSearchableTokenization(base.AcraCatchLogsMixin, BaseTokenization):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_searchable_tokenization_config.yaml')
+class TestSearchableTokenization(test_common.AcraCatchLogsMixin, BaseTokenization):
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/ee_searchable_tokenization_config.yaml')
 
     def testSearchableTokenizationDefaultClientID(self):
         default_client_id_table = sa.Table(
@@ -953,15 +944,16 @@ class TestSearchableTokenizationBinaryBindMySQL(BaseTokenizationWithBinaryBindMy
     pass
 
 
-class TestTokenizationConnectorlessWithTLSBySerialNumber(base.TLSAuthenticationBySerialNumberMixin,
-                                                         base.TLSAuthenticationDirectlyToAcraMixin, TestTokenization):
+class TestTokenizationConnectorlessWithTLSBySerialNumber(test_common.TLSAuthenticationBySerialNumberMixin,
+                                                         test_common.TLSAuthenticationDirectlyToAcraMixin,
+                                                         TestTokenization):
     def get_specified_client_id(self):
         return base.extract_client_id_from_cert(tls_cert=base.TEST_TLS_CLIENT_2_CERT,
                                                 extractor=self.get_identifier_extractor_type())
 
 
-class TestTokenizationConnectorlessWithTLSByDN(base.TLSAuthenticationByDistinguishedNameMixin,
-                                               base.TLSAuthenticationDirectlyToAcraMixin, TestTokenization):
+class TestTokenizationConnectorlessWithTLSByDN(test_common.TLSAuthenticationByDistinguishedNameMixin,
+                                               test_common.TLSAuthenticationDirectlyToAcraMixin, TestTokenization):
     def get_specified_client_id(self):
         return base.extract_client_id_from_cert(tls_cert=base.TEST_TLS_CLIENT_2_CERT,
                                                 extractor=self.get_identifier_extractor_type())
@@ -1130,7 +1122,7 @@ class TestMasking(BaseMasking):
 
 
 class BaseAcraBlockMasking:
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_masking_acrablock_config.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/ee_masking_acrablock_config.yaml')
 
     def check_crypto_envelope(self, table, row_id):
         temp_acrastruct = base.create_acrastruct_with_client_id(b'somedata', base.TLS_CERT_CLIENT_ID_1)
@@ -1160,18 +1152,19 @@ class TestMaskingAcraBlockBinaryPostgreSQL(BaseAcraBlockMasking, BaseMaskingBina
 
 
 class TestMaskingAcraBlockWithDefaults(BaseAcraBlockMasking, TestMasking):
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_masking_acrablock_with_defaults_config.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config(
+        'tests/encryptor_configs/ee_masking_acrablock_with_defaults_config.yaml')
 
 
-class TestMaskingConnectorlessWithTLSByDN(base.TLSAuthenticationByDistinguishedNameMixin,
-                                          base.TLSAuthenticationDirectlyToAcraMixin, TestMasking):
+class TestMaskingConnectorlessWithTLSByDN(test_common.TLSAuthenticationByDistinguishedNameMixin,
+                                          test_common.TLSAuthenticationDirectlyToAcraMixin, TestMasking):
     def get_specified_client_id(self):
         return base.extract_client_id_from_cert(tls_cert=base.TEST_TLS_CLIENT_2_CERT,
                                                 extractor=self.get_identifier_extractor_type())
 
 
-class TestMaskingConnectorlessWithTLSBySerialNumber(base.TLSAuthenticationBySerialNumberMixin,
-                                                    base.TLSAuthenticationDirectlyToAcraMixin, TestMasking):
+class TestMaskingConnectorlessWithTLSBySerialNumber(test_common.TLSAuthenticationBySerialNumberMixin,
+                                                    test_common.TLSAuthenticationDirectlyToAcraMixin, TestMasking):
     def get_specified_client_id(self):
         return base.extract_client_id_from_cert(tls_cert=base.TEST_TLS_CLIENT_2_CERT,
                                                 extractor=self.get_identifier_extractor_type())
@@ -1179,13 +1172,21 @@ class TestMaskingConnectorlessWithTLSBySerialNumber(base.TLSAuthenticationBySeri
 
 class TestSearchableTokenizationBinaryPostgreSQLWithDefaults(BaseTokenizationWithBinaryPostgreSQL,
                                                              TestSearchableTokenization):
-    ENCRYPTOR_CONFIG = get_encryptor_config(
+    ENCRYPTOR_CONFIG = base.get_encryptor_config(
         'tests/encryptor_configs/ee_searchable_tokenization_config_with_defaults.yaml')
     pass
 
 
 class TestSearchableTokenizationBinaryBindMySQLWithDefaults(BaseTokenizationWithBinaryBindMySQL,
                                                             TestSearchableTokenization):
-    ENCRYPTOR_CONFIG = get_encryptor_config(
+    ENCRYPTOR_CONFIG = base.get_encryptor_config(
         'tests/encryptor_configs/ee_searchable_tokenization_config_with_defaults.yaml')
     pass
+
+
+def setUpModule():
+    base.setUpModule()
+
+
+def tearDownModule():
+    base.tearDownModule()

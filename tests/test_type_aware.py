@@ -5,18 +5,10 @@ from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.sql import expression, operators
 
 import base
+import test_common
 import test_integrations
 import test_searchable_transparent_encryption
 from random_utils import random_bytes, random_int32, random_int64, random_str
-from utils import (get_encryptor_config, memoryview_to_bytes)
-
-
-def setUpModule():
-    base.setUpModule()
-
-
-def tearDownModule():
-    base.tearDownModule()
 
 
 class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(
@@ -49,7 +41,7 @@ class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(
         sa.Column('value_null_int32', sa.LargeBinary, nullable=True, default=None),
         sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     def checkSkip(self):
         if not (base.TEST_POSTGRESQL and base.TEST_WITH_TLS):
@@ -117,15 +109,15 @@ class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(
             if 'null' in column:
                 self.assertIsNone(row[column])
                 continue
-            self.assertIsInstance(memoryview_to_bytes(row[column]), bytes)
+            self.assertIsInstance(base.memoryview_to_bytes(row[column]), bytes)
             if column in ('value_str', 'value_bytes'):
                 # length of data should be greater than source data due to encryption overhead
-                self.assertTrue(len(memoryview_to_bytes(row[column])) > len(data[column]))
+                self.assertTrue(len(base.memoryview_to_bytes(row[column])) > len(data[column]))
 
 
 class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaultsAndDataTypeIDs(
     TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults):
-    ENCRYPTOR_CONFIG = get_encryptor_config(
+    ENCRYPTOR_CONFIG = base.get_encryptor_config(
         'tests/encryptor_configs/transparent_type_aware_decryption_postgres_with_data_type_id.yaml')
     pass
 
@@ -136,7 +128,7 @@ class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaultsWithConsulEncryptor
     pass
 
 
-class TestMySQLTextFormatTypeAwareDecryptionWithDefaults(base.BaseBinaryMySQLTestCase,
+class TestMySQLTextFormatTypeAwareDecryptionWithDefaults(test_common.BaseBinaryMySQLTestCase,
                                                          test_searchable_transparent_encryption.BaseTransparentEncryption):
     # test table used for queries and data mapping into python types
     test_table = sa.Table(
@@ -166,7 +158,7 @@ class TestMySQLTextFormatTypeAwareDecryptionWithDefaults(base.BaseBinaryMySQLTes
         sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
         extend_existing=True
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     # switch off raw mode to be able to convert result rows to python types
     RAW_EXECUTOR = False
@@ -226,10 +218,10 @@ class TestMySQLTextFormatTypeAwareDecryptionWithDefaults(base.BaseBinaryMySQLTes
             if 'null' in column:
                 self.assertIsNone(row[column])
                 continue
-            self.assertIsInstance(memoryview_to_bytes(row[column]), bytes)
+            self.assertIsInstance(base.memoryview_to_bytes(row[column]), bytes)
             if column in ('value_str', 'value_bytes'):
                 # length of data should be greater than source data due to encryption overhead
-                self.assertTrue(len(memoryview_to_bytes(row[column])) > len(data[column]))
+                self.assertTrue(len(base.memoryview_to_bytes(row[column])) > len(data[column]))
 
 
 class TestMySQLTextFormatTypeAwareDecryptionWithDefaultsWithConsulEncryptorConfigLoader(
@@ -239,7 +231,7 @@ class TestMySQLTextFormatTypeAwareDecryptionWithDefaultsWithConsulEncryptorConfi
 
 
 class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults(
-    base.BaseBinaryPostgreSQLTestCase, TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults):
+    test_common.BaseBinaryPostgreSQLTestCase, TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults):
     def testClientIDRead(self):
         """test decrypting with correct clientID and not decrypting with
         incorrect clientID or using direct connection to db
@@ -308,7 +300,7 @@ class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults(
 
 class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaultsAndDataTypeIDs(
     TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults):
-    ENCRYPTOR_CONFIG = get_encryptor_config(
+    ENCRYPTOR_CONFIG = base.get_encryptor_config(
         'tests/encryptor_configs/transparent_type_aware_decryption_postgres_with_data_type_id.yaml')
     pass
 
@@ -401,7 +393,7 @@ class TestPostgresqlTextTypeAwareDecryptionWithoutDefaults(
         sa.Column('value_null_int32', sa.LargeBinary, nullable=True, default=None),
         sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     def checkSkip(self):
         if not (base.TEST_POSTGRESQL and base.TEST_WITH_TLS):
@@ -445,7 +437,7 @@ class TestPostgresqlTextTypeAwareDecryptionWithoutDefaults(
                 self.assertIsNone(row[column])
                 self.assertEqual(row[column], data[column])
                 continue
-            value = memoryview_to_bytes(row[column])
+            value = base.memoryview_to_bytes(row[column])
             if 'empty' in column:
                 self.assertEqual(value, b'')
                 continue
@@ -453,7 +445,7 @@ class TestPostgresqlTextTypeAwareDecryptionWithoutDefaults(
             self.assertNotEqual(data[column], value, column)
 
 
-class TestMySQLTextTypeAwareDecryptionWithoutDefaults(base.BaseBinaryMySQLTestCase,
+class TestMySQLTextTypeAwareDecryptionWithoutDefaults(test_common.BaseBinaryMySQLTestCase,
                                                       test_searchable_transparent_encryption.BaseTransparentEncryption):
     # test table used for queries and data mapping into python types
     test_table = sa.Table(
@@ -483,7 +475,7 @@ class TestMySQLTextTypeAwareDecryptionWithoutDefaults(base.BaseBinaryMySQLTestCa
         sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
         extend_existing=True
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     # switch off raw mode to be able to convert result rows to python types
     RAW_EXECUTOR = False
@@ -537,13 +529,13 @@ class TestMySQLTextTypeAwareDecryptionWithoutDefaults(base.BaseBinaryMySQLTestCa
                 # asyncpg decodes None values as empty str/bytes value
                 self.assertFalse(row[column])
                 continue
-            value = memoryview_to_bytes(row[column])
+            value = base.memoryview_to_bytes(row[column])
             self.assertIsInstance(value, bytes, column)
             self.assertNotEqual(data[column], value, column)
 
 
 class TestMySQLTextTypeAwareDecryptionWithoutDefaultsAndDataTypeIDs(TestMySQLTextTypeAwareDecryptionWithoutDefaults):
-    ENCRYPTOR_CONFIG = get_encryptor_config(
+    ENCRYPTOR_CONFIG = base.get_encryptor_config(
         'tests/encryptor_configs/transparent_type_aware_decryption_mysql_with_data_type_id.yaml')
     pass
 
@@ -576,7 +568,7 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithoutDefaults(TestPostgresqlBinar
         sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
         extend_existing=True
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     def checkSkip(self):
         if not (base.TEST_POSTGRESQL and base.TEST_WITH_TLS):
@@ -619,7 +611,7 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithoutDefaults(TestPostgresqlBinar
                 self.assertIsNone(row[column])
                 self.assertEqual(row[column], data[column])
                 continue
-            value = memoryview_to_bytes(row[column])
+            value = base.memoryview_to_bytes(row[column])
             if 'empty' in column:
                 self.assertEqual(value, b'')
                 continue
@@ -655,7 +647,7 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithError(TestPostgresqlBinaryForma
         sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
         extend_existing=True
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     def checkSkip(self):
         if not (base.TEST_POSTGRESQL and base.TEST_WITH_TLS):
@@ -701,7 +693,7 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithError(TestPostgresqlBinaryForma
                 self.assertIsNone(row[column])
                 self.assertEqual(row[column], data[column])
                 continue
-            value = memoryview_to_bytes(row[column])
+            value = base.memoryview_to_bytes(row[column])
             if 'empty' in column:
                 self.assertEqual(value, b'')
                 continue
@@ -735,7 +727,7 @@ class TestPostgresqlTextTypeAwareDecryptionWithError(test_searchable_transparent
         sa.Column('value_null_int32', sa.LargeBinary, nullable=True, default=None),
         sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     def checkSkip(self):
         if not (base.TEST_POSTGRESQL and base.TEST_WITH_TLS):
@@ -781,7 +773,7 @@ class TestPostgresqlTextTypeAwareDecryptionWithError(test_searchable_transparent
                 self.assertIsNone(row[column])
                 self.assertEqual(row[column], data[column])
                 continue
-            value = memoryview_to_bytes(row[column])
+            value = base.memoryview_to_bytes(row[column])
             if 'empty' in column:
                 self.assertEqual(value, b'')
                 continue
@@ -819,7 +811,7 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithCiphertext(TestPostgresqlBinary
         sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
         extend_existing=True
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     def checkSkip(self):
         if not (base.TEST_POSTGRESQL and base.TEST_WITH_TLS):
@@ -862,7 +854,7 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithCiphertext(TestPostgresqlBinary
                 self.assertIsNone(row[column])
                 self.assertEqual(row[column], data[column])
                 continue
-            value = memoryview_to_bytes(row[column])
+            value = base.memoryview_to_bytes(row[column])
             if 'empty' in column:
                 self.assertEqual(value, b'')
                 continue
@@ -899,7 +891,7 @@ class TestPostgresqlTextTypeAwareDecryptionWithCiphertext(
         sa.Column('value_null_int32', sa.LargeBinary, nullable=True, default=None),
         sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     def checkSkip(self):
         if not (base.TEST_POSTGRESQL and base.TEST_WITH_TLS):
@@ -943,7 +935,7 @@ class TestPostgresqlTextTypeAwareDecryptionWithCiphertext(
                 self.assertIsNone(row[column])
                 self.assertEqual(row[column], data[column])
                 continue
-            value = memoryview_to_bytes(row[column])
+            value = base.memoryview_to_bytes(row[column])
             if 'empty' in column:
                 self.assertEqual(value, b'')
                 continue
@@ -993,12 +985,12 @@ class TestMySQLBinaryTypeAwareDecryptionWithoutDefaults(TestMySQLTextTypeAwareDe
                 # asyncpg decodes None values as empty str/bytes value
                 self.assertFalse(row[column])
                 continue
-            value = memoryview_to_bytes(row[column])
+            value = base.memoryview_to_bytes(row[column])
             self.assertIsInstance(value, bytearray, column)
             self.assertNotEqual(data[column], value, column)
 
 
-class TestMySQLTextTypeAwareDecryptionWithCiphertext(base.BaseBinaryMySQLTestCase,
+class TestMySQLTextTypeAwareDecryptionWithCiphertext(test_common.BaseBinaryMySQLTestCase,
                                                      test_searchable_transparent_encryption.BaseTransparentEncryption):
     # test table used for queries and data mapping into python types
     test_table = sa.Table(
@@ -1028,7 +1020,7 @@ class TestMySQLTextTypeAwareDecryptionWithCiphertext(base.BaseBinaryMySQLTestCas
         sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
         extend_existing=True
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     # switch off raw mode to be able to convert result rows to python types
     RAW_EXECUTOR = False
@@ -1082,13 +1074,13 @@ class TestMySQLTextTypeAwareDecryptionWithCiphertext(base.BaseBinaryMySQLTestCas
                 # asyncpg decodes None values as empty str/bytes value
                 self.assertFalse(row[column])
                 continue
-            value = memoryview_to_bytes(row[column])
+            value = base.memoryview_to_bytes(row[column])
             self.assertIsInstance(value, bytes, column)
             self.assertNotEqual(data[column], value, column)
 
 
 class TestMySQLTextTypeAwareDecryptionWithCiphertextWithDataTypeIDs(TestMySQLTextTypeAwareDecryptionWithCiphertext):
-    ENCRYPTOR_CONFIG = get_encryptor_config(
+    ENCRYPTOR_CONFIG = base.get_encryptor_config(
         'tests/encryptor_configs/transparent_type_aware_decryption_mysql_with_data_type_id.yaml')
     pass
 
@@ -1135,18 +1127,18 @@ class TestMySQLBinaryTypeAwareDecryptionWithCiphertext(TestMySQLTextTypeAwareDec
                 # asyncpg decodes None values as empty str/bytes value
                 self.assertFalse(row[column])
                 continue
-            value = memoryview_to_bytes(row[column])
+            value = base.memoryview_to_bytes(row[column])
             self.assertIsInstance(value, bytearray, column)
             self.assertNotEqual(data[column], value, column)
 
 
 class TestMySQLBinaryTypeAwareDecryptionWithCiphertextWithDataTypeIDs(TestMySQLBinaryTypeAwareDecryptionWithCiphertext):
-    ENCRYPTOR_CONFIG = get_encryptor_config(
+    ENCRYPTOR_CONFIG = base.get_encryptor_config(
         'tests/encryptor_configs/transparent_type_aware_decryption_mysql_with_data_type_id.yaml')
     pass
 
 
-class TestMySQLTextTypeAwareDecryptionWithError(base.BaseBinaryMySQLTestCase,
+class TestMySQLTextTypeAwareDecryptionWithError(test_common.BaseBinaryMySQLTestCase,
                                                 test_searchable_transparent_encryption.BaseTransparentEncryption):
     # test table used for queries and data mapping into python types
     test_table = sa.Table(
@@ -1175,7 +1167,7 @@ class TestMySQLTextTypeAwareDecryptionWithError(base.BaseBinaryMySQLTestCase,
         sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
         extend_existing=True
     )
-    ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     # switch off raw mode to be able to convert result rows to python types
     RAW_EXECUTOR = False
@@ -1225,7 +1217,7 @@ class TestMySQLTextTypeAwareDecryptionWithError(base.BaseBinaryMySQLTestCase,
 
 
 class TestMySQLTextTypeAwareDecryptionWithErrorWithDataTypeIDs(TestMySQLTextTypeAwareDecryptionWithError):
-    ENCRYPTOR_CONFIG = get_encryptor_config(
+    ENCRYPTOR_CONFIG = base.get_encryptor_config(
         'tests/encryptor_configs/transparent_type_aware_decryption_mysql_with_data_type_id.yaml')
     pass
 
@@ -1273,7 +1265,7 @@ class TestMySQLBinaryTypeAwareDecryptionWithError(TestMySQLTextTypeAwareDecrypti
 
 
 class TestMySQLBinaryTypeAwareDecryptionWithErrorWithDataTypeIDs(TestMySQLBinaryTypeAwareDecryptionWithError):
-    ENCRYPTOR_CONFIG = get_encryptor_config(
+    ENCRYPTOR_CONFIG = base.get_encryptor_config(
         'tests/encryptor_configs/transparent_type_aware_decryption_mysql_with_data_type_id.yaml')
     pass
 
@@ -1351,7 +1343,7 @@ class TestMySQLTextCharsetLiterals(TestMySQLTextTypeAwareDecryptionWithoutDefaul
         self.assertNotEqual(row['value_bytes'], b'binary_string')
 
 
-class TestPostgresqlTypeAwareDecryptionWithDefaultsPsycopg3(base.Psycopg3ExecutorMixin,
+class TestPostgresqlTypeAwareDecryptionWithDefaultsPsycopg3(test_common.Psycopg3ExecutorMixin,
                                                             TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults):
     # Psycopg3 includes a type of parameters in a parse string, which is optional
     # and therefore most of the frontends doesn't do that. So, test also with it.
@@ -1359,5 +1351,13 @@ class TestPostgresqlTypeAwareDecryptionWithDefaultsPsycopg3(base.Psycopg3Executo
 
 
 class TestClientIDDecryptionWithVaultMasterKeyLoader(test_integrations.HashiCorpVaultMasterKeyLoaderMixin,
-                                                     base.HexFormatTest):
+                                                     test_common.HexFormatTest):
     pass
+
+
+def setUpModule():
+    base.setUpModule()
+
+
+def tearDownModule():
+    base.tearDownModule()
