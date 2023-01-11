@@ -88,7 +88,7 @@ type ocspServerConfig struct {
 	respondWithWrongSerial bool
 }
 
-func getTestOCSPServer(t *testing.T, config ocspServerConfig) (*http.Server, string) {
+func getTestOCSPServer(t *testing.T, config ocspServerConfig, port int) (*http.Server, string) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(res http.ResponseWriter, req *http.Request) {
 		contentType, ok := req.Header["Content-Type"]
@@ -167,7 +167,7 @@ func getTestOCSPServer(t *testing.T, config ocspServerConfig) (*http.Server, str
 		// t.Logf("Wrote %d bytes OCSP response\n", n)
 	})
 
-	httpServer, addr := getTestHTTPServer(t, mux)
+	httpServer, addr := getTestHTTPServer(t, port, mux)
 
 	return httpServer, addr
 }
@@ -291,7 +291,7 @@ func testDefaultOCSPClientWithGroupValid(t *testing.T, certGroup TestCertGroup) 
 		testCases:     []*ocspTestCase{goodData},
 	}
 
-	ocspServer, addr := getTestOCSPServer(t, ocspServerConfig)
+	ocspServer, addr := getTestOCSPServer(t, ocspServerConfig, freePort)
 	defer ocspServer.Close()
 
 	ocspClient := NewDefaultOCSPClient()
@@ -333,7 +333,7 @@ func testDefaultOCSPClientWithGroupRevoked(t *testing.T, certGroup TestCertGroup
 		testCases:     []*ocspTestCase{revokedData},
 	}
 
-	ocspServer, addr := getTestOCSPServer(t, ocspServerConfig)
+	ocspServer, addr := getTestOCSPServer(t, ocspServerConfig, freePort)
 	defer ocspServer.Close()
 
 	ocspClient := NewDefaultOCSPClient()
@@ -376,7 +376,7 @@ func testDefaultOCSPClientWrongResponse(t *testing.T, certGroup TestCertGroup) {
 		respondWithWrongSerial: true,
 	}
 
-	ocspServer, addr := getTestOCSPServer(t, ocspServerConfig)
+	ocspServer, addr := getTestOCSPServer(t, ocspServerConfig, freePort)
 	defer ocspServer.Close()
 
 	ocspClient := NewDefaultOCSPClient()
@@ -478,7 +478,7 @@ func testDefaultOCSPVerifierWithGroupValid(t *testing.T, certGroup TestCertGroup
 		testCases:     []*ocspTestCase{goodData},
 	}
 
-	ocspServer, addr := getTestOCSPServer(t, ocspServerConfig)
+	ocspServer, addr := getTestOCSPServer(t, ocspServerConfig, freePort)
 	defer ocspServer.Close()
 
 	url := fmt.Sprintf("http://%s", addr)
@@ -526,7 +526,7 @@ func testDefaultOCSPVerifierWithGroupRevoked(t *testing.T, certGroup TestCertGro
 		testCases:     []*ocspTestCase{revokedData},
 	}
 
-	ocspServer, addr := getTestOCSPServer(t, ocspServerConfig)
+	ocspServer, addr := getTestOCSPServer(t, ocspServerConfig, freePort)
 	defer ocspServer.Close()
 
 	url := fmt.Sprintf("http://%s", addr)

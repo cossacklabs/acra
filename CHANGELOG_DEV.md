@@ -1,3 +1,6 @@
+# 0.94.5 - 2023-01-11
+- Improved TLS configuration, `tls_ocsp_*` and `tls_crl_*` applied for TLS connections without `tls_ocsp_[client|database]_*`/`tls_crl_[client|database]_*` flags.g
+
 # 0.94.0 - 2022-10-18
 - Extend SQL syntax for searchable encryption with support JOINs query. 
 

@@ -143,7 +143,7 @@ func realMain() error {
 	enableHTTPAPI := flag.Bool("http_api_enable", false, "Enable HTTP API. Use together with --http_api_tls_transport_enable whenever possible.")
 	httpAPIUseTLS := flag.Bool("http_api_tls_transport_enable", false, "Enable HTTPS support for the API. Use together with the --http_api_enable. TLS configuration is the same as in the Acra Proxy.")
 
-	network.RegisterTLSBaseArgs()
+	network.RegisterTLSBaseArgs(flag.CommandLine)
 	network.RegisterTLSArgsForService(flag.CommandLine, false, "", network.ClientNameConstructorFunc())
 	network.RegisterTLSArgsForService(flag.CommandLine, true, "", network.DatabaseNameConstructorFunc())
 	tlsUseClientIDFromCertificate := flag.Bool("tls_client_id_from_cert", true, "Extract clientID from TLS certificate from application connection. Can't be used with --tls_client_auth=0 or --tls_auth=0")

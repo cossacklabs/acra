@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/network"
 	tests2 "github.com/cossacklabs/acra/utils/tests"
 	"path/filepath"
 	"strconv"
@@ -87,6 +88,20 @@ func prepareTLSRedisConfig(t *testing.T) (*cmd.RedisOptions, *flag.FlagSet) {
 
 func TestRedis(t *testing.T) {
 	options, flagset := prepareTLSRedisConfig(t)
+	network.RegisterTLSBaseArgs(flagset)
+	setFlags := map[string]string{
+		// test certs contains specified OCSP/CRL endpoints that force our TLS verifier to check it
+		// turn on ignoring it to avoid starting extra servers for ocsp/crl responses
+		"tls_ocsp_from_cert": network.OcspFromCertIgnoreStr,
+		"tls_crl_from_cert":  network.CrlFromCertIgnoreStr,
+	}
+
+	for flag, value := range setFlags {
+		err := flagset.Set(flag, value)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	redisOptions, err := options.KeysOptions(flagset)
 	if err != nil {
 		t.Fatal(err)

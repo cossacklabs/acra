@@ -130,31 +130,35 @@ const (
 func NewOCSPConfigByName(flags *flag.FlagSet, name string, namerFunc CLIParamNameConstructorFunc) (*OCSPConfig, error) {
 	var url, required, fromCert string
 	var checkOnlyLeafCert bool
-	if f := flags.Lookup(namerFunc(name, "url", "ocsp")); f != nil {
+
+	url = tlsOcspURL
+	if isFlagSet(namerFunc(name, "url", "ocsp"), flags) {
+		f := flags.Lookup(namerFunc(name, "url", "ocsp"))
 		url = f.Value.String()
-		if url == "" {
-			url = tlsOcspURL
-		}
 	}
-	if f := flags.Lookup(namerFunc(name, "required", "ocsp")); f != nil {
+
+	required = tlsOcspRequired
+	if isFlagSet(namerFunc(name, "required", "ocsp"), flags) {
+		f := flags.Lookup(namerFunc(name, "required", "ocsp"))
 		required = f.Value.String()
-		if required == "" {
-			required = tlsOcspRequired
-		}
 	}
-	if f := flags.Lookup(namerFunc(name, "from_cert", "ocsp")); f != nil {
+
+	fromCert = tlsOcspFromCert
+	if isFlagSet(namerFunc(name, "from_cert", "ocsp"), flags) {
+		f := flags.Lookup(namerFunc(name, "from_cert", "ocsp"))
 		fromCert = f.Value.String()
-		if fromCert == "" {
-			fromCert = tlsOcspFromCert
-		}
 	}
-	if f := flags.Lookup(namerFunc(name, "check_only_leaf_certificate", "ocsp")); f != nil {
+
+	checkOnlyLeafCert = tlsOcspCheckOnlyLeafCertificate
+	if isFlagSet(namerFunc(name, "check_only_leaf_certificate", "ocsp"), flags) {
+		f := flags.Lookup(namerFunc(name, "check_only_leaf_certificate", "ocsp"))
 		v, err := strconv.ParseBool(f.Value.String())
 		if err != nil {
 			log.WithField("value", f.Value.String).Fatalf("Can't cast %s to boolean value", namerFunc(name, "check_only_leaf_certificate", "ocsp"))
 		}
 		checkOnlyLeafCert = v
 	}
+
 	return NewOCSPConfig(url, required, fromCert, checkOnlyLeafCert)
 }
 
