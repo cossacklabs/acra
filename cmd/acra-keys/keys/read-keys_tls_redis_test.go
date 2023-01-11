@@ -99,6 +99,7 @@ func TestReadCMD_TLSRedis_V2(t *testing.T) {
 	flagSet := flag.NewFlagSet(CmdMigrateKeys, flag.ContinueOnError)
 	keyloader.RegisterCLIParametersWithFlagSet(flagSet, "", "")
 	cmd.RegisterRedisKeystoreParametersWithPrefix(flagSet, "", "")
+	network.RegisterTLSBaseArgs(flagSet)
 
 	options := prepareTLSRedisConfigForFlagSet(flagSet, t)
 	// remove all generated keys at the end
@@ -110,6 +111,10 @@ func TestReadCMD_TLSRedis_V2(t *testing.T) {
 
 	setFlags := map[string]string{
 		"keystore_encryption_type": keyloader.KeystoreStrategyEnvMasterKey,
+		// test certs contains specified OCSP/CRL endpoints that force our TLS verifier to check it
+		// turn on ignoring it to avoid starting extra servers for ocsp/crl responses
+		"tls_ocsp_from_cert": network.OcspFromCertIgnoreStr,
+		"tls_crl_from_cert":  network.CrlFromCertIgnoreStr,
 	}
 
 	for flag, value := range setFlags {
@@ -175,7 +180,7 @@ func TestReadCMD_TLSRedis_V1(t *testing.T) {
 
 	flagSet := flag.NewFlagSet(CmdMigrateKeys, flag.ContinueOnError)
 	keyloader.RegisterCLIParametersWithFlagSet(flagSet, "", "")
-
+	network.RegisterTLSBaseArgs(flagSet)
 	cmd.RegisterRedisKeystoreParametersWithPrefix(flagSet, "", "")
 
 	options := prepareTLSRedisConfigForFlagSet(flagSet, t)
@@ -188,6 +193,10 @@ func TestReadCMD_TLSRedis_V1(t *testing.T) {
 
 	setFlags := map[string]string{
 		"keystore_encryption_type": keyloader.KeystoreStrategyEnvMasterKey,
+		// test certs contains specified OCSP/CRL endpoints that force our TLS verifier to check it
+		// turn on ignoring it to avoid starting extra servers for ocsp/crl responses
+		"tls_ocsp_from_cert": network.OcspFromCertIgnoreStr,
+		"tls_crl_from_cert":  network.CrlFromCertIgnoreStr,
 	}
 
 	for flag, value := range setFlags {
