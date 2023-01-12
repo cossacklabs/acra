@@ -1,8 +1,9 @@
-import os
 import json
+import os
 import random
 import string
-from utils import abs_path, TEMP_DATA_FOLDER_VARNAME
+
+TEMP_DATA_FOLDER_VARNAME = 'TEST_RANDOM_DATA_FOLDER'
 
 
 def get_random_data(config):
@@ -16,7 +17,7 @@ if __name__ == '__main__':
         print("You must set TEST_RANDOM_DATA_FOLDER env variable")
         exit(1)
     os.makedirs(data_folder, exist_ok=True)
-    with open(abs_path('tests/random_data_config.json'), 'r') as f:
+    with open(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'tests/random_data_config.json'), 'r') as f:
         config = json.load(f)
 
     for i in range(config['file_count']):

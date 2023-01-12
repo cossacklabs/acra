@@ -1,12 +1,13 @@
 import argparse
 import os
 import sys
-from utils import read_storage_public_key
+
+import base
+
 # add to path our wrapper until not published to PYPI
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                                                'wrappers/python'))
+                                'wrappers/python'))
 from acrawriter import create_acrastruct
-
 
 parser = argparse.ArgumentParser(
     description='This small script generate AcraStruct for testing purposes.')
@@ -28,7 +29,7 @@ as_out_file = args.out_file
 if as_out_file == '':
     as_out_file = '{}.acrastruct'.format(args.client_id)
 
-encryption_key = read_storage_public_key(args.client_id, args.keys_dir)
+encryption_key = base.read_storage_public_key(args.client_id, args.keys_dir)
 acrastruct = create_acrastruct(args.data.encode('utf-8'), encryption_key)
 
 with open(as_out_file, 'wb') as f:
