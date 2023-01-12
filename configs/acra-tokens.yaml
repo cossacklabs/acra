@@ -59,6 +59,9 @@ redis_tls_crl_client_from_cert: prefer
 # URL of the Certificate Revocation List (CRL) to use
 redis_tls_crl_client_url: 
 
+# Use TLS to connect to Redis
+redis_tls_enable: false
+
 # Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using OCSP
 redis_tls_ocsp_client_check_only_leaf_certificate: false
 

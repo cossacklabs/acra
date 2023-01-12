@@ -1,3 +1,6 @@
+//go:build integration && redis && tls
+// +build integration,redis,tls
+
 package tokens
 
 import (
