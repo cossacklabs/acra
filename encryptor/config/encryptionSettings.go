@@ -95,30 +95,7 @@ var validSettings = map[SettingMask]struct{}{
 
 	/////////////
 	// SEARCHABLE
-	// default ClientID
-	SettingSearchFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
-	SettingSearchFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
-	// default ClientID with data type flag
-	SettingDataTypeFlag | SettingSearchFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
-	SettingDataTypeFlag | SettingSearchFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
 
-	SettingDataTypeIDFlag | SettingSearchFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
-	SettingDataTypeIDFlag | SettingSearchFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
-
-	SettingDataTypeIDFlag | SettingOnFailFlag | SettingSearchFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
-	SettingDataTypeIDFlag | SettingOnFailFlag | SettingSearchFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
-
-	SettingDataTypeFlag | SettingOnFailFlag | SettingSearchFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
-	SettingDataTypeFlag | SettingOnFailFlag | SettingSearchFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
-
-	// default ClientID with data type default
-	SettingDefaultDataValueFlag | SettingDataTypeFlag | SettingSearchFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
-	SettingDefaultDataValueFlag | SettingDataTypeFlag | SettingSearchFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
-
-	SettingDefaultDataValueFlag | SettingOnFailFlag | SettingDataTypeIDFlag | SettingSearchFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
-	SettingDefaultDataValueFlag | SettingOnFailFlag | SettingDataTypeIDFlag | SettingSearchFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
-
-	// specified ClientID
 	SettingSearchFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
 	SettingSearchFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
 
@@ -142,28 +119,14 @@ var validSettings = map[SettingMask]struct{}{
 	SettingDefaultDataValueFlag | SettingDataTypeIDFlag | SettingSearchFlag | SettingOnFailFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
 	SettingDefaultDataValueFlag | SettingDataTypeIDFlag | SettingSearchFlag | SettingOnFailFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
 
-	SettingDefaultDataValueFlag | SettingDataTypeFlag | SettingSearchFlag | SettingOnFailFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
-	SettingDefaultDataValueFlag | SettingDataTypeFlag | SettingSearchFlag | SettingOnFailFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
-
 	/////////////
 	// MASKING (should be specified all 3 parameters)
-	// default ClientID
-	SettingAcraStructEncryptionFlag | SettingMaskingFlag | SettingMaskingPlaintextSideFlag | SettingMaskingPlaintextLengthFlag | SettingReEncryptionFlag: {},
-	SettingAcraBlockEncryptionFlag | SettingMaskingFlag | SettingMaskingPlaintextSideFlag | SettingMaskingPlaintextLengthFlag | SettingReEncryptionFlag:  {},
-	// specified ClientID
+
 	SettingAcraStructEncryptionFlag | SettingMaskingFlag | SettingMaskingPlaintextSideFlag | SettingMaskingPlaintextLengthFlag | SettingClientIDFlag | SettingReEncryptionFlag: {},
 	SettingAcraBlockEncryptionFlag | SettingMaskingFlag | SettingMaskingPlaintextSideFlag | SettingMaskingPlaintextLengthFlag | SettingClientIDFlag | SettingReEncryptionFlag:  {},
+
 	/////////////
 	// TOKENIZATION
-	// default clientID
-	SettingTokenizationFlag | SettingTokenTypeFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag: {},
-	SettingTokenTypeFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                           {},
-
-	SettingTokenizationFlag | SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingReEncryptionFlag:                                  {},
-	SettingTokenizationFlag | SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag: {},
-	SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingReEncryptionFlag:                                                            {},
-	SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                           {},
-	// specified clientID
 	SettingTokenizationFlag | SettingTokenTypeFlag | SettingClientIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                                     {},
 	SettingTokenizationFlag | SettingTokenTypeFlag | SettingConsistentTokenizationFlag | SettingClientIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag: {},
 	SettingTokenTypeFlag | SettingClientIDFlag | SettingReEncryptionFlag | SettingAcraBlockEncryptionFlag:                                                               {},
@@ -255,6 +218,10 @@ func (s *BasicColumnEncryptionSetting) Init(useMySQL bool) (err error) {
 	}
 
 	s.settingMask = 0
+
+	// currently all encryptor config settings require ClientID
+	// but potentially in the future, there might be cases when ClientID won`t be used
+	// so SettingClientIDFlag exist to have scope of configuration
 	if len(s.ClientID()) > 0 {
 		s.settingMask |= SettingClientIDFlag
 	} else {
