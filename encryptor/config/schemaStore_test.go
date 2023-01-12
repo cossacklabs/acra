@@ -57,6 +57,82 @@ schemas:
 	}
 }
 
+func TestSearchWithOnFailSetting(t *testing.T) {
+	registerMySQLDummyEncoders()
+
+	testConfigs := []string{
+		`
+schemas:
+  - table: mytable
+    columns:
+      - name
+    encrypted:
+      - column: name
+        data_type: "str"
+        response_on_fail: ciphertext
+        searchable: true
+`,
+
+		`
+schemas:
+  - table: mytable
+    columns:
+      - name
+    encrypted:
+      - column: name
+        data_type_db_identifier: 252
+        response_on_fail: ciphertext
+        searchable: true
+`,
+		`
+schemas:
+  - table: mytable
+    columns:
+      - name
+    encrypted:
+      - column: name
+        data_type_db_identifier: 252
+        response_on_fail: ciphertext
+        searchable: true
+        client_id: "client_id"
+`,
+
+		`
+defaults:
+  crypto_envelope: acrablock
+schemas:
+  - table: mytable
+    columns:
+      - name
+    encrypted:
+      - column: name
+        data_type_db_identifier: 252
+        response_on_fail: ciphertext
+        searchable: true
+`,
+		`
+defaults:
+  crypto_envelope: acrastruct
+schemas:
+  - table: mytable
+    columns:
+      - name
+    encrypted:
+      - column: name
+        data_type: "str"
+        response_on_fail: ciphertext
+        searchable: true
+`,
+	}
+
+	for _, testConfig := range testConfigs {
+		_, err := MapTableSchemaStoreFromConfig([]byte(testConfig), UseMySQL)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestConsistentTokenizationDefaultValuesWithDefinedValue(t *testing.T) {
 	testConfig := `
 defaults:
