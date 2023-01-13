@@ -1,6 +1,3 @@
-//go:build integration && redis && tls
-// +build integration,redis,tls
-
 package tokens
 
 import (
@@ -48,6 +45,7 @@ func TestTokensStatusWithTLSRedis(t *testing.T) {
 		"redis_tls_client_cert":           filepath.Join(workingDirectory, "tests/ssl/acra-writer/acra-writer.crt"),
 		"redis_tls_crl_client_from_cert":  "ignore",
 		"redis_tls_ocsp_client_from_cert": "ignore",
+		"redis_tls_ocsp_client_required":  "allowUnknown",
 	}
 
 	for flag, value := range flagsToSet {
