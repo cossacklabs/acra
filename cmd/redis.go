@@ -93,9 +93,10 @@ func RegisterRedisTokenStoreParametersWithPrefix(flags *flag.FlagSet, prefix str
 	if flags.Lookup(prefix+"redis_host_port") == nil {
 		flags.String(prefix+"redis_host_port", "", "<host>:<port> used to connect to Redis"+description)
 		flags.String(prefix+"redis_password", "", "Password to Redis database"+description)
+		flags.Bool(prefix+"redis_tls_enable", false, "Use TLS to connect to Redis"+description)
 	}
 	if flags.Lookup(prefix+network.ClientNameConstructorFunc()("redis", "cert", "")) == nil {
-		network.RegisterTLSArgsForService(flags, true, "redis", network.ClientNameConstructorFunc())
+		network.RegisterTLSArgsForService(flags, true, prefix+"redis", network.ClientNameConstructorFunc())
 	}
 	flags.Int(prefix+"redis_db_tokens", redisDefaultDB, "Number of Redis database for tokens"+description)
 	checkBothKeyAndToken(flags, prefix)

@@ -17,8 +17,10 @@
 package tokens
 
 import (
+	"crypto/tls"
 	"errors"
 	"flag"
+	"github.com/cossacklabs/acra/network"
 	"os"
 
 	"github.com/cossacklabs/acra/cmd"
@@ -77,11 +79,23 @@ func (p *CommonTokenStorageParameters) Open(flagSet *flag.FlagSet) (tokenCommon.
 		return tokenStorage.NewBoltDBTokenStorage(db), nil
 	}
 	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(flagSet, ""); redisOptions.KeysConfigured() {
-		redisClient, err := tokenStorage.NewRedisClient(redisOptions.HostPort, redisOptions.Password, redisOptions.DBTokens, nil)
+		var redisTLSConfig *tls.Config
+		var err error
+
+		if redisOptions.TLSEnable {
+			redisTLSConfig, err = network.NewTLSConfigByName(flagSet, "redis", redisOptions.HostPort, network.ClientNameConstructorFunc())
+			if err != nil {
+				log.WithError(err).Errorln("Can't initialize tls config for redis client")
+				return nil, err
+			}
+		}
+
+		redisClient, err := tokenStorage.NewRedisClient(redisOptions.HostPort, redisOptions.Password, redisOptions.DBTokens, redisTLSConfig)
 		if err != nil {
 			log.WithError(err).Warn("Cannot initialize Redis client")
 			return nil, err
 		}
+
 		storage, err := tokenStorage.NewRedisStorage(redisClient)
 		if err != nil {
 			log.WithError(err).Warn("Cannot initialize Redis token storage")
