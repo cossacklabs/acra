@@ -198,8 +198,13 @@ func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, 
 			val.Type = sqlparser.PgEscapeString
 			fallthrough
 		case sqlparser.StrVal:
-			// if it is valid string, return as is. otherwise there is binary data, and we should encode it
-			if utils.IsPrintablePostgresqlString(data) {
+			binValue, err := utils.DecodeEscaped(data)
+			// if the data changes previously or we have decode error means that we binary data should be returned as hex
+			if err != nil || !bytes.Equal(binValue, data) {
+				return PgEncodeToHexString(data), nil
+			}
+			// if the binValue the same to data means data is Printable, return as is
+			if bytes.Equal(binValue, data) {
 				return data, nil
 			}
 			val.Type = sqlparser.PgEscapeString
