@@ -1,6 +1,7 @@
 package pseudonymization
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"testing"
@@ -165,7 +166,12 @@ schemas:
 			}
 
 			if tcase.Type == common.TokenType_Bytes {
-				assert.Equal(t, lRightExpr.Val, encryptor2.PgEncodeToHexString(anonymized))
+				var binAnonymized = anonymized
+				if bytes.HasPrefix(lRightExpr.Val, []byte{'\\', 'x'}) {
+					binAnonymized = encryptor2.PgEncodeToHexString(anonymized)
+				}
+
+				assert.Equal(t, lRightExpr.Val, binAnonymized)
 				continue
 			}
 
@@ -288,5 +294,128 @@ func TestSearchableTokenizationWithDefaultTablesTextFormat(t *testing.T) {
 
 			assert.Equal(t, comparisonExpr.Right.(*sqlparser.SQLVal).Val, anonymized)
 		}
+	}
+}
+
+type customAnonymizer struct {
+	common.Pseudoanonymizer
+}
+
+func (c customAnonymizer) AnonymizeConsistently(data interface{}, context common.TokenContext, dataType common.TokenType) (interface{}, error) {
+	anonymized, err := c.Pseudoanonymizer.AnonymizeConsistently(data, context, dataType)
+	if err != nil {
+		return nil, err
+	}
+
+	if dataType == common.TokenType_Bytes {
+		// pretend anonymizer return encoded data that should be encode to hex
+		return encryptor2.PgEncodeToHexString(anonymized.([]byte)), nil
+	}
+
+	return anonymized, nil
+}
+
+func TestEncodingTokenizationWithTextFormatWithCustomTokenizer(t *testing.T) {
+	schemaConfigTemplate := `
+schemas:
+  - table: test_table
+    columns:
+      - data1
+      - data2
+    encrypted:
+      - column: data1
+        token_type: %s
+        consistent_tokenization: true
+
+      - column: data2
+        token_type: %s
+        consistent_tokenization: true
+`
+
+	tokenStorage, err := storage.NewMemoryTokenStorage()
+	assert.NoError(t, err)
+
+	anonymizer, err := NewPseudoanonymizer(tokenStorage)
+	assert.NoError(t, err)
+
+	customAnonymizer := customAnonymizer{
+		anonymizer,
+	}
+
+	tokenizer, err := NewDataTokenizer(customAnonymizer)
+	assert.NoError(t, err)
+
+	tokenEncryptor, err := NewTokenEncryptor(tokenizer)
+	assert.NoError(t, err)
+
+	clientSession := &mocks.ClientSession{}
+	sessionData := make(map[string]interface{}, 2)
+	clientSession.On("GetData", mock.Anything).Return(func(key string) interface{} {
+		return sessionData[key]
+	}, func(key string) bool {
+		_, ok := sessionData[key]
+		return ok
+	})
+	clientSession.On("DeleteData", mock.Anything).Run(func(args mock.Arguments) {
+		delete(sessionData, args[0].(string))
+	})
+	clientSession.On("SetData", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		sessionData[args[0].(string)] = args[1]
+	})
+
+	clientID := []byte("client-id")
+	ctx := base.SetClientSessionToContext(context.Background(), clientSession)
+
+	accessContext := base.NewAccessContext(base.WithClientID(clientID))
+	ctx = base.SetAccessContextToContext(ctx, accessContext)
+
+	parser := sqlparser.New(sqlparser.ModeDefault)
+
+	randomBytes := make([]byte, 10)
+	randomRead(randomBytes)
+
+	type testcase struct {
+		Value                 []byte
+		TokenType             string
+		Query                 string
+		shouldHaveHexEncoding bool
+	}
+
+	testcases := []testcase{
+		{Value: []byte("somedata"), TokenType: "str", Query: "INSERT INTO table2 SELECT * FROM test_table WHERE data1='somedata';"},
+		{shouldHaveHexEncoding: true, Value: randomBytes, TokenType: "bytes", Query: fmt.Sprintf("INSERT INTO table2 SELECT * FROM test_table WHERE data1='%s';", encryptor2.PgEncodeToHexString(randomBytes))},
+		{shouldHaveHexEncoding: true, Value: []byte("q{r."), TokenType: "bytes", Query: fmt.Sprintf("INSERT INTO table2 SELECT * FROM test_table WHERE data1='%s';", []byte("q{r."))},
+	}
+
+	for _, tcase := range testcases {
+		schema, err := config.MapTableSchemaStoreFromConfig([]byte(fmt.Sprintf(schemaConfigTemplate, tcase.TokenType, tcase.TokenType)), config.UseMySQL)
+		assert.NoError(t, err)
+
+		encryptor := NewPostgresqlTokenizeQuery(schema, tokenEncryptor)
+
+		newQuery, ok, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(tcase.Query, parser))
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		newStat, err := newQuery.Statement()
+		assert.NoError(t, err)
+
+		rightExpr := newStat.(*sqlparser.Insert).Rows.(*sqlparser.Select).Where.Expr.(*sqlparser.ComparisonExpr).Right.(*sqlparser.SQLVal)
+
+		consistentTokenization := true
+		setting := config.BasicColumnEncryptionSetting{
+			TokenType:              tcase.TokenType,
+			ConsistentTokenization: &consistentTokenization,
+		}
+
+		anonymized, err := tokenizer.Tokenize(tcase.Value, common.TokenContext{ClientID: clientID}, &setting)
+		assert.NoError(t, err)
+
+		expectedValue := anonymized
+		if tcase.shouldHaveHexEncoding {
+			expectedValue = encryptor2.PgEncodeToHexString(anonymized)
+		}
+
+		assert.Equal(t, rightExpr.Val, expectedValue)
 	}
 }
