@@ -243,10 +243,10 @@ func isFlagSet(name string, flagset *flag.FlagSet) bool {
 	return set
 }
 
-// GetDBURLHost return DB host from MySQL/PostgreSQL connection string to use as SNI
+// GetDriverConnectionStringHost parses MySQL/PostgreSQL driver specific connection string to use as SNI
 // PostgreSQL - postgresql://{user}:{password}@{host}:{port}/{dbname}
 // MySQL - ({user}:{password}@tcp({host}:{port})/{dbname}
-func GetDBURLHost(connectionString string, useMySQL bool) (string, error) {
+func GetDriverConnectionStringHost(connectionString string, useMySQL bool) (string, error) {
 	connectionURL, err := url_.Parse(connectionString)
 	if err != nil {
 		return "", err
@@ -258,7 +258,7 @@ func GetDBURLHost(connectionString string, useMySQL bool) (string, error) {
 		hostPortStartIdx := strings.Index(connectionURL.Opaque, "(")
 		hostPortEndIdx := strings.Index(connectionURL.Opaque, ")")
 
-		if hostPortStartIdx == 0 || hostPortEndIdx == 0 || hostPortEndIdx <= hostPortStartIdx {
+		if hostPortEndIdx <= hostPortStartIdx {
 			return "", errors.New("invalid MySQL connectionURL")
 		}
 

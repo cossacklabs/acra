@@ -26,7 +26,6 @@ import (
 	"os"
 
 	"github.com/go-sql-driver/mysql"
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
 
@@ -101,7 +100,7 @@ func main() {
 
 		var dbTLSConfig *tls.Config
 		if *dbTLSEnabled {
-			host, err := network.GetDBURLHost(*connectionString, *useMysql)
+			host, err := network.GetDriverConnectionStringHost(*connectionString, *useMysql)
 			if err != nil {
 				log.WithError(err).Errorln("Failed to get DB host from connection URL")
 				os.Exit(1)
@@ -141,7 +140,7 @@ func main() {
 		} else {
 			config, err := pgx.ParseConfig(*connectionString)
 			if err != nil {
-				log.WithError(err).Errorln("Can't connect to db")
+				log.WithError(err).Errorln("Can't parse config")
 				os.Exit(1)
 			}
 
