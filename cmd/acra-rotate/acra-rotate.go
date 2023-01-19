@@ -19,9 +19,16 @@ limitations under the License.
 package main
 
 import (
+	"crypto/tls"
 	"database/sql"
 	"flag"
+	"net/url"
 	"os"
+
+	"github.com/go-sql-driver/mysql"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/crypto"
@@ -32,9 +39,8 @@ import (
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
-	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/lib/pq"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -51,12 +57,15 @@ func main() {
 	fileMapConfig := flag.String("file_map_config", "", "Path to file with map of <ClientId>: <FilePaths> in json format {\"client_id1\": [\"filepath1\", \"filepath2\"], \"client_id2\": [\"filepath1\", \"filepath2\"]}")
 	sqlSelect := flag.String("sql_select", "", "Select query with ? as placeholders where last columns in result must be ClientId and AcraStruct. Other columns will be passed into insert/update query into placeholders")
 	sqlUpdate := flag.String("sql_update", "", "Insert/Update query with ? as placeholder where into first will be placed rotated AcraStruct")
-	connectionString := flag.String("db_connection_string", "", "Connection string to db")
+	connectionString := flag.String("connection_string", "", "Connection string for DB PostgreSQL(postgresql://{user}:{password}@{host}:{port}/{dbname}?sslmode={sslmode}), MySQL ({user}:{password}@tcp({host}:{port})/{dbname})")
 	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
 	_ = flag.Bool("postgresql_enable", false, "Handle Postgresql connections")
 	dryRun := flag.Bool("dry-run", false, "perform rotation without saving rotated AcraStructs and keys")
+	dbTLSEnabled := flag.Bool("tls_database_enabled", false, "Enable TLS for DB")
+
 	logging.SetLogLevel(logging.LogVerbose)
 
+	network.RegisterTLSArgsForService(flag.CommandLine, true, "", network.DatabaseNameConstructorFunc())
 	cmd.RegisterRedisKeystoreParameters()
 	keyloader.RegisterKeyStoreStrategyParameters()
 
@@ -88,14 +97,58 @@ func main() {
 			log.Errorln("sql_select and sql_update must be set both")
 			os.Exit(1)
 		}
+
+		var dbTLSConfig *tls.Config
+		if *dbTLSEnabled {
+			host, err := network.GetDBURLHost(*connectionString, *useMysql)
+			if err != nil {
+				log.WithError(err).Errorln("Failed to get DB host from connection URL")
+				os.Exit(1)
+			}
+
+			dbTLSConfig, err = network.NewTLSConfigByName(flag.CommandLine, "", host, network.DatabaseNameConstructorFunc())
+			if err != nil {
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
+					Errorln("Configuration error: can't create database TLS config")
+				os.Exit(1)
+			}
+		}
+
 		var db *sql.DB
 		var encoder utils.BinaryEncoder
 		if *useMysql {
+			if dbTLSConfig != nil {
+				connectionURL, err := url.Parse(*connectionString)
+				if err != nil {
+					log.WithError(err).Errorln("Failed to parse DB connection string")
+					os.Exit(1)
+				}
+
+				if err := mysql.RegisterTLSConfig("custom", dbTLSConfig); err != nil {
+					log.WithError(err).Errorln("Failed to register TLS config")
+					os.Exit(1)
+				}
+
+				connectioQueryParams := connectionURL.Query()
+				connectioQueryParams.Set("tls", "custom")
+				connectionURL.RawQuery = connectioQueryParams.Encode()
+				*connectionString = connectionURL.String()
+			}
+
 			db, err = sql.Open("mysql", *connectionString)
 			encoder = &utils.HexEncoder{}
 		} else {
-			db, err = sql.Open("postgres", *connectionString)
+			config, err := pgx.ParseConfig(*connectionString)
+			if err != nil {
+				log.WithError(err).Errorln("Can't connect to db")
+				os.Exit(1)
+			}
 
+			if dbTLSConfig != nil {
+				config.TLSConfig = dbTLSConfig
+			}
+
+			db = stdlib.OpenDB(*config)
 			encoder = &utils.MysqlEncoder{}
 		}
 

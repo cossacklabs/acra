@@ -242,3 +242,33 @@ func isFlagSet(name string, flagset *flag.FlagSet) bool {
 	})
 	return set
 }
+
+// GetDBURLHost return DB host from MySQL/PostgreSQL connection string to use as SNI
+// PostgreSQL - postgresql://{user}:{password}@{host}:{port}/{dbname}
+// MySQL - ({user}:{password}@tcp({host}:{port})/{dbname}
+func GetDBURLHost(connectionString string, useMySQL bool) (string, error) {
+	connectionURL, err := url_.Parse(connectionString)
+	if err != nil {
+		return "", err
+	}
+
+	var hostPortURL = connectionURL.Host
+
+	if useMySQL {
+		hostPortStartIdx := strings.Index(connectionURL.Opaque, "(")
+		hostPortEndIdx := strings.Index(connectionURL.Opaque, ")")
+
+		if hostPortStartIdx == 0 || hostPortEndIdx == 0 || hostPortEndIdx <= hostPortStartIdx {
+			return "", errors.New("invalid MySQL connectionURL")
+		}
+
+		hostPortURL = connectionURL.Opaque[hostPortStartIdx+1 : hostPortEndIdx]
+	}
+
+	if hostPortURL == "" {
+		return "", errors.New("invalid connectionURL: expect not empty host:port")
+	}
+
+	host, _, err := net.SplitHostPort(hostPortURL)
+	return host, err
+}

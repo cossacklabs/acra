@@ -19,28 +19,30 @@ package cmd
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	flag_ "flag"
 	"fmt"
-	"github.com/cossacklabs/acra/logging"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"reflect"
-	"sync"
-
-	"encoding/base64"
-	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/utils"
-	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
-	"math/rand"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/cossacklabs/acra/logging"
+
+	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
+
+	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/utils"
 )
 
 var (
