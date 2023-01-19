@@ -3,7 +3,7 @@ version: 0.94.0
 config_file: 
 
 # Connection string for DB PostgreSQL(postgresql://{user}:{password}@{host}:{port}/{dbname}?sslmode={sslmode}), MySQL ({user}:{password}@tcp({host}:{port})/{dbname})
-connection_string: 
+db_connection_string: 
 
 # perform rotation without saving rotated AcraStructs and keys
 dry-run: false

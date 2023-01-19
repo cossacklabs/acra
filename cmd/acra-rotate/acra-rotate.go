@@ -56,7 +56,7 @@ func main() {
 	fileMapConfig := flag.String("file_map_config", "", "Path to file with map of <ClientId>: <FilePaths> in json format {\"client_id1\": [\"filepath1\", \"filepath2\"], \"client_id2\": [\"filepath1\", \"filepath2\"]}")
 	sqlSelect := flag.String("sql_select", "", "Select query with ? as placeholders where last columns in result must be ClientId and AcraStruct. Other columns will be passed into insert/update query into placeholders")
 	sqlUpdate := flag.String("sql_update", "", "Insert/Update query with ? as placeholder where into first will be placed rotated AcraStruct")
-	connectionString := flag.String("connection_string", "", "Connection string for DB PostgreSQL(postgresql://{user}:{password}@{host}:{port}/{dbname}?sslmode={sslmode}), MySQL ({user}:{password}@tcp({host}:{port})/{dbname})")
+	connectionString := flag.String("db_connection_string", "", "Connection string for DB PostgreSQL(postgresql://{user}:{password}@{host}:{port}/{dbname}?sslmode={sslmode}), MySQL ({user}:{password}@tcp({host}:{port})/{dbname})")
 	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
 	_ = flag.Bool("postgresql_enable", false, "Handle Postgresql connections")
 	dryRun := flag.Bool("dry-run", false, "perform rotation without saving rotated AcraStructs and keys")
