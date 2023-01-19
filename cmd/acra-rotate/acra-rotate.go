@@ -66,6 +66,7 @@ func main() {
 	logging.SetLogLevel(logging.LogVerbose)
 
 	network.RegisterTLSArgsForService(flag.CommandLine, true, "", network.DatabaseNameConstructorFunc())
+	network.RegisterTLSBaseArgs(flag.CommandLine)
 	cmd.RegisterRedisKeystoreParameters()
 	keyloader.RegisterKeyStoreStrategyParameters()
 

@@ -1183,7 +1183,6 @@ class TestAcraRollback(BaseTestCase):
                 '--tls_database_ca={}'.format(base.TEST_TLS_CA),
                 '--tls_database_key={}'.format(base.TEST_TLS_CLIENT_KEY),
                 '--tls_database_cert={}'.format(base.TEST_TLS_CLIENT_CERT),
-                '--tls_ocsp_database_required=allowUnknown',
                 '--tls_ocsp_database_from_cert=ignore',
                 '--tls_crl_database_from_cert=ignore',
             ]

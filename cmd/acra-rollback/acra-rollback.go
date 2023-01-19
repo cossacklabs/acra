@@ -175,6 +175,7 @@ func main() {
 	dbTLSEnabled := flag.Bool("tls_database_enabled", false, "Enable TLS for DB")
 
 	network.RegisterTLSArgsForService(flag.CommandLine, true, "", network.DatabaseNameConstructorFunc())
+	network.RegisterTLSBaseArgs(flag.CommandLine)
 	keyloader.RegisterKeyStoreStrategyParameters()
 	logging.SetLogLevel(logging.LogVerbose)
 
