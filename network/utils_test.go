@@ -82,7 +82,7 @@ func TestSafeCloseConnection(t *testing.T) {
 	}
 }
 
-func TestGetDBURLHost(t *testing.T) {
+func TestGetDriverConnectionStringHost(t *testing.T) {
 	t.Run("MySQL valid connection URL", func(t *testing.T) {
 		url := "test:test@tcp(localhost:3306)/test"
 		host, err := GetDriverConnectionStringHost(url, true)
