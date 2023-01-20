@@ -17,10 +17,11 @@ package common
 
 import (
 	"database/sql"
+	"os"
+
 	// import driver for connect function
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/sirupsen/logrus"
-	"os"
 )
 
 func connect(connectionString string) *sql.DB {

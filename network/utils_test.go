@@ -21,6 +21,8 @@ import (
 	"net"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type testConnection struct {
@@ -78,4 +80,51 @@ func TestSafeCloseConnection(t *testing.T) {
 	if err1 != errTestClose || err2 != errTestClose {
 		t.Fatal("Close method return incorrect error")
 	}
+}
+
+func TestGetDriverConnectionStringHost(t *testing.T) {
+	t.Run("MySQL valid connection URL", func(t *testing.T) {
+		url := "test:test@tcp(localhost:3306)/test"
+		host, err := GetDriverConnectionStringHost(url, true)
+		assert.NoError(t, err)
+		assert.Equal(t, "localhost", host)
+	})
+
+	t.Run("MySQL invalid connection URL", func(t *testing.T) {
+		url := "test:test@tcp://localhost:3306/test"
+		_, err := GetDriverConnectionStringHost(url, true)
+		assert.Error(t, err)
+	})
+
+	t.Run("PostgreSQL invalid connection URL with useMySQL=true", func(t *testing.T) {
+		url := "test:test@localhost:5432/test"
+		_, err := GetDriverConnectionStringHost(url, true)
+		assert.Error(t, err)
+	})
+
+	t.Run("PostgreSQL specific string with useMySQL=true", func(t *testing.T) {
+		url := "postgresql://test:test@localhost:5432/test"
+		_, err := GetDriverConnectionStringHost(url, true)
+		assert.Error(t, err)
+		assert.Equal(t, err.Error(), "invalid MySQL connectionURL")
+	})
+
+	t.Run("PostgreSQL valid connection URL", func(t *testing.T) {
+		url := "postgresql://test:test@localhost:5432/test"
+		host, err := GetDriverConnectionStringHost(url, false)
+		assert.NoError(t, err)
+		assert.Equal(t, "localhost", host)
+	})
+
+	t.Run("PostgreSQL invalid connection URL", func(t *testing.T) {
+		url := "test:test@localhost:5432/test"
+		_, err := GetDriverConnectionStringHost(url, false)
+		assert.Error(t, err)
+	})
+
+	t.Run("MySQL specific string with useMySQL=false", func(t *testing.T) {
+		url := "test:test@tcp(localhost:3306)/test"
+		_, err := GetDriverConnectionStringHost(url, false)
+		assert.Error(t, err)
+	})
 }

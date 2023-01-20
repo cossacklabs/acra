@@ -2,7 +2,7 @@ version: 0.94.0
 # path to config
 config_file: 
 
-# Connection string to db
+# Connection string for DB PostgreSQL(postgresql://{user}:{password}@{host}:{port}/{dbname}?sslmode={sslmode}), MySQL ({user}:{password}@tcp({host}:{port})/{dbname})
 db_connection_string: 
 
 # perform rotation without saving rotated AcraStructs and keys
@@ -94,6 +94,90 @@ sql_select:
 
 # Insert/Update query with ? as placeholder where into first will be placed rotated AcraStruct
 sql_update: 
+
+# Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert
+tls_auth: 4
+
+# Path to root certificate which will be used with system root certificates to validate peer's certificate
+tls_ca: 
+
+# Path to certificate
+tls_cert: 
+
+# How many CRLs to cache in memory (use 0 to disable caching)
+tls_crl_cache_size: 16
+
+# How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: 300 s)
+tls_crl_cache_time: 0
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using CRL
+tls_crl_check_only_leaf_certificate: false
+
+# How many CRLs to cache in memory (use 0 to disable caching)
+tls_crl_database_cache_size: 16
+
+# How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: 300 s)
+tls_crl_database_cache_time: 0
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using CRL
+tls_crl_database_check_only_leaf_certificate: false
+
+# How to treat CRL URL described in certificate itself: <use|trust|prefer|ignore>
+tls_crl_database_from_cert: prefer
+
+# URL of the Certificate Revocation List (CRL) to use
+tls_crl_database_url: 
+
+# How to treat CRL URL described in certificate itself: <use|trust|prefer|ignore>
+tls_crl_from_cert: prefer
+
+# URL of the Certificate Revocation List (CRL) to use
+tls_crl_url: 
+
+# Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is -1 which means NotSpecified and will be used value from tls_auth.
+tls_database_auth: -1
+
+# Path to root certificate which will be used with system root certificates to validate peer's certificate. Uses --tls_ca value if not specified.
+tls_database_ca: 
+
+# Path to certificate. Uses --tls_cert value if not specified.
+tls_database_cert: 
+
+# Enable TLS for DB
+tls_database_enabled: false
+
+# Path to private key that will be used for TLS connections. Uses --tls_key value if not specified.
+tls_database_key: 
+
+# Expected Server Name (SNI) from the service's side.
+tls_database_sni: 
+
+# Path to private key that will be used for TLS connections
+tls_key: 
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using OCSP
+tls_ocsp_check_only_leaf_certificate: false
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using OCSP
+tls_ocsp_database_check_only_leaf_certificate: false
+
+# How to treat OCSP server described in certificate itself: <use|trust|prefer|ignore>
+tls_ocsp_database_from_cert: prefer
+
+# How to treat certificates unknown to OCSP: <denyUnknown|allowUnknown|requireGood>
+tls_ocsp_database_required: denyUnknown
+
+# OCSP service URL
+tls_ocsp_database_url: 
+
+# How to treat OCSP server described in certificate itself: <use|trust|prefer|ignore>
+tls_ocsp_from_cert: prefer
+
+# How to treat certificates unknown to OCSP: <denyUnknown|allowUnknown|requireGood>
+tls_ocsp_required: denyUnknown
+
+# OCSP service URL
+tls_ocsp_url: 
 
 # Connection string (http://x.x.x.x:yyyy) for loading ACRA_MASTER_KEY from HashiCorp Vault
 vault_connection_api_string: 

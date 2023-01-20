@@ -25,12 +25,19 @@ package main
 import (
 	"bufio"
 	"container/list"
+	"crypto/tls"
 	"database/sql"
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/go-sql-driver/mysql"
+	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/stdlib"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/acrastruct"
 	"github.com/cossacklabs/acra/cmd"
@@ -40,10 +47,8 @@ import (
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
-	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/lib/pq"
-	log "github.com/sirupsen/logrus"
 )
 
 // Constants used by AcraRollback
@@ -158,7 +163,7 @@ func (ex *WriteToFileExecutor) Close() {
 func main() {
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which the keys will be loaded")
 	clientID := flag.String("client_id", "", "Client ID should be name of file with private key")
-	connectionString := flag.String("connection_string", "", "Connection string for db")
+	connectionString := flag.String("connection_string", "", "Connection string for DB PostgreSQL(postgresql://{user}:{password}@{host}:{port}/{dbname}?sslmode={sslmode}), MySQL ({user}:{password}@tcp({host}:{port})/{dbname})")
 	sqlSelect := flag.String("select", "", "Query to fetch data for decryption")
 	sqlInsert := flag.String("insert", "", "Query for insert decrypted data with placeholders (pg: $n, mysql: ?)")
 	outputFile := flag.String("output_file", "decrypted.sql", "File for store inserts queries")
@@ -166,7 +171,10 @@ func main() {
 	escapeFormat := flag.Bool("escape", false, "Escape bytea format")
 	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
 	usePostgresql := flag.Bool("postgresql_enable", false, "Handle Postgresql connections")
+	dbTLSEnabled := flag.Bool("tls_database_enabled", false, "Enable TLS for DB")
 
+	network.RegisterTLSArgsForService(flag.CommandLine, true, "", network.DatabaseNameConstructorFunc())
+	network.RegisterTLSBaseArgs(flag.CommandLine)
 	keyloader.RegisterKeyStoreStrategyParameters()
 	logging.SetLogLevel(logging.LogVerbose)
 
@@ -192,20 +200,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	dbDriverName := "postgres"
-	if *useMysql {
-		// https://github.com/ziutek/mymysql
-		//dbDriverName = "mymysql"
-		// https://github.com/go-sql-driver/mysql/
-		dbDriverName = "mysql"
-	}
-
-	cmd.ValidateClientID(*clientID)
-
 	if *connectionString == "" {
 		log.Errorln("Connection_string arg is missing")
 		os.Exit(1)
 	}
+
+	cmd.ValidateClientID(*clientID)
 
 	if *sqlSelect == "" {
 		log.Errorln("Sql_select arg is missing")
@@ -215,6 +215,7 @@ func main() {
 		log.Errorln("Sql_insert arg is missing")
 		os.Exit(1)
 	}
+
 	if *outputFile == "" && !*execute {
 		log.Errorln("Output_file missing or execute flag")
 		os.Exit(1)
@@ -227,11 +228,61 @@ func main() {
 		keystorage = openKeyStoreV1(*keysDir)
 	}
 
-	db, err := sql.Open(dbDriverName, *connectionString)
-	if err != nil {
-		log.WithError(err).Errorln("Can't connect to db")
-		os.Exit(1)
+	var dbTLSConfig *tls.Config
+	if *dbTLSEnabled {
+		host, err := network.GetDriverConnectionStringHost(*connectionString, *useMysql)
+		if err != nil {
+			log.WithError(err).Errorln("Failed to get DB host from connection URL")
+			os.Exit(1)
+		}
+
+		dbTLSConfig, err = network.NewTLSConfigByName(flag.CommandLine, "", host, network.DatabaseNameConstructorFunc())
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
+				Errorln("Configuration error: can't create database TLS config")
+			os.Exit(1)
+		}
 	}
+
+	var db *sql.DB
+	if *useMysql {
+		if dbTLSConfig != nil {
+			connectionURL, err := url.Parse(*connectionString)
+			if err != nil {
+				log.WithError(err).Errorln("Failed to parse DB connection string")
+				os.Exit(1)
+			}
+
+			if err := mysql.RegisterTLSConfig("custom", dbTLSConfig); err != nil {
+				log.WithError(err).Errorln("Failed to register TLS config")
+				os.Exit(1)
+			}
+
+			connectioQueryParams := connectionURL.Query()
+			connectioQueryParams.Set("tls", "custom")
+			connectionURL.RawQuery = connectioQueryParams.Encode()
+			*connectionString = connectionURL.String()
+		}
+
+		db, err = sql.Open("mysql", *connectionString)
+		if err != nil {
+			log.WithError(err).Errorln("Can't connect to db")
+			os.Exit(1)
+		}
+	} else {
+		config, err := pgx.ParseConfig(*connectionString)
+		if err != nil {
+			log.WithError(err).Errorln("Can't parse config ")
+			os.Exit(1)
+		}
+
+		if dbTLSConfig != nil {
+			config.TLSConfig = dbTLSConfig
+		}
+
+		db = stdlib.OpenDB(*config)
+	}
+
 	defer db.Close()
 	err = db.Ping()
 	if err != nil {

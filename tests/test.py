@@ -1177,9 +1177,19 @@ class TestAcraRollback(BaseTestCase):
         self.output_filename = 'acra-rollback_output.txt'
         acrarollback_output_table.create(self.engine_raw, checkfirst=True)
         if TEST_WITH_TLS:
-            self.sslmode = 'require'
+            self.sslmode = 'verify-full'
+            TLS_ARGS = [
+                '--tls_database_enabled=true',
+                '--tls_database_ca={}'.format(base.TEST_TLS_CA),
+                '--tls_database_key={}'.format(base.TEST_TLS_CLIENT_KEY),
+                '--tls_database_cert={}'.format(base.TEST_TLS_CLIENT_CERT),
+                '--tls_ocsp_database_from_cert=ignore',
+                '--tls_crl_database_from_cert=ignore',
+            ]
+
         else:
             self.sslmode = 'disable'
+            TLS_ARGS = []
         if TEST_MYSQL:
             # https://github.com/go-sql-driver/mysql/
             connection_string = "{user}:{password}@tcp({host}:{port})/{dbname}?tls=skip-verify".format(
@@ -1193,13 +1203,9 @@ class TestAcraRollback(BaseTestCase):
             #     port=DB_PORT, host=DB_HOST
             # )
         else:
-            connection_string = (
-                'dbname={dbname} user={user} '
-                'sslmode={sslmode} password={password} host={host} '
-                'port={port}').format(
-                sslmode=self.sslmode, dbname=DB_NAME,
-                user=DB_USER, port=DB_PORT,
-                password=DB_USER_PASSWORD, host=DB_HOST
+            connection_string = "postgresql://{user}:{password}@{host}:{port}/{dbname}?sslmode={sslmode}".format(
+                user=DB_USER, password=DB_USER_PASSWORD, dbname=DB_NAME,
+                port=DB_PORT, host=DB_HOST, sslmode=self.sslmode
             )
 
         if TEST_MYSQL:
@@ -1215,6 +1221,9 @@ class TestAcraRollback(BaseTestCase):
                                              '--output_file={}'.format(self.output_filename),
                                              '--keys_dir={}'.format(base.KEYS_FOLDER.name),
                                          ] + DB_ARGS
+
+        if TEST_WITH_TLS:
+            self.default_acrarollback_args = self.default_acrarollback_args + TLS_ARGS
 
     def tearDown(self):
         try:
@@ -1976,6 +1985,18 @@ class TestAcraRotate(BaseTestCase):
         if rotate_storage_keys:
             create_client_keypair(client_id, only_storage=True)
 
+        if TEST_WITH_TLS:
+            TLS_ARGS = [
+                '--tls_database_enabled=true',
+                '--tls_database_ca={}'.format(base.TEST_TLS_CA),
+                '--tls_database_key={}'.format(base.TEST_TLS_CLIENT_KEY),
+                '--tls_database_cert={}'.format(base.TEST_TLS_CLIENT_CERT),
+                '--tls_ocsp_database_from_cert=ignore',
+                '--tls_crl_database_from_cert=ignore',
+            ]
+        else:
+            TLS_ARGS = []
+
         if TEST_MYSQL:
             # test:test@tcp(127.0.0.1:3306)/test
             connection_string = "{user}:{password}@tcp({host}:{port})/{db_name}?tls=skip-verify".format(
@@ -1984,7 +2005,7 @@ class TestAcraRotate(BaseTestCase):
             mode_arg = '--mysql_enable'
         elif TEST_POSTGRESQL:
             if TEST_WITH_TLS:
-                sslmode = "require"
+                sslmode = 'verify-full'
             else:
                 sslmode = "disable"
 
@@ -2016,13 +2037,13 @@ class TestAcraRotate(BaseTestCase):
 
             keys_map = load_keys_from_folder(base.KEYS_FOLDER.name, [client_id])
             try:
+                args = default_args + [
+                    "--sql_select={}".format(sql_select),
+                    '--sql_update={}'.format(sql_update),
+                ] + TLS_ARGS
+
                 # use extra arg in select and update
-                subprocess.check_output(
-                    default_args + [
-                        "--sql_select={}".format(sql_select),
-                        '--sql_update={}'.format(sql_update),
-                    ]
-                )
+                subprocess.check_output(args)
             except subprocess.CalledProcessError as exc:
                 print(exc.output)
                 raise
@@ -2053,13 +2074,13 @@ class TestAcraRotate(BaseTestCase):
 
             keys_map = load_keys_from_folder(base.KEYS_FOLDER.name, [client_id])
             # rotate with select without extra arg
-            subprocess.check_output(
-                default_args + [
-                    "--sql_select={}".format(sql_select),
-                    '--sql_update={}'.format(sql_update)
-                ]
-            )
 
+            args = default_args + [
+                "--sql_select={}".format(sql_select),
+                '--sql_update={}'.format(sql_update)
+            ] + TLS_ARGS
+
+            subprocess.check_output(args)
             if dry_run:
                 self.assertTrue(
                     self.isSamePublicKeys(base.KEYS_FOLDER.name, keys_map))
