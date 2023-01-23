@@ -65,6 +65,7 @@ COPY docker/_scripts/acra-build/install_go.csums /image.scripts/
 RUN chmod +x /image.scripts/*.sh
 
 # Install Go
+ENV GO_VERSIONS=1.19
 RUN GO_TARBALL_CLEAN=1 /image.scripts/install_go.sh
 ENV GOROOT="/usr/local/lib/go/latest" GOPATH="/root/gopath" GO111MODULE="auto"
 ENV PATH="$PATH:/usr/local/lib/go/latest/bin"
