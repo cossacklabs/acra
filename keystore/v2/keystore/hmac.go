@@ -68,6 +68,22 @@ func (s *ServerKeyStore) GenerateHmacKey(clientID []byte) error {
 	return nil
 }
 
+// DestroyHmacSecretKey destroy hmac secret key ring
+func (s *ServerKeyStore) DestroyHmacSecretKey(clientID []byte) error {
+	log := s.log.WithField("clientID", clientID)
+	ring, err := s.OpenKeyRingRW(s.clientHMACKeyPath(clientID))
+	if err != nil {
+		log.WithError(err).Debug("Failed to open HMAC key ring for client")
+		return err
+	}
+	err = s.destroyCurrentKeyPair(ring)
+	if err != nil {
+		log.WithError(err).Debug("Failed to generate HMAC key for client")
+		return err
+	}
+	return nil
+}
+
 func (s *ServerKeyStore) importHmacKey(clientID []byte, hmacKey []byte) error {
 	log := s.log.WithField("clientID", clientID)
 	ring, err := s.OpenKeyRingRW(s.clientHMACKeyPath(clientID))

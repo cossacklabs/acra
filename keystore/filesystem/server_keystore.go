@@ -36,6 +36,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/cossacklabs/themis/gothemis/keys"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	fs "github.com/cossacklabs/acra/keystore/filesystem/internal"
@@ -43,8 +46,6 @@ import (
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/themis/gothemis/keys"
-	log "github.com/sirupsen/logrus"
 )
 
 // PrivateFileMode used for all created files with private data
@@ -1015,6 +1016,7 @@ func (store *KeyStore) SaveDataEncryptionKeys(id []byte, keypair *keys.Keypair) 
 func (store *KeyStore) destroyKeyWithFilename(filename string) error {
 	// Purge private key data from cache too.
 	store.cache.Add(filename, nil)
+	store.cache.Add(filename+".pub", nil)
 
 	// Remove key files. It's okay if they are already removed (or never existed).
 	// Keystore v1 does not differentiate between 'destroying' and 'removing' keys
@@ -1031,22 +1033,20 @@ func (store *KeyStore) destroyKeyWithFilename(filename string) error {
 	return nil
 }
 
-// DestroyConnectorKeypair destroys currently used AcraConnector transport keypair for given clientID.
-func (store *KeyStore) DestroyConnectorKeypair(id []byte) error {
-	filename := getConnectorKeyFilename(id)
-	return store.destroyKeyWithFilename(filename)
-}
+// destroySymmetricKeyWithFilename removes symmetric key with given filename.
+func (store *KeyStore) destroySymmetricKeyWithFilename(filename string) error {
+	// Purge key data from cache too.
+	store.cache.Add(filename, nil)
 
-// DestroyServerKeypair destroys currently used AcraServer transport keypair for given clientID.
-func (store *KeyStore) DestroyServerKeypair(id []byte) error {
-	filename := getServerKeyFilename(id)
-	return store.destroyKeyWithFilename(filename)
-}
+	// Remove key files. It's okay if they are already removed (or never existed).
+	// Keystore v1 does not differentiate between 'destroying' and 'removing' keys
+	// because multiple functinons depend on the key file to be absent, not empty.
+	err := store.fs.Remove(store.GetPrivateKeyFilePath(getSymmetricKeyName(filename)))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
 
-// DestroyTranslatorKeypair destroys currently used AcraTranslator transport keypair for given clientID.
-func (store *KeyStore) DestroyTranslatorKeypair(id []byte) error {
-	filename := getTranslatorKeyFilename(id)
-	return store.destroyKeyWithFilename(filename)
+	return nil
 }
 
 // Add value to inner cache
@@ -1269,4 +1269,29 @@ func (store *KeyStore) GetClientIDSymmetricKey(id []byte) ([]byte, error) {
 
 	keyContext := keystore.NewClientIDKeyContext(keystore.PurposeStorageClientSymmetricKey, id)
 	return store.getLatestSymmetricKey(keyName, keyContext)
+}
+
+// DestroyPoisonKeyPair destroy poison key pair
+func (store *KeyStore) DestroyPoisonKeyPair() error {
+	return store.destroyKeyWithFilename(PoisonKeyFilename)
+}
+
+// DestroyPoisonSymmetricKey destroy poison symmetric key
+func (store *KeyStore) DestroyPoisonSymmetricKey() error {
+	return store.destroySymmetricKeyWithFilename(PoisonKeyFilename)
+}
+
+// DestroyClientIDEncryptionKeyPair destroy server encryption key pair
+func (store *KeyStore) DestroyClientIDEncryptionKeyPair(clientID []byte) error {
+	return store.destroyKeyWithFilename(GetServerDecryptionKeyFilename(clientID))
+}
+
+// DestroyClientIDSymmetricKey destroy private poison key
+func (store *KeyStore) DestroyClientIDSymmetricKey(clientID []byte) error {
+	return store.destroySymmetricKeyWithFilename(GetServerDecryptionKeyFilename(clientID))
+}
+
+// DestroyHmacSecretKey destroy hmac secter key
+func (store *KeyStore) DestroyHmacSecretKey(clientID []byte) error {
+	return store.destroyKeyWithFilename(getHmacKeyFilename(clientID))
 }
