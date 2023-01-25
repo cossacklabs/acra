@@ -6,7 +6,7 @@ import (
 
 	"github.com/cossacklabs/acra/decryptor/mysql/base"
 	"github.com/cossacklabs/acra/pseudonymization/common"
-	"github.com/jackc/pgx/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // ResponseOnFail represents possible values for `response_on_fail` field
