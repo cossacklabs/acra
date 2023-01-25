@@ -11,7 +11,7 @@ import (
 	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
 	common2 "github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/cossacklabs/acra/masking/common"
-	"github.com/jackc/pgx/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )

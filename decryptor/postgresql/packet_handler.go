@@ -10,7 +10,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/logging"
-	"github.com/jackc/pgx/pgproto3"
+	"github.com/jackc/pgx/v5/pgproto3"
 	"github.com/sirupsen/logrus"
 )
 
