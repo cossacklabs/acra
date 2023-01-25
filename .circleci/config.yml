@@ -63,7 +63,7 @@ jobs:
       - run:
           command: .circleci/check_configs.sh | tee /home/user/tests_output
           environment:
-            BINARY_FOLDER: /tmp/acra-binaries/1.17.3
+            BINARY_FOLDER: /tmp/acra-binaries/latest
       - run: .circleci/check_golint.sh
       - run: .circleci/check_misspell.sh
       - run: .circleci/check_ineffassign.sh
