@@ -417,6 +417,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             pass
         try:
             self.engine_raw.execute('delete from test;')
+            base.metadata.drop_all(self.engine_raw)
         except:
             pass
         for engine in getattr(self, 'engines', []):
@@ -471,7 +472,7 @@ class AcraCatchLogsMixin(object):
         with open(self.log_files[process].name, 'r', errors='replace',
                   encoding='utf-8') as f:
             log = f.read()
-            print(log.encode(encoding='utf-8', errors='replace'))
+            print(log)
             return log
 
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
@@ -944,6 +945,23 @@ class TLSAuthenticationDirectlyToAcraMixin:
         except:
             self.tearDown()
             raise
+
+
+class SeparateMetadataMixin:
+
+    def get_metadata(self) -> sa.MetaData:
+        if not getattr(self, 'metadata', None):
+            self.metadata = sa.MetaData()
+        return self.metadata
+
+    def setUp(self):
+        super().setUp()
+        self.get_metadata().create_all(self.engine_raw)
+
+    def tearDown(self):
+        self.get_metadata().drop_all(self.engine_raw)
+        self.metadata = None
+        super().tearDown()
 
 
 def tearDown(self):
