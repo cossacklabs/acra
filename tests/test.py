@@ -3262,7 +3262,7 @@ class TestDbFlushingOnError(BaseTransparentEncryption):
 
     def get_encryptor_table(self):
         encryptor_table = sa.Table(
-            'test_proper_db_flushing_on_error', sa.MetaData(),
+            'test_proper_db_flushing_on_error', self.get_metadata(),
             sa.Column('id', sa.Integer, primary_key=True),
             sa.Column('value_bytes', sa.LargeBinary),
         )
@@ -3373,7 +3373,7 @@ class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
 
     def get_encryptor_table(self):
         encryptor_table = sa.Table(
-            'test_proper_db_flushing_on_error', sa.MetaData(),
+            'test_proper_db_flushing_on_error', self.get_metadata(),
             sa.Column('id', sa.Integer, primary_key=True),
             sa.Column('value_bytes', sa.LargeBinary),
         )
