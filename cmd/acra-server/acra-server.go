@@ -142,7 +142,7 @@ func realMain() error {
 	scriptOnPoison := flag.String("poison_run_script_file", "", "On detecting poison record: log about poison record detection, execute script, return decrypted data")
 
 	enableHTTPAPI := flag.Bool("http_api_enable", false, "Enable HTTP API. Use together with --http_api_tls_transport_enable whenever possible.")
-	httpAPIUseTLS := flag.Bool("http_api_tls_transport_enable", false, "Enable HTTPS support for the API. Use together with the --http_api_enable. TLS configuration is the same as in the Acra Proxy. Starting from 0.96.0 the flag value will be true, by default.")
+	httpAPIUseTLS := flag.Bool("http_api_tls_transport_enable", false, "Enable HTTPS support for the API. Use together with the --http_api_enable. TLS configuration is the same as in the Acra Proxy. Starting from 0.96.0 the flag value will be true by default.")
 
 	network.RegisterTLSBaseArgs(flag.CommandLine)
 	network.RegisterTLSArgsForService(flag.CommandLine, false, "", network.ClientNameConstructorFunc())
