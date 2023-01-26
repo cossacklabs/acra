@@ -42,7 +42,6 @@ class BaseTransparentEncryption(test_common.SeparateMetadataMixin, test_common.B
 
     def tearDown(self):
         self.engine_raw.execute(self.encryptor_table.delete())
-        base.metadata.remove(self.encryptor_table)
         super(BaseTransparentEncryption, self).tearDown()
         try:
             os.remove(base.get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
