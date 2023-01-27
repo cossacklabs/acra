@@ -9,7 +9,6 @@ from random_utils import random_bytes, random_email, random_int32, random_int64,
 
 
 class BaseTokenization(test_common.BaseTestCase):
-    WHOLECELL_MODE = True
     ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/ee_tokenization_config.yaml')
 
     def get_specified_client_id(self):
