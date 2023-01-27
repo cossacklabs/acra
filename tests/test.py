@@ -657,12 +657,11 @@ class TestKeyStorageClearing(BaseTestCase):
         # execute any query for loading key by acra
         result = self.engine1.execute(sa.select([1]).limit(1))
         result.fetchone()
-        import ssl
 
-        ctx = ssl.create_default_context(cafile=base.TEST_TLS_CA)
-        ctx.load_cert_chain(base.TEST_TLS_CLIENT_CERT, base.TEST_TLS_CLIENT_KEY)
-
-        with urlopen('https://localhost:{}/resetKeyStorage'.format(self.ACRASERVER_PORT + 1), context=ctx) as response:
+        ssl_context = ssl.create_default_context(cafile=base.TEST_TLS_CA)
+        ssl_context.load_cert_chain(base.TEST_TLS_CLIENT_CERT, base.TEST_TLS_CLIENT_KEY)
+        ssl_context.check_hostname = True
+        with urlopen('https://localhost:{}/resetKeyStorage'.format(self.ACRASERVER_PORT + 1), context=ssl_context) as response:
             self.assertEqual(response.status, 200)
 
 
