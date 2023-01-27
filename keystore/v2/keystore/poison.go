@@ -17,9 +17,10 @@
 package keystore
 
 import (
+	"github.com/cossacklabs/themis/gothemis/keys"
+
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
-	"github.com/cossacklabs/themis/gothemis/keys"
 )
 
 // PoisonKeyStore interface
@@ -137,6 +138,38 @@ func (s *ServerKeyStore) GeneratePoisonSymmetricKey() error {
 	_, err = s.newCurrentSymmetricKey(ring)
 	if err != nil {
 		log.WithError(err).Debug("Failed to generate poison record symmetric key")
+		return err
+	}
+	return nil
+}
+
+// DestroyPoisonKeyPair destroy poison record key pair ring
+func (s *ServerKeyStore) DestroyPoisonKeyPair() error {
+	log := s.log
+	ring, err := s.OpenKeyRingRW(poisonKeyPath)
+	if err != nil {
+		log.WithError(err).Debug("failed to open connector transport key ring for client")
+		return err
+	}
+	err = s.destroyCurrentKeyPair(ring)
+	if err != nil {
+		log.WithError(err).Debug("Failed to destroy connector transport key pair for client")
+		return err
+	}
+	return nil
+}
+
+// DestroyPoisonSymmetricKey destroy poison symmetric key ring
+func (s *ServerKeyStore) DestroyPoisonSymmetricKey() error {
+	log := s.log
+	ring, err := s.OpenKeyRingRW(poisonSymmetricKeyPath)
+	if err != nil {
+		log.WithError(err).Debug("failed to open connector transport key ring for client")
+		return err
+	}
+	err = s.destroyCurrentKeyPair(ring)
+	if err != nil {
+		log.WithError(err).Debug("Failed to destroy connector transport key pair for client")
 		return err
 	}
 	return nil

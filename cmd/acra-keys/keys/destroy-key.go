@@ -21,9 +21,10 @@ import (
 	"fmt"
 	"os"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
-	log "github.com/sirupsen/logrus"
 )
 
 // SupportedDestroyKeyKinds is a list of keys supported by `destroy-key` subcommand.
@@ -82,14 +83,23 @@ func (p *DestroyKeySubcommand) Parse(arguments []string) error {
 		log.Errorf("\"%s\" command does not support more than one key kind", CmdDestroyKey)
 		return ErrMultipleKeyKinds
 	}
-	coarseKind, _, err := ParseKeyKind(args[0])
+
+	coarseKind, id, err := ParseKeyKind(args[0])
 	if err != nil {
 		return err
 	}
 	switch coarseKind {
+	case KeyPoisonKeypair, KeyPoisonSymmetric:
+		p.destroyKeyKind = coarseKind
+
+	case KeySymmetric, KeyStorageKeypair, KeySearch:
+		p.destroyKeyKind = coarseKind
+		p.contextID = id
 	default:
 		return ErrUnknownKeyKind
 	}
+
+	return nil
 }
 
 // Execute this subcommand.
@@ -115,7 +125,43 @@ func (p *DestroyKeySubcommand) ClientID() []byte {
 func DestroyKey(params DestroyKeyParams, keyStore keystore.KeyMaking) error {
 	kind := params.DestroyKeyKind()
 	switch kind {
-	// TODO: without transport keys the command looks strange - update `destroy` to support other keys
+	case KeyPoisonKeypair:
+		err := keyStore.DestroyPoisonKeyPair()
+		if err != nil {
+			log.WithError(err).Error("Cannot destroy poison record key pair")
+			return err
+		}
+		return nil
+	case KeyPoisonSymmetric:
+		err := keyStore.DestroyPoisonSymmetricKey()
+		if err != nil {
+			log.WithError(err).Error("Cannot destroy poison record symmetric key")
+			return err
+		}
+		return nil
+
+	case KeyStorageKeypair:
+		err := keyStore.DestroyClientIDEncryptionKeyPair(params.ClientID())
+		if err != nil {
+			log.WithError(err).Error("Cannot destroy client storage key pair")
+			return err
+		}
+		return nil
+
+	case KeySymmetric:
+		err := keyStore.DestroyClientIDSymmetricKey(params.ClientID())
+		if err != nil {
+			log.WithError(err).Error("Cannot destroy client symmetric key")
+			return err
+		}
+		return nil
+	case KeySearch:
+		err := keyStore.DestroyHmacSecretKey(params.ClientID())
+		if err != nil {
+			log.WithError(err).Error("Cannot destroy client hmac key")
+			return err
+		}
+		return nil
 	default:
 		log.WithField("expected", SupportedDestroyKeyKinds).Errorf("Unknown key kind: %s", kind)
 		return ErrUnknownKeyKind
