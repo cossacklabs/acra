@@ -3262,12 +3262,15 @@ class TestPostgresqlConnectWithTLSPrefer(BaseTestCase):
 
 
 class TestDbFlushingOnError(BaseTransparentEncryption):
-    encryptor_table = sa.Table(
-        'test_proper_db_flushing_on_error', sa.MetaData(),
-        sa.Column('id', sa.Integer, primary_key=True),
-        sa.Column('value_bytes', sa.LargeBinary),
-    )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+
+    def get_encryptor_table(self):
+        encryptor_table = sa.Table(
+            'test_proper_db_flushing_on_error', self.get_metadata(),
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('value_bytes', sa.LargeBinary),
+        )
+        return encryptor_table
 
     def checkSkip(self):
         if not TEST_WITH_TLS:
@@ -3369,13 +3372,16 @@ class TestDbFlushingOnError(BaseTransparentEncryption):
 
 
 class TestPostgresqlDbFlushingOnError(BaseTransparentEncryption):
-    encryptor_table = sa.Table(
-        'test_proper_db_flushing_on_error', sa.MetaData(),
-        sa.Column('id', sa.Integer, primary_key=True),
-        sa.Column('value_bytes', sa.LargeBinary),
-    )
     ENCRYPTOR_CONFIG = get_encryptor_config(
         'tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+
+    def get_encryptor_table(self):
+        encryptor_table = sa.Table(
+            'test_proper_db_flushing_on_error', self.get_metadata(),
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('value_bytes', sa.LargeBinary),
+        )
+        return encryptor_table
 
     def checkSkip(self):
         if not (TEST_POSTGRESQL and TEST_WITH_TLS):
@@ -4049,15 +4055,18 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
 
 
 class LimitOffsetQueryTest(BaseTransparentEncryption):
-    encryptor_table = sa.Table(
-        'test_searchable_limit_offset', metadata,
-        sa.Column('id', sa.Integer, primary_key=True, autoincrement=False),
-        sa.Column('data',
-                  sa.LargeBinary(length=COLUMN_DATA_SIZE)),
-        sa.Column('raw_data', sa.Text),
-        sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
-    )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_configs/ee_encryptor_config.yaml')
+
+    def get_encryptor_table(self):
+        encryptor_table = sa.Table(
+            'test_searchable_limit_offset', self.get_metadata(),
+            sa.Column('id', sa.Integer, primary_key=True, autoincrement=False),
+            sa.Column('data',
+                      sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+            sa.Column('raw_data', sa.Text),
+            sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+        )
+        return encryptor_table
 
     def setUp(self):
         # should be before setUp and fork_acra

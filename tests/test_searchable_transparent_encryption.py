@@ -10,23 +10,27 @@ import test_common
 import test_integrations
 
 
-class BaseTransparentEncryption(test_common.BaseTestCase):
-    encryptor_table = sa.Table(
-        'test_transparent_encryption', base.metadata,
-        sa.Column('id', sa.Integer, primary_key=True),
-        sa.Column('specified_client_id',
-                  sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
-        sa.Column('default_client_id',
-                  sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
-        sa.Column('number', sa.Integer),
-        sa.Column('raw_data', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
-        sa.Column('nullable', sa.Text, nullable=True),
-        sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
-    )
+class BaseTransparentEncryption(test_common.SeparateMetadataMixin, test_common.BaseTestCase):
     ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/encryptor_config.yaml')
+
+    def get_encryptor_table(self):
+        encryptor_table = sa.Table(
+            'test_transparent_encryption', self.get_metadata(),
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('specified_client_id',
+                      sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+            sa.Column('default_client_id',
+                      sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+            sa.Column('number', sa.Integer),
+            sa.Column('raw_data', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+            sa.Column('nullable', sa.Text, nullable=True),
+            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+        )
+        return encryptor_table
 
     def setUp(self):
         self.prepare_encryptor_config(client_id=base.TLS_CERT_CLIENT_ID_1)
+        self.encryptor_table = self.get_encryptor_table()
         super(BaseTransparentEncryption, self).setUp()
 
     def get_encryptor_config_path(self):
@@ -171,26 +175,28 @@ class TestTransparentEncryption(BaseTransparentEncryption):
 
 
 class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
-    WHOLECELL_MODE = False
-    encryptor_table = sa.Table('test_transparent_acrablock_encryption', base.metadata,
-                               sa.Column('id', sa.Integer, primary_key=True),
-                               sa.Column('specified_client_id',
-                                         sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
-                               sa.Column('default_client_id',
-                                         sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
-                               sa.Column('number', sa.Integer),
-                               sa.Column('raw_data', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
-                               sa.Column('nullable', sa.Text, nullable=True),
-                               sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False,
-                                         default=b''),
-                               sa.Column('token_i64', sa.BigInteger(), nullable=False, default=1),
-                               sa.Column('token_str', sa.Text, nullable=False, default=''),
-                               sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False,
-                                         default=b''),
-                               sa.Column('masked_prefix', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False,
-                                         default=b''),
-                               )
     ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/ee_acrablock_config.yaml')
+    def get_encryptor_table(self):
+        encryptor_table = sa.Table(
+            'test_transparent_acrablock_encryption', self.get_metadata(),
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('specified_client_id',
+                      sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+            sa.Column('default_client_id',
+                      sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+            sa.Column('number', sa.Integer),
+            sa.Column('raw_data', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+            sa.Column('nullable', sa.Text, nullable=True),
+            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False,
+                      default=b''),
+            sa.Column('token_i64', sa.BigInteger(), nullable=False, default=1),
+            sa.Column('token_str', sa.Text, nullable=False, default=''),
+            sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False,
+                      default=b''),
+            sa.Column('masked_prefix', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False,
+                      default=b''),
+            )
+        return encryptor_table
 
     def testAcraStructReEncryption(self):
         specified_id = base.TLS_CERT_CLIENT_ID_1
@@ -356,28 +362,31 @@ class TestPostgresqlTextPreparedTransparentEncryptionWithAWSKMSMasterKeyLoader(
 
 
 class BaseSearchableTransparentEncryption(TestTransparentEncryption):
-    encryptor_table = sa.Table(
-        'test_searchable_transparent_encryption', base.metadata,
-        sa.Column('id', sa.Integer, primary_key=True),
-        sa.Column('specified_client_id',
-                  sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
-        sa.Column('default_client_id',
-                  sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
-
-        sa.Column('number', sa.Integer),
-        sa.Column('raw_data', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
-        sa.Column('nullable', sa.Text, nullable=True),
-        sa.Column('searchable', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
-        sa.Column('searchable_acrablock', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
-        sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
-        sa.Column('token_i32', sa.Integer(), nullable=False, default=1),
-        sa.Column('token_i64', sa.BigInteger(), nullable=False, default=1),
-        sa.Column('token_str', sa.Text, nullable=False, default=''),
-        sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
-        sa.Column('token_email', sa.Text, nullable=False, default=''),
-        sa.Column('masking', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
-    )
     ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/ee_encryptor_config.yaml')
+
+    def get_encryptor_table(self):
+        encryptor_table = sa.Table(
+            'test_searchable_transparent_encryption', self.get_metadata(),
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('specified_client_id',
+                      sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+            sa.Column('default_client_id',
+                      sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+
+            sa.Column('number', sa.Integer),
+            sa.Column('raw_data', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+            sa.Column('nullable', sa.Text, nullable=True),
+            sa.Column('searchable', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+            sa.Column('searchable_acrablock', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_i32', sa.Integer(), nullable=False, default=1),
+            sa.Column('token_i64', sa.BigInteger(), nullable=False, default=1),
+            sa.Column('token_str', sa.Text, nullable=False, default=''),
+            sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_email', sa.Text, nullable=False, default=''),
+            sa.Column('masking', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+        )
+        return encryptor_table
 
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
         # Disable keystore cache since it can interfere with rotation tests
@@ -1102,28 +1111,28 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
 
 
 class TestSearchableTransparentEncryptionWithJOINs(BaseSearchableTransparentEncryption):
-    encryptor_table_join = sa.Table(
-        'test_searchable_transparent_encryption_join', base.metadata,
-        sa.Column('id', sa.Integer, primary_key=True),
-        sa.Column('specified_client_id',
-                  sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
-        sa.Column('default_client_id',
-                  sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
-
-        sa.Column('number', sa.Integer),
-        sa.Column('raw_data', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
-        sa.Column('nullable', sa.Text, nullable=True),
-        sa.Column('searchable', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
-        sa.Column('searchable_acrablock', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
-        sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
-        sa.Column('token_i32', sa.Integer(), nullable=False, default=1),
-        sa.Column('token_i64', sa.BigInteger(), nullable=False, default=1),
-        sa.Column('token_str', sa.Text, nullable=False, default=''),
-        sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
-        sa.Column('token_email', sa.Text, nullable=False, default=''),
-    )
-
     def setUp(self):
+        metadata = self.get_metadata()
+        self.encryptor_table_join = sa.Table(
+            'test_searchable_transparent_encryption_join', metadata,
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('specified_client_id',
+                      sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+            sa.Column('default_client_id',
+                      sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+
+            sa.Column('number', sa.Integer),
+            sa.Column('raw_data', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+            sa.Column('nullable', sa.Text, nullable=True),
+            sa.Column('searchable', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+            sa.Column('searchable_acrablock', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_i32', sa.Integer(), nullable=False, default=1),
+            sa.Column('token_i64', sa.BigInteger(), nullable=False, default=1),
+            sa.Column('token_str', sa.Text, nullable=False, default=''),
+            sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_email', sa.Text, nullable=False, default=''),
+        )
         super().setUp()
         self.engine1.execute(self.encryptor_table_join.delete())
 
