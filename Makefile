@@ -245,12 +245,11 @@ keys: install
 	@scripts/generate-keys.sh
 
 ## Install development dependencies
-## TODO: upgrade mockery to latest when Acra will support minimal version 1.18
 install_dev_deps:
 	go install golang.org/x/tools/cmd/goyacc
 	go install github.com/swaggo/swag/cmd/swag@latest
 	go install github.com/tinylib/msgp@latest
-	go install github.com/vektra/mockery/v2@v2.12.3
+	go install github.com/vektra/mockery/v2@v2.16.0
 
 ##---- Docker ------------------------------------------------------------------
 

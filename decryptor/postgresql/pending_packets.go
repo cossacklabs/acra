@@ -19,7 +19,7 @@ package postgresql
 import (
 	"container/list"
 	"errors"
-	"github.com/jackc/pgx/pgproto3"
+	"github.com/jackc/pgx/v5/pgproto3"
 	log "github.com/sirupsen/logrus"
 	"reflect"
 )
