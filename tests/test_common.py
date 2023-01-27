@@ -261,6 +261,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             'acrastruct_injectedcell_enable': 'false' if self.WHOLECELL_MODE else 'true',
             'd': 'true' if self.DEBUG_LOG else 'false',
             'http_api_enable': 'true',
+            'http_api_tls_transport_enable': 'true',
             'keystore_cache_on_start_enable': 'false',
             'keys_dir': base.KEYS_FOLDER.name,
         }
