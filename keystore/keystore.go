@@ -321,6 +321,15 @@ type StorageKeyCreation interface {
 	SaveDataEncryptionKeys(clientID []byte, keypair *keys.Keypair) error
 }
 
+// StorageKeyDestruction enables destruction of created keys.
+type StorageKeyDestruction interface {
+	DestroyPoisonKeyPair() error
+	DestroyPoisonSymmetricKey() error
+	DestroyClientIDEncryptionKeyPair(clientID []byte) error
+	DestroyClientIDSymmetricKey(clientID []byte) error
+	DestroyHmacSecretKey(clientID []byte) error
+}
+
 // DecryptionKeyStore enables AcraStruct decryption. It is used by acra-server.
 type DecryptionKeyStore interface {
 	PublicKeyStore
@@ -338,6 +347,7 @@ type StorageKeyGenerator interface {
 // KeyMaking enables keystore initialization. It is used by acra-keymaker tool.
 type KeyMaking interface {
 	StorageKeyCreation
+	StorageKeyDestruction
 	PoisonKeyGenerator
 	AuditLogKeyGenerator
 	HmacKeyGenerator

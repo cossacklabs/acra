@@ -22,9 +22,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
-	log "github.com/sirupsen/logrus"
 )
 
 const serviceName = "keystore"

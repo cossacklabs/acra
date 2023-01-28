@@ -2,6 +2,9 @@
 - Remove testing on the old versions of golang, leave only last fresh version
 
 # 0.94.0 - 2023-01-11
+- Extend `acra-keys` `destroy` tools with all key types destruction support;
+
+# 0.94.0 - 2023-01-11
 - Improved TLS configuration, `tls_ocsp_*` and `tls_crl_*` applied for TLS connections without `tls_ocsp_[client|database]_*`/`tls_crl_[client|database]_*` flags.g
 
 # 0.94.0 - 2022-10-18

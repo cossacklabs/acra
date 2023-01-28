@@ -19,10 +19,12 @@ limitations under the License.
 package lru
 
 import (
-	"github.com/cossacklabs/acra/utils"
+	"sync"
+
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/golang/groupcache/lru"
-	"sync"
+
+	"github.com/cossacklabs/acra/utils"
 )
 
 // Cache implement keystore.Cache

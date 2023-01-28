@@ -23,11 +23,12 @@ import (
 	"os"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/cmd"
 	keystoreV1 "github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
-	log "github.com/sirupsen/logrus"
 )
 
 // ServiceName constant for logging and configuration parsing.
@@ -53,14 +54,16 @@ const (
 
 // Key kind constants:
 const (
-	KeyPoisonKeypair  = "poison-keypair"
-	KeyPoisonPublic   = "poison-public"
-	KeyPoisonPrivate  = "poison-private"
-	KeyStorageKeypair = "storage-keypair"
-	KeyStoragePublic  = "storage-public"
-	KeyStoragePrivate = "storage-private"
+	KeyPoisonKeypair   = "poison-keypair"
+	KeyPoisonSymmetric = "poison-symmetric"
+	KeyPoisonPublic    = "poison-public"
+	KeyPoisonPrivate   = "poison-private"
+	KeyStorageKeypair  = "storage-keypair"
+	KeyStoragePublic   = "storage-public"
+	KeyStoragePrivate  = "storage-private"
 
 	KeySymmetric = "symmetric-key"
+	KeySearch    = "hmac-key"
 )
 
 // Comman-line parsing errors:
@@ -158,6 +161,8 @@ func ParseKeyKind(keyID string) (string, []byte, error) {
 		switch parts[0] {
 		case "poison-record":
 			return KeyPoisonKeypair, nil, nil
+		case "poison-record-symmetric":
+			return KeyPoisonSymmetric, nil, nil
 		}
 	}
 	if len(parts) == 3 {
@@ -168,6 +173,8 @@ func ParseKeyKind(keyID string) (string, []byte, error) {
 				return KeySymmetric, id, nil
 			case "storage":
 				return KeyStorageKeypair, id, nil
+			case "searchable":
+				return KeySearch, id, nil
 			}
 		}
 		log.Warningln("Zone keys are deprecated since 0.94.0 and will be removed soon.")
