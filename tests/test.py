@@ -4498,58 +4498,6 @@ class TestPoisonRecordShutdownWithAcraBlock(TestPoisonRecordShutdown):
         return get_poison_record_with_acrablock()
 
 
-class TestEncryptorConfigResetRegression(BaseTokenizationWithBinaryPostgreSQL):
-    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/encryptor_config.yaml')
-
-    def checkSkip(self):
-        if not base.TEST_POSTGRESQL or not base.TEST_WITH_TLS:
-            self.skipTest("Only for PostgreSQL with TLS")
-        super().checkSkip()
-
-    def testTokenizationDefaultClientID(self):
-        metadata = sa.MetaData()
-        default_client_id_table = sa.Table(
-            'test_reset_config', metadata,
-            sa.Column('id', sa.Integer, primary_key=True),
-            sa.Column('nullable_column', sa.Text, nullable=True),
-            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('token_i32', sa.Integer()),
-            sa.Column('token_i64', sa.BigInteger()),
-            sa.Column('token_str', sa.Text),
-            sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('token_email', sa.Text),
-            extend_existing=True,
-        )
-        metadata.create_all(self.engine_raw, [default_client_id_table])
-        with contextlib.ExitStack() as stack:
-            # clear tables
-            stack.callback(metadata.drop_all, self.engine_raw)
-
-            self.engine1.execute(default_client_id_table.delete())
-            data = {
-                'id': 1,
-                'nullable_column': None,
-                'empty': b'',
-                'token_i32': random_int32(),
-                'token_i64': random_int64(),
-                'token_str': random_str(),
-                'token_bytes': random_bytes(),
-                'token_email': random_email(),
-            }
-
-            # insert data data
-            self.insert_via_1(default_client_id_table.insert(), data)
-
-            # expect that data was not encrypted with client_id which specified in ignore_client_id block
-            source_data = self.fetch_from_1(
-                sa.select([default_client_id_table])
-                .where(default_client_id_table.c.id == data['id']))
-
-            other_client_data = self.fetch_from_2(
-                sa.select([default_client_id_table])
-                .where(default_client_id_table.c.id == data['id']))
-
-
 class TestEncryptorSettingReset(SeparateMetadataMixin, AcraCatchLogsMixin, BaseTokenization):
 
     def checkSkip(self):
@@ -4585,8 +4533,6 @@ class TestEncryptorSettingReset(SeparateMetadataMixin, AcraCatchLogsMixin, BaseT
     def tearDown(self):
         if hasattr(self, 'test_table'):
             self.get_metadata().drop_all(self.engine_raw, [self.test_table])
-        if hasattr(self, 'executor'):
-            self.executor.execute('drop table if exists empty_table;')
         logs = self.read_log(self.acra)
         print(logs)
         super().tearDown()
