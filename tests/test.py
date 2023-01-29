@@ -4566,12 +4566,26 @@ class TestEncryptorSettingReset(SeparateMetadataMixin, AcraCatchLogsMixin, BaseT
         """verify that after valid INSERT query with RETURNING over transparently encrypted data same config will not
         be applied for the next query and will be cleared
         """
-        if not base.TEST_POSTGRESQL:
+
+        if not (base.TEST_POSTGRESQL or TEST_MARIADB):
             self.skipTest("MySQL doesn't support returning statement for insert")
+
         encrypted_row = {'nullable': None, 'empty': b'', 'token_i32': random_int32(), 'token_i64': random_int64(),
                          'token_str': random_str(), 'token_bytes': random_bytes(), 'token_email': random_email()}
         with self.engine1.begin() as connection:
-            result = connection.execute(sa.insert(self.test_table).values(encrypted_row).returning(self.test_table)).fetchall()
+            if TEST_POSTGRESQL:
+                result = connection.execute(sa.insert(self.test_table).values(encrypted_row).returning(self.test_table)).fetchall()
+            elif TEST_MARIADB:
+                # use raw sql due to only sqlalchemy 2.x supports returning for mariadb
+                # TODO use sqlalchemy core after upgrading from 1.x to 2.x version
+                columns = ','.join(['nullable', 'empty', 'token_i32', 'token_i64', 'token_str',
+                                    'token_bytes', 'token_email'])
+                result = connection.execute(sa.text(
+                    "insert into {} ({}) values ( :nullable, :empty, :token_i32, :token_i64, :token_str, :token_bytes, :token_email) returning {};".format(
+                        self.test_table.name, columns, columns)), encrypted_row
+                    ).fetchall()
+            else:
+                self.fail("Invalid environment")
             self.assertEqual(len(result), 1)
             for row in result:
                 for k, v in encrypted_row.items():
