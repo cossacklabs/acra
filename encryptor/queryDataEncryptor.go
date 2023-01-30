@@ -530,6 +530,7 @@ func (encryptor *QueryDataEncryptor) onReturning(ctx context.Context, returning 
 
 // OnQuery raw data in query according to TableSchemaStore
 func (encryptor *QueryDataEncryptor) OnQuery(ctx context.Context, query base.OnQueryObject) (base.OnQueryObject, bool, error) {
+	encryptor.querySelectSettings = nil
 	statement, err := query.Statement()
 	if err != nil {
 		return query, false, err
