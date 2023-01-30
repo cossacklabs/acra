@@ -42,7 +42,7 @@ func (t *Int4DataTypeEncoder) Encode(ctx context.Context, data []byte, format ty
 		}
 	}
 
-	logging.GetLoggerFromContext(ctx).Warningln("Can't decode int value and no default value")
+	logging.GetLoggerFromContext(ctx).Warningln("Can't encode int value and no default value")
 	return ctx, data, nil
 }
 
@@ -57,9 +57,9 @@ func (t *Int4DataTypeEncoder) Decode(ctx context.Context, data []byte, format ty
 		// acra operates over string SQL values so here we expect valid int binary values that we should
 		// convert to string SQL value
 		if len(data) == 4 {
-			// if high byte is 0xff then it is negative number and we should fill all previous bytes with 0xx too
+			// if high bit is up then it is negative number and we should fill all previous bytes with 0xx too
 			// otherwise with zeroes
-			if data[0] == 0xff {
+			if data[0]&0x80 == 0x80 {
 				copy(newData[:4], []byte{0xff, 0xff, 0xff, 0xff})
 				copy(newData[4:], data)
 			} else {

@@ -39,12 +39,18 @@ func TestEncodingDecodingProcessorBinaryIntData(t *testing.T) {
 		{binValue: []byte{255, 255, 255, 255}, stringValue: []byte("-1"), encodeErr: nil, decodeErr: nil, binarySize: 4},
 		{binValue: []byte{0, 0, 0, 128}, stringValue: []byte("128"), encodeErr: nil, decodeErr: nil, binarySize: 4},
 		{binValue: []byte{255, 255, 255, 128}, stringValue: []byte("-128"), encodeErr: nil, decodeErr: nil, binarySize: 4},
+		{binValue: []byte{128, 0, 0, 0}, stringValue: []byte("-2147483648"), encodeErr: nil, decodeErr: nil, binarySize: 4},
+		{binValue: []byte{128, 128, 0, 0}, stringValue: []byte("-2139095040"), encodeErr: nil, decodeErr: nil, binarySize: 4},
+		{binValue: []byte{128, 128, 128, 0}, stringValue: []byte("-2139062272"), encodeErr: nil, decodeErr: nil, binarySize: 4},
+		{binValue: []byte{128, 128, 128, 128}, stringValue: []byte("-2139062144"), encodeErr: nil, decodeErr: nil, binarySize: 4},
 
 		// int64 without errors
 		{binValue: []byte{0, 0, 0, 0, 0, 0, 0, 0}, stringValue: []byte("0"), encodeErr: nil, decodeErr: nil, binarySize: 8},
 		{binValue: []byte{255, 255, 255, 255, 255, 255, 255, 255}, stringValue: []byte("-1"), encodeErr: nil, decodeErr: nil, binarySize: 8},
 		{binValue: []byte{0, 0, 0, 0, 0, 0, 0, 128}, stringValue: []byte("128"), encodeErr: nil, decodeErr: nil, binarySize: 8},
 		{binValue: []byte{255, 255, 255, 255, 255, 255, 255, 128}, stringValue: []byte("-128"), encodeErr: nil, decodeErr: nil, binarySize: 8},
+		{binValue: []byte{128, 0, 0, 0, 0, 0, 0, 0}, stringValue: []byte("-9223372036854775808"), encodeErr: nil, decodeErr: nil, binarySize: 8},
+		{binValue: []byte{255, 0, 0, 0, 0, 0, 0, 0}, stringValue: []byte("-72057594037927936"), encodeErr: nil, decodeErr: nil, binarySize: 8},
 	}
 	sizeToTokenType := map[int]string{
 		4: "int32",
