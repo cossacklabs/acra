@@ -59,7 +59,7 @@ func (t *Int4DataTypeEncoder) Decode(ctx context.Context, data []byte, format ty
 		if len(data) == 4 {
 			// if high bit is up then it is negative number and we should fill all previous bytes with 0xx too
 			// otherwise with zeroes
-			if data[0]&0x80 == 0x80 {
+			if data[0]&0b10000000 == 0b10000000 {
 				copy(newData[:4], []byte{0xff, 0xff, 0xff, 0xff})
 				copy(newData[4:], data)
 			} else {
