@@ -81,16 +81,38 @@ type Key struct {
 	Content []byte
 }
 
+// ExportMode constants describe which data to export from key storage.
+type ExportMode int
+
+// ExportMode flags.
+const (
+	// Export only public key data.
+	ExportPublicOnly ExportMode = 0
+	// Export private and public key data.
+	ExportPrivateKeys = (1 << iota)
+	ExportAllKeys     = (2 << iota)
+)
+
 // KeysBackup struct that store keys for poison records and all client's keys
 type KeysBackup struct {
-	MasterKey []byte
-	Keys      []byte
+	Keys []byte
+	Data []byte
+}
+
+// Exporter interface for acra-keys export command
+type Exporter interface {
+	Export(exportPaths []string, mode ExportMode) (*KeysBackup, error)
+}
+
+// Importer interface for acra-keys import command
+type Importer interface {
+	Import(*KeysBackup) ([]KeyDescription, error)
 }
 
 // Backup interface for export/import KeyStore
 type Backup interface {
-	Export() (*KeysBackup, error)
-	Import(*KeysBackup) error
+	Exporter
+	Importer
 }
 
 // KeyOwnerType define type key owners. Defined to avoid function overrides for clientID keys and allow to

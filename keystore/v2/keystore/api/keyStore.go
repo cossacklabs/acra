@@ -38,22 +38,11 @@ type KeyStore interface {
 	// ExportKeyRings packages specified key rings for export.
 	// Key ring data is encrypted and signed using given cryptosuite.
 	// Resulting container can be imported into existing or different keystore with ImportKeyRings().
-	ExportKeyRings(paths []string, cryptosuite *crypto.KeyStoreSuite, mode ExportMode) ([]byte, error)
+	ExportKeyRings(paths []string, cryptosuite *crypto.KeyStoreSuite, mode keystoreV1.ExportMode) ([]byte, error)
 
 	// DescribeKeyRing describes key ring by its purpose path.
 	DescribeKeyRing(purpose string) (*keystoreV1.KeyDescription, error)
 }
-
-// ExportMode constants describe which data to export from key storage.
-type ExportMode int
-
-// ExportMode flags.
-const (
-	// Export only public key data.
-	ExportPublicOnly ExportMode = 0
-	// Export private and public key data.
-	ExportPrivateKeys = (1 << iota)
-)
 
 // MutableKeyStore interface to KeyStore allowing write access.
 type MutableKeyStore interface {
@@ -63,6 +52,15 @@ type MutableKeyStore interface {
 	// A new key ring will be created if it does not exist yet.
 	OpenKeyRingRW(purpose string) (MutableKeyRing, error)
 
+	// ImportKeyRings unpacks key rings packaged by ExportKeyRings.
+	// The provided cryptosuite is used to verify the signature on the container and decrypt key ring data.
+	// Optional delegate can be used to control various aspects of the import process, such as conflict resolution.
+	// Returns a list of processed key rings.
+	ImportKeyRings(exportData []byte, cryptosuite *crypto.KeyStoreSuite, delegate KeyRingImportDelegate) ([]string, error)
+}
+
+type BackupKeystore interface {
+	KeyStore
 	// ImportKeyRings unpacks key rings packaged by ExportKeyRings.
 	// The provided cryptosuite is used to verify the signature on the container and decrypt key ring data.
 	// Optional delegate can be used to control various aspects of the import process, such as conflict resolution.

@@ -1,3 +1,6 @@
+# 0.94.0 - 2023-01-31
+- Extend `acra-keys` `export` and `import` subcommand by V1 keystore support;
+
 # 0.94.0 - 2023-01-24
 - Remove testing on the old versions of golang, leave only last fresh version
 

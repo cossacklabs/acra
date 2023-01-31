@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/asn1"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
@@ -259,7 +260,7 @@ func testKeyStoreCleanImport(t *testing.T, newKeyStore NewKeyStore) {
 	setupDemoKeyStore(s, t)
 	cryptosuite := newExportStoreSuite(t)
 
-	exported, err := s.ExportKeyRings(exportRingAll, cryptosuite, api.ExportPrivateKeys)
+	exported, err := s.ExportKeyRings(exportRingAll, cryptosuite, keystore.ExportPrivateKeys)
 	if err != nil {
 		t.Fatalf("failed to export key rings: %v", err)
 	}
@@ -303,7 +304,7 @@ func testKeyStoreDuplicateImport(t *testing.T, newKeyStore NewKeyStore) {
 	cryptosuite := newExportStoreSuite(t)
 
 	keyRingList := []string{exportRingPublic}
-	exported1, err := s.ExportKeyRings(keyRingList, cryptosuite, api.ExportPrivateKeys)
+	exported1, err := s.ExportKeyRings(keyRingList, cryptosuite, keystore.ExportPrivateKeys)
 	if err != nil {
 		t.Fatalf("failed to export public key ring: %v", err)
 	}
@@ -316,7 +317,7 @@ func testKeyStoreDuplicateImport(t *testing.T, newKeyStore NewKeyStore) {
 		t.Errorf("incorrect imported list: %v", imported1)
 	}
 
-	exported2, err := s.ExportKeyRings([]string{exportRingPublic}, cryptosuite, api.ExportPrivateKeys)
+	exported2, err := s.ExportKeyRings([]string{exportRingPublic}, cryptosuite, keystore.ExportPrivateKeys)
 	if err != nil {
 		t.Fatalf("failed to export key rings: %v", err)
 	}
@@ -349,7 +350,7 @@ func testKeyStoreDuplicateImportSkip(t *testing.T, newKeyStore NewKeyStore) {
 	cryptosuite := newExportStoreSuite(t)
 
 	keyRingList1 := []string{exportRingPublic}
-	exported1, err := s.ExportKeyRings(keyRingList1, cryptosuite, api.ExportPrivateKeys)
+	exported1, err := s.ExportKeyRings(keyRingList1, cryptosuite, keystore.ExportPrivateKeys)
 	if err != nil {
 		t.Fatalf("failed to export public key ring: %v", err)
 	}
@@ -363,7 +364,7 @@ func testKeyStoreDuplicateImportSkip(t *testing.T, newKeyStore NewKeyStore) {
 	}
 
 	keyRingList2 := []string{exportRingKeyPair, exportRingPublic, exportRingSymmetric}
-	exported2, err := s.ExportKeyRings(keyRingList2, cryptosuite, api.ExportPrivateKeys)
+	exported2, err := s.ExportKeyRings(keyRingList2, cryptosuite, keystore.ExportPrivateKeys)
 	if err != nil {
 		t.Fatalf("failed to export key rings: %v", err)
 	}
@@ -461,7 +462,7 @@ func testKeyStoreDuplicateImportOverwrite(t *testing.T, newKeyStore NewKeyStore)
 	cryptosuite := newExportStoreSuite(t)
 
 	keyRingList1 := []string{exportRingPublic}
-	exported1, err := s.ExportKeyRings(keyRingList1, cryptosuite, api.ExportPrivateKeys)
+	exported1, err := s.ExportKeyRings(keyRingList1, cryptosuite, keystore.ExportPrivateKeys)
 	if err != nil {
 		t.Fatalf("failed to export public key ring: %v", err)
 	}
@@ -498,7 +499,7 @@ func testKeyStoreDuplicateImportOverwrite(t *testing.T, newKeyStore NewKeyStore)
 	}
 
 	keyRingList2 := []string{exportRingKeyPair, exportRingPublic, exportRingSymmetric}
-	exported2, err := s.ExportKeyRings(keyRingList2, cryptosuite, api.ExportPrivateKeys)
+	exported2, err := s.ExportKeyRings(keyRingList2, cryptosuite, keystore.ExportPrivateKeys)
 	if err != nil {
 		t.Fatalf("failed to export key rings: %v", err)
 	}
@@ -570,7 +571,7 @@ func testKeyStoreExportPublicOnly(t *testing.T, newKeyStore NewKeyStore) {
 	setupDemoKeyStore(s, t)
 	cryptosuite := newExportStoreSuite(t)
 
-	exported, err := s.ExportKeyRings(exportRingAll, cryptosuite, api.ExportPublicOnly)
+	exported, err := s.ExportKeyRings(exportRingAll, cryptosuite, keystore.ExportPublicOnly)
 	if err != nil {
 		t.Fatalf("failed to export key rings: %v", err)
 	}

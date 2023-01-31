@@ -760,7 +760,7 @@ func (store *KeyStore) describeDir(dirName string) ([]keystore.KeyDescription, e
 			continue
 		}
 
-		description, err := store.DescribeKeyFile(fileInfo)
+		description, err := DescribeKeyFile(fileInfo.Name())
 		if err != nil {
 			return nil, err
 		}
@@ -774,9 +774,9 @@ func (store *KeyStore) describeDir(dirName string) ([]keystore.KeyDescription, e
 }
 
 // DescribeKeyFile describes key by its purpose path.
-func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescription, error) {
+func DescribeKeyFile(fileName string) (*keystore.KeyDescription, error) {
 
-	switch fileInfo.Name() {
+	switch fileName {
 	case poisonPrivateKey:
 		return &keystore.KeyDescription{
 			ID:      poisonPrivateKey,
@@ -794,15 +794,15 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 		}, nil
 	case legacyWebConfigKey:
 		return &keystore.KeyDescription{
-			ID:      fileInfo.Name(),
+			ID:      fileName,
 			Purpose: keystore.PurposeLegacy,
 		}, nil
 	}
 
-	components := strings.Split(fileInfo.Name(), "_")
+	components := strings.Split(fileName, "_")
 
 	if len(components) == 1 {
-		id := strings.TrimSuffix(fileInfo.Name(), ".pub")
+		id := strings.TrimSuffix(fileName, ".pub")
 
 		return &keystore.KeyDescription{
 			ID:       id,
@@ -821,7 +821,7 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 
 	if lastKeyPart == "hmac" {
 		return &keystore.KeyDescription{
-			ID:       fileInfo.Name(),
+			ID:       fileName,
 			Purpose:  keystore.PurposeSearchHMAC,
 			ClientID: []byte(strings.Join(components[:len(components)-1], "_")),
 		}, nil
@@ -829,7 +829,7 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 
 	if lastKeyPart == "storage" {
 		return &keystore.KeyDescription{
-			ID:       fileInfo.Name(),
+			ID:       fileName,
 			Purpose:  keystore.PurposeStorageClientPrivateKey,
 			ClientID: []byte(strings.Join(components[:len(components)-1], "_")),
 		}, nil
@@ -837,7 +837,7 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 
 	if lastKeyPart == "storage.pub" {
 		return &keystore.KeyDescription{
-			ID:       fileInfo.Name(),
+			ID:       fileName,
 			Purpose:  keystore.PurposeStorageClientPublicKey,
 			ClientID: []byte(strings.Join(components[:len(components)-1], "_")),
 		}, nil
@@ -845,21 +845,21 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 
 	if lastKeyPart == "zone" {
 		return &keystore.KeyDescription{
-			ID:      fileInfo.Name(),
+			ID:      fileName,
 			Purpose: keystore.PurposeLegacy,
 		}, nil
 	}
 
 	if lastKeyPart == "zone.pub" {
 		return &keystore.KeyDescription{
-			ID:      fileInfo.Name(),
+			ID:      fileName,
 			Purpose: keystore.PurposeLegacy,
 		}, nil
 	}
 
 	if penultimateKeyPart == "storage" && lastKeyPart == "sym" {
 		return &keystore.KeyDescription{
-			ID:       fileInfo.Name(),
+			ID:       fileName,
 			Purpose:  keystore.PurposeStorageClientSymmetricKey,
 			ClientID: []byte(strings.Join(components[:len(components)-2], "_")),
 		}, nil
@@ -867,21 +867,21 @@ func (store *KeyStore) DescribeKeyFile(fileInfo os.FileInfo) (*keystore.KeyDescr
 
 	if penultimateKeyPart == "zone" && lastKeyPart == "sym" {
 		return &keystore.KeyDescription{
-			ID:      fileInfo.Name(),
+			ID:      fileName,
 			Purpose: keystore.PurposeLegacy,
 		}, nil
 	}
 
 	if penultimateKeyPart == "log" && lastKeyPart == "key" {
 		return &keystore.KeyDescription{
-			ID:      fileInfo.Name(),
+			ID:      fileName,
 			Purpose: keystore.PurposeAuditLog,
 		}, nil
 	}
 
 	if lastKeyPart == "server" || lastKeyPart == "server.pub" || lastKeyPart == "translator" || lastKeyPart == "translator.pub" {
 		return &keystore.KeyDescription{
-			ID:       fileInfo.Name(),
+			ID:       fileName,
 			Purpose:  keystore.PurposeLegacy,
 			ClientID: []byte(components[0]),
 		}, nil

@@ -20,16 +20,17 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/keystore/filesystem"
+	"github.com/cossacklabs/acra/keystore/keyloader"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
-	"github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
 	"github.com/cossacklabs/acra/utils"
-	log "github.com/sirupsen/logrus"
 )
 
 // ExportKeyPerm is file permissions required for exported key data.
@@ -84,6 +85,7 @@ func (p *CommonExportImportParameters) validate() error {
 
 // ExportKeysParams are parameters of "acra-keys export" subcommand.
 type ExportKeysParams interface {
+	keystore.Exporter
 	ExportImportCommonParams
 	ExportIDs() []string
 	ExportAll() bool
@@ -94,7 +96,8 @@ type ExportKeysParams interface {
 type ExportKeysSubcommand struct {
 	CommonKeyStoreParameters
 	CommonExportImportParameters
-	FlagSet *flag.FlagSet
+	FlagSet  *flag.FlagSet
+	exporter keystore.Exporter
 
 	exportIDs     []string
 	exportAll     bool
@@ -148,14 +151,49 @@ func (p *ExportKeysSubcommand) Parse(arguments []string) error {
 
 // Execute this subcommand.
 func (p *ExportKeysSubcommand) Execute() {
-	keyStore, err := OpenKeyStoreForExport(p)
-	if err != nil {
-		if err == ErrNotImplementedV1 {
-			warnKeystoreV2Only(CmdExportKeys)
+	var err error
+	if IsKeyStoreV2(p) {
+		var keyStore api.BackupKeystore
+		keyStore, err = openKeyStoreV2(p)
+		if err != nil {
+			os.Exit(1)
 		}
-		log.WithError(err).Fatal("Failed to open keystore")
+
+		backuper, err := keystoreV2.NewKeyBackuper(p.keyDirPublic, p.keyDir, keyStore)
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize backuper")
+			os.Exit(1)
+		}
+
+		p.exporter = backuper
+	} else {
+		var keyStore filesystem.Storage
+		if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
+			keyStore, err = filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
+			if err != nil {
+				log.WithError(err).Errorln("Can't initialize redis storage")
+				os.Exit(1)
+			}
+		} else {
+			keyStore = &filesystem.DummyStorage{}
+		}
+
+		keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(p.FlagSet, "")
+		if err != nil {
+			log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
+			os.Exit(1)
+		}
+
+		backuper, err := filesystem.NewKeyBackuper(p.keyDir, p.keyDirPublic, keyStore, keyStoreEncryptor)
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize backuper")
+			os.Exit(1)
+		}
+
+		p.exporter = backuper
 	}
-	ExportKeysCommand(p, keyStore)
+
+	ExportKeysCommand(p)
 }
 
 // ExportIDs returns key IDs to export.
@@ -173,156 +211,8 @@ func (p *ExportKeysSubcommand) ExportPrivate() bool {
 	return p.exportPrivate
 }
 
-// ImportKeysParams are parameters of "acra-keys import" subcommand.
-type ImportKeysParams interface {
-	ExportImportCommonParams
-	ListKeysParams
-}
-
-// ImportKeysSubcommand is the "acra-keys import" subcommand.
-type ImportKeysSubcommand struct {
-	CommonKeyStoreParameters
-	CommonExportImportParameters
-	CommonKeyListingParameters
-	FlagSet *flag.FlagSet
-}
-
-// Name returns the same of this subcommand.
-func (p *ImportKeysSubcommand) Name() string {
-	return CmdImportKeys
-}
-
-// GetFlagSet returns flag set of this subcommand.
-func (p *ImportKeysSubcommand) GetFlagSet() *flag.FlagSet {
-	return p.FlagSet
-}
-
-// RegisterFlags registers command-line flags of "acra-keys import".
-func (p *ImportKeysSubcommand) RegisterFlags() {
-	p.FlagSet = flag.NewFlagSet(CmdImportKeys, flag.ContinueOnError)
-	p.CommonKeyStoreParameters.Register(p.FlagSet)
-	p.CommonExportImportParameters.Register(p.FlagSet, "input")
-	p.CommonKeyListingParameters.Register(p.FlagSet)
-	p.FlagSet.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Command \"%s\": import keys into the keystore\n", CmdImportKeys)
-		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] --key_bundle_file <file> --key_bundle_secret <file>\n", os.Args[0], CmdImportKeys)
-		fmt.Fprintf(os.Stderr, "\nOptions:\n")
-		cmd.PrintFlags(p.FlagSet)
-	}
-}
-
-// Parse command-line parameters of the subcommand.
-func (p *ImportKeysSubcommand) Parse(arguments []string) error {
-	err := cmd.ParseFlagsWithConfig(p.FlagSet, arguments, DefaultConfigPath, ServiceName)
-	if err != nil {
-		return err
-	}
-	err = p.CommonExportImportParameters.validate()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// Execute this subcommand.
-func (p *ImportKeysSubcommand) Execute() {
-	keyStore, err := OpenKeyStoreForImport(p)
-	if err != nil {
-		if err == ErrNotImplementedV1 {
-			warnKeystoreV2Only(CmdExportKeys)
-		}
-		log.WithError(err).Fatal("Failed to open keystore")
-	}
-	ImportKeysCommand(p, keyStore)
-}
-
-// PrepareExportEncryptionKeys generates new ephemeral keys for key export operation.
-func PrepareExportEncryptionKeys() ([]byte, *crypto.KeyStoreSuite, error) {
-	keys, err := keystoreV2.NewMasterKeys()
-	if err != nil {
-		log.WithError(err).Debug("Failed to generate master keys")
-		return nil, nil, err
-	}
-
-	serializedKeys, err := keys.Marshal()
-	if err != nil {
-		log.WithError(err).Debug("Failed to serialize keys in JSON")
-		return nil, nil, err
-	}
-
-	// We do not zeroize the keys since a) they are stored by reference in the cryptosuite,
-	// b) they have not been used to encrypt anything yet.
-	cryptosuite, err := crypto.NewSCellSuite(keys.Encryption, keys.Signature)
-	if err != nil {
-		log.WithError(err).Debug("Failed to setup cryptosuite")
-		return nil, nil, err
-	}
-
-	return serializedKeys, cryptosuite, nil
-}
-
-// ReadImportEncryptionKeys reads ephemeral keys for key import operation.
-func ReadImportEncryptionKeys(params ExportImportCommonParams) (*crypto.KeyStoreSuite, error) {
-	keysFile := params.ExportKeysFile()
-	importEncryptionKeyData, err := ioutil.ReadFile(keysFile)
-	if err != nil {
-		log.WithField("path", keysFile).WithError(err).Debug("Failed to read key file")
-		return nil, err
-	}
-	defer utils.ZeroizeSymmetricKey(importEncryptionKeyData)
-
-	importEncryptionKeys := &keystoreV2.SerializedKeys{}
-	err = importEncryptionKeys.Unmarshal(importEncryptionKeyData)
-	if err != nil {
-		log.WithField("path", keysFile).WithError(err).Debug("Failed to parse key file content")
-		return nil, err
-	}
-
-	cryptosuite, err := crypto.NewSCellSuite(importEncryptionKeys.Encryption, importEncryptionKeys.Signature)
-	if err != nil {
-		log.WithField("path", keysFile).WithError(err).Debug("Failed to initialize cryptosuite")
-		return nil, err
-	}
-
-	return cryptosuite, nil
-}
-
-// ExportKeys exports requested key rings.
-func ExportKeys(keyStore api.KeyStore, cryptosuite *crypto.KeyStoreSuite, params ExportKeysParams) (exportedData []byte, err error) {
-	exportedIDs := params.ExportIDs()
-	if params.ExportAll() {
-		exportedIDs, err = keyStore.ListKeyRings()
-		if err != nil {
-			log.WithError(err).Debug("Failed to list available keys")
-			return nil, err
-		}
-	}
-
-	mode := api.ExportPublicOnly
-	if params.ExportPrivate() {
-		mode = api.ExportPrivateKeys
-	}
-	exportedData, err = keyStore.ExportKeyRings(exportedIDs, cryptosuite, mode)
-	if err != nil {
-		log.WithError(err).Debug("Failed to export key rings")
-		return nil, err
-	}
-	return exportedData, nil
-}
-
-// ImportKeys imports available key rings.
-func ImportKeys(exportedData []byte, keyStore api.MutableKeyStore, cryptosuite *crypto.KeyStoreSuite, params ImportKeysParams) ([]keystore.KeyDescription, error) {
-	keyIDs, err := keyStore.ImportKeyRings(exportedData, cryptosuite, nil)
-	if err != nil {
-		log.WithError(err).Debug("Failed to import key rings")
-		return nil, err
-	}
-	descriptions, err := keystoreV2.DescribeKeyRings(keyIDs, keyStore)
-	if err != nil {
-		log.WithError(err).Debug("Failed to describe imported key rings")
-		return nil, err
-	}
-	return descriptions, nil
+func (p *ExportKeysSubcommand) Export(exportPaths []string, mode keystore.ExportMode) (*keystore.KeysBackup, error) {
+	return p.exporter.Export(exportPaths, mode)
 }
 
 // WriteExportedData saves exported key data and ephemeral keys into designated files.
@@ -338,15 +228,31 @@ func WriteExportedData(data, keys []byte, params ExportKeysParams) error {
 	return nil
 }
 
-// ReadExportedData reads exported key data from designated file.
-func ReadExportedData(params ExportImportCommonParams) ([]byte, error) {
-	dataFile := params.ExportDataFile()
-	exportedKeyData, err := ioutil.ReadFile(dataFile)
-	if err != nil {
-		log.WithField("path", dataFile).WithError(err).Debug("Failed to read data file")
-		return nil, err
+// ExportKeysCommand implements the "export" command.
+func ExportKeysCommand(exporter ExportKeysParams) {
+	var mode = keystore.ExportPublicOnly
+
+	switch {
+	case exporter.ExportPrivate():
+		mode = keystore.ExportPrivateKeys
+	case exporter.ExportAll():
+		mode = keystore.ExportAllKeys
 	}
-	return exportedKeyData, nil
+
+	backup, err := exporter.Export(exporter.ExportIDs(), mode)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to export keys")
+	}
+
+	err = WriteExportedData(backup.Data, backup.Keys, exporter)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to write exported data")
+	}
+
+	log.Infof("Exported key data is encrypted and saved here: %s", exporter.ExportDataFile())
+	log.Infof("New encryption keys for import generated here: %s", exporter.ExportKeysFile())
+	log.Infof("DO NOT transport or store these files together")
+	log.Infof("Import the keys into another keystore like this:\n\tacra-keys import --key_bundle_file \"%s\" --key_bundle_secret \"%s\"", exporter.ExportDataFile(), exporter.ExportKeysFile())
 }
 
 func writeFileWithMode(data []byte, path string, perm os.FileMode) (err error) {

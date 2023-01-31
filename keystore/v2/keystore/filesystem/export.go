@@ -19,8 +19,9 @@ package filesystem
 import (
 	"context"
 	"errors"
-	keystoreV1 "github.com/cossacklabs/acra/keystore"
 	"time"
+
+	keystoreV1 "github.com/cossacklabs/acra/keystore"
 
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/asn1"
@@ -36,7 +37,7 @@ var (
 	ErrNoPublicData  = errors.New("key has no public data")
 )
 
-func (s *KeyStore) exportKeyRings(paths []string, mode api.ExportMode) (rings []asn1.KeyRing, err error) {
+func (s *KeyStore) exportKeyRings(paths []string, mode keystoreV1.ExportMode) (rings []asn1.KeyRing, err error) {
 	rings = make([]asn1.KeyRing, 0, len(paths))
 	defer func() {
 		if err != nil {
@@ -57,7 +58,7 @@ func (s *KeyStore) exportKeyRings(paths []string, mode api.ExportMode) (rings []
 	return rings, nil
 }
 
-func (s *KeyStore) exportKeyRing(path string, mode api.ExportMode) (asn1.KeyRing, error) {
+func (s *KeyStore) exportKeyRing(path string, mode keystoreV1.ExportMode) (asn1.KeyRing, error) {
 	ring := newKeyRing(s, path)
 	err := s.readKeyRing(ring)
 	if err != nil {
@@ -177,7 +178,7 @@ func (s *KeyStore) decryptAndVerifyKeyRings(ringData []byte, cryptosuite *crypto
 	return keys.KeyRings, nil
 }
 
-func (r *KeyRing) exportASN1(mode api.ExportMode) (exported asn1.KeyRing, err error) {
+func (r *KeyRing) exportASN1(mode keystoreV1.ExportMode) (exported asn1.KeyRing, err error) {
 	exported = asn1.KeyRing{
 		Purpose: r.data.Purpose,
 		Current: r.data.Current,
@@ -217,7 +218,7 @@ func (r *KeyRing) importASN1(ringData *asn1.KeyRing) error {
 	return err
 }
 
-func (r *KeyRing) decryptAllKeyData(encrypted []asn1.KeyData, seqnum int, mode api.ExportMode) (decrypted []asn1.KeyData, err error) {
+func (r *KeyRing) decryptAllKeyData(encrypted []asn1.KeyData, seqnum int, mode keystoreV1.ExportMode) (decrypted []asn1.KeyData, err error) {
 	decrypted = make([]asn1.KeyData, len(encrypted))
 	copy(decrypted, encrypted)
 	defer func() {
@@ -234,10 +235,10 @@ func (r *KeyRing) decryptAllKeyData(encrypted []asn1.KeyData, seqnum int, mode a
 	return decrypted, nil
 }
 
-func (r *KeyRing) decryptKeyData(data *asn1.KeyData, seqnum int, mode api.ExportMode) error {
+func (r *KeyRing) decryptKeyData(data *asn1.KeyData, seqnum int, mode keystoreV1.ExportMode) error {
 	// If we do not export private key data then remove it without decryption.
 	// If there is no public key data left then this is a symmetric key and we need to skip it.
-	if mode&api.ExportPrivateKeys == 0 {
+	if mode&keystoreV1.ExportPrivateKeys == 0 {
 		data.PrivateKey = nil
 		data.SymmetricKey = nil
 		if len(data.PublicKey) == 0 {

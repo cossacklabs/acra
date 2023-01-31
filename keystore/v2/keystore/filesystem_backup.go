@@ -1,0 +1,104 @@
+package keystore
+
+import (
+	log "github.com/sirupsen/logrus"
+
+	keystoreV1 "github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
+	"github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
+)
+
+type KeyBackuper struct {
+	storage       api.BackupKeystore
+	privateFolder string
+	publicFolder  string
+}
+
+// NewKeyBackuper create, initialize and return new instance of KeyBackuper
+func NewKeyBackuper(privateFolder, publicFolder string, storage api.BackupKeystore) (*KeyBackuper, error) {
+	if publicFolder == "" {
+		publicFolder = privateFolder
+	}
+	return &KeyBackuper{privateFolder: privateFolder, publicFolder: publicFolder, storage: storage}, nil
+}
+
+func (store *KeyBackuper) Export(exportPaths []string, mode keystoreV1.ExportMode) (*keystoreV1.KeysBackup, error) {
+	var exportedIDs = exportPaths
+	if mode == keystoreV1.ExportAllKeys {
+		var err error
+		exportedIDs, err = store.storage.ListKeyRings()
+		if err != nil {
+			log.WithError(err).Fatal("Failed to list available keys")
+		}
+	}
+
+	encryptionKeyData, cryptosuite, err := prepareExportEncryptionKeys()
+	if err != nil {
+		log.WithError(err).Errorln("Failed to prepare encryption keys")
+		return nil, err
+	}
+
+	exportedData, err := store.storage.ExportKeyRings(exportedIDs, cryptosuite, mode)
+	if err != nil {
+		log.WithError(err).Debug("Failed to export key rings")
+		return nil, err
+	}
+
+	return &keystoreV1.KeysBackup{
+		Keys: encryptionKeyData,
+		Data: exportedData,
+	}, nil
+}
+
+func (store *KeyBackuper) Import(backup *keystoreV1.KeysBackup) ([]keystoreV1.KeyDescription, error) {
+	importEncryptionKeys := &SerializedKeys{}
+	err := importEncryptionKeys.Unmarshal(backup.Keys)
+	if err != nil {
+		log.WithError(err).Debug("Failed to parse key file content")
+		return nil, err
+	}
+
+	cryptosuite, err := crypto.NewSCellSuite(importEncryptionKeys.Encryption, importEncryptionKeys.Signature)
+	if err != nil {
+		log.WithError(err).Debug("Failed to initialize cryptosuite")
+		return nil, err
+	}
+
+	keyIDs, err := store.storage.ImportKeyRings(backup.Data, cryptosuite, nil)
+	if err != nil {
+		log.WithError(err).Debug("Failed to import key rings")
+		return nil, err
+	}
+	descriptions, err := DescribeKeyRings(keyIDs, store.storage)
+	if err != nil {
+		log.WithError(err).Debug("Failed to describe imported key rings")
+		return nil, err
+	}
+
+	return descriptions, nil
+}
+
+// prepareExportEncryptionKeys generates new ephemeral keys for key export operation.
+func prepareExportEncryptionKeys() ([]byte, *crypto.KeyStoreSuite, error) {
+	keys, err := NewMasterKeys()
+	if err != nil {
+		log.WithError(err).Debug("Failed to generate master keys")
+		return nil, nil, err
+	}
+
+	serializedKeys, err := keys.Marshal()
+	if err != nil {
+		log.WithError(err).Debug("Failed to serialize keys in JSON")
+		return nil, nil, err
+	}
+
+	// We do not zeroize the keys since a) they are stored by reference in the cryptosuite,
+	// b) they have not been used to encrypt anything yet.
+	cryptosuite, err := crypto.NewSCellSuite(keys.Encryption, keys.Signature)
+	if err != nil {
+		log.WithError(err).Debug("Failed to setup cryptosuite")
+		return nil, nil, err
+	}
+
+	return serializedKeys, cryptosuite, nil
+}

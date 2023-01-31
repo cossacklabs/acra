@@ -24,8 +24,6 @@ import (
 	"strings"
 	"time"
 
-	keystore2 "github.com/cossacklabs/acra/keystore"
-
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
@@ -36,11 +34,11 @@ type KeyBackuper struct {
 	storage          Storage
 	privateFolder    string
 	publicFolder     string
-	currentDecryptor keystore2.KeyEncryptor
+	currentDecryptor keystore.KeyEncryptor
 }
 
 // NewKeyBackuper create, initialize and return new instance of KeyBackuper
-func NewKeyBackuper(privateFolder, publicFolder string, storage Storage, decryptor keystore2.KeyEncryptor) (*KeyBackuper, error) {
+func NewKeyBackuper(privateFolder, publicFolder string, storage Storage, decryptor keystore.KeyEncryptor) (*KeyBackuper, error) {
 	if publicFolder == "" {
 		publicFolder = privateFolder
 	}
@@ -134,7 +132,7 @@ func isHistoricalFilename(name string) bool {
 	return err == nil
 }
 
-func readFilesAsKeys(files []string, basePath string, encryptor keystore2.KeyEncryptor, storage Storage) ([]*keystore.Key, error) {
+func readFilesAsKeys(files []string, basePath string, encryptor keystore.KeyEncryptor, storage Storage) ([]*keystore.Key, error) {
 	output := make([]*keystore.Key, 0, len(files))
 	for _, f := range files {
 		content, err := storage.ReadFile(f)
@@ -142,7 +140,7 @@ func readFilesAsKeys(files []string, basePath string, encryptor keystore2.KeyEnc
 			return nil, err
 		}
 		// remove absolute first part, leave only relative to path
-		relativeName := strings.Replace(f, basePath+"/", "", -1)
+		relativeName := strings.Replace(f, filepath.Join(basePath)+"/", "", -1)
 		if isPrivate(relativeName) {
 			keyContext := getContextFromFilename(relativeName)
 			ctx, _ := context.WithTimeout(context.Background(), network.DefaultNetworkTimeout)
@@ -159,50 +157,73 @@ func readFilesAsKeys(files []string, basePath string, encryptor keystore2.KeyEnc
 }
 
 // Export keys from KeyStore encrypted with new key for backup
-func (store *KeyBackuper) Export() (*keystore.KeysBackup, error) {
-	var publicKeys []*keystore.Key
+func (store *KeyBackuper) Export(exportPaths []string, mode keystore.ExportMode) (*keystore.KeysBackup, error) {
+	var exportedKeys []*keystore.Key
 	var err error
-	if store.publicFolder != store.privateFolder {
-		publicFiles, err := ReadDir(store.storage, store.publicFolder)
+
+	if len(exportPaths) != 0 {
+		keyPaths := make([]string, 0, len(exportPaths))
+		for _, path := range exportPaths {
+			keyPaths = append(keyPaths, filepath.Join(store.privateFolder, path))
+		}
+
+		keys, err := readFilesAsKeys(keyPaths, store.privateFolder, store.currentDecryptor, store.storage)
 		if err != nil {
 			return nil, err
 		}
-		publicKeys, err = readFilesAsKeys(publicFiles, store.publicFolder, dummyEncryptor{}, store.storage)
-		if err != nil {
-			return nil, err
+		exportedKeys = append(exportedKeys, keys...)
+
+		defer func(keys []*keystore.Key) {
+			for _, key := range keys {
+				utils.ZeroizeBytes(key.Content)
+			}
+		}(keys)
+
+	} else {
+		if (mode == keystore.ExportAllKeys || mode == keystore.ExportPublicOnly) && store.publicFolder != store.privateFolder {
+			publicFiles, err := ReadDir(store.storage, store.publicFolder)
+			if err != nil {
+				return nil, err
+			}
+			publicKeys, err := readFilesAsKeys(publicFiles, store.publicFolder, dummyEncryptor{}, store.storage)
+			if err != nil {
+				return nil, err
+			}
+			exportedKeys = append(exportedKeys, publicKeys...)
+		}
+
+		if mode == keystore.ExportPrivateKeys || mode == keystore.ExportAllKeys {
+			privateFiles, err := ReadDir(store.storage, store.privateFolder)
+			if err != nil {
+				return nil, err
+			}
+			privateKeys, err := readFilesAsKeys(privateFiles, store.privateFolder, store.currentDecryptor, store.storage)
+			if err != nil {
+				return nil, err
+			}
+			exportedKeys = append(exportedKeys, privateKeys...)
+
+			defer func(keys []*keystore.Key) {
+				for _, key := range keys {
+					utils.ZeroizeBytes(key.Content)
+				}
+			}(privateKeys)
 		}
 	}
 
-	privateFiles, err := ReadDir(store.storage, store.privateFolder)
-	if err != nil {
-		return nil, err
-	}
-	privateKeys, err := readFilesAsKeys(privateFiles, store.privateFolder, store.currentDecryptor, store.storage)
-	if err != nil {
-		return nil, err
-	}
-	defer func(keys []*keystore.Key) {
-		for _, key := range keys {
-			utils.ZeroizeBytes(key.Content)
-		}
-	}(privateKeys)
-
-	keys := make([]*keystore.Key, 0, len(publicKeys)+len(privateKeys))
-	keys = append(keys, privateKeys...)
-	keys = append(keys, publicKeys...)
 	buf := &bytes.Buffer{}
 	encoder := gob.NewEncoder(buf)
-	if err := encoder.Encode(keys); err != nil {
+	if err := encoder.Encode(exportedKeys); err != nil {
 		return nil, err
 	}
 	defer func(buf *bytes.Buffer) {
 		utils.ZeroizeBytes(buf.Bytes())
 	}(buf)
-	newMasterKey, err := keystore2.GenerateSymmetricKey()
+	newMasterKey, err := keystore.GenerateSymmetricKey()
 	if err != nil {
 		return nil, err
 	}
-	encryptor, err := keystore2.NewSCellKeyEncryptor(newMasterKey)
+	encryptor, err := keystore.NewSCellKeyEncryptor(newMasterKey)
 	if err != nil {
 		return nil, err
 	}
@@ -211,27 +232,29 @@ func (store *KeyBackuper) Export() (*keystore.KeysBackup, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &keystore.KeysBackup{Keys: encryptedKeys, MasterKey: newMasterKey}, nil
+	return &keystore.KeysBackup{Data: encryptedKeys, Keys: newMasterKey}, nil
 }
 
 // Import keys from backup to current keystore
-func (store *KeyBackuper) Import(backup *keystore.KeysBackup) error {
-	decryptor, err := keystore2.NewSCellKeyEncryptor(backup.MasterKey)
+func (store *KeyBackuper) Import(backup *keystore.KeysBackup) ([]keystore.KeyDescription, error) {
+	decryptor, err := keystore.NewSCellKeyEncryptor(backup.Keys)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	decryptedData, err := decryptor.Decrypt(context.Background(), backup.Keys, keystore.NewEmptyKeyContext(nil))
+	decryptedData, err := decryptor.Decrypt(context.Background(), backup.Data, keystore.NewEmptyKeyContext(nil))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer utils.ZeroizeBytes(decryptedData)
 
 	decoder := gob.NewDecoder(bytes.NewReader(decryptedData))
 	keys := []*keystore.Key{}
 	if err := decoder.Decode(&keys); err != nil {
-		return err
+		return nil, err
 	}
+
+	descriptions := make([]keystore.KeyDescription, 0, len(keys))
 	for _, key := range keys {
 		isPrivateKey := isPrivate(key.Name)
 		filePermission := publicFileMode
@@ -244,7 +267,7 @@ func (store *KeyBackuper) Import(backup *keystore.KeysBackup) error {
 			// anyway fill with zeros
 			utils.ZeroizeBytes(key.Content)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			filePermission = PrivateFileMode
 		} else {
@@ -254,12 +277,18 @@ func (store *KeyBackuper) Import(backup *keystore.KeysBackup) error {
 		}
 		dirName := filepath.Dir(fullName)
 		if err := store.storage.MkdirAll(dirName, keyDirMode); err != nil {
-			return err
+			return nil, err
 		}
 
 		if err := store.storage.WriteFile(fullName, content, filePermission); err != nil {
-			return err
+			return nil, err
 		}
+
+		description, err := DescribeKeyFile(key.Name)
+		if err != nil {
+			return nil, err
+		}
+		descriptions = append(descriptions, *description)
 	}
-	return nil
+	return descriptions, nil
 }
