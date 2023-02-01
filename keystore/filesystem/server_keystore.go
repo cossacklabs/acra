@@ -804,8 +804,8 @@ func DescribeKeyFile(fileName string) (*keystore.KeyDescription, error) {
 	if strings.HasSuffix(fileName, ".keyring") {
 		dir, file := path.Split(path.Clean(fileName))
 		// dir was provided in path
-		if dir != "" {
-			splits := strings.Split(dir, string(filepath.Separator))
+		if dir != "" && strings.Contains(dir, "client") {
+			splits := strings.Split(strings.Trim(dir, string(filepath.Separator)), string(filepath.Separator))
 			if len(splits) == 1 {
 				return nil, errors.New("invalid path provided for V2 keystore key")
 			}

@@ -1390,10 +1390,6 @@ func TestDescribeKeyFileV2Keys(t *testing.T) {
 			input:                  "poison-record-sym.keyring",
 		},
 		{
-			expectedKeyDescription: &keystore.KeyDescription{ID: "hmac-sym.keyring", Purpose: keystore.PurposeSearchHMAC, ClientID: []byte("test")},
-			input:                  "test/hmac-sym.keyring",
-		},
-		{
 			expectedKeyDescription: &keystore.KeyDescription{ID: "storage.keyring", Purpose: keystore.PurposeStorageClientKeyPair, ClientID: []byte("test")},
 			input:                  "client/test/storage.keyring",
 		},
@@ -1403,11 +1399,15 @@ func TestDescribeKeyFileV2Keys(t *testing.T) {
 		},
 		{
 			expectedKeyDescription: &keystore.KeyDescription{ID: "storage-sym.keyring", Purpose: keystore.PurposeStorageClientSymmetricKey, ClientID: []byte("test")},
-			input:                  "client/test///storage-sym.keyring",
+			input:                  "client/test/storage-sym.keyring",
 		},
 		{
 			expectedErr: &ErrUnrecognizedKeyPurpose,
 			input:       "teststorage-sym.keyring",
+		},
+		{
+			expectedErr: &ErrUnrecognizedKeyPurpose,
+			input:       "test/hmac-sym.keyring",
 		},
 	}
 
