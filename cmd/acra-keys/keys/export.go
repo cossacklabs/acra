@@ -87,7 +87,7 @@ func (p *CommonExportImportParameters) validate() error {
 type ExportKeysParams interface {
 	keystore.Exporter
 	ExportImportCommonParams
-	ExportIDs() []string
+	ExportIDs() []keystore.ExportID
 	ExportAll() bool
 	ExportPrivate() bool
 }
@@ -99,7 +99,7 @@ type ExportKeysSubcommand struct {
 	FlagSet  *flag.FlagSet
 	exporter keystore.Exporter
 
-	exportIDs     []string
+	exportIDs     []keystore.ExportID
 	exportAll     bool
 	exportPrivate bool
 }
@@ -120,7 +120,7 @@ func (p *ExportKeysSubcommand) RegisterFlags() {
 	p.CommonKeyStoreParameters.Register(p.FlagSet)
 	p.CommonExportImportParameters.Register(p.FlagSet, "output")
 	p.FlagSet.BoolVar(&p.exportAll, "all", false, "export all keys")
-	p.FlagSet.BoolVar(&p.exportPrivate, "private_keys", false, "export private key data")
+	p.FlagSet.BoolVar(&p.exportPrivate, "private_keys", false, "export private key data (symmetric and private asymmetric keys)")
 	p.FlagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": export keys from the keystore\n", CmdExportKeys)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] --key_bundle_file <file> --key_bundle_secret <file> <key-ID...>\n", os.Args[0], CmdExportKeys)
@@ -145,7 +145,65 @@ func (p *ExportKeysSubcommand) Parse(arguments []string) error {
 		log.Infoln("Use \"--all\" to export all keys")
 		return ErrMissingKeyID
 	}
-	p.exportIDs = args
+
+	if !p.exportAll {
+		for _, arg := range args {
+			coarseKind, id, err := ParseKeyKind(arg)
+			if err != nil {
+				// we still should support passing keys as key path, in case of error threat is as path
+				p.exportIDs = append(p.exportIDs, keystore.ExportID{
+					KeyKind:   keystore.KeyPath,
+					ContextID: []byte(arg),
+				})
+				continue
+			}
+
+			if coarseKind == keystore.KeySymmetric || coarseKind == keystore.KeySearch && !p.exportPrivate {
+				log.Fatal("Export symmetric keys expect \"--private_keys\"")
+			}
+
+			switch coarseKind {
+			case keystore.KeySymmetric:
+				p.exportIDs = append(p.exportIDs, keystore.ExportID{
+					KeyKind:   coarseKind,
+					ContextID: id,
+				})
+
+			case keystore.KeyPoisonKeypair:
+				if p.exportPrivate {
+					p.exportIDs = append(p.exportIDs, keystore.ExportID{
+						KeyKind: keystore.KeyPoisonPrivate,
+					})
+				} else {
+					p.exportIDs = append(p.exportIDs, keystore.ExportID{
+						KeyKind: keystore.KeyPoisonPublic,
+					})
+				}
+
+			case keystore.KeyStorageKeypair:
+				if p.exportPrivate {
+					p.exportIDs = append(p.exportIDs, keystore.ExportID{
+						KeyKind:   keystore.KeyStoragePrivate,
+						ContextID: id,
+					})
+				} else {
+					p.exportIDs = append(p.exportIDs, keystore.ExportID{
+						KeyKind:   keystore.KeyStoragePublic,
+						ContextID: id,
+					})
+				}
+
+			case keystore.KeySearch:
+				p.exportIDs = append(p.exportIDs, keystore.ExportID{
+					KeyKind:   keystore.KeySearch,
+					ContextID: id,
+				})
+			default:
+				return ErrUnknownKeyKind
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -167,15 +225,20 @@ func (p *ExportKeysSubcommand) Execute() {
 
 		p.exporter = backuper
 	} else {
-		var keyStore filesystem.Storage
+		keyStore, err := openKeyStoreV1(p)
+		if err != nil {
+			os.Exit(1)
+		}
+
+		var storge filesystem.Storage
 		if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
-			keyStore, err = filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
+			storge, err = filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
 			if err != nil {
 				log.WithError(err).Errorln("Can't initialize redis storage")
 				os.Exit(1)
 			}
 		} else {
-			keyStore = &filesystem.DummyStorage{}
+			storge = &filesystem.DummyStorage{}
 		}
 
 		keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(p.FlagSet, "")
@@ -184,7 +247,7 @@ func (p *ExportKeysSubcommand) Execute() {
 			os.Exit(1)
 		}
 
-		backuper, err := filesystem.NewKeyBackuper(p.keyDir, p.keyDirPublic, keyStore, keyStoreEncryptor)
+		backuper, err := filesystem.NewKeyBackuper(p.keyDir, p.keyDirPublic, storge, keyStoreEncryptor, keyStore)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize backuper")
 			os.Exit(1)
@@ -197,7 +260,7 @@ func (p *ExportKeysSubcommand) Execute() {
 }
 
 // ExportIDs returns key IDs to export.
-func (p *ExportKeysSubcommand) ExportIDs() []string {
+func (p *ExportKeysSubcommand) ExportIDs() []keystore.ExportID {
 	return p.exportIDs
 }
 
@@ -212,8 +275,8 @@ func (p *ExportKeysSubcommand) ExportPrivate() bool {
 }
 
 // Export implements keystore.Exporter interface
-func (p *ExportKeysSubcommand) Export(exportPaths []string, mode keystore.ExportMode) (*keystore.KeysBackup, error) {
-	return p.exporter.Export(exportPaths, mode)
+func (p *ExportKeysSubcommand) Export(exportIDs []keystore.ExportID, mode keystore.ExportMode) (*keystore.KeysBackup, error) {
+	return p.exporter.Export(exportIDs, mode)
 }
 
 // WriteExportedData saves exported key data and ephemeral keys into designated files.

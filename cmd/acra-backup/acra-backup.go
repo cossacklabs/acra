@@ -84,7 +84,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	backuper, err := filesystem.NewKeyBackuper(*outputDir, *outputPublicKey, storage, keyStoreEncryptor)
+	backuper, err := filesystem.NewKeyBackuper(*outputDir, *outputPublicKey, storage, keyStoreEncryptor, nil)
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize backuper")
 		os.Exit(1)

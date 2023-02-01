@@ -43,7 +43,7 @@ func TestDestroyCMD_FS_V2(t *testing.T) {
 				keyDir: dirName,
 			},
 			contextID:      clientID,
-			destroyKeyKind: KeyStorageKeypair,
+			destroyKeyKind: keystore.KeyStorageKeypair,
 			FlagSet:        flagSet,
 		}
 
@@ -79,7 +79,7 @@ func TestDestroyCMD_FS_V2(t *testing.T) {
 				keyDir: dirName,
 			},
 			contextID:      clientID,
-			destroyKeyKind: KeySymmetric,
+			destroyKeyKind: keystore.KeySymmetric,
 			FlagSet:        flagSet,
 		}
 
@@ -115,7 +115,7 @@ func TestDestroyCMD_FS_V2(t *testing.T) {
 				keyDir: dirName,
 			},
 			contextID:      clientID,
-			destroyKeyKind: KeyPoisonKeypair,
+			destroyKeyKind: keystore.KeyPoisonKeypair,
 			FlagSet:        flagSet,
 		}
 
@@ -146,7 +146,7 @@ func TestDestroyCMD_FS_V2(t *testing.T) {
 				keyDir: dirName,
 			},
 			contextID:      clientID,
-			destroyKeyKind: KeyPoisonSymmetric,
+			destroyKeyKind: keystore.KeyPoisonSymmetric,
 			FlagSet:        flagSet,
 		}
 
@@ -182,7 +182,7 @@ func TestDestroyCMD_FS_V2(t *testing.T) {
 				keyDir: dirName,
 			},
 			contextID:      clientID,
-			destroyKeyKind: KeySearch,
+			destroyKeyKind: keystore.KeySearch,
 			FlagSet:        flagSet,
 		}
 
@@ -243,7 +243,7 @@ func TestDestroyCMD_FS_V1(t *testing.T) {
 				keyDir: dirName,
 			},
 			contextID:      clientID,
-			destroyKeyKind: KeyStorageKeypair,
+			destroyKeyKind: keystore.KeyStorageKeypair,
 			FlagSet:        flagSet,
 		}
 
@@ -274,7 +274,7 @@ func TestDestroyCMD_FS_V1(t *testing.T) {
 				keyDir: dirName,
 			},
 			contextID:      clientID,
-			destroyKeyKind: KeySymmetric,
+			destroyKeyKind: keystore.KeySymmetric,
 			FlagSet:        flagSet,
 		}
 
@@ -305,7 +305,7 @@ func TestDestroyCMD_FS_V1(t *testing.T) {
 				keyDir: dirName,
 			},
 			contextID:      clientID,
-			destroyKeyKind: KeyPoisonKeypair,
+			destroyKeyKind: keystore.KeyPoisonKeypair,
 			FlagSet:        flagSet,
 		}
 
@@ -336,7 +336,7 @@ func TestDestroyCMD_FS_V1(t *testing.T) {
 				keyDir: dirName,
 			},
 			contextID:      clientID,
-			destroyKeyKind: KeyPoisonSymmetric,
+			destroyKeyKind: keystore.KeyPoisonSymmetric,
 			FlagSet:        flagSet,
 		}
 
@@ -367,7 +367,7 @@ func TestDestroyCMD_FS_V1(t *testing.T) {
 				keyDir: dirName,
 			},
 			contextID:      clientID,
-			destroyKeyKind: KeySearch,
+			destroyKeyKind: keystore.KeySearch,
 			FlagSet:        flagSet,
 		}
 

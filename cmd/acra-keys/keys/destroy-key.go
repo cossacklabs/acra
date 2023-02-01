@@ -89,10 +89,10 @@ func (p *DestroyKeySubcommand) Parse(arguments []string) error {
 		return err
 	}
 	switch coarseKind {
-	case KeyPoisonKeypair, KeyPoisonSymmetric:
+	case keystore.KeyPoisonKeypair, keystore.KeyPoisonSymmetric:
 		p.destroyKeyKind = coarseKind
 
-	case KeySymmetric, KeyStorageKeypair, KeySearch:
+	case keystore.KeySymmetric, keystore.KeyStorageKeypair, keystore.KeySearch:
 		p.destroyKeyKind = coarseKind
 		p.contextID = id
 	default:
@@ -125,14 +125,14 @@ func (p *DestroyKeySubcommand) ClientID() []byte {
 func DestroyKey(params DestroyKeyParams, keyStore keystore.KeyMaking) error {
 	kind := params.DestroyKeyKind()
 	switch kind {
-	case KeyPoisonKeypair:
+	case keystore.KeyPoisonKeypair:
 		err := keyStore.DestroyPoisonKeyPair()
 		if err != nil {
 			log.WithError(err).Error("Cannot destroy poison record key pair")
 			return err
 		}
 		return nil
-	case KeyPoisonSymmetric:
+	case keystore.KeyPoisonSymmetric:
 		err := keyStore.DestroyPoisonSymmetricKey()
 		if err != nil {
 			log.WithError(err).Error("Cannot destroy poison record symmetric key")
@@ -140,7 +140,7 @@ func DestroyKey(params DestroyKeyParams, keyStore keystore.KeyMaking) error {
 		}
 		return nil
 
-	case KeyStorageKeypair:
+	case keystore.KeyStorageKeypair:
 		err := keyStore.DestroyClientIDEncryptionKeyPair(params.ClientID())
 		if err != nil {
 			log.WithError(err).Error("Cannot destroy client storage key pair")
@@ -148,14 +148,14 @@ func DestroyKey(params DestroyKeyParams, keyStore keystore.KeyMaking) error {
 		}
 		return nil
 
-	case KeySymmetric:
+	case keystore.KeySymmetric:
 		err := keyStore.DestroyClientIDSymmetricKey(params.ClientID())
 		if err != nil {
 			log.WithError(err).Error("Cannot destroy client symmetric key")
 			return err
 		}
 		return nil
-	case KeySearch:
+	case keystore.KeySearch:
 		err := keyStore.DestroyHmacSecretKey(params.ClientID())
 		if err != nil {
 			log.WithError(err).Error("Cannot destroy client hmac key")

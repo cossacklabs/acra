@@ -20,9 +20,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+	"errors"
 	"path/filepath"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/network"
@@ -31,6 +34,7 @@ import (
 
 // KeyBackuper export keys from KeyStore into encrypted bytes buffer
 type KeyBackuper struct {
+	keyStore         keystore.ServerKeyStore
 	storage          Storage
 	privateFolder    string
 	publicFolder     string
@@ -38,11 +42,11 @@ type KeyBackuper struct {
 }
 
 // NewKeyBackuper create, initialize and return new instance of KeyBackuper
-func NewKeyBackuper(privateFolder, publicFolder string, storage Storage, decryptor keystore.KeyEncryptor) (*KeyBackuper, error) {
+func NewKeyBackuper(privateFolder, publicFolder string, storage Storage, decryptor keystore.KeyEncryptor, keyStore keystore.ServerKeyStore) (*KeyBackuper, error) {
 	if publicFolder == "" {
 		publicFolder = privateFolder
 	}
-	return &KeyBackuper{privateFolder: privateFolder, publicFolder: publicFolder, storage: storage, currentDecryptor: decryptor}, nil
+	return &KeyBackuper{privateFolder: privateFolder, publicFolder: publicFolder, storage: storage, currentDecryptor: decryptor, keyStore: keyStore}, nil
 }
 
 // ReadDir reads a directory and returns paths of items
@@ -140,7 +144,7 @@ func readFilesAsKeys(files []string, basePath string, encryptor keystore.KeyEncr
 			return nil, err
 		}
 		// remove absolute first part, leave only relative to path
-		relativeName := strings.Replace(f, filepath.Join(basePath)+"/", "", -1)
+		relativeName := strings.Replace(f, filepath.Clean(basePath)+"/", "", -1)
 		if isPrivate(relativeName) {
 			keyContext := getContextFromFilename(relativeName)
 			ctx, _ := context.WithTimeout(context.Background(), network.DefaultNetworkTimeout)
@@ -157,28 +161,97 @@ func readFilesAsKeys(files []string, basePath string, encryptor keystore.KeyEncr
 }
 
 // Export keys from KeyStore encrypted with new key for backup
-func (store *KeyBackuper) Export(exportPaths []string, mode keystore.ExportMode) (*keystore.KeysBackup, error) {
+func (store *KeyBackuper) Export(exportIDs []keystore.ExportID, mode keystore.ExportMode) (*keystore.KeysBackup, error) {
 	var exportedKeys []*keystore.Key
 	var err error
 
-	if len(exportPaths) != 0 {
-		keyPaths := make([]string, 0, len(exportPaths))
-		for _, path := range exportPaths {
-			keyPaths = append(keyPaths, filepath.Join(store.privateFolder, path))
-		}
+	if len(exportIDs) != 0 {
+		for _, exportID := range exportIDs {
+			switch exportID.KeyKind {
+			case keystore.KeyPoisonPublic:
+				keypair, err := store.keyStore.GetPoisonKeyPair()
+				if err != nil {
+					log.WithError(err).Error("Cannot read poison record key pair")
+					return nil, err
+				}
 
-		keys, err := readFilesAsKeys(keyPaths, store.privateFolder, store.currentDecryptor, store.storage)
-		if err != nil {
-			return nil, err
-		}
-		exportedKeys = append(exportedKeys, keys...)
+				exportedKeys = append(exportedKeys, &keystore.Key{
+					Name:    poisonKeyFilenamePublic,
+					Content: keypair.Public.Value,
+				})
+			case keystore.KeyPoisonPrivate:
+				keypair, err := store.keyStore.GetPoisonKeyPair()
+				if err != nil {
+					log.WithError(err).Error("Cannot read poison record key pair")
+					return nil, err
+				}
 
-		defer func(keys []*keystore.Key) {
-			for _, key := range keys {
-				utils.ZeroizeBytes(key.Content)
+				utils.ZeroizeBytes(keypair.Private.Value)
+				exportedKeys = append(exportedKeys, &keystore.Key{
+					Name:    PoisonKeyFilename,
+					Content: keypair.Private.Value,
+				})
+			case keystore.KeyStoragePublic:
+				key, err := store.keyStore.GetClientIDEncryptionPublicKey(exportID.ContextID)
+				if err != nil {
+					log.WithError(err).Error("Cannot read client storage public key")
+					return nil, err
+				}
+
+				exportedKeys = append(exportedKeys, &keystore.Key{
+					Name:    getPublicKeyFilename([]byte(GetServerDecryptionKeyFilename(exportID.ContextID))),
+					Content: key.Value,
+				})
+			case keystore.KeyStoragePrivate:
+				key, err := store.keyStore.GetServerDecryptionPrivateKey(exportID.ContextID)
+				if err != nil {
+					log.WithError(err).Error("Cannot read client storage private key")
+					return nil, err
+				}
+				utils.ZeroizeBytes(key.Value)
+				exportedKeys = append(exportedKeys, &keystore.Key{
+					Name:    GetServerDecryptionKeyFilename(exportID.ContextID),
+					Content: key.Value,
+				})
+			case keystore.KeySymmetric:
+				key, err := store.keyStore.GetClientIDSymmetricKey(exportID.ContextID)
+				if err != nil {
+					log.WithError(err).Error("Cannot read client symmetric key")
+					return nil, err
+				}
+				utils.ZeroizeBytes(key)
+				exportedKeys = append(exportedKeys, &keystore.Key{
+					Name:    getClientIDSymmetricKeyName(exportID.ContextID),
+					Content: key,
+				})
+			case keystore.KeySearch:
+				key, err := store.keyStore.GetHMACSecretKey(exportID.ContextID)
+				if err != nil {
+					log.WithError(err).Error("Cannot read client symmetric key")
+					return nil, err
+				}
+				utils.ZeroizeBytes(key)
+				exportedKeys = append(exportedKeys, &keystore.Key{
+					Name:    getHmacKeyFilename(exportID.ContextID),
+					Content: key,
+				})
+			case keystore.KeyPath:
+				var folder = store.publicFolder
+				if mode == keystore.ExportPublicOnly {
+					folder = store.privateFolder
+				}
+
+				keyPaths := []string{filepath.Join(folder, string(exportID.ContextID))}
+				keys, err := readFilesAsKeys(keyPaths, store.privateFolder, store.currentDecryptor, store.storage)
+				if err != nil {
+					return nil, err
+				}
+				utils.ZeroizeBytes(keys[0].Content)
+				exportedKeys = append(exportedKeys, keys[0])
+			default:
+				return nil, errors.New("unexpected ExportID KeyKind")
 			}
-		}(keys)
-
+		}
 	} else {
 		if (mode == keystore.ExportAllKeys || mode == keystore.ExportPublicOnly) && store.publicFolder != store.privateFolder {
 			publicFiles, err := ReadDir(store.storage, store.publicFolder)
@@ -284,7 +357,7 @@ func (store *KeyBackuper) Import(backup *keystore.KeysBackup) ([]keystore.KeyDes
 			return nil, err
 		}
 
-		description, err := DescribeKeyFile(key.Name)
+		description, err := DescribeKeyFile(filepath.Base(key.Name))
 		if err != nil {
 			return nil, err
 		}

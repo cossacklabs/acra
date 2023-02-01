@@ -89,15 +89,15 @@ func (p *ImportKeysSubcommand) Execute() {
 
 		p.importer = backuper
 	} else {
-		var keyStore filesystem.Storage
+		var storage filesystem.Storage
 		if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
-			keyStore, err = filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
+			storage, err = filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
 			if err != nil {
 				log.WithError(err).Errorln("Can't initialize redis storage")
 				os.Exit(1)
 			}
 		} else {
-			keyStore = &filesystem.DummyStorage{}
+			storage = &filesystem.DummyStorage{}
 		}
 
 		keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(p.FlagSet, "")
@@ -106,7 +106,7 @@ func (p *ImportKeysSubcommand) Execute() {
 			os.Exit(1)
 		}
 
-		backuper, err := filesystem.NewKeyBackuper(p.keyDir, p.keyDirPublic, keyStore, keyStoreEncryptor)
+		backuper, err := filesystem.NewKeyBackuper(p.keyDir, p.keyDirPublic, storage, keyStoreEncryptor, nil)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize backuper")
 			os.Exit(1)
@@ -139,7 +139,7 @@ func ImportKeysCommand(params ImportKeysParams) {
 	if err != nil {
 		log.WithError(err).Fatal("Failed to import keys")
 	}
-	log.Infof("successfully imported %d keys", len(descriptions))
+	log.Infof("Successfully imported %d keys", len(descriptions))
 
 	err = PrintKeys(descriptions, os.Stdout, params)
 	if err != nil {

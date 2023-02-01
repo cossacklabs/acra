@@ -99,9 +99,32 @@ type KeysBackup struct {
 	Data []byte
 }
 
+// Key kind constants:
+const (
+	KeyPoisonKeypair   = "poison-keypair"
+	KeyPoisonSymmetric = "poison-symmetric"
+	KeyPoisonPublic    = "poison-public"
+	KeyPoisonPrivate   = "poison-private"
+	KeyStorageKeypair  = "storage-keypair"
+	KeyStoragePublic   = "storage-public"
+	KeyStoragePrivate  = "storage-private"
+
+	KeySymmetric = "symmetric-key"
+	KeySearch    = "hmac-key"
+
+	// KeyPath temporal value used to save backward compatibility for acra-keys export command
+	KeyPath = "path"
+)
+
+// ExportID represent KeyKind and KeyContext for Exporter
+type ExportID struct {
+	KeyKind   string
+	ContextID []byte
+}
+
 // Exporter interface for acra-keys export command
 type Exporter interface {
-	Export(exportPaths []string, mode ExportMode) (*KeysBackup, error)
+	Export(exportIDs []ExportID, mode ExportMode) (*KeysBackup, error)
 }
 
 // Importer interface for acra-keys import command

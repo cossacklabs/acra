@@ -14,7 +14,6 @@ import (
 )
 
 func TestExport_Import_CMD_FS_V1(t *testing.T) {
-	clientID := []byte("testclientid")
 	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
 
 	masterKey, err := keystore.GenerateSymmetricKey()
@@ -40,9 +39,10 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 	var (
 		keysFile = "access-keys.txt"
 		dataFile = "keys.dat"
+		clientID = []byte("testclientid")
 	)
 
-	t.Run("export/import storage private key", func(t *testing.T) {
+	t.Run("export/import poison private key", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r != nil {
 				t.Errorf("Expected no panics in command")
@@ -59,12 +59,7 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		exportBackuper, err := filesystem.NewKeyBackuper(exportDirName, exportDirName, &filesystem.DummyStorage{}, keyStoreEncryptor)
-		if err != nil {
-			t.Fatal("Can't initialize backuper")
-		}
-
-		exportCMD := &ExportKeysSubcommand{
+		var exportCMD = &ExportKeysSubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
 				keyDir: exportDirName,
 			},
@@ -72,10 +67,12 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 				exportKeysFile: filepath.Join(exportDirName, keysFile),
 				exportDataFile: filepath.Join(exportDirName, dataFile),
 			},
-			exportIDs:     []string{"testclientid_storage"},
+			exportIDs: []keystore.ExportID{{
+				KeyKind:   keystore.KeyPoisonPrivate,
+				ContextID: clientID,
+			}},
 			FlagSet:       flagSet,
 			exportPrivate: true,
-			exporter:      exportBackuper,
 		}
 
 		store, err := openKeyStoreV1(exportCMD)
@@ -83,14 +80,21 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		err = store.GenerateDataEncryptionKeys(clientID)
+		exportBackuper, err := filesystem.NewKeyBackuper(exportDirName, exportDirName, &filesystem.DummyStorage{}, keyStoreEncryptor, store)
+		if err != nil {
+			t.Fatal("Can't initialize backuper")
+		}
+
+		exportCMD.exporter = exportBackuper
+
+		err = store.GeneratePoisonKeyPair()
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		ExportKeysCommand(exportCMD)
 
-		importBackuper, err := filesystem.NewKeyBackuper(importDirName, importDirName, &filesystem.DummyStorage{}, keyStoreEncryptor)
+		importBackuper, err := filesystem.NewKeyBackuper(importDirName, importDirName, &filesystem.DummyStorage{}, keyStoreEncryptor, store)
 		if err != nil {
 			t.Fatal("Can't initialize backuper")
 		}
@@ -109,7 +113,12 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 
 		ImportKeysCommand(importCMD)
 
-		_, err = os.ReadFile(filepath.Join(importDirName, "testclientid_storage"))
+		importKeyStore, err := openKeyStoreV1(importCMD)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = importKeyStore.GetPoisonPrivateKeys()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -132,11 +141,6 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		exportBackuper, err := filesystem.NewKeyBackuper(exportDirName, exportDirName, &filesystem.DummyStorage{}, keyStoreEncryptor)
-		if err != nil {
-			t.Fatal("Can't initialize backuper")
-		}
-
 		exportCMD := &ExportKeysSubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
 				keyDir: exportDirName,
@@ -145,16 +149,25 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 				exportKeysFile: filepath.Join(exportDirName, keysFile),
 				exportDataFile: filepath.Join(exportDirName, dataFile),
 			},
-			exportIDs:     []string{"testclientid_hmac"},
+			exportIDs: []keystore.ExportID{{
+				KeyKind:   keystore.KeySearch,
+				ContextID: clientID,
+			}},
 			FlagSet:       flagSet,
 			exportPrivate: true,
-			exporter:      exportBackuper,
 		}
 
 		store, err := openKeyStoreV1(exportCMD)
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		exportBackuper, err := filesystem.NewKeyBackuper(exportDirName, exportDirName, &filesystem.DummyStorage{}, keyStoreEncryptor, store)
+		if err != nil {
+			t.Fatal("Can't initialize backuper")
+		}
+
+		exportCMD.exporter = exportBackuper
 
 		err = store.GenerateHmacKey(clientID)
 		if err != nil {
@@ -163,7 +176,7 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 
 		ExportKeysCommand(exportCMD)
 
-		importBackuper, err := filesystem.NewKeyBackuper(importDirName, importDirName, &filesystem.DummyStorage{}, keyStoreEncryptor)
+		importBackuper, err := filesystem.NewKeyBackuper(importDirName, importDirName, &filesystem.DummyStorage{}, keyStoreEncryptor, nil)
 		if err != nil {
 			t.Fatal("Can't initialize backuper")
 		}
@@ -182,7 +195,12 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 
 		ImportKeysCommand(importCMD)
 
-		_, err = os.ReadFile(filepath.Join(importDirName, "testclientid_hmac"))
+		importKeyStore, err := openKeyStoreV1(importCMD)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = importKeyStore.GetHMACSecretKey(clientID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -205,11 +223,6 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		exportBackuper, err := filesystem.NewKeyBackuper(exportDirName, exportDirName, &filesystem.DummyStorage{}, keyStoreEncryptor)
-		if err != nil {
-			t.Fatal("Can't initialize backuper")
-		}
-
 		exportCMD := &ExportKeysSubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
 				keyDir: exportDirName,
@@ -220,13 +233,18 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 			},
 			FlagSet:   flagSet,
 			exportAll: true,
-			exporter:  exportBackuper,
 		}
 
 		store, err := openKeyStoreV1(exportCMD)
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		exportBackuper, err := filesystem.NewKeyBackuper(exportDirName, exportDirName, &filesystem.DummyStorage{}, keyStoreEncryptor, store)
+		if err != nil {
+			t.Fatal("Can't initialize backuper")
+		}
+		exportCMD.exporter = exportBackuper
 
 		err = store.GenerateHmacKey(clientID)
 		if err != nil {
@@ -245,7 +263,7 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 
 		ExportKeysCommand(exportCMD)
 
-		importBackuper, err := filesystem.NewKeyBackuper(importDirName, importDirName, &filesystem.DummyStorage{}, keyStoreEncryptor)
+		importBackuper, err := filesystem.NewKeyBackuper(importDirName, importDirName, &filesystem.DummyStorage{}, keyStoreEncryptor, nil)
 		if err != nil {
 			t.Fatal("Can't initialize backuper")
 		}
@@ -264,11 +282,125 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 
 		ImportKeysCommand(importCMD)
 
-		for _, key := range []string{"testclientid_storage", "testclientid_storage_sym", "testclientid_hmac", "testclientid_storage.pub"} {
-			_, err = os.ReadFile(filepath.Join(importDirName, key))
-			if err != nil {
-				t.Fatal(err)
+		importKeyStore, err := openKeyStoreV1(importCMD)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = importKeyStore.GetHMACSecretKey(clientID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = importKeyStore.GetClientIDSymmetricKey(clientID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = importKeyStore.GetClientIDEncryptionPublicKey(clientID)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("export/import keys by keyID and path (storage/symmteric)", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("Expected no panics in command")
 			}
+		}()
+
+		exportDirName := t.TempDir()
+		if err := os.Chmod(exportDirName, 0700); err != nil {
+			t.Fatal(err)
+		}
+
+		importDirName := t.TempDir()
+		if err := os.Chmod(importDirName, 0700); err != nil {
+			t.Fatal(err)
+		}
+
+		exportCMD := &ExportKeysSubcommand{
+			CommonKeyStoreParameters: CommonKeyStoreParameters{
+				keyDir: exportDirName,
+			},
+			CommonExportImportParameters: CommonExportImportParameters{
+				exportKeysFile: filepath.Join(exportDirName, keysFile),
+				exportDataFile: filepath.Join(exportDirName, dataFile),
+			},
+			FlagSet: flagSet,
+			exportIDs: []keystore.ExportID{
+				{
+					KeyKind:   keystore.KeySearch,
+					ContextID: []byte("testclientid"),
+				},
+				{
+					KeyKind:   keystore.KeyPath,
+					ContextID: []byte("testclientid_storage_sym"),
+				},
+			},
+		}
+
+		store, err := openKeyStoreV1(exportCMD)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		exportBackuper, err := filesystem.NewKeyBackuper(exportDirName, exportDirName, &filesystem.DummyStorage{}, keyStoreEncryptor, store)
+		if err != nil {
+			t.Fatal("Can't initialize backuper")
+		}
+
+		exportCMD.exporter = exportBackuper
+		err = store.GenerateHmacKey(clientID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = store.GenerateDataEncryptionKeys(clientID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = store.GenerateClientIDSymmetricKey(clientID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ExportKeysCommand(exportCMD)
+
+		importBackuper, err := filesystem.NewKeyBackuper(importDirName, importDirName, &filesystem.DummyStorage{}, keyStoreEncryptor, nil)
+		if err != nil {
+			t.Fatal("Can't initialize backuper")
+		}
+
+		importCMD := &ImportKeysSubcommand{
+			CommonKeyStoreParameters: CommonKeyStoreParameters{
+				keyDir: importDirName,
+			},
+			CommonExportImportParameters: CommonExportImportParameters{
+				exportKeysFile: filepath.Join(exportDirName, keysFile),
+				exportDataFile: filepath.Join(exportDirName, dataFile),
+			},
+			FlagSet:  flagSet,
+			importer: importBackuper,
+		}
+
+		ImportKeysCommand(importCMD)
+
+		importKeyStore, err := openKeyStoreV1(importCMD)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = importKeyStore.GetHMACSecretKey(clientID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = importKeyStore.GetClientIDSymmetricKey(clientID)
+		if err != nil {
+			t.Fatal(err)
 		}
 	})
 }

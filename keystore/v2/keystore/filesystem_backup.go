@@ -24,13 +24,33 @@ func NewKeyBackuper(privateFolder, publicFolder string, storage api.BackupKeysto
 }
 
 // Export keys from KeyStore encrypted with new key for backup
-func (store *KeyBackuper) Export(exportPaths []string, mode keystoreV1.ExportMode) (*keystoreV1.KeysBackup, error) {
-	var exportedIDs = exportPaths
+func (store *KeyBackuper) Export(exportIDs []keystoreV1.ExportID, mode keystoreV1.ExportMode) (*keystoreV1.KeysBackup, error) {
+	var exportPaths []string
 	if mode == keystoreV1.ExportAllKeys {
 		var err error
-		exportedIDs, err = store.storage.ListKeyRings()
+		exportPaths, err = store.storage.ListKeyRings()
 		if err != nil {
 			log.WithError(err).Fatal("Failed to list available keys")
+		}
+	}
+
+	if len(exportIDs) != 0 {
+		for _, exportID := range exportIDs {
+			switch exportID.KeyKind {
+			case keystoreV1.KeyPoisonPublic, keystoreV1.KeyPoisonPrivate:
+				exportPaths = append(exportPaths, "poison-record")
+			case keystoreV1.KeyPoisonSymmetric:
+				exportPaths = append(exportPaths, "poison-record-sym")
+			case keystoreV1.KeyStoragePrivate, keystoreV1.KeyStoragePublic:
+				exportPaths = append(exportPaths, "client/"+string(exportID.ContextID)+"/storage")
+			case keystoreV1.KeySymmetric:
+				exportPaths = append(exportPaths, "client/"+string(exportID.ContextID)+"/storage-sym")
+			case keystoreV1.KeySearch:
+				exportPaths = append(exportPaths, "client/"+string(exportID.ContextID)+"/hmac-sym")
+			case keystoreV1.KeyPath:
+				// if KeyKind is KeyPath, added ContextID as path
+				exportPaths = append(exportPaths, string(exportID.ContextID))
+			}
 		}
 	}
 
@@ -40,7 +60,7 @@ func (store *KeyBackuper) Export(exportPaths []string, mode keystoreV1.ExportMod
 		return nil, err
 	}
 
-	exportedData, err := store.storage.ExportKeyRings(exportedIDs, cryptosuite, mode)
+	exportedData, err := store.storage.ExportKeyRings(exportPaths, cryptosuite, mode)
 	if err != nil {
 		log.WithError(err).Debug("Failed to export key rings")
 		return nil, err
