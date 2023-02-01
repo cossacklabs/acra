@@ -8,6 +8,7 @@ import (
 	"github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
 )
 
+// KeyBackuper implements keystore.Exporter and keystore.Importer interface for v2
 type KeyBackuper struct {
 	storage       api.BackupKeystore
 	privateFolder string
@@ -22,6 +23,7 @@ func NewKeyBackuper(privateFolder, publicFolder string, storage api.BackupKeysto
 	return &KeyBackuper{privateFolder: privateFolder, publicFolder: publicFolder, storage: storage}, nil
 }
 
+// Export keys from KeyStore encrypted with new key for backup
 func (store *KeyBackuper) Export(exportPaths []string, mode keystoreV1.ExportMode) (*keystoreV1.KeysBackup, error) {
 	var exportedIDs = exportPaths
 	if mode == keystoreV1.ExportAllKeys {
@@ -50,6 +52,7 @@ func (store *KeyBackuper) Export(exportPaths []string, mode keystoreV1.ExportMod
 	}, nil
 }
 
+// Import keys from backup to current keystore
 func (store *KeyBackuper) Import(backup *keystoreV1.KeysBackup) ([]keystoreV1.KeyDescription, error) {
 	importEncryptionKeys := &SerializedKeys{}
 	err := importEncryptionKeys.Unmarshal(backup.Keys)

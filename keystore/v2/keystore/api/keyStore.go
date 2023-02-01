@@ -59,6 +59,7 @@ type MutableKeyStore interface {
 	ImportKeyRings(exportData []byte, cryptosuite *crypto.KeyStoreSuite, delegate KeyRingImportDelegate) ([]string, error)
 }
 
+// BackupKeystore represent keystore used for acra-keys import/export subcommands
 type BackupKeystore interface {
 	KeyStore
 	// ImportKeyRings unpacks key rings packaged by ExportKeyRings.

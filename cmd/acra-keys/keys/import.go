@@ -32,6 +32,7 @@ type ImportKeysSubcommand struct {
 	importer keystore.Importer
 }
 
+// Import implements keystore.Importer interface
 func (p *ImportKeysSubcommand) Import(backup *keystore.KeysBackup) ([]keystore.KeyDescription, error) {
 	return p.importer.Import(backup)
 }

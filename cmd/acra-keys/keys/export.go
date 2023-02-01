@@ -211,6 +211,7 @@ func (p *ExportKeysSubcommand) ExportPrivate() bool {
 	return p.exportPrivate
 }
 
+// Export implements keystore.Exporter interface
 func (p *ExportKeysSubcommand) Export(exportPaths []string, mode keystore.ExportMode) (*keystore.KeysBackup, error) {
 	return p.exporter.Export(exportPaths, mode)
 }
