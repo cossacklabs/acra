@@ -227,6 +227,7 @@ func (p *ExportKeysSubcommand) Execute() {
 		var keyStore api.BackupKeystore
 		keyStore, err = openKeyStoreV2(p)
 		if err != nil {
+			log.WithError(err).Errorln("Can't open V2 keystore")
 			os.Exit(1)
 		}
 
@@ -240,6 +241,7 @@ func (p *ExportKeysSubcommand) Execute() {
 	} else {
 		keyStore, err := openKeyStoreV1(p)
 		if err != nil {
+			log.WithError(err).Errorln("Can't open V1 keystore")
 			os.Exit(1)
 		}
 
