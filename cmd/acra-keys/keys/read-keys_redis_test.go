@@ -73,7 +73,7 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 	t.Run("read storage-public key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			contextID:   clientID,
-			readKeyKind: KeyStoragePublic,
+			readKeyKind: keystore.KeyStoragePublic,
 			FlagSet:     flagSet,
 			outWriter:   io.Discard,
 		}
@@ -95,7 +95,7 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			FlagSet:     flagSet,
 			contextID:   clientID,
-			readKeyKind: KeySymmetric,
+			readKeyKind: keystore.KeySymmetric,
 			outWriter:   io.Discard,
 		}
 
@@ -159,7 +159,7 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 			},
 			FlagSet:     flagSet,
 			contextID:   clientID,
-			readKeyKind: KeyStoragePublic,
+			readKeyKind: keystore.KeyStoragePublic,
 			outWriter:   io.Discard,
 		}
 
@@ -183,7 +183,7 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 			},
 			FlagSet:     flagSet,
 			contextID:   clientID,
-			readKeyKind: KeySymmetric,
+			readKeyKind: keystore.KeySymmetric,
 			outWriter:   io.Discard,
 		}
 
