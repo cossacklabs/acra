@@ -303,7 +303,7 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 		}
 	})
 
-	t.Run("export/import keys by keyID and path (storage/symmteric)", func(t *testing.T) {
+	t.Run("export/import keys by keyID and path (storage/symmetric)", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r != nil {
 				t.Errorf("Expected no panics in command")
@@ -328,17 +328,15 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 				exportKeysFile: filepath.Join(exportDirName, keysFile),
 				exportDataFile: filepath.Join(exportDirName, dataFile),
 			},
-			FlagSet: flagSet,
-			exportIDs: []keystore.ExportID{
-				{
-					KeyKind:   keystore.KeySearch,
-					ContextID: []byte("testclientid"),
-				},
-				{
-					KeyKind:   keystore.KeyPath,
-					ContextID: []byte("testclientid_storage_sym"),
-				},
-			},
+			FlagSet:       flagSet,
+			exportPrivate: true,
+		}
+		err := exportCMD.Parse([]string{
+			"client/testclientid/symmetric",
+			"testclientid_hmac",
+		})
+		if err != nil {
+			t.Fatal(err)
 		}
 
 		store, err := openKeyStoreV1(exportCMD)

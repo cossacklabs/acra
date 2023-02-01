@@ -47,9 +47,6 @@ func (store *KeyBackuper) Export(exportIDs []keystoreV1.ExportID, mode keystoreV
 				exportPaths = append(exportPaths, "client/"+string(exportID.ContextID)+"/storage-sym")
 			case keystoreV1.KeySearch:
 				exportPaths = append(exportPaths, "client/"+string(exportID.ContextID)+"/hmac-sym")
-			case keystoreV1.KeyPath:
-				// if KeyKind is KeyPath, added ContextID as path
-				exportPaths = append(exportPaths, string(exportID.ContextID))
 			}
 		}
 	}

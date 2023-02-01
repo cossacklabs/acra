@@ -99,6 +99,15 @@ type KeysBackup struct {
 	Data []byte
 }
 
+var KeyPurposeToKeyKind = map[KeyPurpose]string{
+	PurposeSearchHMAC:                KeySearch,
+	PurposePoisonRecordSymmetricKey:  KeyPoisonSymmetric,
+	PurposePoisonRecordKeyPair:       KeyPoisonKeypair,
+	PurposeStorageClientPublicKey:    KeyStoragePublic,
+	PurposeStorageClientPrivateKey:   KeyStoragePrivate,
+	PurposeStorageClientSymmetricKey: KeySymmetric,
+}
+
 // Key kind constants:
 const (
 	KeyPoisonKeypair   = "poison-keypair"
@@ -111,9 +120,6 @@ const (
 
 	KeySymmetric = "symmetric-key"
 	KeySearch    = "hmac-key"
-
-	// KeyPath temporal value used to save backward compatibility for acra-keys export command
-	KeyPath = "path"
 )
 
 // ExportID represent KeyKind and KeyContext for Exporter

@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 
@@ -150,15 +151,27 @@ func (p *ExportKeysSubcommand) Parse(arguments []string) error {
 		for _, arg := range args {
 			coarseKind, id, err := ParseKeyKind(arg)
 			if err != nil {
-				// we still should support passing keys as key path, in case of error threat is as path
-				p.exportIDs = append(p.exportIDs, keystore.ExportID{
-					KeyKind:   keystore.KeyPath,
-					ContextID: []byte(arg),
-				})
-				continue
+				// for backward compatibility reasons we need to save ability to specify keys to export as key path
+				// the example of the key path for V2 keystore - client/client_test/storage
+				// we need to add .keyring suffix to determine key purpose
+				if IsKeyStoreV2(p) && !strings.HasSuffix(arg, ".keyring") {
+					arg += ".keyring"
+				}
+
+				description, err := filesystem.DescribeKeyFile(arg)
+				if err != nil {
+					log.WithField("key", arg).Fatal(err)
+				}
+
+				keyKind, ok := keystore.KeyPurposeToKeyKind[description.Purpose]
+				if !ok {
+					log.WithField("key", arg).Fatal("Unsupported key provided")
+				}
+				coarseKind = keyKind
+				id = description.ClientID
 			}
 
-			if coarseKind == keystore.KeySymmetric || coarseKind == keystore.KeySearch && !p.exportPrivate {
+			if (coarseKind == keystore.KeySymmetric || coarseKind == keystore.KeySearch) && !p.exportPrivate {
 				log.Fatal("Export symmetric keys expect \"--private_keys\"")
 			}
 

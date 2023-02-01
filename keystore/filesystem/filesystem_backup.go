@@ -235,19 +235,6 @@ func (store *KeyBackuper) Export(exportIDs []keystore.ExportID, mode keystore.Ex
 					Name:    getHmacKeyFilename(exportID.ContextID),
 					Content: key,
 				})
-			case keystore.KeyPath:
-				var folder = store.publicFolder
-				if mode == keystore.ExportPublicOnly {
-					folder = store.privateFolder
-				}
-
-				keyPaths := []string{filepath.Join(folder, string(exportID.ContextID))}
-				keys, err := readFilesAsKeys(keyPaths, store.privateFolder, store.currentDecryptor, store.storage)
-				if err != nil {
-					return nil, err
-				}
-				utils.ZeroizeBytes(keys[0].Content)
-				exportedKeys = append(exportedKeys, keys[0])
 			default:
 				return nil, errors.New("unexpected ExportID KeyKind")
 			}

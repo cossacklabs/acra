@@ -28,8 +28,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/themis/gothemis/keys"
+
+	"github.com/cossacklabs/acra/keystore"
 )
 
 func TestFilesystemKeyStore(t *testing.T) {
@@ -1368,6 +1369,73 @@ func getAllExpectedKeys() []keystore.KeyDescription {
 		return expectedKeys[i].ID < expectedKeys[j].ID
 	})
 	return expectedKeys
+}
+
+func TestDescribeKeyFileV2Keys(t *testing.T) {
+	testCases := []struct {
+		expectedKeyDescription *keystore.KeyDescription
+		expectedErr            *error
+		input                  string
+	}{
+		{
+			expectedKeyDescription: &keystore.KeyDescription{ID: "audit-log.keyring", Purpose: keystore.PurposeAuditLog},
+			input:                  "audit-log.keyring",
+		},
+		{
+			expectedKeyDescription: &keystore.KeyDescription{ID: "poison-record.keyring", Purpose: keystore.PurposePoisonRecordKeyPair},
+			input:                  "poison-record.keyring",
+		},
+		{
+			expectedKeyDescription: &keystore.KeyDescription{ID: "poison-record-sym.keyring", Purpose: keystore.PurposePoisonRecordSymmetricKey},
+			input:                  "poison-record-sym.keyring",
+		},
+		{
+			expectedKeyDescription: &keystore.KeyDescription{ID: "hmac-sym.keyring", Purpose: keystore.PurposeSearchHMAC, ClientID: []byte("test")},
+			input:                  "test/hmac-sym.keyring",
+		},
+		{
+			expectedKeyDescription: &keystore.KeyDescription{ID: "storage.keyring", Purpose: keystore.PurposeStorageClientKeyPair, ClientID: []byte("test")},
+			input:                  "client/test/storage.keyring",
+		},
+		{
+			expectedKeyDescription: &keystore.KeyDescription{ID: "storage.keyring", Purpose: keystore.PurposeStorageClientKeyPair, ClientID: []byte("test")},
+			input:                  "client//test//storage.keyring",
+		},
+		{
+			expectedKeyDescription: &keystore.KeyDescription{ID: "storage-sym.keyring", Purpose: keystore.PurposeStorageClientSymmetricKey, ClientID: []byte("test")},
+			input:                  "client/test///storage-sym.keyring",
+		},
+		{
+			expectedErr: &ErrUnrecognizedKeyPurpose,
+			input:       "teststorage-sym.keyring",
+		},
+	}
+
+	for _, tcase := range testCases {
+		res, err := DescribeKeyFile(tcase.input)
+
+		if tcase.expectedKeyDescription != nil {
+			if res.ID != tcase.expectedKeyDescription.ID {
+				t.Fatal(err)
+			}
+
+			if res.Purpose != tcase.expectedKeyDescription.Purpose {
+				t.Fatal(err)
+			}
+
+			if tcase.expectedKeyDescription.ClientID != nil {
+				if res.Purpose != tcase.expectedKeyDescription.Purpose {
+					t.Fatal(err)
+				}
+			}
+		}
+
+		if tcase.expectedErr != nil {
+			if *tcase.expectedErr != err {
+				t.Fatal("expected error: ", *tcase.expectedErr)
+			}
+		}
+	}
 }
 
 func TestListKeysSamePaths(t *testing.T) {

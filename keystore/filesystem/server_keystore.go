@@ -31,6 +31,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -797,6 +798,61 @@ func DescribeKeyFile(fileName string) (*keystore.KeyDescription, error) {
 			ID:      fileName,
 			Purpose: keystore.PurposeLegacy,
 		}, nil
+	}
+
+	// describe keys for V2 keystore
+	if strings.HasSuffix(fileName, ".keyring") {
+		dir, file := path.Split(path.Clean(fileName))
+		// dir was provided in path
+		if dir != "" {
+			splits := strings.Split(dir, string(filepath.Separator))
+			if len(splits) == 1 {
+				return nil, errors.New("invalid path provided for V2 keystore key")
+			}
+
+			switch strings.TrimSuffix(file, ".keyring") {
+			case "hmac-sym":
+				return &keystore.KeyDescription{
+					ID:       file,
+					ClientID: []byte(splits[len(splits)-1]),
+					Purpose:  keystore.PurposeSearchHMAC,
+				}, nil
+			case "storage":
+				return &keystore.KeyDescription{
+					ID:       file,
+					ClientID: []byte(splits[len(splits)-1]),
+					Purpose:  keystore.PurposeStorageClientKeyPair,
+				}, nil
+			case "storage-sym":
+				return &keystore.KeyDescription{
+					ID:       file,
+					ClientID: []byte(splits[len(splits)-1]),
+					Purpose:  keystore.PurposeStorageClientSymmetricKey,
+				}, nil
+			default:
+				return nil, ErrUnrecognizedKeyPurpose
+			}
+		}
+
+		switch strings.TrimSuffix(file, ".keyring") {
+		case "audit-log":
+			return &keystore.KeyDescription{
+				ID:      fileName,
+				Purpose: keystore.PurposeAuditLog,
+			}, nil
+		case "poison-record":
+			return &keystore.KeyDescription{
+				ID:      fileName,
+				Purpose: keystore.PurposePoisonRecordKeyPair,
+			}, nil
+		case "poison-record-sym":
+			return &keystore.KeyDescription{
+				ID:      fileName,
+				Purpose: keystore.PurposePoisonRecordSymmetricKey,
+			}, nil
+		default:
+			return nil, ErrUnrecognizedKeyPurpose
+		}
 	}
 
 	components := strings.Split(fileName, "_")
