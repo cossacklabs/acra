@@ -574,11 +574,6 @@ func TestExport_Import_CMD_FS_V2(t *testing.T) {
 
 		ExportKeysCommand(exportCMD)
 
-		importBackuper, err := keystoreV2.NewKeyBackuper(importDirName, importDirName, store)
-		if err != nil {
-			t.Fatal("Can't initialize backuper")
-		}
-
 		importCMD := &ImportKeysSubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
 				keyDir: importDirName,
@@ -587,16 +582,21 @@ func TestExport_Import_CMD_FS_V2(t *testing.T) {
 				exportKeysFile: filepath.Join(exportDirName, keysFile),
 				exportDataFile: filepath.Join(exportDirName, dataFile),
 			},
-			FlagSet:  flagSet,
-			importer: importBackuper,
+			FlagSet: flagSet,
 		}
 
-		ImportKeysCommand(importCMD)
-
-		importKeyStore, err := openKeyStoreV1(importCMD)
+		importKeyStore, err := openKeyStoreV2(importCMD)
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		importBackuper, err := keystoreV2.NewKeyBackuper(importDirName, importDirName, importKeyStore)
+		if err != nil {
+			t.Fatal("Can't initialize backuper")
+		}
+		importCMD.importer = importBackuper
+
+		ImportKeysCommand(importCMD)
 
 		_, err = importKeyStore.GetHMACSecretKey(clientID)
 		if err != nil {
