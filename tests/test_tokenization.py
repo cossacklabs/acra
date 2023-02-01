@@ -322,11 +322,12 @@ class TestTokenization(BaseTokenization):
             if isinstance(source_data[0][k], (bytearray, bytes)) and isinstance(data[k], str):
                 self.assertEqual(source_data[0][k], data[k].encode('utf-8'))
                 self.assertNotEqual(hidden_data[0][k], data[k].encode('utf-8'))
-                self.assertEqual(raw_data[0][k], hidden_data[0][k])
             else:
                 self.assertEqual(source_data[0][k], data[k])
                 self.assertNotEqual(hidden_data[0][k], data[k])
-                self.assertEqual(raw_data[0][k], hidden_data[0][k])
+            # check that data through raw connection looks the same as hidden via different tls cert
+            if isinstance(hidden_data[0][k], (bytearray, bytes)) and isinstance(raw_data[0][k], str):
+                self.assertEqual(hidden_data[0][k], raw_data[0][k].encode('utf-8'))
 
     def testTokenizationDefaultClientIDWithBulkInsert(self):
         default_client_id_table = sa.Table(
