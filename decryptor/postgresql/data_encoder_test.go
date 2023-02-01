@@ -172,7 +172,7 @@ func TestTextMode(t *testing.T) {
 		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte("some data"),
 			decodeErr: nil, encodeErr: nil,
 			setting:    &config.BasicColumnEncryptionSetting{TokenType: "int32", DataType: "int32", DataTypeID: pgtype.Int4OID},
-			logMessage: `Can't decode int value and no default value`},
+			logMessage: `Can't encode int value and no default value`},
 
 		{input: []byte("123"), decodedData: []byte("123"), encodedData: []byte("123"), decodeErr: nil, encodeErr: nil,
 			setting: &config.BasicColumnEncryptionSetting{TokenType: "int32", DataType: "int32", DataTypeID: pgtype.Int4OID}},
@@ -180,7 +180,7 @@ func TestTextMode(t *testing.T) {
 		// encryption/decryption integer data, not tokenization
 		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte("some data"), decodeErr: nil, encodeErr: nil,
 			setting:    &config.BasicColumnEncryptionSetting{DataType: "int32", DataTypeID: pgtype.Int4OID},
-			logMessage: `Can't decode int value and no default value`},
+			logMessage: `Can't encode int value and no default value`},
 
 		// encryption/decryption integer data, not tokenization
 		{
@@ -292,7 +292,7 @@ func TestBinaryMode(t *testing.T) {
 		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte("some data"),
 			decodeErr: nil, encodeErr: nil,
 			setting:    &config.BasicColumnEncryptionSetting{DataType: "int32", DataTypeID: pgtype.Int4OID},
-			logMessage: `Can't decode int value and no default value`},
+			logMessage: `Can't encode int value and no default value`},
 
 		{input: []byte{0, 0, 0, 1}, decodedData: []byte("1"), encodedData: []byte{0, 0, 0, 1}, decodeErr: nil, encodeErr: nil,
 			setting: &config.BasicColumnEncryptionSetting{DataType: "int32", DataTypeID: pgtype.Int4OID}},
@@ -300,7 +300,7 @@ func TestBinaryMode(t *testing.T) {
 		// encryption/decryption integer data, not tokenization
 		{input: []byte("some data"), decodedData: []byte("some data"), encodedData: []byte("some data"), decodeErr: nil, encodeErr: nil,
 			setting:    &config.BasicColumnEncryptionSetting{DataType: "int32", DataTypeID: pgtype.Int4OID},
-			logMessage: `Can't decode int value and no default value`},
+			logMessage: `Can't encode int value and no default value`},
 		//
 		// encryption/decryption integer data, not tokenization
 		{
