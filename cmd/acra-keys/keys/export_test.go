@@ -5,6 +5,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/cossacklabs/acra/keystore"
@@ -467,8 +468,10 @@ func TestExport_Import_CMD_FS_V1_Invalid_Cases(t *testing.T) {
 
 		exportCMD.exporter = exportBackuper
 
+		keyPath := filepath.Join(exportDirName, string(clientID)+"_storage")
+
 		// creating invalid key
-		if err := os.WriteFile(filepath.Join(exportDirName, string(clientID)+"_storage"), []byte("invalid-key-data"), 0600); err != nil {
+		if err := os.WriteFile(keyPath, []byte("invalid-key-data"), 0600); err != nil {
 			t.Fatal(err)
 		}
 
@@ -481,8 +484,22 @@ func TestExport_Import_CMD_FS_V1_Invalid_Cases(t *testing.T) {
 		if err.Error() != "failed to get output size" {
 			t.Fatal("Unexpected error received")
 		}
-	})
 
+		if err := os.Remove(keyPath); err != nil {
+			t.Fatal(err)
+		}
+
+		// export non-existed key, expect to fail
+		_, err = exportCMD.exporter.Export(exportCMD.exportIDs, keystore.ExportPrivateKeys)
+		if err == nil {
+			t.Fatal("Expected error, on export invalid key")
+		}
+
+		// fail to Decryption invalid key
+		if !strings.Contains(err.Error(), "no such file or directory") {
+			t.Fatal("Unexpected error received - expected no such file error")
+		}
+	})
 }
 
 func TestExport_Import_CMD_FS_V2(t *testing.T) {

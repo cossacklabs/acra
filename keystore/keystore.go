@@ -99,6 +99,7 @@ type KeysBackup struct {
 	Data []byte
 }
 
+// KeyPurposeToKeyKind mapping between KeyPurpose and KeyKind
 var KeyPurposeToKeyKind = map[KeyPurpose]string{
 	PurposeSearchHMAC:                KeySearch,
 	PurposePoisonRecordSymmetricKey:  KeyPoisonSymmetric,
