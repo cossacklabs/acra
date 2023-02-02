@@ -87,10 +87,11 @@ type ExportMode int
 // ExportMode flags.
 const (
 	// Export only public key data.
-	ExportPublicOnly ExportMode = 0
+	ExportPublicOnly ExportMode = 1 << iota
 	// Export private and public key data.
-	ExportPrivateKeys = (1 << iota)
-	ExportAllKeys     = (2 << iota)
+	ExportPrivateKeys
+	// Use as marker to say Backuper to read all keys from keystore
+	ExportAllKeys
 )
 
 // KeysBackup struct that store keys for poison records and all client's keys
@@ -104,8 +105,8 @@ var KeyPurposeToKeyKind = map[KeyPurpose]string{
 	PurposeSearchHMAC:                KeySearch,
 	PurposePoisonRecordSymmetricKey:  KeyPoisonSymmetric,
 	PurposePoisonRecordKeyPair:       KeyPoisonKeypair,
-	PurposeStorageClientPublicKey:    KeyStoragePublic,
-	PurposeStorageClientPrivateKey:   KeyStoragePrivate,
+	PurposeStorageClientPublicKey:    KeyStorageKeypair,
+	PurposeStorageClientPrivateKey:   KeyStorageKeypair,
 	PurposeStorageClientSymmetricKey: KeySymmetric,
 }
 

@@ -25,6 +25,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cossacklabs/themis/gothemis/keys"
+	"github.com/cossacklabs/themis/gothemis/message"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/keystore"
@@ -77,13 +79,22 @@ func isPrivate(fname string) bool {
 	if fname == PoisonKeyFilename {
 		return true
 	}
-	if strings.HasSuffix(fname, ".pub") {
+
+	if isPublic(fname) {
 		return false
+	}
+
+	return true
+}
+
+func isPublic(fname string) bool {
+	if strings.HasSuffix(fname, ".pub") {
+		return true
 	}
 	if strings.HasSuffix(fname, ".pub.old") {
-		return false
+		return true
 	}
-	return true
+	return false
 }
 
 func getContextFromFilename(fname string) keystore.KeyContext {
@@ -154,6 +165,15 @@ func readFilesAsKeys(files []string, basePath string, encryptor keystore.KeyEncr
 				return nil, err
 			}
 		}
+
+		if isPublic(relativeName) {
+			if err := verifyPublicKey(&keys.PublicKey{
+				Value: content,
+			}); err != nil {
+				return nil, err
+			}
+		}
+
 		key := &keystore.Key{Name: relativeName, Content: content}
 		output = append(output, key)
 	}
@@ -172,6 +192,11 @@ func (store *KeyBackuper) Export(exportIDs []keystore.ExportID, mode keystore.Ex
 				keypair, err := store.keyStore.GetPoisonKeyPair()
 				if err != nil {
 					log.WithError(err).Error("Cannot read poison record key pair")
+					return nil, err
+				}
+
+				if err := verifyPublicKey(keypair.Public); err != nil {
+					log.WithError(err).Error("Invalid public key for export")
 					return nil, err
 				}
 
@@ -195,6 +220,11 @@ func (store *KeyBackuper) Export(exportIDs []keystore.ExportID, mode keystore.Ex
 				key, err := store.keyStore.GetClientIDEncryptionPublicKey(exportID.ContextID)
 				if err != nil {
 					log.WithError(err).Error("Cannot read client storage public key")
+					return nil, err
+				}
+
+				if err := verifyPublicKey(key); err != nil {
+					log.WithError(err).Error("Invalid public key for export")
 					return nil, err
 				}
 
@@ -351,4 +381,22 @@ func (store *KeyBackuper) Import(backup *keystore.KeysBackup) ([]keystore.KeyDes
 		descriptions = append(descriptions, *description)
 	}
 	return descriptions, nil
+}
+
+func verifyPublicKey(pubKey *keys.PublicKey) error {
+	keypair, err := keys.New(keys.TypeEC)
+	if err != nil {
+		return err
+	}
+
+	secureMessage := message.New(keypair.Private, pubKey)
+
+	// try to encrypt some data with valid private file and passed public key
+	// error is not nil mean that provided public key is invalid
+	_, err = secureMessage.Wrap([]byte(`data`))
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
