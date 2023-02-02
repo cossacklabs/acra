@@ -1,11 +1,13 @@
 import os
+from random import randint
 
 import sqlalchemy as sa
 
 import base
 import test_common
 import test_integrations
-from random_utils import random_bytes, random_email, random_int32, random_int64, random_str
+from random_utils import random_bytes, random_email, random_int32, random_int64, random_str, max_negative_int32, \
+    max_negative_int64
 
 
 class BaseTokenization(test_common.BaseTestCase):
@@ -256,6 +258,32 @@ class BaseMaskingBinaryMySQLMixin(test_common.BaseBinaryMySQLTestCase, test_comm
 class TestTokenization(BaseTokenization):
 
     def testTokenizationDefaultClientID(self):
+        data = {
+            'id': 1,
+            'nullable_column': None,
+            'empty': b'',
+            'token_i32': random_int32(),
+            'token_i64': random_int64(),
+            'token_str': random_str(),
+            'token_bytes': random_bytes(),
+            'token_email': random_email(),
+        }
+        self._testTokenizationDefaultClientID(data)
+
+    def testTokenizationNegativeIntegers(self):
+        data = {
+            'id': 1,
+            'nullable_column': None,
+            'empty': b'',
+            'token_i32': randint(max_negative_int32, 0),
+            'token_i64': randint(max_negative_int64, 0),
+            'token_str': random_str(),
+            'token_bytes': random_bytes(),
+            'token_email': random_email(),
+        }
+        self._testTokenizationDefaultClientID(data)
+
+    def _testTokenizationDefaultClientID(self, data):
         default_client_id_table = sa.Table(
             'test_tokenization_default_client_id', base.metadata,
             sa.Column('id', sa.Integer, primary_key=True),
@@ -270,16 +298,6 @@ class TestTokenization(BaseTokenization):
         )
         base.metadata.create_all(self.engine_raw, [default_client_id_table])
         self.engine1.execute(default_client_id_table.delete())
-        data = {
-            'id': 1,
-            'nullable_column': None,
-            'empty': b'',
-            'token_i32': random_int32(),
-            'token_i64': random_int64(),
-            'token_str': random_str(),
-            'token_bytes': random_bytes(),
-            'token_email': random_email(),
-        }
 
         # insert data data
         self.insert_via_1(default_client_id_table.insert(), data)
@@ -292,6 +310,9 @@ class TestTokenization(BaseTokenization):
         hidden_data = self.fetch_from_2(
             sa.select([default_client_id_table])
             .where(default_client_id_table.c.id == data['id']))
+        raw_data = self.engine_raw.execute(
+            sa.select([default_client_id_table])
+            .where(default_client_id_table.c.id == data['id'])).fetchall()
 
         if len(source_data) != len(hidden_data) != 1:
             self.fail('incorrect len of result data')
@@ -304,6 +325,9 @@ class TestTokenization(BaseTokenization):
             else:
                 self.assertEqual(source_data[0][k], data[k])
                 self.assertNotEqual(hidden_data[0][k], data[k])
+            # check that data through raw connection looks the same as hidden via different tls cert
+            if isinstance(hidden_data[0][k], (bytearray, bytes)) and isinstance(raw_data[0][k], str):
+                self.assertEqual(hidden_data[0][k], raw_data[0][k].encode('utf-8'))
 
     def testTokenizationDefaultClientIDWithBulkInsert(self):
         default_client_id_table = sa.Table(
