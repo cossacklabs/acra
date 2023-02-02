@@ -7,7 +7,7 @@
 # and skip issues about `_` in packages' names since we won't rename packages just to make this issue disappear
 result=$(golint ./... | grep -v "\.pb\.go\|don't use an underscore in package name" | tee /dev/stderr | wc -l)
 
-if [[ $result -gt 5 ]]; then
+if [[ $result -gt 3 ]]; then
   # too many golint issues
   echo "Too many golint issues: $result"
   exit 1;

@@ -52,9 +52,8 @@ func (t *Int8DataTypeEncoder) Decode(ctx context.Context, data []byte, format ty
 		// in next handlers. So we return value as is
 		if len(data) != 8 {
 			return ctx, data, nil
-		} else {
-			copy(newData[:], data)
 		}
+		copy(newData[:], data)
 		value := binary.BigEndian.Uint64(newData[:])
 		return ctx, []byte(strconv.FormatInt(int64(value), 10)), nil
 	}
