@@ -774,178 +774,6 @@ func (store *KeyStore) describeDir(dirName string) ([]keystore.KeyDescription, e
 	return keys, nil
 }
 
-// DescribeKeyFile describes key by its purpose path.
-func DescribeKeyFile(fileName string) (*keystore.KeyDescription, error) {
-
-	switch fileName {
-	case poisonPrivateKey:
-		return &keystore.KeyDescription{
-			ID:      poisonPrivateKey,
-			Purpose: keystore.PurposePoisonRecordKeyPair,
-		}, nil
-	case poisonPublicKey:
-		return &keystore.KeyDescription{
-			ID:      poisonPublicKey,
-			Purpose: keystore.PurposePoisonRecordKeyPair,
-		}, nil
-	case poisonSymmetricKey:
-		return &keystore.KeyDescription{
-			ID:      poisonSymmetricKey,
-			Purpose: keystore.PurposePoisonRecordSymmetricKey,
-		}, nil
-	case legacyWebConfigKey:
-		return &keystore.KeyDescription{
-			ID:      fileName,
-			Purpose: keystore.PurposeLegacy,
-		}, nil
-	}
-
-	// describe keys for V2 keystore
-	if strings.HasSuffix(fileName, ".keyring") {
-		dir, file := path.Split(path.Clean(fileName))
-		// dir was provided in path
-		if dir != "" && strings.Contains(dir, "client") {
-			splits := strings.Split(strings.Trim(dir, string(filepath.Separator)), string(filepath.Separator))
-			if len(splits) == 1 {
-				return nil, errors.New("invalid path provided for V2 keystore key")
-			}
-
-			switch strings.TrimSuffix(file, ".keyring") {
-			case "hmac-sym":
-				return &keystore.KeyDescription{
-					ID:       file,
-					ClientID: []byte(splits[len(splits)-1]),
-					Purpose:  keystore.PurposeSearchHMAC,
-				}, nil
-			case "storage":
-				return &keystore.KeyDescription{
-					ID:       file,
-					ClientID: []byte(splits[len(splits)-1]),
-					Purpose:  keystore.PurposeStorageClientKeyPair,
-				}, nil
-			case "storage-sym":
-				return &keystore.KeyDescription{
-					ID:       file,
-					ClientID: []byte(splits[len(splits)-1]),
-					Purpose:  keystore.PurposeStorageClientSymmetricKey,
-				}, nil
-			default:
-				return nil, ErrUnrecognizedKeyPurpose
-			}
-		}
-
-		switch strings.TrimSuffix(file, ".keyring") {
-		case "audit-log":
-			return &keystore.KeyDescription{
-				ID:      fileName,
-				Purpose: keystore.PurposeAuditLog,
-			}, nil
-		case "poison-record":
-			return &keystore.KeyDescription{
-				ID:      fileName,
-				Purpose: keystore.PurposePoisonRecordKeyPair,
-			}, nil
-		case "poison-record-sym":
-			return &keystore.KeyDescription{
-				ID:      fileName,
-				Purpose: keystore.PurposePoisonRecordSymmetricKey,
-			}, nil
-		default:
-			return nil, ErrUnrecognizedKeyPurpose
-		}
-	}
-
-	components := strings.Split(fileName, "_")
-
-	if len(components) == 1 {
-		id := strings.TrimSuffix(fileName, ".pub")
-
-		return &keystore.KeyDescription{
-			ID:       id,
-			Purpose:  keystore.PurposeLegacy,
-			ClientID: []byte(components[0]),
-		}, nil
-	}
-
-	//in case of one split result slice will have more than one element
-	if len(components) < 2 {
-		return nil, ErrUnrecognizedKeyPurpose
-	}
-
-	lastKeyPart := components[len(components)-1]
-	penultimateKeyPart := components[len(components)-2]
-
-	if lastKeyPart == "hmac" {
-		return &keystore.KeyDescription{
-			ID:       fileName,
-			Purpose:  keystore.PurposeSearchHMAC,
-			ClientID: []byte(strings.Join(components[:len(components)-1], "_")),
-		}, nil
-	}
-
-	if lastKeyPart == "storage" {
-		return &keystore.KeyDescription{
-			ID:       fileName,
-			Purpose:  keystore.PurposeStorageClientPrivateKey,
-			ClientID: []byte(strings.Join(components[:len(components)-1], "_")),
-		}, nil
-	}
-
-	if lastKeyPart == "storage.pub" {
-		return &keystore.KeyDescription{
-			ID:       fileName,
-			Purpose:  keystore.PurposeStorageClientPublicKey,
-			ClientID: []byte(strings.Join(components[:len(components)-1], "_")),
-		}, nil
-	}
-
-	if lastKeyPart == "zone" {
-		return &keystore.KeyDescription{
-			ID:      fileName,
-			Purpose: keystore.PurposeLegacy,
-		}, nil
-	}
-
-	if lastKeyPart == "zone.pub" {
-		return &keystore.KeyDescription{
-			ID:      fileName,
-			Purpose: keystore.PurposeLegacy,
-		}, nil
-	}
-
-	if penultimateKeyPart == "storage" && lastKeyPart == "sym" {
-		return &keystore.KeyDescription{
-			ID:       fileName,
-			Purpose:  keystore.PurposeStorageClientSymmetricKey,
-			ClientID: []byte(strings.Join(components[:len(components)-2], "_")),
-		}, nil
-	}
-
-	if penultimateKeyPart == "zone" && lastKeyPart == "sym" {
-		return &keystore.KeyDescription{
-			ID:      fileName,
-			Purpose: keystore.PurposeLegacy,
-		}, nil
-	}
-
-	if penultimateKeyPart == "log" && lastKeyPart == "key" {
-		return &keystore.KeyDescription{
-			ID:      fileName,
-			Purpose: keystore.PurposeAuditLog,
-		}, nil
-	}
-
-	if lastKeyPart == "server" || lastKeyPart == "server.pub" || lastKeyPart == "translator" || lastKeyPart == "translator.pub" {
-		return &keystore.KeyDescription{
-			ID:       fileName,
-			Purpose:  keystore.PurposeLegacy,
-			ClientID: []byte(components[0]),
-		}, nil
-	}
-
-	return nil, ErrUnrecognizedKeyPurpose
-}
-
 // Reset clears all cached keys
 func (store *KeyStore) Reset() {
 	store.cache.Clear()
@@ -1350,4 +1178,201 @@ func (store *KeyStore) DestroyClientIDSymmetricKey(clientID []byte) error {
 // DestroyHmacSecretKey destroy hmac secter key
 func (store *KeyStore) DestroyHmacSecretKey(clientID []byte) error {
 	return store.destroyKeyWithFilename(getHmacKeyFilename(clientID))
+}
+
+// DescribeKeyFile describes key by its purpose path for V1 and V2 keystore
+func DescribeKeyFile(fileName string) (*keystore.KeyDescription, error) {
+	description, ok, err := describeV2(fileName)
+	if err != nil {
+		return nil, err
+	}
+
+	if ok {
+		return description, nil
+	}
+
+	description, ok, err = describeV1(fileName)
+	if err != nil {
+		return nil, err
+	}
+
+	if ok {
+		return description, nil
+	}
+
+	return nil, ErrUnrecognizedKeyPurpose
+}
+
+// describe keys for V2 keystore
+func describeV2(fileName string) (*keystore.KeyDescription, bool, error) {
+	if !strings.HasSuffix(fileName, ".keyring") {
+		return nil, false, nil
+	}
+
+	dir, file := path.Split(path.Clean(fileName))
+	// dir was provided in path
+	if dir != "" && strings.Contains(dir, "client") {
+		splits := strings.Split(strings.Trim(dir, string(filepath.Separator)), string(filepath.Separator))
+		if len(splits) == 1 {
+			return nil, false, errors.New("invalid path provided for V2 keystore key")
+		}
+
+		switch strings.TrimSuffix(file, ".keyring") {
+		case "hmac-sym":
+			return &keystore.KeyDescription{
+				ID:       file,
+				ClientID: []byte(splits[len(splits)-1]),
+				Purpose:  keystore.PurposeSearchHMAC,
+			}, true, nil
+		case "storage":
+			return &keystore.KeyDescription{
+				ID:       file,
+				ClientID: []byte(splits[len(splits)-1]),
+				Purpose:  keystore.PurposeStorageClientKeyPair,
+			}, true, nil
+		case "storage-sym":
+			return &keystore.KeyDescription{
+				ID:       file,
+				ClientID: []byte(splits[len(splits)-1]),
+				Purpose:  keystore.PurposeStorageClientSymmetricKey,
+			}, true, nil
+		default:
+			return nil, false, ErrUnrecognizedKeyPurpose
+		}
+	}
+
+	switch strings.TrimSuffix(file, ".keyring") {
+	case "audit-log":
+		return &keystore.KeyDescription{
+			ID:      fileName,
+			Purpose: keystore.PurposeAuditLog,
+		}, true, nil
+	case "poison-record":
+		return &keystore.KeyDescription{
+			ID:      fileName,
+			Purpose: keystore.PurposePoisonRecordKeyPair,
+		}, true, nil
+	case "poison-record-sym":
+		return &keystore.KeyDescription{
+			ID:      fileName,
+			Purpose: keystore.PurposePoisonRecordSymmetricKey,
+		}, true, nil
+	default:
+		return nil, false, ErrUnrecognizedKeyPurpose
+	}
+}
+
+func describeV1(fileName string) (*keystore.KeyDescription, bool, error) {
+	switch fileName {
+	case poisonPrivateKey:
+		return &keystore.KeyDescription{
+			ID:      poisonPrivateKey,
+			Purpose: keystore.PurposePoisonRecordKeyPair,
+		}, true, nil
+	case poisonPublicKey:
+		return &keystore.KeyDescription{
+			ID:      poisonPublicKey,
+			Purpose: keystore.PurposePoisonRecordKeyPair,
+		}, true, nil
+	case poisonSymmetricKey:
+		return &keystore.KeyDescription{
+			ID:      poisonSymmetricKey,
+			Purpose: keystore.PurposePoisonRecordSymmetricKey,
+		}, true, nil
+	case legacyWebConfigKey:
+		return &keystore.KeyDescription{
+			ID:      fileName,
+			Purpose: keystore.PurposeLegacy,
+		}, true, nil
+	}
+
+	components := strings.Split(fileName, "_")
+
+	if len(components) == 1 {
+		id := strings.TrimSuffix(fileName, ".pub")
+
+		return &keystore.KeyDescription{
+			ID:       id,
+			Purpose:  keystore.PurposeLegacy,
+			ClientID: []byte(components[0]),
+		}, true, nil
+	}
+
+	//in case of one split result slice will have more than one element
+	if len(components) < 2 {
+		return nil, false, ErrUnrecognizedKeyPurpose
+	}
+
+	lastKeyPart := components[len(components)-1]
+	penultimateKeyPart := components[len(components)-2]
+
+	if lastKeyPart == "hmac" {
+		return &keystore.KeyDescription{
+			ID:       fileName,
+			Purpose:  keystore.PurposeSearchHMAC,
+			ClientID: []byte(strings.Join(components[:len(components)-1], "_")),
+		}, true, nil
+	}
+
+	if lastKeyPart == "storage" {
+		return &keystore.KeyDescription{
+			ID:       fileName,
+			Purpose:  keystore.PurposeStorageClientPrivateKey,
+			ClientID: []byte(strings.Join(components[:len(components)-1], "_")),
+		}, true, nil
+	}
+
+	if lastKeyPart == "storage.pub" {
+		return &keystore.KeyDescription{
+			ID:       fileName,
+			Purpose:  keystore.PurposeStorageClientPublicKey,
+			ClientID: []byte(strings.Join(components[:len(components)-1], "_")),
+		}, true, nil
+	}
+
+	if lastKeyPart == "zone" {
+		return &keystore.KeyDescription{
+			ID:      fileName,
+			Purpose: keystore.PurposeLegacy,
+		}, true, nil
+	}
+
+	if lastKeyPart == "zone.pub" {
+		return &keystore.KeyDescription{
+			ID:      fileName,
+			Purpose: keystore.PurposeLegacy,
+		}, true, nil
+	}
+
+	if penultimateKeyPart == "storage" && lastKeyPart == "sym" {
+		return &keystore.KeyDescription{
+			ID:       fileName,
+			Purpose:  keystore.PurposeStorageClientSymmetricKey,
+			ClientID: []byte(strings.Join(components[:len(components)-2], "_")),
+		}, true, nil
+	}
+
+	if penultimateKeyPart == "zone" && lastKeyPart == "sym" {
+		return &keystore.KeyDescription{
+			ID:      fileName,
+			Purpose: keystore.PurposeLegacy,
+		}, true, nil
+	}
+
+	if penultimateKeyPart == "log" && lastKeyPart == "key" {
+		return &keystore.KeyDescription{
+			ID:      fileName,
+			Purpose: keystore.PurposeAuditLog,
+		}, true, nil
+	}
+
+	if lastKeyPart == "server" || lastKeyPart == "server.pub" || lastKeyPart == "translator" || lastKeyPart == "translator.pub" {
+		return &keystore.KeyDescription{
+			ID:       fileName,
+			Purpose:  keystore.PurposeLegacy,
+			ClientID: []byte(components[0]),
+		}, true, nil
+	}
+
+	return nil, false, ErrUnrecognizedKeyPurpose
 }

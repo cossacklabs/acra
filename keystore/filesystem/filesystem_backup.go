@@ -166,6 +166,8 @@ func readFilesAsKeys(files []string, basePath string, encryptor keystore.KeyEncr
 			}
 		}
 
+		// additional verification of public key, there is no need to verify private keys
+		// as private keys are encrypted and validated during description step
 		if isPublic(relativeName) {
 			if err := verifyPublicKey(&keys.PublicKey{
 				Value: content,
@@ -195,6 +197,8 @@ func (store *KeyBackuper) Export(exportIDs []keystore.ExportID, mode keystore.Ex
 					return nil, err
 				}
 
+				// additional verification of public key, there is no need to verify private keys
+				// as private keys are encrypted and validated during description step
 				if err := verifyPublicKey(keypair.Public); err != nil {
 					log.WithError(err).Error("Invalid public key for export")
 					return nil, err
@@ -223,6 +227,8 @@ func (store *KeyBackuper) Export(exportIDs []keystore.ExportID, mode keystore.Ex
 					return nil, err
 				}
 
+				// additional verification of public key, there is no need to verify private keys
+				// as private keys are encrypted and validated during description step
 				if err := verifyPublicKey(key); err != nil {
 					log.WithError(err).Error("Invalid public key for export")
 					return nil, err
