@@ -10,6 +10,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
 	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
+	// explicitly import types package to force calls of init functions to register supported types
 	_ "github.com/cossacklabs/acra/decryptor/mysql/types"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"

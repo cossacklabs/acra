@@ -221,6 +221,7 @@ if TEST_MYSQL or TEST_MARIADB:
         'database': DB_NAME,
         'read_timeout': SOCKET_CONNECT_TIMEOUT,
         'write_timeout': SOCKET_CONNECT_TIMEOUT,
+        'ssl_disabled': True if SSLMODE == 'disable' else False,
     }
     pymysql_tls_args = {}
     if TEST_WITH_TLS:

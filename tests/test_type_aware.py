@@ -1,3 +1,5 @@
+from random import randint
+
 import asyncpg
 import mysql.connector
 import sqlalchemy as sa
@@ -8,7 +10,7 @@ import base
 import test_common
 import test_integrations
 import test_searchable_transparent_encryption
-from random_utils import random_bytes, random_int32, random_int64, random_str
+from random_utils import random_bytes, random_int32, random_int64, random_str, max_negative_int32, max_negative_int64
 
 
 class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(
@@ -575,10 +577,8 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithoutDefaults(TestPostgresqlBinar
             self.skipTest("Test only for PostgreSQL with TLS")
 
     def testClientIDRead(self):
-        """test decrypting with correct clientID and not decrypting with
-        incorrect clientID or using direct connection to db
-        All result data should be valid for application. Not decrypted data should be returned as is and DB driver
-        should cause error
+        """
+        override method from parent class with own table and data
         """
         data = {
             'id': base.get_random_id(),
@@ -590,6 +590,30 @@ class TestPostgresqlBinaryTypeAwareDecryptionWithoutDefaults(TestPostgresqlBinar
             'value_null_int32': None,
             'value_empty_str': ''
         }
+        self._testClientIDRead(data)
+
+    def testClientIDReadWithNegativeInteger(self):
+        """
+        test correct encoding/decoding negative integer values
+        """
+        data = {
+            'id': base.get_random_id(),
+            'value_str': random_str(),
+            'value_bytes': random_bytes(),
+            'value_int32': randint(max_negative_int32, 0),
+            'value_int64': randint(max_negative_int64, 0),
+            'value_null_str': None,
+            'value_null_int32': None,
+            'value_empty_str': ''
+        }
+        self._testClientIDRead(data)
+
+    def _testClientIDRead(self, data):
+        """test decrypting with correct clientID and not decrypting with
+        incorrect clientID or using direct connection to db
+        All result data should be valid for application. Not decrypted data should be returned as is and DB driver
+        should cause error
+        """
         self.schema_table.create(bind=self.engine_raw, checkfirst=True)
         ######
         columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
@@ -782,7 +806,7 @@ class TestPostgresqlTextTypeAwareDecryptionWithError(test_searchable_transparent
 
 
 # `response_on_fail` is `ciphertext` if not defined. That's why the code is
-# exactly the same as inTestPostgresqlBinaryTypeAwareDecryptionWithoutDefaults
+# exactly the same as in TestPostgresqlBinaryTypeAwareDecryptionWithoutDefaults
 class TestPostgresqlBinaryTypeAwareDecryptionWithCiphertext(TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults):
     # test table used for queries and data mapping into python types
     test_table = sa.Table(

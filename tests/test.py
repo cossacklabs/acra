@@ -18,6 +18,7 @@ import stat
 from tempfile import NamedTemporaryFile
 from urllib.request import urlopen
 
+import asyncpg.exceptions
 import mysql.connector
 import psycopg2.errors
 import psycopg2.extras
@@ -4495,6 +4496,112 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
 class TestPoisonRecordShutdownWithAcraBlock(TestPoisonRecordShutdown):
     def get_poison_record_data(self):
         return get_poison_record_with_acrablock()
+
+
+class TestEncryptorSettingReset(SeparateMetadataMixin, AcraCatchLogsMixin, BaseTokenization):
+
+    def checkSkip(self):
+        pass
+
+    def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
+        acra_kwargs.update({
+            # no need to switch between users
+            # we can run with and without TLS
+            'client_id': base.TLS_CERT_CLIENT_ID_1,
+            'tls_client_id_from_cert': False,
+        })
+        return super().fork_acra(popen_kwargs, **acra_kwargs)
+
+    def setUp(self):
+        super().setUp()
+        self.engine_raw.execute(sa.text('create table if not exists empty_table(id integer);'))
+        self.engine_raw.execute(sa.text('insert into empty_table values (1);'))
+        # create with sqlalchemy to encapsulate db specific differences
+        self.test_table = sa.Table(
+            'test_tokenization_default_client_id', self.get_metadata(),
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('nullable', sa.Text, nullable=True),
+            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_i32', sa.Integer()),
+            sa.Column('token_i64', sa.BigInteger()),
+            sa.Column('token_str', sa.Text),
+            sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_email', sa.Text),
+        )
+        self.get_metadata().create_all(self.engine_raw, [self.test_table])
+
+    def tearDown(self):
+        if hasattr(self, 'test_table'):
+            self.get_metadata().drop_all(self.engine_raw, [self.test_table])
+        logs = self.read_log(self.acra)
+        print(logs)
+        super().tearDown()
+
+    def test_select(self):
+        """verify that after valid SELECT query over transparently encrypted data same config will not be applied
+        for the next query and will be cleared"""
+        encrypted_row = {'nullable': None, 'empty': b'', 'token_i32': random_int32(), 'token_i64': random_int64(),
+                         'token_str': random_str(), 'token_bytes': random_bytes(), 'token_email': random_email()}
+        with self.engine1.begin() as connection:
+            connection.execute(self.test_table.insert(encrypted_row))
+            result = connection.execute(sa.select(self.test_table)).fetchall()
+            self.assertEqual(len(result), 1)
+            for row in result:
+                for k, v in encrypted_row.items():
+                    self.assertEqual(row[k], v)
+            sql = ("select 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h' from empty_table join ("
+                   "select 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h' from empty_table) t on true;")
+            connection.execute(sa.text(sql)).fetchall()
+            logs = self.read_log(self.acra)
+            self.assertIn("can't extract columns from select statement", logs.lower())
+        raw_data = self.engine_raw.execute(sa.select(self.test_table)).fetchall()
+        for row in raw_data:
+            for k, v in encrypted_row.items():
+                # skip empty and nullable
+                if not v:
+                    continue
+                self.assertNotEqual(row[k], v)
+
+    def test_insert_returning(self):
+        """verify that after valid INSERT query with RETURNING over transparently encrypted data same config will not
+        be applied for the next query and will be cleared
+        """
+
+        if not (base.TEST_POSTGRESQL or TEST_MARIADB):
+            self.skipTest("MySQL doesn't support returning statement for insert")
+
+        encrypted_row = {'nullable': None, 'empty': b'', 'token_i32': random_int32(), 'token_i64': random_int64(),
+                         'token_str': random_str(), 'token_bytes': random_bytes(), 'token_email': random_email()}
+        with self.engine1.begin() as connection:
+            if TEST_POSTGRESQL:
+                result = connection.execute(sa.insert(self.test_table).values(encrypted_row).returning(self.test_table)).fetchall()
+            elif TEST_MARIADB:
+                # use raw sql due to only sqlalchemy 2.x supports returning for mariadb
+                # TODO use sqlalchemy core after upgrading from 1.x to 2.x version
+                columns = ','.join(['nullable', 'empty', 'token_i32', 'token_i64', 'token_str',
+                                    'token_bytes', 'token_email'])
+                result = connection.execute(sa.text(
+                    "insert into {} ({}) values ( :nullable, :empty, :token_i32, :token_i64, :token_str, :token_bytes, :token_email) returning {};".format(
+                        self.test_table.name, columns, columns)), encrypted_row
+                    ).fetchall()
+            else:
+                self.fail("Invalid environment")
+            self.assertEqual(len(result), 1)
+            for row in result:
+                for k, v in encrypted_row.items():
+                    self.assertEqual(row[k], v)
+            sql = ("select 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h' from empty_table join ("
+                   "select 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h' from empty_table) t on true;")
+            connection.execute(sa.text(sql)).fetchall()
+            logs = self.read_log(self.acra)
+            self.assertIn("can't extract columns from select statement", logs.lower())
+        raw_data = self.engine_raw.execute(sa.select(self.test_table)).fetchall()
+        for row in raw_data:
+            for k, v in encrypted_row.items():
+                # skip empty and nullable
+                if not v:
+                    continue
+                self.assertNotEqual(row[k], v)
 
 
 if __name__ == '__main__':
