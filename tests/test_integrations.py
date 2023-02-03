@@ -48,7 +48,13 @@ class AWSKMSClient:
         )
 
     def close(self):
-        self.kms_client.close()
+        # boto3 in version 1.23.10 doesn't have .close() method
+        # https://github.com/boto/boto3/blob/1.23.10/boto3/session.py
+        # We use old versions due to support Centos 7 that have python3.6 from the packages
+        # boto3 1.23.10 the last version which supports python3.6
+        # TODO uncomment after upgrading boto3 and deprecating centos 7 with python3.6
+        #self.kms_client.close()
+        pass
 
     def disable_key(self, keyId):
         self.kms_client.disable_key(KeyId=keyId)

@@ -21,5 +21,7 @@ unittest-xml-reporting==3.0.4
 cryptography==3.4.7
 redis==4.0.1
 hiredis==2.0.0
+# don't upgrade until stop supporting Centos 7 with python3.6
+# this version is last supported for python3.6
 boto3==1.23.10
 python-consul==1.1.0
