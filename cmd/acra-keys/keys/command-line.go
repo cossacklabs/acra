@@ -52,21 +52,7 @@ const (
 	CmdExtractClientID = "extract-client-id"
 )
 
-// Key kind constants:
-const (
-	KeyPoisonKeypair   = "poison-keypair"
-	KeyPoisonSymmetric = "poison-symmetric"
-	KeyPoisonPublic    = "poison-public"
-	KeyPoisonPrivate   = "poison-private"
-	KeyStorageKeypair  = "storage-keypair"
-	KeyStoragePublic   = "storage-public"
-	KeyStoragePrivate  = "storage-private"
-
-	KeySymmetric = "symmetric-key"
-	KeySearch    = "hmac-key"
-)
-
-// Comman-line parsing errors:
+// Command-line parsing errors:
 var (
 	ErrUnknownSubCommand = errors.New("unknown command")
 	ErrMissingKeyKind    = errors.New("missing key kind")
@@ -160,9 +146,9 @@ func ParseKeyKind(keyID string) (string, []byte, error) {
 	if len(parts) == 1 {
 		switch parts[0] {
 		case "poison-record":
-			return KeyPoisonKeypair, nil, nil
+			return keystoreV1.KeyPoisonKeypair, nil, nil
 		case "poison-record-symmetric":
-			return KeyPoisonSymmetric, nil, nil
+			return keystoreV1.KeyPoisonSymmetric, nil, nil
 		}
 	}
 	if len(parts) == 3 {
@@ -170,11 +156,11 @@ func ParseKeyKind(keyID string) (string, []byte, error) {
 		if parts[0] == "client" {
 			switch parts[2] {
 			case "symmetric":
-				return KeySymmetric, id, nil
+				return keystoreV1.KeySymmetric, id, nil
 			case "storage":
-				return KeyStorageKeypair, id, nil
+				return keystoreV1.KeyStorageKeypair, id, nil
 			case "searchable":
-				return KeySearch, id, nil
+				return keystoreV1.KeySearch, id, nil
 			}
 		}
 		log.Warningln("Zone keys are deprecated since 0.94.0 and will be removed soon.")

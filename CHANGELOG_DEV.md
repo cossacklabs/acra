@@ -1,6 +1,9 @@
 # 0.95.0 - 2023-02-02
 - Improve processing int4 values from PostgreSQL with binary format of values
 
+# 0.95.0 - 2023-01-31
+- Extend `acra-keys` `export` and `import` subcommand by V1 keystore support;
+
 # 0.95.0 - 2023-01-24
 - Remove testing on the old versions of golang, leave only last fresh version
 

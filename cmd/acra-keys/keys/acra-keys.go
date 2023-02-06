@@ -22,10 +22,10 @@ import (
 	"io"
 	"os"
 
-	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
-	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/utils"
 )
 
 func warnKeystoreV2Only(command string) {
@@ -48,55 +48,6 @@ func ListKeysCommand(params ListKeysParams, keyStore keystore.ServerKeyStore) {
 	err = PrintKeys(keyDescriptions, os.Stdout, params)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to print key list")
-	}
-}
-
-// ExportKeysCommand implements the "export" command.
-func ExportKeysCommand(params ExportKeysParams, keyStore api.KeyStore) {
-	encryptionKeyData, cryptosuite, err := PrepareExportEncryptionKeys()
-	if err != nil {
-		log.WithError(err).Fatal("Failed to prepare encryption keys")
-	}
-	defer utils.ZeroizeSymmetricKey(encryptionKeyData)
-
-	exportedData, err := ExportKeys(keyStore, cryptosuite, params)
-	if err != nil {
-		log.WithError(err).Fatal("Failed to export keys")
-	}
-
-	err = WriteExportedData(exportedData, encryptionKeyData, params)
-	if err != nil {
-		log.WithError(err).Fatal("Failed to write exported data")
-	}
-
-	log.Infof("Exported key data is encrypted and saved here: %s", params.ExportDataFile())
-	log.Infof("New encryption keys for import generated here: %s", params.ExportKeysFile())
-	log.Infof("DO NOT transport or store these files together")
-	log.Infof("Import the keys into another keystore like this:\n\tacra-keys import --key_bundle_file \"%s\" --key_bundle_secret \"%s\"", params.ExportDataFile(), params.ExportKeysFile())
-}
-
-// ImportKeysCommand implements the "import" command.
-func ImportKeysCommand(params ImportKeysParams, keyStore api.MutableKeyStore) {
-	exportedData, err := ReadExportedData(params)
-	if err != nil {
-		log.WithError(err).Fatal("Failed to read exported data")
-	}
-
-	cryptosuite, err := ReadImportEncryptionKeys(params)
-	if err != nil {
-		log.WithError(err).Fatal("Failed to prepare encryption keys")
-	}
-
-	descriptions, err := ImportKeys(exportedData, keyStore, cryptosuite, params)
-	if err != nil {
-		log.WithError(err).Fatal("Failed to import keys")
-	}
-
-	log.Infof("successfully imported %d keys", len(descriptions))
-
-	err = PrintKeys(descriptions, os.Stdout, params)
-	if err != nil {
-		log.WithError(err).Fatal("Failed to print imported key list")
 	}
 }
 

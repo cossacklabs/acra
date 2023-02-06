@@ -58,7 +58,7 @@ func TestReadCMD_FS_V2(t *testing.T) {
 				keyDir: dirName,
 			},
 			contextID:   clientID,
-			readKeyKind: KeyStoragePublic,
+			readKeyKind: keystore.KeyStoragePublic,
 			FlagSet:     flagSet,
 			outWriter:   io.Discard,
 		}
@@ -82,7 +82,7 @@ func TestReadCMD_FS_V2(t *testing.T) {
 				keyDir: dirName,
 			},
 			contextID:   clientID,
-			readKeyKind: KeySymmetric,
+			readKeyKind: keystore.KeySymmetric,
 			FlagSet:     flagSet,
 			outWriter:   io.Discard,
 		}
@@ -131,7 +131,7 @@ func TestReadCMD_FS_V1(t *testing.T) {
 				keyDir: dirName,
 			},
 			contextID:   clientID,
-			readKeyKind: KeyStoragePublic,
+			readKeyKind: keystore.KeyStoragePublic,
 			FlagSet:     flagSet,
 			outWriter:   io.Discard,
 		}
@@ -155,7 +155,7 @@ func TestReadCMD_FS_V1(t *testing.T) {
 				keyDir: dirName,
 			},
 			contextID:   clientID,
-			readKeyKind: KeySymmetric,
+			readKeyKind: keystore.KeySymmetric,
 			FlagSet:     flagSet,
 			outWriter:   io.Discard,
 		}

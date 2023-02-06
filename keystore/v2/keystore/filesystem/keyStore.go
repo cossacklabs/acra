@@ -20,11 +20,14 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"github.com/cossacklabs/acra/cmd"
-	"github.com/go-redis/redis/v7"
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/go-redis/redis/v7"
+	log "github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/cmd"
 
 	keystoreV1 "github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
@@ -32,7 +35,6 @@ import (
 	"github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/signature"
-	log "github.com/sirupsen/logrus"
 )
 
 const serviceName = "keystore"
@@ -206,7 +208,7 @@ func (s *KeyStore) DescribeKeyRing(path string) (*keystoreV1.KeyDescription, err
 // ExportKeyRings packages specified key rings for export.
 // Key ring data is encrypted and signed using given cryptosuite.
 // Resulting container can be imported into existing or different keystore with ImportKeyRings().
-func (s *KeyStore) ExportKeyRings(paths []string, cryptosuite *crypto.KeyStoreSuite, mode api.ExportMode) ([]byte, error) {
+func (s *KeyStore) ExportKeyRings(paths []string, cryptosuite *crypto.KeyStoreSuite, mode keystoreV1.ExportMode) ([]byte, error) {
 	keyRings, err := s.exportKeyRings(paths, mode)
 	if err != nil {
 		return nil, err

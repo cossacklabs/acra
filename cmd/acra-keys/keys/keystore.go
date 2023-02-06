@@ -19,6 +19,7 @@ package keys
 import (
 	"errors"
 	"flag"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"

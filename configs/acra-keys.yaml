@@ -143,7 +143,7 @@ key_bundle_file:
 # path to output file for key encryption keys
 key_bundle_secret: 
 
-# export private key data
+# export private key data (symmetric and private asymmetric keys)
 private_keys: false
 
 # try migration without writing to the output keystore

@@ -23,18 +23,19 @@ import (
 	"io"
 	"os"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
-	log "github.com/sirupsen/logrus"
 )
 
 // SupportedReadKeyKinds is a list of keys supported by `read-key` subcommand.
 var SupportedReadKeyKinds = []string{
-	KeyPoisonPublic,
-	KeyPoisonPrivate,
-	KeyStoragePublic,
-	KeyStoragePrivate,
-	KeySymmetric,
+	keystore.KeyPoisonPublic,
+	keystore.KeyPoisonPrivate,
+	keystore.KeyStoragePublic,
+	keystore.KeyStoragePrivate,
+	keystore.KeySymmetric,
 }
 
 // Key parameter errors:
@@ -111,28 +112,28 @@ func (p *ReadKeySubcommand) Parse(arguments []string) error {
 		return err
 	}
 	switch coarseKind {
-	case KeySymmetric:
+	case keystore.KeySymmetric:
 		p.readKeyKind = coarseKind
 		p.contextID = id
 
-	case KeyPoisonKeypair:
+	case keystore.KeyPoisonKeypair:
 		if err := p.validateKeyParts(); err != nil {
 			return err
 		}
 		if p.private {
-			p.readKeyKind = KeyPoisonPrivate
+			p.readKeyKind = keystore.KeyPoisonPrivate
 		} else {
-			p.readKeyKind = KeyPoisonPublic
+			p.readKeyKind = keystore.KeyPoisonPublic
 		}
 
-	case KeyStorageKeypair:
+	case keystore.KeyStorageKeypair:
 		if err := p.validateKeyParts(); err != nil {
 			return err
 		}
 		if p.private {
-			p.readKeyKind = KeyStoragePrivate
+			p.readKeyKind = keystore.KeyStoragePrivate
 		} else {
-			p.readKeyKind = KeyStoragePublic
+			p.readKeyKind = keystore.KeyStoragePublic
 		}
 		p.contextID = id
 
@@ -177,7 +178,7 @@ func (p *ReadKeySubcommand) ClientID() []byte {
 func ReadKeyBytes(params ReadKeyParams, keyStore keystore.ServerKeyStore) ([]byte, error) {
 	kind := params.ReadKeyKind()
 	switch kind {
-	case KeyPoisonPublic:
+	case keystore.KeyPoisonPublic:
 		keypair, err := keyStore.GetPoisonKeyPair()
 		if err != nil {
 			log.WithError(err).Error("Cannot read poison record key pair")
@@ -185,7 +186,7 @@ func ReadKeyBytes(params ReadKeyParams, keyStore keystore.ServerKeyStore) ([]byt
 		}
 		return keypair.Public.Value, nil
 
-	case KeyPoisonPrivate:
+	case keystore.KeyPoisonPrivate:
 		keypair, err := keyStore.GetPoisonKeyPair()
 		if err != nil {
 			log.WithError(err).Error("Cannot read poison record key pair")
@@ -193,7 +194,7 @@ func ReadKeyBytes(params ReadKeyParams, keyStore keystore.ServerKeyStore) ([]byt
 		}
 		return keypair.Private.Value, nil
 
-	case KeyStoragePublic:
+	case keystore.KeyStoragePublic:
 		key, err := keyStore.GetClientIDEncryptionPublicKey(params.ClientID())
 		if err != nil {
 			log.WithError(err).Error("Cannot read client storage public key")
@@ -201,7 +202,7 @@ func ReadKeyBytes(params ReadKeyParams, keyStore keystore.ServerKeyStore) ([]byt
 		}
 		return key.Value, nil
 
-	case KeyStoragePrivate:
+	case keystore.KeyStoragePrivate:
 		key, err := keyStore.GetServerDecryptionPrivateKey(params.ClientID())
 		if err != nil {
 			log.WithError(err).Error("Cannot read client storage private key")
@@ -209,7 +210,7 @@ func ReadKeyBytes(params ReadKeyParams, keyStore keystore.ServerKeyStore) ([]byt
 		}
 		return key.Value, nil
 
-	case KeySymmetric:
+	case keystore.KeySymmetric:
 		key, err := keyStore.GetClientIDSymmetricKey(params.ClientID())
 		if err != nil {
 			log.WithError(err).Error("Cannot read client symmetric key")

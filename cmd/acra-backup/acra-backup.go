@@ -20,7 +20,6 @@ import (
 	"encoding/base64"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/cossacklabs/acra/cmd"
@@ -85,7 +84,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	backuper, err := filesystem.NewKeyBackuper(*outputDir, *outputPublicKey, storage, keyStoreEncryptor)
+	backuper, err := filesystem.NewKeyBackuper(*outputDir, *outputPublicKey, storage, keyStoreEncryptor, nil)
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize backuper")
 		os.Exit(1)
@@ -107,25 +106,25 @@ func main() {
 			os.Exit(1)
 		}
 
-		keysContent, err := ioutil.ReadFile(*file)
+		keysContent, err := os.ReadFile(*file)
 		if err != nil {
 			log.WithError(err).Errorln("Can't read file with exported keys")
 			os.Exit(1)
 		}
-		backup := keystore.KeysBackup{MasterKey: key, Keys: keysContent}
-		if err := backuper.Import(&backup); err != nil {
+		backup := keystore.KeysBackup{Keys: key, Data: keysContent}
+		if _, err := backuper.Import(&backup); err != nil {
 			log.WithError(err).Errorln("Can't import keys")
 			os.Exit(1)
 		}
 	case actionExport:
-		backup, err := backuper.Export()
+		backup, err := backuper.Export(nil, keystore.ExportAllKeys)
 		if err != nil {
 			log.WithError(err).Errorln("Can't generate backup")
 			os.Exit(1)
 		}
-		base64MasterKey := base64.StdEncoding.EncodeToString(backup.MasterKey)
-		utils.ZeroizeSymmetricKey(backup.MasterKey)
-		if err := ioutil.WriteFile(*file, backup.Keys, filesystem.PrivateFileMode); err != nil {
+		base64MasterKey := base64.StdEncoding.EncodeToString(backup.Keys)
+		utils.ZeroizeSymmetricKey(backup.Keys)
+		if err := os.WriteFile(*file, backup.Keys, filesystem.PrivateFileMode); err != nil {
 			log.WithError(err).Errorf("Can't write backup to file %s", *file)
 			os.Exit(1)
 		}
