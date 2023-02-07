@@ -71,7 +71,7 @@ var (
 	// AcraDetokenizationCounter collect tokenizations count success/failed  for token_type
 	AcraDetokenizationCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "acra_detokenization_total",
+			Name: "acra_detokenizations_total",
 			Help: "number of detokenizations for token_type",
 		}, []string{LabelStatus, LabelTokenType})
 
