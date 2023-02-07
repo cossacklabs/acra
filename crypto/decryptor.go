@@ -2,10 +2,12 @@ package crypto
 
 import (
 	"context"
+
+	log "github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
-	log "github.com/sirupsen/logrus"
 )
 
 // DecryptHandler implements EnvelopeCallbackHandler as EnvelopeDetector callback for simple decryption processing
@@ -37,10 +39,8 @@ func (d DecryptHandler) OnCryptoEnvelope(ctx context.Context, container []byte) 
 			logging.FieldKeyEventCode: logging.EventCodeErrorDecryptorCantDecryptBinary,
 			"client_id":               string(accessContext.GetClientID()),
 		}).WithError(err).Warningln("Can't decrypt SerializedContainer")
-		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 		return container, nil
 	}
-	base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
 	return decrypted, nil
 }
 

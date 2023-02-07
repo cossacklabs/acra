@@ -2,6 +2,7 @@ package pseudonymization
 
 import (
 	"context"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/pseudonymization/common"
@@ -29,7 +30,15 @@ func (p *TokenProcessor) OnColumn(ctx context.Context, data []byte) (context.Con
 	if ok && columnSetting.IsTokenized() {
 		tokenContext := common.TokenContext{ClientID: accessContext.GetClientID(), AdditionalContext: accessContext.GetAdditionalContext()}
 		data, err := p.tokenizer.Detokenize(data, tokenContext, columnSetting)
-		return ctx, data, err
+		if err != nil {
+			if err != ErrDataTypeMismatch {
+				base.AcraDetokenizationCounter.WithLabelValues(base.LabelStatusFail, columnSetting.GetTokenType().String()).Inc()
+			}
+			return ctx, data, err
+		}
+
+		base.AcraDetokenizationCounter.WithLabelValues(base.LabelStatusSuccess, columnSetting.GetTokenType().String()).Inc()
+		return ctx, data, nil
 	}
 	return ctx, data, nil
 }

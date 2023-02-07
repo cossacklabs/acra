@@ -2176,6 +2176,7 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
             'acraserver_request_processing_seconds_bucket': {'min_value': 0},
 
             'acra_acrastruct_decryptions_total': {'min_value': 1},
+            'acra_decryptions_total': {'min_value': 1},
 
             'acraserver_version_major': {'min_value': 0},
             'acraserver_version_minor': {'min_value': 0},
@@ -2205,6 +2206,7 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
             'acratranslator_version_patch': {'min_value': 0},
 
             'acra_acrastruct_decryptions_total': {'min_value': 1},
+            'acra_decryptions_total': {'min_value': 1},
 
             'acratranslator_build_info': {'min_value': 1},
         }

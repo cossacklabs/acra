@@ -19,12 +19,14 @@ package common
 import (
 	"context"
 	"errors"
+	"sync"
+
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/decryptor/base"
 	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/prometheus/client_golang/prometheus"
-	"sync"
 )
 
 const (
@@ -92,6 +94,8 @@ func RegisterMetrics(serviceName string) {
 		prometheus.MustRegister(connectionProcessingTimeHistogram)
 		prometheus.MustRegister(RequestProcessingTimeHistogram)
 		base.RegisterAcraStructProcessingMetrics()
+		base.RegisterEncryptionDecryptionProcessingMetrics()
+		base.RegisterTokenizationProcessingMetrics()
 		version, err := utils.GetParsedVersion()
 		if err != nil {
 			panic(err)
@@ -122,28 +126,52 @@ func NewPrometheusServiceWrapper(service ITranslatorService, metricType string) 
 func (wrapper *prometheusWrapper) Decrypt(ctx context.Context, acraStruct, clientID, additionalContext []byte) ([]byte, error) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(RequestProcessingTimeHistogram.WithLabelValues(wrapper.metricType, decryptOperation).Observe))
 	defer timer.ObserveDuration()
-	return wrapper.ITranslatorService.Decrypt(ctx, acraStruct, clientID, additionalContext)
+	decrypted, err := wrapper.ITranslatorService.Decrypt(ctx, acraStruct, clientID, additionalContext)
+	if err != nil {
+		base.AcraDecryptionCounter.WithLabelValues(base.LabelStatusFail, base.LabelTypeAcraStruct).Inc()
+		return nil, err
+	}
+	base.AcraDecryptionCounter.WithLabelValues(base.LabelStatusSuccess, base.LabelTypeAcraStruct).Inc()
+	return decrypted, nil
 }
 
 // Encrypt AcraStruct using ClientID
 func (wrapper *prometheusWrapper) Encrypt(ctx context.Context, data, clientID, additionalContext []byte) ([]byte, error) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(RequestProcessingTimeHistogram.WithLabelValues(wrapper.metricType, encryptOperation).Observe))
 	defer timer.ObserveDuration()
-	return wrapper.ITranslatorService.Encrypt(ctx, data, clientID, additionalContext)
+	encrypted, err := wrapper.ITranslatorService.Encrypt(ctx, data, clientID, additionalContext)
+	if err != nil {
+		base.AcraEncryptionCounter.WithLabelValues(base.LabelStatusFail, base.LabelTypeAcraStruct).Inc()
+		return nil, err
+	}
+	base.AcraEncryptionCounter.WithLabelValues(base.LabelStatusSuccess, base.LabelTypeAcraStruct).Inc()
+	return encrypted, nil
 }
 
 // EncryptSearchable generate AcraStruct using ClientID and searchable hash
 func (wrapper *prometheusWrapper) EncryptSearchable(ctx context.Context, data, clientID, additionalContext []byte) (SearchableResponse, error) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(RequestProcessingTimeHistogram.WithLabelValues(wrapper.metricType, encryptSearchableOperation).Observe))
 	defer timer.ObserveDuration()
-	return wrapper.ITranslatorService.EncryptSearchable(ctx, data, clientID, additionalContext)
+	encrypted, err := wrapper.ITranslatorService.EncryptSearchable(ctx, data, clientID, additionalContext)
+	if err != nil {
+		base.AcraEncryptionCounter.WithLabelValues(base.LabelStatusFail, base.LabelTypeAcraStructSearch).Inc()
+		return SearchableResponse{}, err
+	}
+	base.AcraEncryptionCounter.WithLabelValues(base.LabelStatusSuccess, base.LabelTypeAcraStructSearch).Inc()
+	return encrypted, nil
 }
 
 // DecryptSearchable decrypt AcraStruct using ClientID and then verify hash
 func (wrapper *prometheusWrapper) DecryptSearchable(ctx context.Context, data, hash, clientID, additionalContext []byte) ([]byte, error) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(RequestProcessingTimeHistogram.WithLabelValues(wrapper.metricType, decryptSearchableOperation).Observe))
 	defer timer.ObserveDuration()
-	return wrapper.ITranslatorService.DecryptSearchable(ctx, data, hash, clientID, additionalContext)
+	decrypted, err := wrapper.ITranslatorService.DecryptSearchable(ctx, data, hash, clientID, additionalContext)
+	if err != nil {
+		base.AcraDecryptionCounter.WithLabelValues(base.LabelStatusFail, base.LabelTypeAcraStructSearch).Inc()
+		return nil, err
+	}
+	base.AcraDecryptionCounter.WithLabelValues(base.LabelStatusSuccess, base.LabelTypeAcraStructSearch).Inc()
+	return decrypted, nil
 }
 
 // GenerateQueryHash generates searchable hash for data
@@ -157,40 +185,79 @@ func (wrapper *prometheusWrapper) GenerateQueryHash(ctx context.Context, data, c
 func (wrapper *prometheusWrapper) Tokenize(ctx context.Context, data interface{}, dataType tokenCommon.TokenType, clientID, additionalContext []byte) (interface{}, error) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(RequestProcessingTimeHistogram.WithLabelValues(wrapper.metricType, tokenizeOperation).Observe))
 	defer timer.ObserveDuration()
-	return wrapper.ITranslatorService.Tokenize(ctx, data, dataType, clientID, additionalContext)
+	tokenized, err := wrapper.ITranslatorService.Tokenize(ctx, data, dataType, clientID, additionalContext)
+	if err != nil {
+		base.AcraTokenizationCounter.WithLabelValues(base.LabelStatusFail, dataType.String()).Inc()
+		return nil, err
+	}
+
+	base.AcraTokenizationCounter.WithLabelValues(base.LabelStatusSuccess, dataType.String()).Inc()
+	return tokenized, nil
 }
 
 // Detokenize data from request according to TokenType using ClientID
 func (wrapper *prometheusWrapper) Detokenize(ctx context.Context, data interface{}, dataType tokenCommon.TokenType, clientID, additionalContext []byte) (interface{}, error) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(RequestProcessingTimeHistogram.WithLabelValues(wrapper.metricType, detokenizeOperation).Observe))
 	defer timer.ObserveDuration()
-	return wrapper.ITranslatorService.Detokenize(ctx, data, dataType, clientID, additionalContext)
+	detokenized, err := wrapper.ITranslatorService.Detokenize(ctx, data, dataType, clientID, additionalContext)
+	if err != nil {
+		base.AcraDetokenizationCounter.WithLabelValues(base.LabelStatusFail, dataType.String()).Inc()
+		return nil, err
+	}
+
+	base.AcraDetokenizationCounter.WithLabelValues(base.LabelStatusSuccess, dataType.String()).Inc()
+	return detokenized, nil
 }
 
 // EncryptSymSearchable encrypts data with AcraBlock using ClientID and searchable hash
 func (wrapper *prometheusWrapper) EncryptSymSearchable(ctx context.Context, data, clientID, additionalContext []byte) (SearchableResponse, error) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(RequestProcessingTimeHistogram.WithLabelValues(wrapper.metricType, encryptSymSearchableOperation).Observe))
 	defer timer.ObserveDuration()
-	return wrapper.ITranslatorService.EncryptSymSearchable(ctx, data, clientID, additionalContext)
+	encrypted, err := wrapper.ITranslatorService.EncryptSymSearchable(ctx, data, clientID, additionalContext)
+	if err != nil {
+		base.AcraEncryptionCounter.WithLabelValues(base.LabelStatusFail, base.LabelTypeAcraBlockSearch).Inc()
+		return SearchableResponse{}, err
+	}
+	base.AcraEncryptionCounter.WithLabelValues(base.LabelStatusSuccess, base.LabelTypeAcraBlockSearch).Inc()
+	return encrypted, nil
 }
 
 // DecryptSymSearchable decrypt AcraBlock using ClientID and verify hash
 func (wrapper *prometheusWrapper) DecryptSymSearchable(ctx context.Context, data, hash, clientID, additionalContext []byte) ([]byte, error) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(RequestProcessingTimeHistogram.WithLabelValues(wrapper.metricType, decryptSymSearchableOperation).Observe))
 	defer timer.ObserveDuration()
-	return wrapper.ITranslatorService.DecryptSymSearchable(ctx, data, hash, clientID, additionalContext)
+	decrypted, err := wrapper.ITranslatorService.DecryptSymSearchable(ctx, data, hash, clientID, additionalContext)
+	if err != nil {
+		base.AcraDecryptionCounter.WithLabelValues(base.LabelStatusFail, base.LabelTypeAcraBlockSearch).Inc()
+		return nil, err
+	}
+	base.AcraDecryptionCounter.WithLabelValues(base.LabelStatusSuccess, base.LabelTypeAcraBlockSearch).Inc()
+	return decrypted, nil
 }
 
 // EncryptSym encrypts data with AcraBlock using ClientID
 func (wrapper *prometheusWrapper) EncryptSym(ctx context.Context, data, clientID, additionalContext []byte) ([]byte, error) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(RequestProcessingTimeHistogram.WithLabelValues(wrapper.metricType, encryptSymOperation).Observe))
 	defer timer.ObserveDuration()
-	return wrapper.ITranslatorService.EncryptSym(ctx, data, clientID, additionalContext)
+	encrypted, err := wrapper.ITranslatorService.EncryptSym(ctx, data, clientID, additionalContext)
+	if err != nil {
+		base.AcraEncryptionCounter.WithLabelValues(base.LabelStatusFail, base.LabelTypeAcraBlock).Inc()
+		return nil, err
+	}
+	base.AcraEncryptionCounter.WithLabelValues(base.LabelStatusSuccess, base.LabelTypeAcraBlock).Inc()
+	return encrypted, nil
 }
 
 // DecryptSym decrypts AcraBlock using ClientID
 func (wrapper *prometheusWrapper) DecryptSym(ctx context.Context, acraBlock, clientID, additionalContext []byte) ([]byte, error) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(RequestProcessingTimeHistogram.WithLabelValues(wrapper.metricType, decryptSymOperation).Observe))
 	defer timer.ObserveDuration()
-	return wrapper.ITranslatorService.DecryptSym(ctx, acraBlock, clientID, additionalContext)
+	decrypted, err := wrapper.ITranslatorService.DecryptSym(ctx, acraBlock, clientID, additionalContext)
+	if err != nil {
+		base.AcraDecryptionCounter.WithLabelValues(base.LabelStatusFail, base.LabelTypeAcraBlock).Inc()
+		return nil, err
+	}
+
+	base.AcraDecryptionCounter.WithLabelValues(base.LabelStatusSuccess, base.LabelTypeAcraBlock).Inc()
+	return decrypted, nil
 }
