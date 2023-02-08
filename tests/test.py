@@ -2224,6 +2224,7 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
             self.ACRASERVER_PROMETHEUS_PORT), labels)
 
     def testAcraTranslator(self):
+        # TODO: added more metrics tracking when support /v2 translator queries
         labels = {
             'acratranslator_connections_total': {'min_value': 1},
 
