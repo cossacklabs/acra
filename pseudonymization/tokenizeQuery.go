@@ -3,11 +3,12 @@ package pseudonymization
 import (
 	"context"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	queryEncryptor "github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
-	"github.com/sirupsen/logrus"
 )
 
 // TokenizeQuery replace tokenized data inside AcraStruct/AcraBlocks and change WHERE conditions to support searchable tokenization
@@ -79,6 +80,13 @@ func (encryptor *TokenizeQuery) OnQuery(ctx context.Context, query base.OnQueryO
 
 		err = queryEncryptor.UpdateExpressionValue(ctx, item.Expr.Right, encryptor.coder, encryptor.getTokenizerDataWithSetting(item.Setting))
 		if err != nil {
+			// in case of several Observers registered (TokenizeQuery, HashQuery)
+			// we might catch pure searchable queries with TokenizeQuery so that data will be returned unchanged as setting is not matched
+			// we just ignore error to let process next Observer
+			if err == queryEncryptor.ErrUpdateLeaveDataUnchanged && !item.Setting.IsTokenized() {
+				return query, false, nil
+			}
+
 			logrus.WithError(err).Debugln("Failed to update expression")
 			return query, false, err
 		}

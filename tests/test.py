@@ -662,7 +662,8 @@ class TestKeyStorageClearing(BaseTestCase):
         ssl_context = ssl.create_default_context(cafile=base.TEST_TLS_CA)
         ssl_context.load_cert_chain(base.TEST_TLS_CLIENT_CERT, base.TEST_TLS_CLIENT_KEY)
         ssl_context.check_hostname = True
-        with urlopen('https://localhost:{}/resetKeyStorage'.format(self.ACRASERVER_PORT + 1), context=ssl_context) as response:
+        with urlopen('https://localhost:{}/resetKeyStorage'.format(self.ACRASERVER_PORT + 1),
+                     context=ssl_context) as response:
             self.assertEqual(response.status, 200)
 
 
@@ -2108,6 +2109,33 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
     LOG_METRICS = True
     # some small value but greater than 0 to compare with metrics value of time of processing
     MIN_EXECUTION_TIME = 0.0000001
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/ee_encryptor_config_prometheus.yaml')
+
+    def setUp(self):
+        super().setUp()
+
+        # init searchable transparent encryption test
+        self.searchableTransparentTest = TestSearchableTransparentEncryption()
+        self.searchableTransparentTest.engine_raw = self.engine_raw
+        self.searchableTransparentTest.engine1 = self.engine1
+        self.searchableTransparentTest.engine2 = self.engine2
+        self.searchableTransparentTest.encryptor_table = BaseSearchableTransparentEncryption().get_encryptor_table()
+        base.metadata.create_all(self.engine_raw, [self.searchableTransparentTest.encryptor_table])
+
+        # init searchable transparent encryption test
+        self.tokenizationTest = TestTokenization()
+        self.tokenizationTest.engine_raw = self.engine_raw
+        self.tokenizationTest.engine1 = self.engine1
+        self.tokenizationTest.engine2 = self.engine2
+
+    def tearDown(self):
+        self.searchableTransparentTest.tearDown()
+        base.metadata.drop_all(self.engine_raw, [self.searchableTransparentTest.encryptor_table])
+        self.tokenizationTest.tearDown()
+
+    def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
+        acra_kwargs.update(encryptor_config_file=self.ENCRYPTOR_CONFIG)
+        return super(TestPrometheusMetrics, self).fork_acra(popen_kwargs, **acra_kwargs)
 
     def checkMetrics(self, url, labels=None):
         """
@@ -2159,6 +2187,9 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
     def testAcraServer(self):
         # run some queries to set some values for counters
         HexFormatTest.testClientIDRead(self)
+
+        self.tokenizationTest.testTokenizationDefaultClientID()
+        self.searchableTransparentTest.testSearch()
         labels = {
             # TEST_TLS_CLIENT_CERT + TEST_TLS_CLIENT_2_CERT
             'acraserver_connections_total': {'min_value': 2},
@@ -2176,11 +2207,16 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
             'acraserver_request_processing_seconds_bucket': {'min_value': 0},
 
             'acra_acrastruct_decryptions_total': {'min_value': 1},
-            'acra_decryptions_total': {'min_value': 1},
 
             'acraserver_version_major': {'min_value': 0},
             'acraserver_version_minor': {'min_value': 0},
             'acraserver_version_patch': {'min_value': 0},
+
+            'acra_tokenizations_total': {'min_value': 1},
+            'acra_detokenizations_total': {'min_value': 1},
+
+            'acra_encryptions_total': {'min_value': 1},
+            'acra_decryptions_total': {'min_value': 1},
 
             'acraserver_build_info': {'min_value': 1},
         }
@@ -4576,7 +4612,8 @@ class TestEncryptorSettingReset(SeparateMetadataMixin, AcraCatchLogsMixin, BaseT
                          'token_str': random_str(), 'token_bytes': random_bytes(), 'token_email': random_email()}
         with self.engine1.begin() as connection:
             if TEST_POSTGRESQL:
-                result = connection.execute(sa.insert(self.test_table).values(encrypted_row).returning(self.test_table)).fetchall()
+                result = connection.execute(
+                    sa.insert(self.test_table).values(encrypted_row).returning(self.test_table)).fetchall()
             elif TEST_MARIADB:
                 # use raw sql due to only sqlalchemy 2.x supports returning for mariadb
                 # TODO use sqlalchemy core after upgrading from 1.x to 2.x version
@@ -4585,7 +4622,7 @@ class TestEncryptorSettingReset(SeparateMetadataMixin, AcraCatchLogsMixin, BaseT
                 result = connection.execute(sa.text(
                     "insert into {} ({}) values ( :nullable, :empty, :token_i32, :token_i64, :token_str, :token_bytes, :token_email) returning {};".format(
                         self.test_table.name, columns, columns)), encrypted_row
-                    ).fetchall()
+                ).fetchall()
             else:
                 self.fail("Invalid environment")
             self.assertEqual(len(result), 1)

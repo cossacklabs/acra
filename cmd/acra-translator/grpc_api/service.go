@@ -24,6 +24,7 @@ import (
 
 	"github.com/cossacklabs/acra/acrablock"
 	"github.com/cossacklabs/acra/cmd/acra-translator/common"
+	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/hmac"
 	"github.com/cossacklabs/acra/logging"
 	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
@@ -72,10 +73,13 @@ func (service *TranslatorService) Encrypt(ctx context.Context, request *EncryptR
 
 	response, err := service.service.Encrypt(ctx, request.Data, request.ClientId, nil)
 	if err != nil {
+		base.APIEncryptionCounter.WithLabelValues(base.LabelStatusFail).Inc()
 		msg := "Unexpected error with AcraStruct generation"
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantEncryptData).Warningln(msg)
 		return nil, err
 	}
+
+	base.APIEncryptionCounter.WithLabelValues(base.LabelStatusSuccess).Inc()
 	return &EncryptResponse{Acrastruct: response}, nil
 }
 

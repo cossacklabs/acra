@@ -311,12 +311,14 @@ func (service *HTTPService) decryptOld(ctx *gin.Context) {
 	}
 	decryptedStruct, err := service.service.Decrypt(service.ctx, acraStruct, connectionClientID, nil)
 	if err != nil {
+		//TODO: remove deprecated metrics in 1-2 versions
 		base.AcrastructDecryptionCounter.WithLabelValues(base.LabelStatusFail).Inc()
 		msg := fmt.Sprintf("Can't decrypt AcraStruct")
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraStruct).Warningln(msg)
 		ctx.String(http.StatusUnprocessableEntity, msg)
 		return
 	}
+	//TODO: remove deprecated metrics in 1-2 versions
 	base.AcrastructDecryptionCounter.WithLabelValues(base.LabelStatusSuccess).Inc()
 	logger.Infoln("Decrypted AcraStruct")
 	ctx.Render(http.StatusOK, render.Data{Data: decryptedStruct, ContentType: "application/octet-stream"})
@@ -448,12 +450,14 @@ func (service *HTTPService) _decrypt(ctx *gin.Context, data []byte) (response en
 
 	decryptedData, err := service.service.Decrypt(service.ctx, request.Data, connectionClientID, nil)
 	if err != nil {
+		//TODO: remove deprecated metrics in 1-2 versions
 		base.AcrastructDecryptionCounter.WithLabelValues(base.LabelStatusFail).Inc()
 		msg := fmt.Sprintf("Can't decrypt data")
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraStruct).Warningln(msg)
 		httpErr = NewHTTPError(http.StatusUnprocessableEntity, msg)
 		return
 	}
+	//TODO: remove deprecated metrics in 1-2 versions
 	base.AcrastructDecryptionCounter.WithLabelValues(base.LabelStatusSuccess).Inc()
 	logger.Infoln("Encrypted data")
 	response = encryptionHTTPResponse{Data: decryptedData}
@@ -538,12 +542,14 @@ func (service *HTTPService) _decryptSearchable(ctx *gin.Context, data []byte) (r
 	acraStruct := request.Data[len(hashData):]
 	decryptedData, err := service.service.DecryptSearchable(service.ctx, acraStruct, hashData, connectionClientID, nil)
 	if err != nil {
+		//TODO: remove deprecated metrics in 1-2 versions
 		base.AcrastructDecryptionCounter.WithLabelValues(base.LabelStatusFail).Inc()
 		msg := fmt.Sprintf("Can't decrypt data")
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraStruct).Warningln(msg)
 		httpErr = NewHTTPError(http.StatusUnprocessableEntity, msg)
 		return
 	}
+	//TODO: remove deprecated metrics in 1-2 versions
 	base.AcrastructDecryptionCounter.WithLabelValues(base.LabelStatusSuccess).Inc()
 	logger.Infoln("Decrypted data")
 	response = encryptionHTTPResponse{Data: decryptedData}
@@ -767,12 +773,14 @@ func (service *HTTPService) _decryptSym(ctx *gin.Context, data []byte) (response
 
 	decryptedData, err := service.service.DecryptSym(service.ctx, request.Data, connectionClientID, nil)
 	if err != nil {
+		//TODO: remove deprecated metrics in 1-2 versions
 		base.AcrastructDecryptionCounter.WithLabelValues(base.LabelStatusFail).Inc()
 		msg := fmt.Sprintf("Can't decrypt data")
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPRequest).Warningln(msg)
 		httpErr = NewHTTPError(http.StatusUnprocessableEntity, msg)
 		return
 	}
+	//TODO: remove deprecated metrics in 1-2 versions
 	base.AcrastructDecryptionCounter.WithLabelValues(base.LabelStatusSuccess).Inc()
 	logger.Infoln("Decrypted data")
 	response = encryptionHTTPResponse{Data: decryptedData}
