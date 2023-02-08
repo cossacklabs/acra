@@ -70,6 +70,10 @@ func (encryptor *TokenizeQuery) OnQuery(ctx context.Context, query base.OnQueryO
 	clientSession := base.ClientSessionFromContext(ctx)
 	bindSettings := queryEncryptor.PlaceholderSettingsFromClientSession(clientSession)
 	for _, item := range items {
+		if !item.Setting.IsTokenized() {
+			continue
+		}
+
 		rightVal, ok := item.Expr.Right.(*sqlparser.SQLVal)
 		if !ok {
 			logrus.Debugln("expect SQLVal as Right expression for searchable consistent tokenization")
@@ -80,13 +84,6 @@ func (encryptor *TokenizeQuery) OnQuery(ctx context.Context, query base.OnQueryO
 
 		err = queryEncryptor.UpdateExpressionValue(ctx, item.Expr.Right, encryptor.coder, encryptor.getTokenizerDataWithSetting(item.Setting))
 		if err != nil {
-			// in case of several Observers registered (TokenizeQuery, HashQuery)
-			// we might catch pure searchable queries with TokenizeQuery so that data will be returned unchanged as setting is not matched
-			// we just ignore error to let process next Observer
-			if err == queryEncryptor.ErrUpdateLeaveDataUnchanged && !item.Setting.IsTokenized() {
-				return query, false, nil
-			}
-
 			logrus.WithError(err).Debugln("Failed to update expression")
 			return query, false, err
 		}
