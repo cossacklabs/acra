@@ -1,3 +1,6 @@
+# 0.95.0 - 2023-02-07
+- Added collecting new Prometheus metrics for AcraServer/AcraTranslator;
+
 # 0.95.0 - 2023-02-02
 - Improve processing int4 values from PostgreSQL with binary format of values
 

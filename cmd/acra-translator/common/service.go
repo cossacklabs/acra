@@ -3,12 +3,14 @@ package common
 import (
 	"context"
 	"errors"
+
+	"github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/hmac"
 	"github.com/cossacklabs/acra/logging"
 	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
-	"github.com/sirupsen/logrus"
 )
 
 // ITranslatorService interface introduce all supported methods by Acra-Translator
@@ -81,7 +83,8 @@ func (service *TranslatorService) Decrypt(ctx context.Context, acraStruct, clien
 
 	data, decryptErr := service.handler.DecryptWithHandler(handler, acraStruct, dataContext)
 	if decryptErr != nil {
-		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
+		//TODO: remove deprecated metrics in 1-2 versions
+		base.AcrastructDecryptionCounter.WithLabelValues(base.LabelStatusFail).Inc()
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraStruct).WithError(decryptErr).Errorln("Can't decrypt AcraStruct")
 		_, _, err = service.poisonDetector.OnColumn(dataCtx, acraStruct)
 		if err != nil {
@@ -91,7 +94,8 @@ func (service *TranslatorService) Decrypt(ctx context.Context, acraStruct, clien
 		// don't show users that we found poison record
 		return nil, ErrCantDecrypt
 	}
-	base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
+	//TODO: remove deprecated metrics in 1-2 versions
+	base.AcrastructDecryptionCounter.WithLabelValues(base.LabelStatusSuccess).Inc()
 	return data, nil
 }
 
@@ -113,7 +117,6 @@ func (service *TranslatorService) Encrypt(ctx context.Context, data, clientID, a
 	id := clientID
 	handler, err := crypto.GetHandlerByEnvelopeID(crypto.AcraStructEnvelopeID)
 	if err != nil {
-		base.AcrastructDecryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
 		logger.
 			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraStruct).
 			WithError(err).
@@ -125,12 +128,10 @@ func (service *TranslatorService) Encrypt(ctx context.Context, data, clientID, a
 
 	data, encryptErr := service.handler.EncryptWithHandler(handler, id, data)
 	if encryptErr != nil {
-		base.AcrastructDecryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraStruct).WithError(encryptErr).Errorln("Can't encrypt data")
 		// don't show users that we found poison record
 		return nil, ErrCantEncrypt
 	}
-	base.AcrastructDecryptionCounter.WithLabelValues(base.EncryptionTypeSuccess).Inc()
 	return data, nil
 }
 
@@ -462,7 +463,8 @@ func (service *TranslatorService) DecryptSym(ctx context.Context, acraBlock, cli
 
 	decrypted, err := service.handler.DecryptWithHandler(handler, acraBlock, dataContext)
 	if err != nil {
-		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
+		//TODO: remove deprecated metrics in 1-2 versions
+		base.AcrastructDecryptionCounter.WithLabelValues(base.LabelStatusFail).Inc()
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraBlock).WithError(err).Errorln("Can't decrypt AcraBlock")
 		_, _, poisonErr := service.poisonDetector.OnColumn(dataCtx, acraBlock)
 		if poisonErr != nil {
@@ -471,5 +473,7 @@ func (service *TranslatorService) DecryptSym(ctx context.Context, acraBlock, cli
 		}
 		return acraBlock, ErrCantDecrypt
 	}
+	//TODO: remove deprecated metrics in 1-2 versions
+	base.AcrastructDecryptionCounter.WithLabelValues(base.LabelStatusSuccess).Inc()
 	return decrypted, nil
 }

@@ -18,14 +18,16 @@ package grpc_api
 
 import (
 	"errors"
+
+	"github.com/sirupsen/logrus"
+	"golang.org/x/net/context"
+
 	"github.com/cossacklabs/acra/acrablock"
 	"github.com/cossacklabs/acra/cmd/acra-translator/common"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/hmac"
 	"github.com/cossacklabs/acra/logging"
 	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/net/context"
 )
 
 // ErrEmptyClientID error used if ClientID required in request but not provided
@@ -71,11 +73,13 @@ func (service *TranslatorService) Encrypt(ctx context.Context, request *EncryptR
 
 	response, err := service.service.Encrypt(ctx, request.Data, request.ClientId, nil)
 	if err != nil {
-		base.APIEncryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
+		base.APIEncryptionCounter.WithLabelValues(base.LabelStatusFail).Inc()
 		msg := "Unexpected error with AcraStruct generation"
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantEncryptData).Warningln(msg)
 		return nil, err
 	}
+
+	base.APIEncryptionCounter.WithLabelValues(base.LabelStatusSuccess).Inc()
 	return &EncryptResponse{Acrastruct: response}, nil
 }
 

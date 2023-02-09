@@ -1,0 +1,58 @@
+schemas:
+  - table: test_tokenization_default_client_id
+    columns:
+      - id
+      - nullable
+      - empty
+      - token_i32
+      - token_i64
+      - token_str
+      - token_bytes
+      - token_email
+    encrypted:
+      - column: token_i32
+        token_type: int32
+        tokenized: true
+      - column: token_i64
+        token_type: int64
+        tokenized: true
+      - column: token_str
+        token_type: str
+        tokenized: true
+      - column: token_bytes
+        token_type: bytes
+        tokenized: true
+      - column: token_email
+        token_type: email
+        tokenized: true
+
+  - table: test_searchable_transparent_encryption
+    columns:
+      - id
+      - specified_client_id
+      - default_client_id
+      - number
+      - raw_data
+      - nullable
+      - searchable
+      - searchable_acrablock
+      - empty
+      - token_i32
+      - token_i64
+      - token_str
+      - token_bytes
+      - token_email
+      - masking
+    encrypted:
+      # as a specified client_id we use generated client_id from client certificates from ./ssl/acra-writer/ and /ssl/acra-writer-2/
+      - column: specified_client_id
+        client_id: 12824c1c541a615f428a740770291374a8504f84a0682ab4015bc8e792b1bc8240022c5c9faa8c2111e0076b3b929148f4b801414413edaa800cb42492c20cf7
+
+      - column: default_client_id
+
+      - column: searchable
+        searchable: true
+
+      - column: searchable_acrablock
+        searchable: true
+        crypto_envelope: acrablock

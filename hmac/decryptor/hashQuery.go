@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	queryEncryptor "github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
@@ -27,7 +29,6 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/sirupsen/logrus"
 )
 
 // HashDecryptStore that used by HashQuery
@@ -92,6 +93,10 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObjec
 	// Now that we have condition expressions, perform rewriting in them.
 	hashSize := []byte(fmt.Sprintf("%d", hmac.GetDefaultHashSize()))
 	for _, item := range items {
+		if !item.Setting.IsSearchable() {
+			continue
+		}
+
 		// column = 'value' ===> substring(column, 1, <HMAC_size>) = 'value'
 		item.Expr.Left = &sqlparser.SubstrExpr{
 			Name: item.Expr.Left.(*sqlparser.ColName),

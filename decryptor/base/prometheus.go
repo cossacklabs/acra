@@ -1,22 +1,24 @@
 package base
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
 	"sync"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
-// Labels and values about AcraStruct decryptions status
+// LabelStatus base constants for prometheus metrics
 const (
-	DecryptionTypeLabel   = "status"
-	DecryptionTypeSuccess = "success"
-	DecryptionTypeFail    = "fail"
-)
+	LabelStatus        = "status"
+	LabelStatusFail    = "fail"
+	LabelStatusSuccess = "success"
 
-// Labels and values about data encryption status
-const (
-	EncryptionTypeLabel   = "status"
-	EncryptionTypeSuccess = "success"
-	EncryptionTypeFail    = "fail"
+	LabelType                 = "type"
+	LabelTypeAcraBlock        = "acrablock"
+	LabelTypeAcraStruct       = "acrastruct"
+	LabelTypeAcraBlockSearch  = "acrablock_searchable"
+	LabelTypeAcraStructSearch = "acrastruct_searchable"
+
+	LabelTokenType = "token_type"
 )
 
 // Labels and values about db type in processing
@@ -26,20 +28,52 @@ const (
 	DecryptionDBMysql      = "mysql"
 )
 
+// Deprecated Metrics
 var (
 	// AcrastructDecryptionCounter collect decryptions count success/failed
 	AcrastructDecryptionCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "acra_acrastruct_decryptions_total",
 			Help: "number of AcraStruct decryptions",
-		}, []string{DecryptionTypeLabel})
+		}, []string{LabelStatus})
 
 	// APIEncryptionCounter collect encryptions count success/failed
 	APIEncryptionCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "acra_api_encryptions_total",
 			Help: "number of encryptions data to AcraStruct",
-		}, []string{EncryptionTypeLabel})
+		}, []string{LabelStatus})
+)
+
+var (
+
+	// AcraDecryptionCounter collect decryptions count success/failed for type acrablock/acrastruct
+	AcraDecryptionCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "acra_decryptions_total",
+			Help: "number of decryptions AcraStruct/AcraBlock",
+		}, []string{LabelStatus, LabelType})
+
+	// AcraEncryptionCounter collect encryptions count success/failed for type acrablock/acrastruct
+	AcraEncryptionCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "acra_encryptions_total",
+			Help: "number of encryptions AcraStruct/AcraBlock",
+		}, []string{LabelStatus, LabelType})
+
+	// AcraTokenizationCounter collect tokenizations count success/failed for token_type
+	AcraTokenizationCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "acra_tokenizations_total",
+			Help: "number of tokenizations for token_type",
+		}, []string{LabelStatus, LabelTokenType})
+
+	// AcraDetokenizationCounter collect tokenizations count success/failed  for token_type
+	AcraDetokenizationCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "acra_detokenizations_total",
+			Help: "number of detokenizations for token_type",
+		}, []string{LabelStatus, LabelTokenType})
 
 	// ResponseProcessingTimeHistogram collect metrics about response processing time
 	ResponseProcessingTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -56,8 +90,12 @@ var (
 	}, []string{DecryptionDBLabel})
 )
 
-var dbRegisterLock = sync.Once{}
-var acraStructRegisterLock = sync.Once{}
+var (
+	dbRegisterLock                   = sync.Once{}
+	acraStructRegisterLock           = sync.Once{}
+	encryptionDecryptionRegisterLock = sync.Once{}
+	tokenizationRegisterLock         = sync.Once{}
+)
 
 // RegisterDbProcessingMetrics register in default prometheus registry metrics related with processing db requests/responses
 func RegisterDbProcessingMetrics() {
@@ -73,5 +111,20 @@ func RegisterAcraStructProcessingMetrics() {
 		prometheus.MustRegister(AcrastructDecryptionCounter)
 		prometheus.MustRegister(APIEncryptionCounter)
 	})
+}
 
+// RegisterEncryptionDecryptionProcessingMetrics register in default prometheus registry metrics related with AcraBlock/AcraStruct decryption/encryption
+func RegisterEncryptionDecryptionProcessingMetrics() {
+	encryptionDecryptionRegisterLock.Do(func() {
+		prometheus.MustRegister(AcraDecryptionCounter)
+		prometheus.MustRegister(AcraEncryptionCounter)
+	})
+}
+
+// RegisterTokenizationProcessingMetrics register in default prometheus registry metrics related with tokenization/detokenization
+func RegisterTokenizationProcessingMetrics() {
+	tokenizationRegisterLock.Do(func() {
+		prometheus.MustRegister(AcraTokenizationCounter)
+		prometheus.MustRegister(AcraDetokenizationCounter)
+	})
 }

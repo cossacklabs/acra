@@ -2,6 +2,8 @@ package crypto
 
 import (
 	"errors"
+
+	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
 )
 
@@ -38,10 +40,13 @@ func InitRegistry(keyStore keystore.ServerKeyStore) error {
 		envelopes:    make(map[string]ContainerHandler),
 		handlerIDMap: make(map[byte]ContainerHandler),
 	}
-	if err := Register(NewAcraBlockHandler()); err != nil {
+	acraBlockPrometheusHandler := NewPrometheusContainerHandlerWrapper(NewAcraBlockHandler(), base.LabelTypeAcraBlock)
+	if err := Register(acraBlockPrometheusHandler); err != nil {
 		return err
 	}
-	return Register(NewAcraStructHandler())
+
+	acraStructPrometheusHandler := NewPrometheusContainerHandlerWrapper(NewAcraStructHandler(), base.LabelTypeAcraStruct)
+	return Register(acraStructPrometheusHandler)
 }
 
 // Register public API allows registering other handlers from other packages

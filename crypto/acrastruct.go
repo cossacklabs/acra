@@ -2,13 +2,15 @@ package crypto
 
 import (
 	"fmt"
+
+	"github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/acrastruct"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/sirupsen/logrus"
 )
 
 // AcraStructEnvelopeID represent AcraBlock EnvelopeID will be serialized inside CryptoContainer
@@ -50,6 +52,7 @@ func (handler AcraStructHandler) Decrypt(data []byte, context *base.DataProcesso
 	privateKeys, err := context.Keystore.GetServerDecryptionPrivateKeys(accessContext.GetClientID())
 	defer utils.ZeroizePrivateKeys(privateKeys)
 	if err != nil {
+		base.AcrastructDecryptionCounter.WithLabelValues(base.LabelStatusFail).Inc()
 		logger.WithError(err).WithFields(
 			logrus.Fields{
 				logging.FieldKeyEventCode: logging.EventCodeErrorCantReadKeys,
@@ -58,6 +61,8 @@ func (handler AcraStructHandler) Decrypt(data []byte, context *base.DataProcesso
 			Debugln("Probably error occurred because: 1. used not appropriate TLS certificate or acra-server configured with inappropriate --client_id=<client_id>; 2. forgot to generate keys for your TLS certificate (or with specified client_id); 3. incorrectly configured keystore: incorrect path to folder or Redis database's number")
 		return []byte{}, fmt.Errorf("can't read private key for matched client_id to decrypt AcraStruct: %w", err)
 	}
+
+	base.AcrastructDecryptionCounter.WithLabelValues(base.LabelStatusSuccess).Inc()
 	return acrastruct.DecryptRotatedAcrastruct(data, privateKeys, nil)
 }
 

@@ -19,11 +19,12 @@ package common
 import (
 	"sync"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -54,6 +55,8 @@ func RegisterMetrics(serviceName string, version *utils.Version, edition utils.P
 		prometheus.MustRegister(connectionCounter)
 		prometheus.MustRegister(connectionProcessingTimeHistogram)
 		base.RegisterAcraStructProcessingMetrics()
+		base.RegisterEncryptionDecryptionProcessingMetrics()
+		base.RegisterTokenizationProcessingMetrics()
 		base.RegisterDbProcessingMetrics()
 		cmd.RegisterVersionMetrics(serviceName, version)
 		cmd.RegisterBuildInfoMetrics(serviceName, edition)

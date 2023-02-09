@@ -17,6 +17,7 @@ limitations under the License.
 package pseudonymization
 
 import (
+	"github.com/cossacklabs/acra/decryptor/base"
 	configCE "github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/pseudonymization/common"
 )
@@ -35,7 +36,16 @@ func NewTokenEncryptor(tokenizer *DataTokenizer) (*TokenEncryptor, error) {
 func (e *TokenEncryptor) EncryptWithClientID(clientID, data []byte, setting configCE.ColumnEncryptionSetting) ([]byte, error) {
 	if setting.IsTokenized() {
 		tokenContext := common.TokenContext{ClientID: clientID}
-		return e.tokenizer.Tokenize(data, tokenContext, setting)
+		tokenized, err := e.tokenizer.Tokenize(data, tokenContext, setting)
+		if err != nil {
+			if err != ErrDataTypeMismatch {
+				base.AcraTokenizationCounter.WithLabelValues(base.LabelStatusFail, setting.GetTokenType().String()).Inc()
+			}
+			return nil, err
+		}
+
+		base.AcraTokenizationCounter.WithLabelValues(base.LabelStatusSuccess, setting.GetTokenType().String()).Inc()
+		return tokenized, nil
 	}
 	return data, nil
 }
