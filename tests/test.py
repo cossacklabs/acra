@@ -2122,16 +2122,15 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
         self.searchableTransparentTest.encryptor_table = BaseSearchableTransparentEncryption().get_encryptor_table()
         base.metadata.create_all(self.engine_raw, [self.searchableTransparentTest.encryptor_table])
 
-        # init searchable transparent encryption test
+        # init tokenization test
         self.tokenizationTest = TestTokenization()
         self.tokenizationTest.engine_raw = self.engine_raw
         self.tokenizationTest.engine1 = self.engine1
         self.tokenizationTest.engine2 = self.engine2
 
     def tearDown(self):
-        self.searchableTransparentTest.tearDown()
         base.metadata.drop_all(self.engine_raw, [self.searchableTransparentTest.encryptor_table])
-        self.tokenizationTest.tearDown()
+        super().tearDown()
 
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
         acra_kwargs.update(encryptor_config_file=self.ENCRYPTOR_CONFIG)
