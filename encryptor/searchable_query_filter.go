@@ -159,7 +159,12 @@ func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(stmt sqlpa
 
 		lColumn, ok := comparisonExpr.Left.(*sqlparser.ColName)
 		if !ok {
-			return true, nil
+			// handle case if query was processed by searchable encryptor
+			substrExpr, ok := comparisonExpr.Left.(*sqlparser.SubstrExpr)
+			if !ok {
+				return true, nil
+			}
+			lColumn = substrExpr.Name
 		}
 
 		columnInfo, err := findColumnInfo(tableExpr, lColumn, filter.schemaStore)
@@ -204,12 +209,10 @@ func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(stmt sqlpa
 
 		if sqlVal, ok := comparisonExpr.Right.(*sqlparser.SQLVal); ok && isSupportedSQLVal(sqlVal) {
 			if comparisonExpr.Operator == sqlparser.EqualStr || comparisonExpr.Operator == sqlparser.NotEqualStr || comparisonExpr.Operator == sqlparser.NullSafeEqualStr {
-				if _, ok := comparisonExpr.Left.(*sqlparser.ColName); ok {
-					exprs = append(exprs, SearchableExprItem{
-						Expr:    comparisonExpr,
-						Setting: lColumnSetting,
-					})
-				}
+				exprs = append(exprs, SearchableExprItem{
+					Expr:    comparisonExpr,
+					Setting: lColumnSetting,
+				})
 			}
 		}
 

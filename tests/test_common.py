@@ -310,6 +310,15 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             popen_kwargs = {}
         cli_args = sorted(['--{}={}'.format(k, v) for k, v in args.items() if v is not None])
         print("acra-server args: {}".format(' '.join(cli_args)))
+        if self.EXTERNAL_ACRA:
+            # set version from default config
+            config = base.load_default_config('acra-server', skip_keys=[])
+            args['version'] = config['version']
+            # if want to use own instance of acra, put a breakpoint on return base.ProcessStub()
+            # and run acra-server with --config_file=/tmp/config.yml parameter,
+            # restart on every breakpoint stop to pull updated parameters and reset keys from memory cache
+            base.dump_yaml_config(args, '/tmp/config.yml')
+            return base.ProcessStub()
         process = base.fork(lambda: subprocess.Popen([self.get_acraserver_bin_path()] + cli_args,
                                                      **popen_kwargs))
         try:
@@ -364,8 +373,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     def setUp(self):
         self.checkSkip()
         try:
-            if not self.EXTERNAL_ACRA:
-                self.acra = self.fork_acra()
+            self.acra = self.fork_acra()
 
             base_args = base.get_connect_args(port=self.ACRASERVER_PORT, sslmode=base.SSLMODE)
 

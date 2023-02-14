@@ -388,16 +388,16 @@ def dump_yaml_config(config, path):
         yaml.dump(config, f)
 
 
-def load_default_config(service_name):
+def load_default_config(service_name, skip_keys=['version']):
+    # every config has version but service's don't have such parameter and will exit with error if we will
+    # provide unexpected parameter
+    # when services parse configs they ignore unknown parameters and not down for that
+
     config = load_yaml_config('configs/{}.yaml'.format(service_name))
 
     # convert empty values to empty strings to avoid pass them to Popen as
     # "None" string value
 
-    # every config has version but service's don't have such parameter and will exit with error if we will
-    # provide unexpected parameter
-    # when services parse configs they ignore unknown parameters and not down for that
-    skip_keys = ['version']
     for skip in skip_keys:
         del config[skip]
     for key in config:

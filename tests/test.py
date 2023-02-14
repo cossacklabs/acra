@@ -250,13 +250,12 @@ class TestConnectionClosing(BaseTestCase):
     def setUp(self):
         self.checkSkip()
         try:
-            if not self.EXTERNAL_ACRA:
-                self.acra = self.fork_acra(
-                    tls_ocsp_from_cert='ignore',
-                    tls_crl_from_cert='ignore',
-                    tls_ocsp_url='',
-                    tls_crl_url='',
-                )
+            self.acra = self.fork_acra(
+                tls_ocsp_from_cert='ignore',
+                tls_crl_from_cert='ignore',
+                tls_ocsp_url='',
+                tls_crl_url='',
+            )
         except:
             self.tearDown()
             raise
