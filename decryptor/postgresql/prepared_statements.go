@@ -102,6 +102,11 @@ func (r *PgPreparedStatementRegistry) AddCursor(cursor base.Cursor) error {
 		return ErrStatementNotFound
 	}
 
+	// if new cursor overrides existing, zeroize data in previous
+	oldCursor, ok := r.cursors[name]
+	if ok {
+		oldCursor.(*PgPortal).bind.Zeroize()
+	}
 	// Add the cursor into the list of cursors for its prepared statement
 	// and simultaneously enter it into the cursor registry.
 	prepared.(*PgPreparedStatement).cursors[name] = cursor
@@ -120,11 +125,16 @@ func (r *PgPreparedStatementRegistry) DeleteStatement(name string) error {
 	prepared := preparedGeneric.(*PgPreparedStatement)
 
 	// First, remove all cursors over the statement from the registry.
-	for cursor := range prepared.cursors {
-		delete(r.cursors, cursor)
+	for cursorName, cursor := range prepared.cursors {
+		cursor.(*PgPortal).bind.Zeroize()
+		delete(r.cursors, cursorName)
 	}
 	// Then drop the cursor list of the statement.
 	prepared.cursors = make(map[string]base.Cursor)
+	prepared.text = ""
+	// TODO: lagovas (10.02.2023) zeroize sql prepared.statement with recursive walking through SQLNodes
+	// and overwriting bytes
+
 	// Followed by the statement itself
 	delete(r.statements, name)
 	return nil
@@ -187,18 +197,18 @@ func (s *PgPreparedStatement) ParamsNum() int {
 // PgPortal is a PostgreSQL Cursor.
 // Cursors are called "portals" in PostgreSQL protocol specs.
 type PgPortal struct {
-	name      string
+	bind      *BindPacket
 	statement base.PreparedStatement
 }
 
 // NewPortal makes a new portal.
-func NewPortal(name string, statement base.PreparedStatement) *PgPortal {
-	return &PgPortal{name, statement}
+func NewPortal(bind *BindPacket, statement base.PreparedStatement) *PgPortal {
+	return &PgPortal{bind, statement}
 }
 
 // Name returns the name of the cursor.
 func (p *PgPortal) Name() string {
-	return p.name
+	return p.bind.PortalName()
 }
 
 // PreparedStatement returns the prepared statement this cursor is associated with.

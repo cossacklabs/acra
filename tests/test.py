@@ -4326,23 +4326,30 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
             # find our query in the log output
             # next after the query should be log entry about parsing error
             success = False
+            has_break = False
             with open(self.log_file.name, 'r', encoding='utf8') as f:
                 while True:
                     line = f.readline()
                     if not line:
                         break
                     if test_case.query in line:
-                        new_line = f.readline()
-                        self.assertIn('ignoring error of non parsed sql statement', new_line)
-                        if TEST_POSTGRESQL:
-                            self.assertIn("PostgreSQL dialect doesn't allow 'LIMIT offset, limit' syntax of LIMIT "
-                                          "statements", new_line)
-                        elif TEST_MYSQL:
-                            self.assertIn("MySQL dialect doesn't allow 'LIMIT ALL' syntax of LIMIT statements",
-                                          new_line)
-                        else:
-                            self.fail('Unexpected test environment')
-                        success = True
+                        # search expected query until ReadyForQueryPacket that means that command lifecycle is finished
+                        while True:
+                            new_line = f.readline()
+                            if not new_line:
+                                break
+                            self.assertNotIn('ReadyForQueryPacket', new_line)
+                            if 'ignoring error of non parsed sql statement' in new_line:
+                                if TEST_POSTGRESQL:
+                                    self.assertIn("PostgreSQL dialect doesn't allow 'LIMIT offset, limit' syntax of LIMIT "
+                                                  "statements", new_line)
+                                elif TEST_MYSQL:
+                                    self.assertIn("MySQL dialect doesn't allow 'LIMIT ALL' syntax of LIMIT statements",
+                                                  new_line)
+                                else:
+                                    self.fail('Unexpected test environment')
+                                success = True
+                                break
                         break
             if not success:
                 self.fail('Not found expected log entry in the acra-server\'s log output')

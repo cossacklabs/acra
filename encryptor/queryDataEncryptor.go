@@ -84,6 +84,10 @@ func (encryptor *QueryDataEncryptor) ID() string {
 	return "QueryDataEncryptor"
 }
 
+func (encryptor *QueryDataEncryptor) GetQueryEncryptionSettings() []*QueryDataItem {
+	return encryptor.querySelectSettings
+}
+
 // encryptInsertQuery encrypt data in insert query in VALUES and ON DUPLICATE KEY UPDATE statements
 func (encryptor *QueryDataEncryptor) encryptInsertQuery(ctx context.Context, insert *sqlparser.Insert, bindPlaceholders map[int]config.ColumnEncryptionSetting) (bool, error) {
 	tableName := insert.Table.Name

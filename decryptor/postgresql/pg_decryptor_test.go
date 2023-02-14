@@ -125,7 +125,10 @@ func TestPreparedStatementRegistering(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	proxySetting := base.NewProxySetting(parser, nil, nil, nil, acracensor.NewAcraCensor(), nil)
+	proxySetting, err := base.NewProxySetting(parser, nil, nil, nil, acracensor.NewAcraCensor(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	proxy, err := NewPgProxy(connectionSession, parser, proxySetting)
 	if err != nil {
 		t.Fatal(err)
@@ -231,7 +234,10 @@ func TestMultiplePrepareAtOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	proxySetting := base.NewProxySetting(parser, nil, nil, nil, acracensor.NewAcraCensor(), nil)
+	proxySetting, err := base.NewProxySetting(parser, nil, nil, nil, acracensor.NewAcraCensor(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	proxy, err := NewPgProxy(connectionSession, parser, proxySetting)
 	if err != nil {
 		t.Fatal(err)
@@ -345,7 +351,10 @@ func TestMultiplePrepareAtOnceWithError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	proxySetting := base.NewProxySetting(parser, nil, nil, nil, acracensor.NewAcraCensor(), nil)
+	proxySetting, err := base.NewProxySetting(parser, nil, nil, nil, acracensor.NewAcraCensor(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	proxy, err := NewPgProxy(connectionSession, parser, proxySetting)
 	if err != nil {
 		t.Fatal(err)

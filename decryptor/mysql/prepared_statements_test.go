@@ -71,7 +71,10 @@ schemas:
 		t.Fatal(err)
 	}
 
-	setting := base.NewProxySetting(parser, schemaStore, nil, nil, nil, nil)
+	setting, err := base.NewProxySetting(parser, schemaStore, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	proxyHandler, err := NewMysqlProxy(&stubSession{}, parser, setting)
 	if err != nil {
 		t.Fatal()
@@ -132,7 +135,10 @@ func TestParamsTrackHandler(t *testing.T) {
 	parser := sqlparser.New(sqlparser.ModeStrict)
 	nonEmptyStore := &tableSchemaStore{false}
 
-	setting := base.NewProxySetting(parser, nonEmptyStore, nil, nil, nil, nil)
+	setting, err := base.NewProxySetting(parser, nonEmptyStore, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	proxyHandler, err := NewMysqlProxy(&stubSession{}, parser, setting)
 	if err != nil {
 		t.Fatal()

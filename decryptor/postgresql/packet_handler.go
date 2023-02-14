@@ -275,6 +275,14 @@ func (packet *PacketHandler) IsDataRow() bool {
 	return packet.messageType[0] == DataRowMessageType
 }
 
+func (packet *PacketHandler) IsEmptyQueryResponse() bool {
+	return packet.messageType[0] == EmptyQueryResponseType
+}
+
+func (packet *PacketHandler) IsNoData() bool {
+	return packet.messageType[0] == NoDataType
+}
+
 // IsReadyForQuery returns true if packet has ReadyForQuery type.
 func (packet *PacketHandler) IsReadyForQuery() bool {
 	return packet.messageType[0] == ReadyForQueryMessageType
@@ -283,6 +291,10 @@ func (packet *PacketHandler) IsReadyForQuery() bool {
 // IsSimpleQuery return true if packet has SimpleQuery type
 func (packet *PacketHandler) IsSimpleQuery() bool {
 	return packet.messageType[0] == QueryMessageType
+}
+
+func (packet *PacketHandler) IsPortalSuspended() bool {
+	return packet.messageType[0] == PortalSuspendedType
 }
 
 // IsParse return true if packet has Parse type
@@ -305,9 +317,19 @@ func (packet *PacketHandler) IsBindComplete() bool {
 	return packet.messageType[0] == BindCompleteMessageType
 }
 
+// IsCommandComplete return true if packet has CommandComplete type
+func (packet *PacketHandler) IsCommandComplete() bool {
+	return packet.messageType[0] == CommandCompleteType
+}
+
 // IsExecute return true if packet has Execute type
 func (packet *PacketHandler) IsExecute() bool {
 	return packet.messageType[0] == ExecuteMessageType
+}
+
+func (packet *PacketHandler) IsErrorResponse() bool {
+	return packet.messageType[0] == ErrorResponseType
+
 }
 
 // GetParseData returns parsed Parse packet data.
