@@ -36,6 +36,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
@@ -738,6 +739,24 @@ func (store *KeyStore) ListKeys() ([]keystore.KeyDescription, error) {
 	return keys, nil
 }
 
+// ListHistoricalKeys enumerates keys present in the keystore within old dir.
+func (store *KeyStore) ListHistoricalKeys() ([]keystore.KeyDescription, error) {
+	keys, err := store.describeOldDir(store.privateKeyDirectory)
+	if err != nil {
+		return nil, err
+	}
+
+	if store.publicKeyDirectory != store.privateKeyDirectory {
+		publicKeys, err := store.describeOldDir(store.publicKeyDirectory)
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, publicKeys...)
+	}
+
+	return keys, nil
+}
+
 func (store *KeyStore) describeDir(dirName string) ([]keystore.KeyDescription, error) {
 	files, err := store.fs.ReadDir(dirName)
 	if err != nil {
@@ -770,6 +789,75 @@ func (store *KeyStore) describeDir(dirName string) ([]keystore.KeyDescription, e
 			continue
 		}
 		keys = append(keys, *description)
+	}
+	return keys, nil
+}
+
+func (store *KeyStore) describeOldDir(dirName string) ([]keystore.KeyDescription, error) {
+	files, err := store.fs.ReadDir(dirName)
+	if err != nil {
+		return nil, err
+	}
+
+	keys := make([]keystore.KeyDescription, 0, len(files))
+	for _, fileInfo := range files {
+		if fileInfo.IsDir() && fileInfo.Name() == ".poison_key" {
+			//recursive read to scan poison directory
+			poisonKeys, err := store.describeOldDir(filepath.Join(dirName, fileInfo.Name()))
+			if err != nil {
+				return nil, err
+			}
+			keys = append(keys, poisonKeys...)
+
+			continue
+		}
+
+		if !fileInfo.IsDir() || !strings.HasSuffix(fileInfo.Name(), "old") {
+			continue
+		}
+
+		// remove old suffix from dir name and path it to get KeyDescription
+		fileName := strings.TrimSuffix(fileInfo.Name(), ".old")
+
+		description, err := DescribeKeyFile(fileName)
+		if err != nil {
+			return nil, err
+		}
+		if description.Purpose == keystore.PurposeLegacy {
+			log.WithField("ID", description.ID).Warn("Ignoring legacy key")
+			continue
+		}
+
+		// read files inside directory with old prefix
+		files, err = store.fs.ReadDir(filepath.Join(dirName, fileInfo.Name()))
+		if err != nil {
+			return nil, err
+		}
+
+		if len(files) == 0 {
+			log.WithField("ID", fileInfo.Name()).Warn("Contains no key files")
+			continue
+		}
+
+		for _, file := range files {
+			if file.IsDir() {
+				continue
+			}
+
+			creationTime, err := time.Parse(HistoricalFileNameTimeFormat, file.Name())
+			if err != nil {
+				return nil, err
+			}
+
+			descriptionWithTime := keystore.KeyDescription{
+				ID:           description.ID,
+				Purpose:      description.Purpose,
+				ClientID:     description.ClientID,
+				CreationTime: creationTime,
+			}
+
+			keys = append(keys, descriptionWithTime)
+		}
 	}
 	return keys, nil
 }

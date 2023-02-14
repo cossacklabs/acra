@@ -42,6 +42,9 @@ type KeyStore interface {
 
 	// DescribeKeyRing describes key ring by its purpose path.
 	DescribeKeyRing(purpose string) (*keystoreV1.KeyDescription, error)
+
+	// DescribeHistoricalKeyRing describes historical key ring bys its purpose path.
+	DescribeHistoricalKeyRing(path string) ([]keystoreV1.KeyDescription, error)
 }
 
 // MutableKeyStore interface to KeyStore allowing write access.

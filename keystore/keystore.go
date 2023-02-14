@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -434,6 +435,7 @@ type ServerKeyStore interface {
 
 	CacheOnStart() error
 	ListKeys() ([]KeyDescription, error)
+	ListHistoricalKeys() ([]KeyDescription, error)
 	Reset()
 }
 
@@ -446,6 +448,8 @@ type KeyDescription struct {
 	ID       string
 	Purpose  KeyPurpose
 	ClientID []byte `json:",omitempty"`
+	// used to display creation time of historical key
+	CreationTime time.Time
 }
 
 // TranslationKeyStore enables AcraStruct translation. It is used by acra-translator tool.
