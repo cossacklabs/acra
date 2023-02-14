@@ -87,7 +87,7 @@ func TestCursorInsertion(t *testing.T) {
 	registry := NewPreparedStatementRegistry()
 
 	statement := NewPreparedStatement("statement", "SELECT * FROM TEST", nil)
-	cursor := NewPortal("cursor", statement)
+	cursor := NewPortal(&BindPacket{portal: "cursor"}, statement)
 
 	// It should not be possible to add a cursor into the registry
 	// without its associated statement already being there.
@@ -134,14 +134,14 @@ func TestCursorUpdateNamed(t *testing.T) {
 	if err != nil {
 		t.Fatal("cannot add initial statement", err)
 	}
-	cursor1 := NewPortal("cursor", statement)
+	cursor1 := NewPortal(&BindPacket{portal: "cursor"}, statement)
 	err = registry.AddCursor(cursor1)
 	if err != nil {
 		t.Fatal("cannot add cursor", err)
 	}
 
 	// Then create a new cursor for the same statement and insert it again.
-	cursor2 := NewPortal("cursor", statement)
+	cursor2 := NewPortal(&BindPacket{portal: "cursor"}, statement)
 	err = registry.AddCursor(cursor2)
 	if err != nil {
 		t.Fatal("cannot update existing named cursor", err)
@@ -159,7 +159,7 @@ func TestCursorUpdateNamed(t *testing.T) {
 	// Now, the same should work just fine if a cursor for different statement reuses the same name,
 	// provided that the statement is in the registry and all.
 	statement2 := NewPreparedStatement("statement", "SELECT 2", nil)
-	cursor3 := NewPortal("cursor", statement2)
+	cursor3 := NewPortal(&BindPacket{portal: "cursor"}, statement2)
 	err = registry.AddStatement(statement2)
 	if err != nil {
 		t.Fatal("cannot add second statement", err)
@@ -224,12 +224,12 @@ func TestCursorRemoval(t *testing.T) {
 	if err != nil {
 		t.Fatal("cannot add initial statement", err)
 	}
-	cursor1 := NewPortal("cursor1", statement)
+	cursor1 := NewPortal(&BindPacket{portal: "cursor1"}, statement)
 	err = registry.AddCursor(cursor1)
 	if err != nil {
 		t.Fatal("cannot add cursor", err)
 	}
-	cursor2 := NewPortal("cursor2", statement)
+	cursor2 := NewPortal(&BindPacket{portal: "cursor2"}, statement)
 	err = registry.AddCursor(cursor2)
 	if err != nil {
 		t.Fatal("cannot add cursor", err)
@@ -280,12 +280,12 @@ func TestCursorRemovalWithStatement(t *testing.T) {
 	if err != nil {
 		t.Fatal("cannot add initial statement", err)
 	}
-	cursor1 := NewPortal("cursor1", statement)
+	cursor1 := NewPortal(&BindPacket{portal: "cursor1"}, statement)
 	err = registry.AddCursor(cursor1)
 	if err != nil {
 		t.Fatal("cannot add cursor", err)
 	}
-	cursor2 := NewPortal("cursor2", statement)
+	cursor2 := NewPortal(&BindPacket{portal: "cursor2"}, statement)
 	err = registry.AddCursor(cursor2)
 	if err != nil {
 		t.Fatal("cannot add cursor", err)

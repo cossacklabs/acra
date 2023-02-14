@@ -343,7 +343,7 @@ func (proxy *PgProxy) handleClientPacket(ctx context.Context, packet *PacketHand
 		// but for now it is not implemented yet. Therefore, connection with a
 		// large number of prepared statements with errors tend to leak memory,
 		// but on practice it is not that noticeable.
-		pendingParse, err := proxy.protocolState.LastParse()
+		pendingParse, err := packet.GetParseData()
 		if err != nil {
 			return false, err
 		}
@@ -372,19 +372,38 @@ func (proxy *PgProxy) handleClientPacket(ctx context.Context, packet *PacketHand
 }
 
 func (proxy *PgProxy) handleQueryPacket(ctx context.Context, packet *PacketHandler, logger *log.Entry) (bool, error) {
-	query := proxy.protocolState.PendingQuery()
+	var query string
+	var err error
+	if packet.IsParse() {
+		parsePacket, err := packet.GetParseData()
+		if err != nil {
+			logger.WithError(err).Errorln("Can't get Parse packet to handle query")
+			return false, err
+		}
+		query = parsePacket.QueryString()
+	} else if packet.IsSimpleQuery() {
+		query, err = packet.GetSimpleQuery()
+		if err != nil {
+			logger.WithError(err).Errorln("Can't get SimpleQuery packet to handle query")
+			return false, err
+		}
+	} else {
+		logger.WithField("type", string(packet.messageType[0])).Errorln("Unsupported type of packet to handle query")
+		return false, ErrUnsupportedPacketType
+	}
 
 	// Log query text -- if and only if we're in debug mode -- without inserted value data.
 	// The query can still be sensitive though, so only in debug mode can we do this.
 	if logging.GetLogLevel() == logging.LogDebug {
-		_, queryWithHiddenValues, _, err := proxy.parser.HandleRawSQLQuery(query.Query())
+		_, queryWithHiddenValues, _, err := proxy.parser.HandleRawSQLQuery(query)
 		if err == sqlparser.ErrQuerySyntaxError {
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).
 				Debugf("Parsing error on query: %s", queryWithHiddenValues)
 		} else {
+			// create new logger to log full sql only once and repeat it in the next log messages
 			log := logger.WithField("sql", queryWithHiddenValues)
 			if proxy.protocolState.LastPacketType() == ParseStatementPacket {
-				preparedStatement, err := proxy.protocolState.PendingParse()
+				preparedStatement, err := packet.GetParseData()
 				if err != nil {
 					return false, err
 				}
@@ -398,14 +417,15 @@ func (proxy *PgProxy) handleQueryPacket(ctx context.Context, packet *PacketHandl
 
 	// Let AcraCensor take a look at the query text.
 	// If it's not okay (and we're still alive), don't let the database see the query.
-	if censorErr := proxy.censor.HandleQuery(query.Query()); censorErr != nil {
+	if censorErr := proxy.censor.HandleQuery(query); censorErr != nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).
 			WithError(censorErr).Errorln("AcraCensor blocked query")
 		return true, nil
 	}
 
 	// Let the registered observers observe the query, potentially modifying it (e.g., transparent encryption).
-	newQuery, changed, err := proxy.queryObserverManager.OnQuery(ctx, query)
+	queryObj := base.NewOnQueryObjectFromQuery(query, proxy.parser)
+	newQuery, changed, err := proxy.queryObserverManager.OnQuery(ctx, queryObj)
 	if err != nil {
 		if filesystem.IsKeyReadError(err) {
 			return false, err
@@ -421,7 +441,7 @@ func (proxy *PgProxy) handleQueryPacket(ctx context.Context, packet *PacketHandl
 }
 
 func (proxy *PgProxy) handleBindPacket(ctx context.Context, packet *PacketHandler, logger *log.Entry) (bool, error) {
-	bind, err := proxy.protocolState.LastBind()
+	bind, err := packet.GetBindData()
 	if err != nil {
 		logger.WithError(err).Errorln("Can't get pending Bind packet")
 		return false, err
@@ -463,6 +483,7 @@ func (proxy *PgProxy) handleBindPacket(ctx context.Context, packet *PacketHandle
 	// Finally, if the parameter values have been changed, update the packet.
 	// If that fails, send the packet unchanged, as usual.
 	if changed {
+		logger.Debugln("Update bind packet")
 		bind.SetParameters(newParameters)
 		err = packet.ReplaceBind(bind)
 		if err != nil {
@@ -776,32 +797,6 @@ func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHa
 		// If that's some sort of a packet with a query response inside it,
 		// decrypt and process the data in it.
 		return proxy.handleQueryDataPacket(ctx, packet, logger)
-
-	case ParseCompletePacket:
-		pendingParse, err := proxy.protocolState.PendingParse()
-		if err != nil {
-			return err
-		}
-		if pendingParse != nil {
-			log.WithField("parse", pendingParse).Debugln("ParseComplete")
-		}
-		return proxy.protocolState.forgetPendingParse()
-	case BindCompletePacket:
-		// Previously requested cursor has been confirmed by the database, register it.
-		bindPacket, err := proxy.protocolState.PendingBind()
-		if err != nil {
-			logger.WithError(err).Errorln("Can't get pending Bind packet")
-			return err
-		}
-		if bindPacket == nil {
-			return ErrNilPendingPacket
-		}
-		defer func() {
-			if err := proxy.protocolState.zeroizePendingBind(); err != nil {
-				logger.WithError(err).Errorln("Can't forget pending Bind packet")
-			}
-		}()
-		return nil
 	case RowDescriptionPacket:
 		return proxy.handleRowDescription(ctx, packet, logger)
 

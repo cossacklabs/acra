@@ -72,8 +72,9 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 		if err != nil {
 			return nil, err
 		}
+		_ = queryEncryptor
 		proxy.AddQueryObserver(queryEncryptor)
-		proxy.SubscribeOnAllColumnsDecryption(queryEncryptor)
+		//proxy.SubscribeOnAllColumnsDecryption(queryEncryptor)
 	}
 
 	decoderProcessor, err := NewPgSQLDataDecoderProcessor()
