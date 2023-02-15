@@ -129,11 +129,13 @@ const (
 	stateSkipResponse
 )
 
+// EncryptionSettingExtractor uses QueryDataEncryptor to extract ColumnEncryptionSetting for every column in the result
 type EncryptionSettingExtractor struct {
 	encryptor *encryptor.QueryDataEncryptor
 	ctx       context.Context
 }
 
+// NewEncryptionSettingExtractor returns new initialized EncryptionSettingExtractor
 func NewEncryptionSettingExtractor(ctx context.Context, schema config.TableSchemaStore, parser *sqlparser.Parser) (EncryptionSettingExtractor, error) {
 	queryEncryptor, err := encryptor.NewPostgresqlQueryEncryptor(schema, parser, nil)
 	if err != nil {
@@ -142,6 +144,8 @@ func NewEncryptionSettingExtractor(ctx context.Context, schema config.TableSchem
 	return EncryptionSettingExtractor{queryEncryptor, ctx}, nil
 }
 
+// GetEncryptorSettingsForQuery walk through the query and match result columns in SELECT and INSERT/DELETE + RETURNING
+// statements to the ColumnEncryptionSetting
 func (extractor EncryptionSettingExtractor) GetEncryptorSettingsForQuery(object base.OnQueryObject) ([]*encryptor.QueryDataItem, error) {
 	_, _, err := extractor.encryptor.OnQuery(extractor.ctx, object)
 	if err != nil {

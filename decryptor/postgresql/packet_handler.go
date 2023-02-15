@@ -275,10 +275,12 @@ func (packet *PacketHandler) IsDataRow() bool {
 	return packet.messageType[0] == DataRowMessageType
 }
 
+// IsEmptyQueryResponse returns True if packet is EmptyQueryResponse packet type
 func (packet *PacketHandler) IsEmptyQueryResponse() bool {
 	return packet.messageType[0] == EmptyQueryResponseType
 }
 
+// IsNoData returns True if it is NoData response packet type
 func (packet *PacketHandler) IsNoData() bool {
 	return packet.messageType[0] == NoDataType
 }
@@ -293,6 +295,7 @@ func (packet *PacketHandler) IsSimpleQuery() bool {
 	return packet.messageType[0] == QueryMessageType
 }
 
+// IsPortalSuspended returns True if it is PortalSuspended packet type
 func (packet *PacketHandler) IsPortalSuspended() bool {
 	return packet.messageType[0] == PortalSuspendedType
 }
@@ -322,11 +325,12 @@ func (packet *PacketHandler) IsCommandComplete() bool {
 	return packet.messageType[0] == CommandCompleteType
 }
 
-// IsExecute return true if packet has Execute type
+// IsExecute return true if packet has Execute type from the db driver
 func (packet *PacketHandler) IsExecute() bool {
 	return packet.messageType[0] == ExecuteMessageType
 }
 
+// IsErrorResponse returns True if it is ErrorResponse from the database
 func (packet *PacketHandler) IsErrorResponse() bool {
 	return packet.messageType[0] == ErrorResponseType
 

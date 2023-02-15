@@ -84,6 +84,7 @@ func (encryptor *QueryDataEncryptor) ID() string {
 	return "QueryDataEncryptor"
 }
 
+// GetQueryEncryptionSettings returns collected in OnQuery callback encryptor settings
 func (encryptor *QueryDataEncryptor) GetQueryEncryptionSettings() []*QueryDataItem {
 	return encryptor.querySelectSettings
 }
