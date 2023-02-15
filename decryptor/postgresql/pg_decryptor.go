@@ -139,7 +139,7 @@ type EncryptionSettingExtractor struct {
 func NewEncryptionSettingExtractor(ctx context.Context, schema config.TableSchemaStore, parser *sqlparser.Parser) (EncryptionSettingExtractor, error) {
 	queryEncryptor, err := encryptor.NewPostgresqlQueryEncryptor(schema, parser, nil)
 	if err != nil {
-		return EncryptionSettingExtractor{}, nil
+		return EncryptionSettingExtractor{}, err
 	}
 	return EncryptionSettingExtractor{queryEncryptor, ctx}, nil
 }
