@@ -18,11 +18,20 @@ package keys
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
+	"flag"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/keystore/filesystem"
+	"github.com/cossacklabs/acra/keystore/keyloader"
+	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
+	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 )
 
 func TestPrintKeysDefault(t *testing.T) {
@@ -43,6 +52,33 @@ func TestPrintKeysDefault(t *testing.T) {
 	expected := `Key purpose | Client | Key ID
 ------------+--------+-----------
 testing     |        | Another ID
+`
+	if actual != expected {
+		t.Errorf("Incorrect output.\nActual:\n%s\nExpected:\n%s", actual, expected)
+	}
+}
+
+func TestPrintRotatedKeysDefault(t *testing.T) {
+	keys := []keystore.KeyDescription{
+		{
+			ID:           "Another ID",
+			Purpose:      "testing",
+			CreationTime: time.Unix(1676418028, 0).UTC(),
+		},
+	}
+
+	output := strings.Builder{}
+	err := PrintRotatedKeys(keys, &output, &CommonKeyListingParameters{useJSON: false})
+	if err != nil {
+		t.Fatalf("Failed to print keys: %v", err)
+	}
+
+	actual := output.String()
+	expected := `
+Rotated keys: 
+Key purpose | Client | Creation Time                 | Key ID
+------------+--------+-------------------------------+--------
+testing     |        | 2023-02-14 23:40:28 +0000 UTC | Another ID
 `
 	if actual != expected {
 		t.Errorf("Incorrect output.\nActual:\n%s\nExpected:\n%s", actual, expected)
@@ -71,6 +107,185 @@ func TestPrintKeysJSON(t *testing.T) {
 
 	if !equalDescriptionLists(actual, keys) {
 		t.Errorf("Incorrect output:\n%s", string(output.Bytes()))
+	}
+}
+
+func TestListRotatedKeysV1(t *testing.T) {
+	clientID := []byte("testclientid")
+	timesToRotateKeys := 3
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
+
+	masterKey, err := keystore.GenerateSymmetricKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	flagSet := flag.NewFlagSet(CmdMigrateKeys, flag.ContinueOnError)
+	keyloader.RegisterCLIParametersWithFlagSet(flagSet, "", "")
+
+	err = flagSet.Set("keystore_encryption_type", keyloader.KeystoreStrategyEnvMasterKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
+
+	dirName := t.TempDir()
+	if err := os.Chmod(dirName, 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	listCMD := &ListKeySubcommand{
+		CommonKeyStoreParameters: CommonKeyStoreParameters{
+			keyDir: dirName,
+		},
+		CommonKeyListingParameters: CommonKeyListingParameters{
+			rotatedKeys: true,
+		},
+		FlagSet: flagSet,
+	}
+
+	store, err := openKeyStoreV1(listCMD)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = store.GenerateDataEncryptionKeys(clientID); err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < timesToRotateKeys; i++ {
+		if err = store.GenerateDataEncryptionKeys(clientID); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	pubKeysEntries, err := os.ReadDir(filepath.Join(dirName, string(clientID)+"_storage.pub.old"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pubKeysTimes := make([]time.Time, 0, timesToRotateKeys)
+	for _, entry := range pubKeysEntries {
+		entryTime, err := time.Parse(filesystem.HistoricalFileNameTimeFormat, entry.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		pubKeysTimes = append(pubKeysTimes, entryTime)
+	}
+
+	privateKeysEntries, err := os.ReadDir(filepath.Join(dirName, string(clientID)+"_storage.old"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	privateKeysTimes := make([]time.Time, 0, timesToRotateKeys)
+	for _, entry := range privateKeysEntries {
+		entryTime, err := time.Parse(filesystem.HistoricalFileNameTimeFormat, entry.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		privateKeysTimes = append(privateKeysTimes, entryTime)
+	}
+
+	descriptions, err := store.ListRotatedKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(descriptions) != 2*timesToRotateKeys {
+		t.Fatal("Expect exact number of rotated keys description")
+	}
+
+	for i := 0; i < timesToRotateKeys; i++ {
+		if descriptions[i].CreationTime.String() != privateKeysTimes[i].String() {
+			t.Fatalf("Not expected creation time of rotated private key, %s not equal %s", descriptions[i].CreationTime.String(), privateKeysTimes[i].String())
+		}
+
+		if i > 0 {
+			if descriptions[i-1].CreationTime.After(descriptions[i].CreationTime) {
+				t.Fatal("Not expected order, expected keys time increased gradually")
+			}
+		}
+
+		if descriptions[i+timesToRotateKeys].CreationTime.String() != pubKeysTimes[i].String() {
+			t.Fatalf("Not expected creation time of rotated public key, %s not equal %s", descriptions[i].CreationTime.String(), pubKeysTimes[i].String())
+		}
+
+		if i > timesToRotateKeys {
+			if descriptions[i+timesToRotateKeys-1].CreationTime.After(descriptions[i+timesToRotateKeys].CreationTime) {
+				t.Fatal("Not expected order, expected keys time increased gradually")
+			}
+		}
+	}
+}
+
+func TestListRotatedKeysV2(t *testing.T) {
+	dirName := t.TempDir()
+	if err := os.Chmod(dirName, 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	timesToRotateKeys := 3
+	clientID := []byte("testclientid")
+
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
+	masterKey, err := keystoreV2.NewSerializedMasterKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+	flagSet := flag.NewFlagSet(CmdMigrateKeys, flag.ContinueOnError)
+	keyloader.RegisterCLIParametersWithFlagSet(flagSet, "", "")
+
+	err = flagSet.Set("keystore_encryption_type", keyloader.KeystoreStrategyEnvMasterKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
+
+	listCMD := &ListKeySubcommand{
+		CommonKeyStoreParameters: CommonKeyStoreParameters{
+			keyDir: dirName,
+		},
+		CommonKeyListingParameters: CommonKeyListingParameters{
+			rotatedKeys: true,
+		},
+		FlagSet: flagSet,
+	}
+
+	store, err := openKeyStoreV2(listCMD)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = store.GenerateDataEncryptionKeys(clientID); err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < timesToRotateKeys; i++ {
+		if err = store.GenerateDataEncryptionKeys(clientID); err != nil {
+			t.Fatal(err)
+		}
+		// sleep to have different rotated time
+		time.Sleep(time.Second)
+	}
+
+	descriptions, err := store.ListRotatedKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(descriptions) != timesToRotateKeys {
+		t.Fatal("Expect exact number of historical keys description")
+	}
+
+	for i := 0; i < len(descriptions); i++ {
+		if i > 0 {
+			if descriptions[i-1].CreationTime.After(descriptions[i].CreationTime) {
+				t.Fatal("Not expected order, expected keys time increased gradually")
+			}
+		}
 	}
 }
 

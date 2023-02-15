@@ -9,16 +9,21 @@ import (
 	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/keystore"
 
-	"github.com/cossacklabs/acra/cmd/acra-translator/common"
-	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"golang.org/x/net/context"
+
+	"github.com/cossacklabs/acra/cmd/acra-translator/common"
+	"github.com/cossacklabs/acra/poison"
 )
 
 type testKeystore struct {
 	PoisonKey         *keys.Keypair
 	EncryptionKeypair *keys.Keypair
 	UsedID            []byte
+}
+
+func (keystore *testKeystore) ListRotatedKeys() ([]keystore.KeyDescription, error) {
+	panic("implement me")
 }
 
 func (keystore *testKeystore) CacheOnStart() error {

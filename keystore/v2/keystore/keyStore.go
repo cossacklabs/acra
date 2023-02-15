@@ -35,6 +35,12 @@ var (
 	ErrUnrecognizedKeyPurpose = errors.New("key purpose not recognized")
 )
 
+const (
+	clientPrefixIndex = iota
+	clientIDIndex
+	purposeIndex
+)
+
 // Key purpose constants.
 const (
 	PurposePoisonRecord     = "poison record key"
@@ -72,6 +78,15 @@ func NewTranslatorKeyStore(keyStore api.MutableKeyStore) *TranslatorKeyStore {
 	}
 }
 
+// ListRotatedKeys enumerates rotated keys present in the keystore.
+func (s *ServerKeyStore) ListRotatedKeys() ([]keystore.KeyDescription, error) {
+	keyRings, err := s.ListKeyRings()
+	if err != nil {
+		return nil, err
+	}
+	return DescribeRotatedKeyRings(keyRings, s)
+}
+
 // ListKeys enumerates keys present in the keystore.
 func (s *ServerKeyStore) ListKeys() ([]keystore.KeyDescription, error) {
 	keyRings, err := s.ListKeyRings()
@@ -97,6 +112,54 @@ func DescribeKeyRings(keyRings []string, keyStore api.KeyStore) ([]keystore.KeyD
 		keys[i] = *description
 	}
 	return keys, nil
+}
+
+// DescribeRotatedKeyRings describes multiple key rings by their purpose paths.
+func DescribeRotatedKeyRings(keyRings []string, keyStore api.KeyStore) ([]keystore.KeyDescription, error) {
+	keys := make([]keystore.KeyDescription, 0, len(keyRings))
+	for i := range keyRings {
+		descriptions, err := keyStore.DescribeRotatedKeyRing(keyRings[i])
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, descriptions...)
+	}
+	return keys, nil
+}
+
+// DescribeRotatedKeyRing describes key ring by its purpose path.
+func (s *ServerKeyStore) DescribeRotatedKeyRing(path string) ([]keystore.KeyDescription, error) {
+	if path == poisonKeyPath {
+		return s.listRotatedRings(path, poisonKeyPath, []byte{})
+	}
+
+	if path == auditLogSymmetricKeyPath {
+		return s.listRotatedRings(path, PurposeAuditLog, []byte{})
+	}
+	if path == poisonSymmetricKeyPath {
+		return s.listRotatedRings(path, poisonSymmetricKeyPath, []byte{})
+	}
+
+	// Paths which are not server-global symmetric keys look like this:
+	//
+	//     client/${client_id}/storage
+	//
+	// Split them into components by slashes and parse the result.
+	//components := strings.Split(path, string(filepath.Separator))
+	components := strings.Split(path, string(filepath.Separator))
+	if len(components) == 3 {
+		if components[clientPrefixIndex] == clientPrefix && components[purposeIndex] == storageSuffix {
+			return s.listRotatedRings(path, PurposeStorageClient, []byte(components[clientIDIndex]))
+		}
+		if components[clientPrefixIndex] == clientPrefix && components[purposeIndex] == hmacSymmetricSuffix {
+			return s.listRotatedRings(path, PurposeSearchHMAC, []byte(components[clientIDIndex]))
+		}
+		if components[clientPrefixIndex] == clientPrefix && components[purposeIndex] == storageSymmetricSuffix {
+			return s.listRotatedRings(path, PurposeStorageClientSym, []byte(components[clientIDIndex]))
+		}
+	}
+
+	return nil, ErrUnrecognizedKeyPurpose
 }
 
 // DescribeKeyRing describes key ring by its purpose path.
@@ -125,32 +188,28 @@ func (s *ServerKeyStore) DescribeKeyRing(path string) (*keystore.KeyDescription,
 	//
 	//     client/${client_id}/storage
 	//
-	// And transport paths look like this, with an additional component:
-	//
-	//     client/${client_id}/transport/connector
-	//
 	// Split them into components by slashes and parse the result.
 	components := strings.Split(path, string(filepath.Separator))
 	if len(components) == 3 {
-		if components[0] == clientPrefix && components[2] == storageSuffix {
+		if components[clientPrefixIndex] == clientPrefix && components[purposeIndex] == storageSuffix {
 			return &keystore.KeyDescription{
 				ID:       path,
 				Purpose:  PurposeStorageClient,
-				ClientID: []byte(components[1]),
+				ClientID: []byte(components[clientPrefixIndex]),
 			}, nil
 		}
-		if components[0] == clientPrefix && components[2] == hmacSymmetricSuffix {
+		if components[clientPrefixIndex] == clientPrefix && components[purposeIndex] == hmacSymmetricSuffix {
 			return &keystore.KeyDescription{
 				ID:       path,
 				Purpose:  PurposeSearchHMAC,
-				ClientID: []byte(components[1]),
+				ClientID: []byte(components[clientPrefixIndex]),
 			}, nil
 		}
-		if components[0] == clientPrefix && components[2] == storageSymmetricSuffix {
+		if components[clientPrefixIndex] == clientPrefix && components[purposeIndex] == storageSymmetricSuffix {
 			return &keystore.KeyDescription{
 				ID:       path,
 				Purpose:  PurposeStorageClientSym,
-				ClientID: []byte(components[1]),
+				ClientID: []byte(components[clientIDIndex]),
 			}, nil
 		}
 	}
@@ -162,4 +221,40 @@ func (s *ServerKeyStore) DescribeKeyRing(path string) (*keystore.KeyDescription,
 // In KeyStoreV1 this method is used to reset cache.
 // KeyStoreV2 currently does not support key caching so there is nothing to reset.
 func (s *ServerKeyStore) Reset() {
+}
+
+func (s *ServerKeyStore) listRotatedRings(path string, purpose keystore.KeyPurpose, clientID []byte) ([]keystore.KeyDescription, error) {
+	ring, err := s.OpenKeyRing(path)
+	if err != nil {
+		log.WithError(err).Debug("Failed to open audit log key ring")
+		return nil, err
+	}
+
+	keys, err := ring.AllKeys()
+	if err != nil {
+		log.WithError(err).Debug("Failed to read all key ids")
+		return nil, err
+	}
+
+	if len(keys) == 0 {
+		return []keystore.KeyDescription{}, nil
+	}
+
+	result := make([]keystore.KeyDescription, 0, len(keys)-1)
+	for i := 1; i < len(keys); i++ {
+		creationTime, err := ring.ValidSince(i)
+		if err != nil {
+			log.WithError(err).Debug("Failed to get creation time state by segnum")
+			return nil, err
+		}
+
+		result = append(result, keystore.KeyDescription{
+			ID:           path,
+			Purpose:      purpose,
+			ClientID:     clientID,
+			CreationTime: creationTime,
+		})
+	}
+
+	return result, nil
 }

@@ -18,7 +18,6 @@
 package keys
 
 import (
-	"fmt"
 	"io"
 	"os"
 
@@ -28,26 +27,28 @@ import (
 	"github.com/cossacklabs/acra/utils"
 )
 
-func warnKeystoreV2Only(command string) {
-	log.Error(fmt.Sprintf("\"%s\" is not implemented for keystore v1", command))
-	log.Info("You can convert keystore v1 into v2 with \"acra-keys migrate\"")
-	// TODO(ilammy, 2020-05-19): production documentation does not describe migration yet
-	log.Info("Read more: https://docs.cossacklabs.com/pages/documentation-acra/#key-management")
-}
-
 // ListKeysCommand implements the "list" command.
 func ListKeysCommand(params ListKeysParams, keyStore keystore.ServerKeyStore) {
 	keyDescriptions, err := keyStore.ListKeys()
 	if err != nil {
-		if err == ErrNotImplementedV1 {
-			warnKeystoreV2Only(CmdListKeys)
-		}
 		log.WithError(err).Fatal("Failed to read key list")
 	}
 
 	err = PrintKeys(keyDescriptions, os.Stdout, params)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to print key list")
+	}
+
+	if params.ListRotatedKeys() {
+		keyDescriptions, err = keyStore.ListRotatedKeys()
+		if err != nil {
+			log.WithError(err).Fatal("Failed to read key list")
+		}
+
+		err = PrintRotatedKeys(keyDescriptions, os.Stdout, params)
+		if err != nil {
+			log.WithError(err).Fatal("Failed to print key list")
+		}
 	}
 }
 

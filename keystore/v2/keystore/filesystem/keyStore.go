@@ -205,6 +205,13 @@ func (s *KeyStore) DescribeKeyRing(path string) (*keystoreV1.KeyDescription, err
 	return nil, ErrNotImplemented
 }
 
+// DescribeRotatedKeyRing return KeyDescription list of rotated keys
+func (s *KeyStore) DescribeRotatedKeyRing(path string) ([]keystoreV1.KeyDescription, error) {
+	// This is basic keystore which does not define any particular key rings.
+	// This method will be overridden by actual keystore implementation.
+	return nil, ErrNotImplemented
+}
+
 // ExportKeyRings packages specified key rings for export.
 // Key ring data is encrypted and signed using given cryptosuite.
 // Resulting container can be imported into existing or different keystore with ImportKeyRings().
