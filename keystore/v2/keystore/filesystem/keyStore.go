@@ -205,8 +205,8 @@ func (s *KeyStore) DescribeKeyRing(path string) (*keystoreV1.KeyDescription, err
 	return nil, ErrNotImplemented
 }
 
-// DescribeHistoricalKeyRing return KeyDescription list of historical keys
-func (s *KeyStore) DescribeHistoricalKeyRing(path string) ([]keystoreV1.KeyDescription, error) {
+// DescribeRotatedKeyRing return KeyDescription list of rotated keys
+func (s *KeyStore) DescribeRotatedKeyRing(path string) ([]keystoreV1.KeyDescription, error) {
 	// This is basic keystore which does not define any particular key rings.
 	// This method will be overridden by actual keystore implementation.
 	return nil, ErrNotImplemented

@@ -8,9 +8,6 @@ dump_config: false
 # Generate with yaml config markdown text file with descriptions of all args
 generate_markdown_args_table: false
 
-# List Historical keys
-historical-keys: false
-
 # use machine-readable JSON output
 json: false
 
@@ -82,6 +79,9 @@ redis_tls_ocsp_client_required: denyUnknown
 
 # OCSP service URL
 redis_tls_ocsp_client_url: 
+
+# List Rotated keys
+rotated-keys: false
 
 # Connection string (http://x.x.x.x:yyyy) for loading ACRA_MASTER_KEY from HashiCorp Vault
 vault_connection_api_string: 

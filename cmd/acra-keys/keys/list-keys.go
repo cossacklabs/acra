@@ -32,13 +32,13 @@ import (
 // ListKeysParams ara parameters of "acra-keys list" subcommand.
 type ListKeysParams interface {
 	UseJSON() bool
-	ListHistoricalKeys() bool
+	ListRotatedKeys() bool
 }
 
 // CommonKeyListingParameters is a mix-in of command line parameters for keystore listing.
 type CommonKeyListingParameters struct {
-	useJSON        bool
-	historicalKeys bool
+	useJSON     bool
+	rotatedKeys bool
 }
 
 // UseJSON tells if machine-readable JSON should be used.
@@ -46,9 +46,9 @@ func (p *CommonKeyListingParameters) UseJSON() bool {
 	return p.useJSON
 }
 
-// ListHistoricalKeys return param if command should display historical keys.
-func (p *CommonKeyListingParameters) ListHistoricalKeys() bool {
-	return p.historicalKeys
+// ListRotatedKeys return param if command should display rotated keys.
+func (p *CommonKeyListingParameters) ListRotatedKeys() bool {
+	return p.rotatedKeys
 }
 
 // Register registers key formatting flags with the given flag set.
@@ -78,7 +78,7 @@ func (p *ListKeySubcommand) RegisterFlags() {
 	p.FlagSet = flag.NewFlagSet(CmdListKeys, flag.ContinueOnError)
 	p.CommonKeyStoreParameters.Register(p.FlagSet)
 	p.CommonKeyListingParameters.Register(p.FlagSet)
-	p.FlagSet.BoolVar(&p.historicalKeys, "historical-keys", false, "List Historical keys")
+	p.FlagSet.BoolVar(&p.rotatedKeys, "rotated-keys", false, "List Rotated keys")
 	p.FlagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": list available keys in the keystore\n", CmdListKeys)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...]\n", os.Args[0], CmdListKeys)
@@ -109,12 +109,12 @@ func PrintKeys(keys []keystore.KeyDescription, writer io.Writer, params ListKeys
 	return keystore.PrintKeysTable(keys, writer)
 }
 
-// PrintHistoricalKeys prints historical key list prettily into the given writer.
-func PrintHistoricalKeys(keys []keystore.KeyDescription, writer io.Writer, params ListKeysParams) error {
+// PrintRotatedKeys prints rotated key list prettily into the given writer.
+func PrintRotatedKeys(keys []keystore.KeyDescription, writer io.Writer, params ListKeysParams) error {
 	if params.UseJSON() {
 		return printKeysJSON(keys, writer)
 	}
-	return keystore.PrintHistoricalKeysTable(keys, writer)
+	return keystore.PrintRotatedKeysTable(keys, writer)
 }
 
 func printKeysJSON(keys []keystore.KeyDescription, writer io.Writer) error {
@@ -126,9 +126,3 @@ func printKeysJSON(keys []keystore.KeyDescription, writer io.Writer) error {
 	_, err = writer.Write(json)
 	return err
 }
-
-const (
-	purposeHeader = "Key purpose"
-	extraIDHeader = "Client"
-	idHeader      = "Key ID"
-)

@@ -22,7 +22,7 @@ type testKeystore struct {
 	UsedID            []byte
 }
 
-func (keystore *testKeystore) ListHistoricalKeys() ([]keystore.KeyDescription, error) {
+func (keystore *testKeystore) ListRotatedKeys() ([]keystore.KeyDescription, error) {
 	panic("implement me")
 }
 

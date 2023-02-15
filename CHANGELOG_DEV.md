@@ -1,5 +1,5 @@
 # 0.95.0 - 2023-02-14
-- Extend `acra-keys` `list` with supporting historical keys for V1/V2;
+- Extend `acra-keys` `list` with supporting rotated keys for V1/V2;
 
 # 0.95.0 - 2023-02-07
 - Added collecting new Prometheus metrics for AcraServer/AcraTranslator;

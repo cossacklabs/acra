@@ -50,10 +50,10 @@ func PrintKeysTable(keys []KeyDescription, writer io.Writer) error {
 	return nil
 }
 
-// PrintHistoricalKeysTable prints table which describes keys in a human readable format
-// into the writer.
+// PrintRotatedKeysTable prints table which describes keys in a readable format into the writer.
+// In format `Key purpose | Client | Creation Time | Key ID`
 // Code is shared by `acra-keys list` and a couple of tests
-func PrintHistoricalKeysTable(keys []KeyDescription, writer io.Writer) error {
+func PrintRotatedKeysTable(keys []KeyDescription, writer io.Writer) error {
 	const (
 		purposeHeader      = "Key purpose"
 		extraIDHeader      = "Client"
@@ -81,7 +81,7 @@ func PrintHistoricalKeysTable(keys []KeyDescription, writer io.Writer) error {
 	}
 
 	fmt.Fprint(writer, "\n")
-	fmt.Fprint(writer, "Historical keys: \n")
+	fmt.Fprint(writer, "Rotated keys: \n")
 	fmt.Fprintf(writer, "%-*s | %-*s | %-*s | %s\n", maxPurposeLen, purposeHeader, maxExtraIDLen, extraIDHeader, maxCreationTimeLen, creationTimeHeader, idHeader)
 
 	separator := make([]byte, maxPurposeLen+maxExtraIDLen+maxKeyIDLen+maxCreationTimeLen+6)

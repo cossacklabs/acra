@@ -58,6 +58,33 @@ testing     |        | Another ID
 	}
 }
 
+func TestPrintRotatedKeysDefault(t *testing.T) {
+	keys := []keystore.KeyDescription{
+		{
+			ID:           "Another ID",
+			Purpose:      "testing",
+			CreationTime: time.Unix(1676418028, 0),
+		},
+	}
+
+	output := strings.Builder{}
+	err := PrintRotatedKeys(keys, &output, &CommonKeyListingParameters{useJSON: false})
+	if err != nil {
+		t.Fatalf("Failed to print keys: %v", err)
+	}
+
+	actual := output.String()
+	expected := `
+Rotated keys: 
+Key purpose | Client | Creation Time                 | Key ID
+------------+--------+-------------------------------+--------
+testing     |        | 2023-02-14 23:40:28 +0000 WET | Another ID
+`
+	if actual != expected {
+		t.Errorf("Incorrect output.\nActual:\n%s\nExpected:\n%s", actual, expected)
+	}
+}
+
 func TestPrintKeysJSON(t *testing.T) {
 	keys := []keystore.KeyDescription{
 		{
@@ -83,9 +110,9 @@ func TestPrintKeysJSON(t *testing.T) {
 	}
 }
 
-func TestListHistoricalKeysV1(t *testing.T) {
+func TestListRotatedKeysV1(t *testing.T) {
 	clientID := []byte("testclientid")
-	timesToGenerateHistoricalKeys := 3
+	timesToRotateKeys := 3
 	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
 
 	masterKey, err := keystore.GenerateSymmetricKey()
@@ -113,7 +140,7 @@ func TestListHistoricalKeysV1(t *testing.T) {
 			keyDir: dirName,
 		},
 		CommonKeyListingParameters: CommonKeyListingParameters{
-			historicalKeys: true,
+			rotatedKeys: true,
 		},
 		FlagSet: flagSet,
 	}
@@ -127,7 +154,7 @@ func TestListHistoricalKeysV1(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for i := 0; i < timesToGenerateHistoricalKeys; i++ {
+	for i := 0; i < timesToRotateKeys; i++ {
 		if err = store.GenerateDataEncryptionKeys(clientID); err != nil {
 			t.Fatal(err)
 		}
@@ -138,7 +165,7 @@ func TestListHistoricalKeysV1(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pubKeysTimes := make([]time.Time, 0, timesToGenerateHistoricalKeys)
+	pubKeysTimes := make([]time.Time, 0, timesToRotateKeys)
 	for _, entry := range pubKeysEntries {
 		entryTime, err := time.Parse(filesystem.HistoricalFileNameTimeFormat, entry.Name())
 		if err != nil {
@@ -152,7 +179,7 @@ func TestListHistoricalKeysV1(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	privateKeysTimes := make([]time.Time, 0, timesToGenerateHistoricalKeys)
+	privateKeysTimes := make([]time.Time, 0, timesToRotateKeys)
 	for _, entry := range privateKeysEntries {
 		entryTime, err := time.Parse(filesystem.HistoricalFileNameTimeFormat, entry.Name())
 		if err != nil {
@@ -161,35 +188,45 @@ func TestListHistoricalKeysV1(t *testing.T) {
 		privateKeysTimes = append(privateKeysTimes, entryTime)
 	}
 
-	descriptions, err := store.ListHistoricalKeys()
+	descriptions, err := store.ListRotatedKeys()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(descriptions) != 2*timesToGenerateHistoricalKeys {
-		t.Fatal("Expect exact number of historical keys description")
+	if len(descriptions) != 2*timesToRotateKeys {
+		t.Fatal("Expect exact number of rotated keys description")
 	}
 
-	for i := 0; i < timesToGenerateHistoricalKeys; i++ {
+	for i := 0; i < timesToRotateKeys; i++ {
 		if descriptions[i].CreationTime.String() != privateKeysTimes[i].String() {
-			t.Fatalf("Not expected creation time of historical private key, %s not equal %s", descriptions[i].CreationTime.String(), privateKeysTimes[0].String())
+			t.Fatalf("Not expected creation time of rotated private key, %s not equal %s", descriptions[i].CreationTime.String(), privateKeysTimes[i].String())
 		}
-	}
 
-	for i := 0; i < timesToGenerateHistoricalKeys; i++ {
-		if descriptions[i+3].CreationTime.String() != pubKeysTimes[i].String() {
-			t.Fatalf("Not expected creation time of historical public key, %s not equal %s", descriptions[i].CreationTime.String(), privateKeysTimes[0].String())
+		if i > 0 {
+			if descriptions[i-1].CreationTime.After(descriptions[i].CreationTime) {
+				t.Fatal("Not expected order, expected keys time increased gradually")
+			}
+		}
+
+		if descriptions[i+timesToRotateKeys].CreationTime.String() != pubKeysTimes[i].String() {
+			t.Fatalf("Not expected creation time of rotated public key, %s not equal %s", descriptions[i].CreationTime.String(), pubKeysTimes[i].String())
+		}
+
+		if i > timesToRotateKeys {
+			if descriptions[i+timesToRotateKeys-1].CreationTime.After(descriptions[i+timesToRotateKeys].CreationTime) {
+				t.Fatal("Not expected order, expected keys time increased gradually")
+			}
 		}
 	}
 }
 
-func TestListHistoricalKeysV2(t *testing.T) {
-	timesToGenerateHistoricalKeys := 3
+func TestListRotatedKeysV2(t *testing.T) {
 	dirName := t.TempDir()
 	if err := os.Chmod(dirName, 0700); err != nil {
 		t.Fatal(err)
 	}
 
+	timesToRotateKeys := 3
 	clientID := []byte("testclientid")
 
 	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
@@ -212,7 +249,7 @@ func TestListHistoricalKeysV2(t *testing.T) {
 			keyDir: dirName,
 		},
 		CommonKeyListingParameters: CommonKeyListingParameters{
-			historicalKeys: true,
+			rotatedKeys: true,
 		},
 		FlagSet: flagSet,
 	}
@@ -226,19 +263,29 @@ func TestListHistoricalKeysV2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for i := 0; i < timesToGenerateHistoricalKeys; i++ {
+	for i := 0; i < timesToRotateKeys; i++ {
 		if err = store.GenerateDataEncryptionKeys(clientID); err != nil {
 			t.Fatal(err)
 		}
+		// sleep to have different rotated time
+		time.Sleep(time.Second)
 	}
 
-	descriptions, err := store.ListHistoricalKeys()
+	descriptions, err := store.ListRotatedKeys()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(descriptions) != timesToGenerateHistoricalKeys {
+	if len(descriptions) != timesToRotateKeys {
 		t.Fatal("Expect exact number of historical keys description")
+	}
+
+	for i := 0; i < len(descriptions); i++ {
+		if i > 0 {
+			if descriptions[i-1].CreationTime.After(descriptions[i].CreationTime) {
+				t.Fatal("Not expected order, expected keys time increased gradually")
+			}
+		}
 	}
 }
 

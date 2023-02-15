@@ -39,13 +39,13 @@ func ListKeysCommand(params ListKeysParams, keyStore keystore.ServerKeyStore) {
 		log.WithError(err).Fatal("Failed to print key list")
 	}
 
-	if params.ListHistoricalKeys() {
-		keyDescriptions, err = keyStore.ListHistoricalKeys()
+	if params.ListRotatedKeys() {
+		keyDescriptions, err = keyStore.ListRotatedKeys()
 		if err != nil {
 			log.WithError(err).Fatal("Failed to read key list")
 		}
 
-		err = PrintHistoricalKeys(keyDescriptions, os.Stdout, params)
+		err = PrintRotatedKeys(keyDescriptions, os.Stdout, params)
 		if err != nil {
 			log.WithError(err).Fatal("Failed to print key list")
 		}

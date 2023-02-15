@@ -435,7 +435,7 @@ type ServerKeyStore interface {
 
 	CacheOnStart() error
 	ListKeys() ([]KeyDescription, error)
-	ListHistoricalKeys() ([]KeyDescription, error)
+	ListRotatedKeys() ([]KeyDescription, error)
 	Reset()
 }
 
@@ -448,7 +448,7 @@ type KeyDescription struct {
 	ID       string
 	Purpose  KeyPurpose
 	ClientID []byte `json:",omitempty"`
-	// used to display creation time of historical key
+	// used to display creation time of rotated key
 	CreationTime time.Time
 }
 

@@ -310,7 +310,7 @@ func (_m *ServerKeyStore) GetServerDecryptionPrivateKeys(id []byte) ([]*keys.Pri
 }
 
 // ListHistoricalKeys provides a mock function with given fields:
-func (_m *ServerKeyStore) ListHistoricalKeys() ([]keystore.KeyDescription, error) {
+func (_m *ServerKeyStore) ListRotatedKeys() ([]keystore.KeyDescription, error) {
 	ret := _m.Called()
 
 	var r0 []keystore.KeyDescription

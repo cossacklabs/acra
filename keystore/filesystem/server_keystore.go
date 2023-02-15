@@ -739,8 +739,8 @@ func (store *KeyStore) ListKeys() ([]keystore.KeyDescription, error) {
 	return keys, nil
 }
 
-// ListHistoricalKeys enumerates keys present in the keystore within old dir.
-func (store *KeyStore) ListHistoricalKeys() ([]keystore.KeyDescription, error) {
+// ListRotatedKeys enumerates keys present in the keystore within old dir.
+func (store *KeyStore) ListRotatedKeys() ([]keystore.KeyDescription, error) {
 	keys, err := store.describeOldDir(store.privateKeyDirectory)
 	if err != nil {
 		return nil, err
@@ -841,7 +841,7 @@ func (store *KeyStore) describeOldDir(dirName string) ([]keystore.KeyDescription
 
 		for _, file := range files {
 			if file.IsDir() {
-				continue
+				return nil, errors.New("expect ")
 			}
 
 			creationTime, err := time.Parse(HistoricalFileNameTimeFormat, file.Name())
