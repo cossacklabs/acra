@@ -27,6 +27,7 @@ import (
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/utils"
 )
 
 // SupportedReadKeyKinds is a list of keys supported by `read-key` subcommand.
@@ -84,7 +85,7 @@ func (p *ReadKeySubcommand) RegisterFlags() {
 	p.FlagSet.BoolVar(&p.private, "private", false, "read private key of the keypair")
 	p.FlagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": read and print key material in plaintext\n", CmdReadKey)
-		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] <key-ID>\n\n", os.Args[0], CmdReadKey)
+		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] <key-KeyID>\n\n", os.Args[0], CmdReadKey)
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
 		cmd.PrintFlags(p.FlagSet)
 	}
@@ -172,6 +173,28 @@ func (p *ReadKeySubcommand) ReadKeyKind() string {
 // ClientID returns client ID of the requested key.
 func (p *ReadKeySubcommand) ClientID() []byte {
 	return p.contextID
+}
+
+// PrintKeyCommand implements the "read" command.
+func (p *ReadKeySubcommand) PrintKeyCommand(params ReadKeyParams, keyStore keystore.ServerKeyStore) {
+	keyBytes, err := ReadKeyBytes(params, keyStore)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to read key")
+	}
+	defer utils.ZeroizeSymmetricKey(keyBytes)
+	// allow to override writer for tests purpose with IDEA support
+	// https://github.com/go-lang-plugin-org/go-lang-idea-plugin/issues/2439
+	// IDEA marks test-cases as terminated if something in tests writes to stdout due to using json format and invalid output
+	// https://github.com/golang/go/issues/23036
+	// but by default it should write to StdOut to be able to pipe out output to next command
+	var writer io.Writer = os.Stdout
+	if p.outWriter != nil {
+		writer = p.outWriter
+	}
+	_, err = writer.Write(keyBytes)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to write key")
+	}
 }
 
 // ReadKeyBytes returns plaintext bytes of the requsted key.

@@ -61,7 +61,7 @@ func (p *DestroyKeySubcommand) RegisterFlags() {
 	p.CommonKeyStoreParameters.Register(p.FlagSet)
 	p.FlagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": destroy key material\n", CmdDestroyKey)
-		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] <key-ID>\n\n", os.Args[0], CmdDestroyKey)
+		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] <key-KeyID>\n\n", os.Args[0], CmdDestroyKey)
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
 		cmd.PrintFlags(p.FlagSet)
 	}
@@ -119,6 +119,14 @@ func (p *DestroyKeySubcommand) DestroyKeyKind() string {
 // ClientID returns client ID of the requested key.
 func (p *DestroyKeySubcommand) ClientID() []byte {
 	return p.contextID
+}
+
+// DestroyKeyCommand implements the "destroy" command.
+func DestroyKeyCommand(params DestroyKeyParams, keyStore keystore.KeyMaking) {
+	err := DestroyKey(params, keyStore)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to destroy key")
+	}
 }
 
 // DestroyKey destroys data of the requsted key.

@@ -23,11 +23,12 @@ import (
 	"io/ioutil"
 	"os"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
-	log "github.com/sirupsen/logrus"
 )
 
 // GenerateKeyParams are parameters of "acra-keys generate" subcommand.

@@ -37,21 +37,21 @@ import (
 func TestPrintKeysDefault(t *testing.T) {
 	keys := []keystore.KeyDescription{
 		{
-			ID:      "Another ID",
+			KeyID:   "Another KeyID",
 			Purpose: "testing",
 		},
 	}
 
 	output := strings.Builder{}
-	err := PrintKeys(keys, &output, &CommonKeyListingParameters{useJSON: false})
+	err := keystore.PrintKeysTable(keys, &output)
 	if err != nil {
 		t.Fatalf("Failed to print keys: %v", err)
 	}
 
 	actual := output.String()
-	expected := `Key purpose | Client | Key ID
-------------+--------+-----------
-testing     |        | Another ID
+	expected := `Idx | Key purpose | Client | Key ID
+------------+--------+--------------
+0   | testing     |        | Another KeyID
 `
 	if actual != expected {
 		t.Errorf("Incorrect output.\nActual:\n%s\nExpected:\n%s", actual, expected)
@@ -59,16 +59,17 @@ testing     |        | Another ID
 }
 
 func TestPrintRotatedKeysDefault(t *testing.T) {
+	creationTime := time.Unix(1676418028, 0).UTC()
 	keys := []keystore.KeyDescription{
 		{
-			ID:           "Another ID",
+			KeyID:        "Another KeyID",
 			Purpose:      "testing",
-			CreationTime: time.Unix(1676418028, 0).UTC(),
+			CreationTime: &creationTime,
 		},
 	}
 
 	output := strings.Builder{}
-	err := PrintRotatedKeys(keys, &output, &CommonKeyListingParameters{useJSON: false})
+	err := keystore.PrintRotatedKeysTable(keys, &output)
 	if err != nil {
 		t.Fatalf("Failed to print keys: %v", err)
 	}
@@ -76,9 +77,9 @@ func TestPrintRotatedKeysDefault(t *testing.T) {
 	actual := output.String()
 	expected := `
 Rotated keys: 
-Key purpose | Client | Creation Time                 | Key ID
-------------+--------+-------------------------------+--------
-testing     |        | 2023-02-14 23:40:28 +0000 UTC | Another ID
+Idx | Key purpose | Client | Creation Time                 | Key ID
+------------+--------+-------------------------------+-----------
+0   | testing     |        | 2023-02-14 23:40:28 +0000 UTC | Another KeyID
 `
 	if actual != expected {
 		t.Errorf("Incorrect output.\nActual:\n%s\nExpected:\n%s", actual, expected)
@@ -88,13 +89,13 @@ testing     |        | 2023-02-14 23:40:28 +0000 UTC | Another ID
 func TestPrintKeysJSON(t *testing.T) {
 	keys := []keystore.KeyDescription{
 		{
-			ID:      "Another ID",
+			KeyID:   "Another KeyID",
 			Purpose: "testing",
 		},
 	}
 
 	output := bytes.Buffer{}
-	err := PrintKeys(keys, &output, &CommonKeyListingParameters{useJSON: true})
+	err := printKeysJSON(keys, &output)
 	if err != nil {
 		t.Fatalf("Failed to print keys: %v", err)
 	}
@@ -203,8 +204,13 @@ func TestListRotatedKeysV1(t *testing.T) {
 		}
 
 		if i > 0 {
-			if descriptions[i-1].CreationTime.After(descriptions[i].CreationTime) {
+			if descriptions[i-1].CreationTime.After(*descriptions[i].CreationTime) {
 				t.Fatal("Not expected order, expected keys time increased gradually")
+			}
+
+			// rotated key index should be greater than 1
+			if descriptions[i-1].Idx <= 1 {
+				t.Fatal("Expected key Idx greater than 1")
 			}
 		}
 
@@ -213,8 +219,13 @@ func TestListRotatedKeysV1(t *testing.T) {
 		}
 
 		if i > timesToRotateKeys {
-			if descriptions[i+timesToRotateKeys-1].CreationTime.After(descriptions[i+timesToRotateKeys].CreationTime) {
+			if descriptions[i+timesToRotateKeys-1].CreationTime.After(*descriptions[i+timesToRotateKeys].CreationTime) {
 				t.Fatal("Not expected order, expected keys time increased gradually")
+			}
+
+			// rotated key index should be greater than 1
+			if descriptions[i+timesToRotateKeys-1].Idx <= 1 {
+				t.Fatal("Expected key Idx greater than 1")
 			}
 		}
 	}
@@ -282,8 +293,13 @@ func TestListRotatedKeysV2(t *testing.T) {
 
 	for i := 0; i < len(descriptions); i++ {
 		if i > 0 {
-			if descriptions[i-1].CreationTime.After(descriptions[i].CreationTime) {
+			if descriptions[i-1].CreationTime.After(*descriptions[i].CreationTime) {
 				t.Fatal("Not expected order, expected keys time increased gradually")
+			}
+
+			// rotated key index should be greater than 1
+			if descriptions[i-1].Idx <= 1 {
+				t.Fatal("Expected key Idx greater than 1")
 			}
 		}
 	}
@@ -302,6 +318,5 @@ func equalDescriptionLists(a, b []keystore.KeyDescription) bool {
 }
 
 func equalDescriptions(a, b keystore.KeyDescription) bool {
-	return a.ID == b.ID && a.Purpose == b.Purpose &&
-		bytes.Equal(a.ClientID, b.ClientID)
+	return a.KeyID == b.KeyID && a.Purpose == b.Purpose && bytes.Equal([]byte(a.ClientID), []byte(b.ClientID)) && a.Idx == b.Idx
 }

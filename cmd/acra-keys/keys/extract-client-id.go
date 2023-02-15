@@ -11,9 +11,10 @@ import (
 	"os"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/network"
-	log "github.com/sirupsen/logrus"
 )
 
 // ExtractClientIDParams are parameters of "acra-keys extract-client-id" subcommand.

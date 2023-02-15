@@ -1355,18 +1355,18 @@ func generateEveryKey(keyStore *KeyStore, t *testing.T) {
 
 func getAllExpectedKeys() []keystore.KeyDescription {
 	expectedKeys := []keystore.KeyDescription{
-		{ID: "poison_key", Purpose: keystore.PurposePoisonRecordKeyPair},
-		{ID: "poison_key.pub", Purpose: keystore.PurposePoisonRecordKeyPair},
-		{ID: "poison_key_sym", Purpose: keystore.PurposePoisonRecordSymmetricKey},
-		{ID: "cossack-hmac_hmac", Purpose: keystore.PurposeSearchHMAC, ClientID: []byte(hmacEncID)},
-		{ID: "cossack_storage", Purpose: keystore.PurposeStorageClientPrivateKey, ClientID: []byte(clientID)},
-		{ID: "cossack_storage.pub", Purpose: keystore.PurposeStorageClientPublicKey, ClientID: []byte(clientID)},
-		{ID: "cossack_storage_sym", Purpose: keystore.PurposeStorageClientSymmetricKey, ClientID: []byte(clientID)},
-		{ID: "secure_log_key", Purpose: keystore.PurposeAuditLog},
+		{Idx: 1, KeyID: "poison_key", Purpose: keystore.PurposePoisonRecordKeyPair},
+		{Idx: 1, KeyID: "poison_key.pub", Purpose: keystore.PurposePoisonRecordKeyPair},
+		{Idx: 1, KeyID: "poison_key_sym", Purpose: keystore.PurposePoisonRecordSymmetricKey},
+		{Idx: 1, KeyID: "cossack-hmac_hmac", Purpose: keystore.PurposeSearchHMAC, ClientID: hmacEncID},
+		{Idx: 1, KeyID: "cossack_storage", Purpose: keystore.PurposeStorageClientPrivateKey, ClientID: clientID},
+		{Idx: 1, KeyID: "cossack_storage.pub", Purpose: keystore.PurposeStorageClientPublicKey, ClientID: clientID},
+		{Idx: 1, KeyID: "cossack_storage_sym", Purpose: keystore.PurposeStorageClientSymmetricKey, ClientID: clientID},
+		{Idx: 1, KeyID: "secure_log_key", Purpose: keystore.PurposeAuditLog},
 	}
 	// sort to compare consistently
 	sort.Slice(expectedKeys, func(i, j int) bool {
-		return expectedKeys[i].ID < expectedKeys[j].ID
+		return expectedKeys[i].KeyID < expectedKeys[j].KeyID
 	})
 	return expectedKeys
 }
@@ -1378,27 +1378,27 @@ func TestDescribeKeyFileV2Keys(t *testing.T) {
 		input                  string
 	}{
 		{
-			expectedKeyDescription: &keystore.KeyDescription{ID: "audit-log.keyring", Purpose: keystore.PurposeAuditLog},
+			expectedKeyDescription: &keystore.KeyDescription{KeyID: "audit-log.keyring", Purpose: keystore.PurposeAuditLog},
 			input:                  "audit-log.keyring",
 		},
 		{
-			expectedKeyDescription: &keystore.KeyDescription{ID: "poison-record.keyring", Purpose: keystore.PurposePoisonRecordKeyPair},
+			expectedKeyDescription: &keystore.KeyDescription{KeyID: "poison-record.keyring", Purpose: keystore.PurposePoisonRecordKeyPair},
 			input:                  "poison-record.keyring",
 		},
 		{
-			expectedKeyDescription: &keystore.KeyDescription{ID: "poison-record-sym.keyring", Purpose: keystore.PurposePoisonRecordSymmetricKey},
+			expectedKeyDescription: &keystore.KeyDescription{KeyID: "poison-record-sym.keyring", Purpose: keystore.PurposePoisonRecordSymmetricKey},
 			input:                  "poison-record-sym.keyring",
 		},
 		{
-			expectedKeyDescription: &keystore.KeyDescription{ID: "storage.keyring", Purpose: keystore.PurposeStorageClientKeyPair, ClientID: []byte("test")},
+			expectedKeyDescription: &keystore.KeyDescription{KeyID: "storage.keyring", Purpose: keystore.PurposeStorageClientKeyPair, ClientID: "test"},
 			input:                  "client/test/storage.keyring",
 		},
 		{
-			expectedKeyDescription: &keystore.KeyDescription{ID: "storage.keyring", Purpose: keystore.PurposeStorageClientKeyPair, ClientID: []byte("test")},
+			expectedKeyDescription: &keystore.KeyDescription{KeyID: "storage.keyring", Purpose: keystore.PurposeStorageClientKeyPair, ClientID: "test"},
 			input:                  "client//test//storage.keyring",
 		},
 		{
-			expectedKeyDescription: &keystore.KeyDescription{ID: "storage-sym.keyring", Purpose: keystore.PurposeStorageClientSymmetricKey, ClientID: []byte("test")},
+			expectedKeyDescription: &keystore.KeyDescription{KeyID: "storage-sym.keyring", Purpose: keystore.PurposeStorageClientSymmetricKey, ClientID: "test"},
 			input:                  "client/test/storage-sym.keyring",
 		},
 		{
@@ -1415,7 +1415,7 @@ func TestDescribeKeyFileV2Keys(t *testing.T) {
 		res, err := DescribeKeyFile(tcase.input)
 
 		if tcase.expectedKeyDescription != nil {
-			if res.ID != tcase.expectedKeyDescription.ID {
+			if res.KeyID != tcase.expectedKeyDescription.KeyID {
 				t.Fatal(err)
 			}
 
@@ -1423,7 +1423,7 @@ func TestDescribeKeyFileV2Keys(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if tcase.expectedKeyDescription.ClientID != nil {
+			if tcase.expectedKeyDescription.ClientID != "" {
 				if res.Purpose != tcase.expectedKeyDescription.Purpose {
 					t.Fatal(err)
 				}
@@ -1451,7 +1451,7 @@ func TestListKeysSamePaths(t *testing.T) {
 		t.Fatal(err)
 	}
 	sort.Slice(all, func(i, j int) bool {
-		return all[i].ID < all[j].ID
+		return all[i].KeyID < all[j].KeyID
 	})
 
 	buff := bytes.NewBuffer([]byte{})
@@ -1502,7 +1502,7 @@ func TestListKeysDifferentPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 	sort.Slice(all, func(i, j int) bool {
-		return all[i].ID < all[j].ID
+		return all[i].KeyID < all[j].KeyID
 	})
 
 	buff := bytes.NewBuffer([]byte{})
