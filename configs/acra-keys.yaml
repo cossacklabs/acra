@@ -80,7 +80,7 @@ redis_tls_ocsp_client_required: denyUnknown
 # OCSP service URL
 redis_tls_ocsp_client_url: 
 
-# List Rotated keys
+# List rotated keys
 rotated-keys: false
 
 # Connection string (http://x.x.x.x:yyyy) for loading ACRA_MASTER_KEY from HashiCorp Vault
