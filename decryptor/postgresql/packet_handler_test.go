@@ -264,10 +264,7 @@ func TestSequenceOfParsePackets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	setting, err := base.NewProxySetting(parser, nil, nil, nil, acracensor.NewAcraCensor(), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	setting := base.NewProxySetting(parser, nil, nil, nil, acracensor.NewAcraCensor(), nil)
 	proxy, err := NewPgProxy(session, parser, setting)
 	if err != nil {
 		t.Fatal(err)

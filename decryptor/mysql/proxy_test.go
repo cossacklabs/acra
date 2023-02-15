@@ -166,10 +166,7 @@ func TestEncryptorTurnOnOff(t *testing.T) {
 	emptyStore := &tableSchemaStore{true}
 	nonEmptyStore := &tableSchemaStore{false}
 	parser := sqlparser.New(sqlparser.ModeStrict)
-	setting, err := base.NewProxySetting(parser, emptyStore, nil, nil, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	setting := base.NewProxySetting(parser, emptyStore, nil, nil, nil, nil)
 	proxyFactory, err := NewProxyFactory(setting, nil, nil)
 	if err != nil {
 		t.Fatal(setting)
@@ -182,10 +179,7 @@ func TestEncryptorTurnOnOff(t *testing.T) {
 		t.Fatal("Unexpected observers count")
 	}
 
-	setting, err = base.NewProxySetting(parser, nonEmptyStore, nil, nil, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	setting = base.NewProxySetting(parser, nonEmptyStore, nil, nil, nil, nil)
 	proxyFactory, err = NewProxyFactory(setting, nil, nil)
 	if err != nil {
 		t.Fatal(setting)

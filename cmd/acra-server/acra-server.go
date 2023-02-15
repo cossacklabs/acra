@@ -539,12 +539,7 @@ func realMain() error {
 	}
 
 	var proxyFactory base.ProxyFactory
-	var proxySetting base.ProxySetting
-	proxySetting, err = base.NewProxySetting(sqlParser, serverConfig.GetTableSchema(), keyStore, proxyTLSWrapper, serverConfig.GetCensor(), poisonCallbacks)
-	if err != nil {
-		log.WithError(err).Errorln("Can't initialize setting for proxy")
-		return err
-	}
+	proxySetting := base.NewProxySetting(sqlParser, serverConfig.GetTableSchema(), keyStore, proxyTLSWrapper, serverConfig.GetCensor(), poisonCallbacks)
 	if *useMysql {
 		proxyFactory, err = mysql.NewProxyFactory(proxySetting, keyStore, tokenizer)
 		if err != nil {
