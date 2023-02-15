@@ -159,12 +159,16 @@ func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(stmt sqlpa
 
 		lColumn, ok := comparisonExpr.Left.(*sqlparser.ColName)
 		if !ok {
-			// handle case if query was processed by searchable encryptor
-			substrExpr, ok := comparisonExpr.Left.(*sqlparser.SubstrExpr)
-			if !ok {
+			if filter.mode == QueryFilterModeSearchableEncryption {
+				// handle case if query was processed by searchable encryptor
+				substrExpr, ok := comparisonExpr.Left.(*sqlparser.SubstrExpr)
+				if !ok {
+					return true, nil
+				}
+				lColumn = substrExpr.Name
+			} else {
 				return true, nil
 			}
-			lColumn = substrExpr.Name
 		}
 
 		columnInfo, err := findColumnInfo(tableExpr, lColumn, filter.schemaStore)

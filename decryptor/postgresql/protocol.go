@@ -14,67 +14,56 @@
  * limitations under the License.
  */
 
-/*
-pendingQueryPackets: Query, Execute
-
-OnDataRow: find first added query packet.
-  If Query -> collect settings from the query
-  If execute -> find related Parse packet, collect settings from the query
-
-OnBind: find prepared statement from registry, parse settings
-
-OnClose: drop prepared
-
-OnQuery: if prepare/deallocate cursor: declare/close, register or delete prepared/cursor
-
-OnCommandComplete: pop one query packet. Note, that 1 SimpleQuery produce several CommandComplete but now we
-  don't support multistatement queries
-
-*/
-
 package postgresql
 
 import (
-	"errors"
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
+	"github.com/cossacklabs/acra/sqlparser/dependency/querypb"
 	log "github.com/sirupsen/logrus"
 )
 
-type packetWithQuery struct {
+type queryPacket struct {
 	preparedStatement *PgPreparedStatement
 	bindPacket        *BindPacket
 	executePacket     *ExecutePacket
 	simpleQueryPacket string
 }
 
-func newQueryPacket(query string) packetWithQuery {
-	return packetWithQuery{simpleQueryPacket: query}
+func newQueryPacket(query string) queryPacket {
+	return queryPacket{simpleQueryPacket: query}
 }
 
-func newExtendedQueryPacket(preparedStatement *PgPreparedStatement, bindPacket *BindPacket, executePacket *ExecutePacket) packetWithQuery {
-	return packetWithQuery{preparedStatement: preparedStatement, bindPacket: bindPacket, executePacket: executePacket}
+func newExtendedQueryPacket(preparedStatement *PgPreparedStatement, bindPacket *BindPacket, executePacket *ExecutePacket) queryPacket {
+	return queryPacket{preparedStatement: preparedStatement, bindPacket: bindPacket, executePacket: executePacket}
 }
 
-func (queryPacket packetWithQuery) String() string {
+// String return SimpleQuery or Prepared with statement name for log purposes
+func (queryPacket queryPacket) String() string {
 	if queryPacket.executePacket != nil {
 		return "Prepared: " + queryPacket.preparedStatement.name
 	}
 	return "SimpleQuery"
 }
 
-func (queryPacket packetWithQuery) GetSQLQuery() string {
+// GetSQLQuery returns SQL query. If packet is SimpleQuery then returns query, otherwise returns query from the Parse packet
+func (queryPacket queryPacket) GetSQLQuery() string {
 	if queryPacket.executePacket != nil {
 		return queryPacket.preparedStatement.QueryText()
 	}
 	return queryPacket.simpleQueryPacket
 }
 
-func (queryPacket packetWithQuery) zeroize() {
+func (queryPacket queryPacket) zeroize() {
 	// clear sensitive data where we can
 	queryPacket.simpleQueryPacket = ""
-	queryPacket.executePacket.Zeroize()
+	if queryPacket.executePacket != nil {
+		queryPacket.executePacket.Zeroize()
+		queryPacket.bindPacket.Zeroize()
+		queryPacket.preparedStatement.text = ""
+		bv := map[string]*querypb.BindVariable{}
+		sqlparser.Normalize(queryPacket.preparedStatement.sql, bv, sqlparser.ValueMask)
+	}
 }
 
 // PgProtocolState keeps track of PostgreSQL protocol state.
@@ -82,11 +71,9 @@ type PgProtocolState struct {
 	parser *sqlparser.Parser
 
 	lastPacketType PacketType
-	// some packets have pairs request/response and we save data from request only after receiving successful response
-	// here we save requests that wait acceptance by database
-	pendingPackets      *pendingPacketsList
+	// collect queries from the application that waiting DataRows from the database to correctly map settings of
+	// transparent encryption and type awareness to the result rows
 	pendingQueryPackets *pendingPacketsList
-	pendingQuery        base.OnQueryObject
 	registry            base.PreparedStatementRegistry
 }
 
@@ -104,12 +91,13 @@ const (
 	RowDescriptionPacket
 	ParameterDescriptionPacket
 	ReadyForQueryPacket
+	ExecutePacketType
 	OtherPacket
 )
 
 // NewPgProtocolState makes an initial PostgreSQL state, awaiting for queries.
 func NewPgProtocolState(parser *sqlparser.Parser, registry base.PreparedStatementRegistry) *PgProtocolState {
-	return &PgProtocolState{lastPacketType: OtherPacket, parser: parser, pendingPackets: newPendingPacketsList(),
+	return &PgProtocolState{lastPacketType: OtherPacket, parser: parser,
 		pendingQueryPackets: newPendingPacketsList(), registry: registry}
 }
 
@@ -121,93 +109,28 @@ func (p *PgProtocolState) LastPacketType() PacketType {
 // HandleClientPacket observes a packet from client to the database,
 // extracts query information from it, and anticipates future database responses.
 func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) error {
-	logger := packet.logger
-
 	// Query packets are easy, that's a simple query protocol.
 	if packet.IsSimpleQuery() {
-		query, err := packet.GetSimpleQuery()
-		if err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).
-				WithError(err).Errorln("Can't fetch query string from Query packet")
-			return err
-		}
-		queryPacket := newQueryPacket(query)
-		if err = p.pendingQueryPackets.Add(queryPacket); err != nil {
-			return err
-		}
-
 		p.lastPacketType = SimpleQueryPacket
-		p.pendingQuery = base.NewOnQueryObjectFromQuery(query, p.parser)
 		return nil
 	}
 
 	// Parse packets initiate extended query protocol.
 	if packet.IsParse() {
-		parsePacket, err := packet.GetParseData()
-		if err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).
-				WithError(err).Errorln("Can't fetch query string from Parse packet")
-			return err
-		}
 		p.lastPacketType = ParseStatementPacket
-		p.pendingQuery = base.NewOnQueryObjectFromQuery(parsePacket.QueryString(), p.parser)
-		if err := p.pendingPackets.Add(parsePacket); err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).
-				WithError(err).Errorln("Can't save parse packet")
-			return err
-		}
 		return nil
 	}
 
 	// Bind packets carry bound parameters for extended queries.
 	if packet.IsBind() {
-		bindPacket, err := packet.GetBindData()
-		if err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).
-				WithError(err).Errorln("Can't fetch query parameters from Bind packet")
-			return err
-		}
 		p.lastPacketType = BindStatementPacket
-		if err := p.pendingPackets.Add(bindPacket); err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).
-				WithError(err).Errorln("Can't save pending Bind packet")
-			return err
-		}
 		return nil
 	}
 
 	// Execute packets initiate data retrieval from portals.
 	if packet.IsExecute() {
-		executePacket, err := packet.GetExecuteData()
-		if err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).
-				WithError(err).Errorln("Can't fetch executed query from Execute packet")
-			return err
-		}
-		cursor, err := p.registry.CursorByName(executePacket.portal)
-		if err != nil {
-			return err
-		}
-		pgCursor, ok := cursor.(*PgPortal)
-		if !ok {
-			return errors.New("invalid type of cursor")
-		}
-		prepared, ok := cursor.PreparedStatement().(*PgPreparedStatement)
-		if !ok {
-			return errors.New("incorrect type of registered prepared statement")
-		}
-		queryPacket := newExtendedQueryPacket(prepared, pgCursor.bind, executePacket)
-		if err = p.pendingQueryPackets.Add(queryPacket); err != nil {
-			return err
-		}
-		// There is nothing in the packet to process when we receive it,
-		// but we'd like to keep it around while the data responses are flowing.
-		p.lastPacketType = OtherPacket
-		if err := p.pendingPackets.Add(executePacket); err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).
-				WithError(err).Errorln("Can't save pending Execute packet")
-			return err
-		}
+		p.lastPacketType = ExecutePacketType
+		return nil
 	}
 
 	// We are not interested in other packets, just pass them through.
@@ -246,20 +169,20 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 
 	if packet.IsCommandComplete() || packet.IsEmptyQueryResponse() || packet.IsPortalSuspended() || packet.IsErrorResponse() {
 		p.lastPacketType = OtherPacket
-		queryPacket, err := p.pendingQueryPackets.GetPendingPacket(packetWithQuery{})
+		pendingQueryPacket, err := p.pendingQueryPackets.GetPendingPacket(queryPacket{})
 		if err != nil {
 			log.WithError(err).Errorln("No pending qury packet")
 			return err
 		}
 		// valid case if received ErrorResponse for non-query packets from the database
-		if queryPacket == nil {
+		if pendingQueryPacket == nil {
 			if !packet.IsErrorResponse() {
 				log.Warningln("Can't find pending query packet")
 			}
 			return nil
 		}
-		log.WithField("command", queryPacket.(packetWithQuery)).Infoln("Command complete")
-		if err := p.pendingQueryPackets.RemoveNextPendingPacket(packetWithQuery{}); err != nil {
+		log.WithField("command", pendingQueryPacket.(queryPacket)).Infoln("Command complete")
+		if err := p.pendingQueryPackets.RemoveNextPendingPacket(queryPacket{}); err != nil {
 			return err
 		}
 		return nil
