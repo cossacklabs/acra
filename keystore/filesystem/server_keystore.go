@@ -841,7 +841,8 @@ func (store *KeyStore) describeOldDir(dirName string) ([]keystore.KeyDescription
 
 		for _, file := range files {
 			if file.IsDir() {
-				return nil, errors.New("expect ")
+				log.WithField("ID", file.Name()).Warn("Expected no directories in rotated keys folder")
+				return nil, errors.New("expected no directories in rotated keys folder")
 			}
 
 			creationTime, err := time.Parse(HistoricalFileNameTimeFormat, file.Name())
