@@ -63,19 +63,6 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 
 	schemaStore := factory.setting.TableSchemaStore()
 	storeMask := schemaStore.GetGlobalSettingsMask()
-	// register only if masking/tokenization/searching will be used
-	if !base.OnlyDefaultEncryptorSettings(schemaStore) {
-		// register Query processor first before other processors because it match SELECT queries for ColumnEncryptorConfig structs
-		// and store it in AccessContext for next decryptions/encryptions and all other processors rely on that
-		// use nil dataEncryptor to avoid extra computations
-		queryEncryptor, err := encryptor.NewPostgresqlQueryEncryptor(factory.setting.TableSchemaStore(), sqlParser, nil)
-		if err != nil {
-			return nil, err
-		}
-		_ = queryEncryptor
-		proxy.AddQueryObserver(queryEncryptor)
-		//proxy.SubscribeOnAllColumnsDecryption(queryEncryptor)
-	}
 
 	decoderProcessor, err := NewPgSQLDataDecoderProcessor()
 	if err != nil {
