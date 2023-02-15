@@ -63,7 +63,7 @@ func TestPrintRotatedKeysDefault(t *testing.T) {
 		{
 			ID:           "Another ID",
 			Purpose:      "testing",
-			CreationTime: time.Unix(1676418028, 0),
+			CreationTime: time.Unix(1676418028, 0).UTC(),
 		},
 	}
 
@@ -78,7 +78,7 @@ func TestPrintRotatedKeysDefault(t *testing.T) {
 Rotated keys: 
 Key purpose | Client | Creation Time                 | Key ID
 ------------+--------+-------------------------------+--------
-testing     |        | 2023-02-14 23:40:28 +0000 WET | Another ID
+testing     |        | 2023-02-14 23:40:28 +0000 UTC | Another ID
 `
 	if actual != expected {
 		t.Errorf("Incorrect output.\nActual:\n%s\nExpected:\n%s", actual, expected)
