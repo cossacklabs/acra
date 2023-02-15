@@ -134,7 +134,7 @@ func (s *ServerKeyStore) DescribeRotatedKeyRing(path string) ([]keystore.KeyDesc
 	}
 
 	if path == auditLogSymmetricKeyPath {
-		return s.listRotatedRings(path, PurposePoisonSym, []byte{})
+		return s.listRotatedRings(path, PurposeAuditLog, []byte{})
 	}
 	if path == poisonSymmetricKeyPath {
 		return s.listRotatedRings(path, poisonSymmetricKeyPath, []byte{})
