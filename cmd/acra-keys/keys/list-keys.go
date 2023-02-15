@@ -78,7 +78,7 @@ func (p *ListKeySubcommand) RegisterFlags() {
 	p.FlagSet = flag.NewFlagSet(CmdListKeys, flag.ContinueOnError)
 	p.CommonKeyStoreParameters.Register(p.FlagSet)
 	p.CommonKeyListingParameters.Register(p.FlagSet)
-	p.FlagSet.BoolVar(&p.rotatedKeys, "rotated-keys", false, "List Rotated keys")
+	p.FlagSet.BoolVar(&p.rotatedKeys, "rotated-keys", false, "List rotated keys")
 	p.FlagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": list available keys in the keystore\n", CmdListKeys)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...]\n", os.Args[0], CmdListKeys)
