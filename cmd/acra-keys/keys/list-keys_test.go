@@ -198,6 +198,7 @@ func TestListRotatedKeysV1(t *testing.T) {
 		t.Fatal("Expect exact number of rotated keys description")
 	}
 
+	keyIdx := 1
 	for i := 0; i < timesToRotateKeys; i++ {
 		if descriptions[i].CreationTime.String() != privateKeysTimes[i].String() {
 			t.Fatalf("Not expected creation time of rotated private key, %s not equal %s", descriptions[i].CreationTime.String(), privateKeysTimes[i].String())
@@ -208,8 +209,8 @@ func TestListRotatedKeysV1(t *testing.T) {
 				t.Fatal("Not expected order, expected keys time increased gradually")
 			}
 
-			// rotated key index should be greater than 1
-			if descriptions[i-1].Idx <= 1 {
+			// rotated key index should be greater than 1 and increase in the order
+			if descriptions[i-1].Idx != keyIdx {
 				t.Fatal("Expected key Idx greater than 1")
 			}
 		}
@@ -224,10 +225,12 @@ func TestListRotatedKeysV1(t *testing.T) {
 			}
 
 			// rotated key index should be greater than 1
-			if descriptions[i+timesToRotateKeys-1].Idx <= 1 {
+			if descriptions[i+timesToRotateKeys-1].Idx != keyIdx+timesToRotateKeys {
 				t.Fatal("Expected key Idx greater than 1")
 			}
 		}
+
+		keyIdx++
 	}
 }
 
@@ -291,17 +294,19 @@ func TestListRotatedKeysV2(t *testing.T) {
 		t.Fatal("Expect exact number of historical keys description")
 	}
 
+	keyIdx := 1
 	for i := 0; i < len(descriptions); i++ {
 		if i > 0 {
 			if descriptions[i-1].CreationTime.After(*descriptions[i].CreationTime) {
 				t.Fatal("Not expected order, expected keys time increased gradually")
 			}
 
-			// rotated key index should be greater than 1
-			if descriptions[i-1].Idx <= 1 {
+			// rotated key index should be greater than 1 and increase in order
+			if descriptions[i-1].Idx != keyIdx {
 				t.Fatal("Expected key Idx greater than 1")
 			}
 		}
+		keyIdx++
 	}
 }
 
