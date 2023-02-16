@@ -224,7 +224,7 @@ func TestListRotatedKeysV1(t *testing.T) {
 				t.Fatal("Not expected order, expected keys time increased gradually")
 			}
 
-			// rotated key index should be greater than 1
+			// rotated key index should be greater than 1 and increase in the order
 			if descriptions[i+timesToRotateKeys-1].Idx != keyIdx+timesToRotateKeys {
 				t.Fatal("Expected key Idx greater than 1")
 			}

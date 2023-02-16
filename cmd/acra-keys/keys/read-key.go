@@ -85,7 +85,7 @@ func (p *ReadKeySubcommand) RegisterFlags() {
 	p.FlagSet.BoolVar(&p.private, "private", false, "read private key of the keypair")
 	p.FlagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": read and print key material in plaintext\n", CmdReadKey)
-		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] <key-KeyID>\n\n", os.Args[0], CmdReadKey)
+		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] <key-ID>\n\n", os.Args[0], CmdReadKey)
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
 		cmd.PrintFlags(p.FlagSet)
 	}
