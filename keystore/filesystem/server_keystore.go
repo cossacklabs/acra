@@ -790,8 +790,8 @@ func (store *KeyStore) describeDir(dirName string) ([]keystore.KeyDescription, e
 		}
 
 		// virtual index of current key always 1
-		description.Idx = 1
-		description.Marker = keystore.MarkerCurrent
+		description.Index = 1
+		description.State = keystore.StateCurrent
 		keys = append(keys, *description)
 	}
 	return keys, nil
@@ -858,12 +858,12 @@ func (store *KeyStore) describeOldDir(dirName string) ([]keystore.KeyDescription
 			}
 
 			descriptionWithTime := keystore.KeyDescription{
-				Idx:          rotatedKeyIdx,
+				Index:        rotatedKeyIdx,
 				KeyID:        description.KeyID,
 				Purpose:      description.Purpose,
 				ClientID:     description.ClientID,
 				CreationTime: &creationTime,
-				Marker:       keystore.MarkerRotated,
+				State:        keystore.StateRotated,
 			}
 
 			keys = append(keys, descriptionWithTime)
@@ -1322,21 +1322,21 @@ func describeV2(fileName string) (*keystore.KeyDescription, bool, error) {
 				KeyID:    file,
 				ClientID: splits[len(splits)-1],
 				Purpose:  keystore.PurposeSearchHMAC,
-				Marker:   keystore.MarkerCurrent,
+				State:    keystore.StateCurrent,
 			}, true, nil
 		case "storage":
 			return &keystore.KeyDescription{
 				KeyID:    file,
 				ClientID: splits[len(splits)-1],
 				Purpose:  keystore.PurposeStorageClientKeyPair,
-				Marker:   keystore.MarkerCurrent,
+				State:    keystore.StateCurrent,
 			}, true, nil
 		case "storage-sym":
 			return &keystore.KeyDescription{
 				KeyID:    file,
 				ClientID: splits[len(splits)-1],
 				Purpose:  keystore.PurposeStorageClientSymmetricKey,
-				Marker:   keystore.MarkerCurrent,
+				State:    keystore.StateCurrent,
 			}, true, nil
 		default:
 			return nil, false, ErrUnrecognizedKeyPurpose
@@ -1348,19 +1348,19 @@ func describeV2(fileName string) (*keystore.KeyDescription, bool, error) {
 		return &keystore.KeyDescription{
 			KeyID:   fileName,
 			Purpose: keystore.PurposeAuditLog,
-			Marker:  keystore.MarkerCurrent,
+			State:   keystore.StateCurrent,
 		}, true, nil
 	case "poison-record":
 		return &keystore.KeyDescription{
 			KeyID:   fileName,
 			Purpose: keystore.PurposePoisonRecordKeyPair,
-			Marker:  keystore.MarkerCurrent,
+			State:   keystore.StateCurrent,
 		}, true, nil
 	case "poison-record-sym":
 		return &keystore.KeyDescription{
 			KeyID:   fileName,
 			Purpose: keystore.PurposePoisonRecordSymmetricKey,
-			Marker:  keystore.MarkerCurrent,
+			State:   keystore.StateCurrent,
 		}, true, nil
 	default:
 		return nil, false, ErrUnrecognizedKeyPurpose
@@ -1373,13 +1373,13 @@ func describeV1(fileName string) (*keystore.KeyDescription, bool, error) {
 		return &keystore.KeyDescription{
 			KeyID:   poisonPrivateKey,
 			Purpose: keystore.PurposePoisonRecordKeyPair,
-			Marker:  keystore.MarkerCurrent,
+			State:   keystore.StateCurrent,
 		}, true, nil
 	case poisonPublicKey:
 		return &keystore.KeyDescription{
 			KeyID:   poisonPublicKey,
 			Purpose: keystore.PurposePoisonRecordKeyPair,
-			Marker:  keystore.MarkerCurrent,
+			State:   keystore.StateCurrent,
 		}, true, nil
 	case poisonSymmetricKey:
 		return &keystore.KeyDescription{
@@ -1390,7 +1390,7 @@ func describeV1(fileName string) (*keystore.KeyDescription, bool, error) {
 		return &keystore.KeyDescription{
 			KeyID:   fileName,
 			Purpose: keystore.PurposeLegacy,
-			Marker:  keystore.MarkerCurrent,
+			State:   keystore.StateCurrent,
 		}, true, nil
 	}
 
@@ -1403,7 +1403,7 @@ func describeV1(fileName string) (*keystore.KeyDescription, bool, error) {
 			KeyID:    id,
 			Purpose:  keystore.PurposeLegacy,
 			ClientID: components[0],
-			Marker:   keystore.MarkerCurrent,
+			State:    keystore.StateCurrent,
 		}, true, nil
 	}
 
@@ -1420,7 +1420,7 @@ func describeV1(fileName string) (*keystore.KeyDescription, bool, error) {
 			KeyID:    fileName,
 			Purpose:  keystore.PurposeSearchHMAC,
 			ClientID: strings.Join(components[:len(components)-1], "_"),
-			Marker:   keystore.MarkerCurrent,
+			State:    keystore.StateCurrent,
 		}, true, nil
 	}
 
@@ -1429,7 +1429,7 @@ func describeV1(fileName string) (*keystore.KeyDescription, bool, error) {
 			KeyID:    fileName,
 			Purpose:  keystore.PurposeStorageClientPrivateKey,
 			ClientID: strings.Join(components[:len(components)-1], "_"),
-			Marker:   keystore.MarkerCurrent,
+			State:    keystore.StateCurrent,
 		}, true, nil
 	}
 
@@ -1438,7 +1438,7 @@ func describeV1(fileName string) (*keystore.KeyDescription, bool, error) {
 			KeyID:    fileName,
 			Purpose:  keystore.PurposeStorageClientPublicKey,
 			ClientID: strings.Join(components[:len(components)-1], "_"),
-			Marker:   keystore.MarkerCurrent,
+			State:    keystore.StateCurrent,
 		}, true, nil
 	}
 
@@ -1446,7 +1446,7 @@ func describeV1(fileName string) (*keystore.KeyDescription, bool, error) {
 		return &keystore.KeyDescription{
 			KeyID:   fileName,
 			Purpose: keystore.PurposeLegacy,
-			Marker:  keystore.MarkerCurrent,
+			State:   keystore.StateCurrent,
 		}, true, nil
 	}
 
@@ -1454,7 +1454,7 @@ func describeV1(fileName string) (*keystore.KeyDescription, bool, error) {
 		return &keystore.KeyDescription{
 			KeyID:   fileName,
 			Purpose: keystore.PurposeLegacy,
-			Marker:  keystore.MarkerCurrent,
+			State:   keystore.StateCurrent,
 		}, true, nil
 	}
 
@@ -1463,7 +1463,7 @@ func describeV1(fileName string) (*keystore.KeyDescription, bool, error) {
 			KeyID:    fileName,
 			Purpose:  keystore.PurposeStorageClientSymmetricKey,
 			ClientID: strings.Join(components[:len(components)-2], "_"),
-			Marker:   keystore.MarkerCurrent,
+			State:    keystore.StateCurrent,
 		}, true, nil
 	}
 
@@ -1471,7 +1471,7 @@ func describeV1(fileName string) (*keystore.KeyDescription, bool, error) {
 		return &keystore.KeyDescription{
 			KeyID:   fileName,
 			Purpose: keystore.PurposeLegacy,
-			Marker:  keystore.MarkerCurrent,
+			State:   keystore.StateCurrent,
 		}, true, nil
 	}
 
@@ -1479,7 +1479,7 @@ func describeV1(fileName string) (*keystore.KeyDescription, bool, error) {
 		return &keystore.KeyDescription{
 			KeyID:   fileName,
 			Purpose: keystore.PurposeAuditLog,
-			Marker:  keystore.MarkerCurrent,
+			State:   keystore.StateCurrent,
 		}, true, nil
 	}
 
@@ -1488,7 +1488,7 @@ func describeV1(fileName string) (*keystore.KeyDescription, bool, error) {
 			KeyID:    fileName,
 			Purpose:  keystore.PurposeLegacy,
 			ClientID: components[0],
-			Marker:   keystore.MarkerCurrent,
+			State:    keystore.StateCurrent,
 		}, true, nil
 	}
 

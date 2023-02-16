@@ -1355,14 +1355,14 @@ func generateEveryKey(keyStore *KeyStore, t *testing.T) {
 
 func getAllExpectedKeys() []keystore.KeyDescription {
 	expectedKeys := []keystore.KeyDescription{
-		{Idx: 1, KeyID: "poison_key", Purpose: keystore.PurposePoisonRecordKeyPair},
-		{Idx: 1, KeyID: "poison_key.pub", Purpose: keystore.PurposePoisonRecordKeyPair},
-		{Idx: 1, KeyID: "poison_key_sym", Purpose: keystore.PurposePoisonRecordSymmetricKey},
-		{Idx: 1, KeyID: "cossack-hmac_hmac", Purpose: keystore.PurposeSearchHMAC, ClientID: hmacEncID},
-		{Idx: 1, KeyID: "cossack_storage", Purpose: keystore.PurposeStorageClientPrivateKey, ClientID: clientID},
-		{Idx: 1, KeyID: "cossack_storage.pub", Purpose: keystore.PurposeStorageClientPublicKey, ClientID: clientID},
-		{Idx: 1, KeyID: "cossack_storage_sym", Purpose: keystore.PurposeStorageClientSymmetricKey, ClientID: clientID},
-		{Idx: 1, KeyID: "secure_log_key", Purpose: keystore.PurposeAuditLog},
+		{Index: 1, KeyID: "poison_key", Purpose: keystore.PurposePoisonRecordKeyPair},
+		{Index: 1, KeyID: "poison_key.pub", Purpose: keystore.PurposePoisonRecordKeyPair},
+		{Index: 1, KeyID: "poison_key_sym", Purpose: keystore.PurposePoisonRecordSymmetricKey},
+		{Index: 1, KeyID: "cossack-hmac_hmac", Purpose: keystore.PurposeSearchHMAC, ClientID: hmacEncID},
+		{Index: 1, KeyID: "cossack_storage", Purpose: keystore.PurposeStorageClientPrivateKey, ClientID: clientID},
+		{Index: 1, KeyID: "cossack_storage.pub", Purpose: keystore.PurposeStorageClientPublicKey, ClientID: clientID},
+		{Index: 1, KeyID: "cossack_storage_sym", Purpose: keystore.PurposeStorageClientSymmetricKey, ClientID: clientID},
+		{Index: 1, KeyID: "secure_log_key", Purpose: keystore.PurposeAuditLog},
 	}
 	// sort to compare consistently
 	sort.Slice(expectedKeys, func(i, j int) bool {

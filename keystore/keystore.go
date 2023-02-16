@@ -439,26 +439,26 @@ type ServerKeyStore interface {
 	Reset()
 }
 
-// KeyMarker set key market for KeyDescription
-type KeyMarker string
+// KeyState set key state for KeyDescription (current/rotated)
+type KeyState string
 
-// MarkerCurrent represent current KeyMarker
+// StateCurrent represent current KeyState
 const (
-	MarkerCurrent KeyMarker = "current"
-	MarkerRotated           = "rotated"
+	StateCurrent KeyState = "current"
+	StateRotated          = "rotated"
 )
 
 // KeyDescription describes a key in the keystore.
 //
-// "Idx" is unique integer that can be used to identify key in the context of KeyID.
+// "Index" is unique integer that can be used to identify key in the context of KeyID.
 // "KeyID" is unique string that can be used to identify this key set in the keystore.
 // "Purpose" is short human-readable description of the key purpose.
 // "ClientID" and "AdditionalContext" are filled in where relevant.
 // "CreationTime" used to display creation time of rotated key
 type KeyDescription struct {
-	Idx          int
+	Index        int
 	KeyID        string
-	Marker       KeyMarker
+	State        KeyState
 	Purpose      KeyPurpose
 	ClientID     string     `json:",omitempty"`
 	CreationTime *time.Time `json:",omitempty"`

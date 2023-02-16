@@ -10,7 +10,7 @@ const (
 	extraIDHeader      = "Client"
 	keyIDHeader        = "Key ID"
 	creationTimeHeader = "Creation Time"
-	idxHeader          = "Idx"
+	idxHeader          = "Index"
 )
 
 // PrintKeysTable prints table which describes keys in a human readable format
@@ -48,7 +48,7 @@ func PrintKeysTable(keys []KeyDescription, writer io.Writer) error {
 		if key.ClientID != "" {
 			extraID = key.ClientID
 		}
-		fmt.Fprintf(writer, "%-*d | %-*s | %-*s | %s\n", maxIdxLen, key.Idx, maxPurposeLen, key.Purpose, maxExtraIDLen, extraID, key.KeyID)
+		fmt.Fprintf(writer, "%-*d | %-*s | %-*s | %s\n", maxIdxLen, key.Index, maxPurposeLen, key.Purpose, maxExtraIDLen, extraID, key.KeyID)
 	}
 	return nil
 }
@@ -95,7 +95,7 @@ func PrintRotatedKeysTable(keys []KeyDescription, writer io.Writer) error {
 		if key.ClientID != "" {
 			extraID = key.ClientID
 		}
-		fmt.Fprintf(writer, "%-*d | %-*s | %-*s | %-*s | %s\n", maxIdxLen, key.Idx, maxPurposeLen, key.Purpose, maxExtraIDLen, extraID, maxCreationTimeLen, key.CreationTime.String(), key.KeyID)
+		fmt.Fprintf(writer, "%-*d | %-*s | %-*s | %-*s | %s\n", maxIdxLen, key.Index, maxPurposeLen, key.Purpose, maxExtraIDLen, extraID, maxCreationTimeLen, key.CreationTime.String(), key.KeyID)
 	}
 	return nil
 }

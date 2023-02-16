@@ -119,9 +119,9 @@ func (s *ServerKeyStore) ListKeys() ([]keystore.KeyDescription, error) {
 		}
 
 		// 1 is virtual index of current key in keystore
-		descriptions[i].Idx = 1
+		descriptions[i].Index = 1
 		descriptions[i].CreationTime = &creationTime
-		descriptions[i].Marker = keystore.MarkerCurrent
+		descriptions[i].State = keystore.StateCurrent
 	}
 
 	return descriptions, nil
@@ -280,15 +280,15 @@ func (s *ServerKeyStore) listRotatedRings(path string, purpose keystore.KeyPurpo
 		}
 
 		result = append(result, keystore.KeyDescription{
-			// Idx represent virtual index of key
+			// Index represent virtual index of key
 			// 1 is always index of current key of the keystore
 			// all rotated keys have index after 1
-			Idx:          i + 1,
+			Index:        i + 1,
 			KeyID:        path,
 			Purpose:      purpose,
 			ClientID:     clientID,
 			CreationTime: &creationTime,
-			Marker:       keystore.MarkerRotated,
+			State:        keystore.StateRotated,
 		})
 	}
 
