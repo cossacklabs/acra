@@ -439,17 +439,29 @@ type ServerKeyStore interface {
 	Reset()
 }
 
+// KeyState set key state for KeyDescription (current/rotated)
+type KeyState string
+
+// StateCurrent represent current KeyState
+const (
+	StateCurrent KeyState = "current"
+	StateRotated          = "rotated"
+)
+
 // KeyDescription describes a key in the keystore.
 //
-// "ID" is unique string that can be used to identify this key set in the keystore.
+// "Index" is unique integer that can be used to identify key in the context of KeyID.
+// "KeyID" is unique string that can be used to identify this key set in the keystore.
 // "Purpose" is short human-readable description of the key purpose.
 // "ClientID" and "AdditionalContext" are filled in where relevant.
+// "CreationTime" used to display creation time of rotated key
 type KeyDescription struct {
-	ID       string
-	Purpose  KeyPurpose
-	ClientID []byte `json:",omitempty"`
-	// used to display creation time of rotated key
-	CreationTime time.Time
+	Index        int
+	KeyID        string
+	State        KeyState
+	Purpose      KeyPurpose
+	ClientID     string     `json:",omitempty"`
+	CreationTime *time.Time `json:",omitempty"`
 }
 
 // TranslationKeyStore enables AcraStruct translation. It is used by acra-translator tool.

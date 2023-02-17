@@ -20,8 +20,9 @@ import (
 	"crypto/rand"
 	"time"
 
-	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
 	"github.com/cossacklabs/themis/gothemis/keys"
+
+	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
 )
 
 const defaultKeyCryptoperiod = 365 * 24 * time.Hour // 1 year

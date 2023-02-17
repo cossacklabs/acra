@@ -168,7 +168,7 @@ func (p *ExportKeysSubcommand) Parse(arguments []string) error {
 					log.WithField("key", arg).Fatal("Unsupported key provided")
 				}
 				coarseKind = keyKind
-				id = description.ClientID
+				id = []byte(description.ClientID)
 			}
 
 			if (coarseKind == keystore.KeySymmetric || coarseKind == keystore.KeySearch) && !p.exportPrivate {

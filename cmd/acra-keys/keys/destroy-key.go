@@ -121,6 +121,14 @@ func (p *DestroyKeySubcommand) ClientID() []byte {
 	return p.contextID
 }
 
+// DestroyKeyCommand implements the "destroy" command.
+func DestroyKeyCommand(params DestroyKeyParams, keyStore keystore.KeyMaking) {
+	err := DestroyKey(params, keyStore)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to destroy key")
+	}
+}
+
 // DestroyKey destroys data of the requsted key.
 func DestroyKey(params DestroyKeyParams, keyStore keystore.KeyMaking) error {
 	kind := params.DestroyKeyKind()

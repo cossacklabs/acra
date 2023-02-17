@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"flag"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,21 +38,21 @@ import (
 func TestPrintKeysDefault(t *testing.T) {
 	keys := []keystore.KeyDescription{
 		{
-			ID:      "Another ID",
+			KeyID:   "Another KeyID",
 			Purpose: "testing",
 		},
 	}
 
 	output := strings.Builder{}
-	err := PrintKeys(keys, &output, &CommonKeyListingParameters{useJSON: false})
+	err := keystore.PrintKeysTable(keys, &output)
 	if err != nil {
 		t.Fatalf("Failed to print keys: %v", err)
 	}
 
 	actual := output.String()
-	expected := `Key purpose | Client | Key ID
-------------+--------+-----------
-testing     |        | Another ID
+	expected := `Index | Key purpose | Client | Key ID
+------------+--------+--------------
+0     | testing     |        | Another KeyID
 `
 	if actual != expected {
 		t.Errorf("Incorrect output.\nActual:\n%s\nExpected:\n%s", actual, expected)
@@ -59,16 +60,17 @@ testing     |        | Another ID
 }
 
 func TestPrintRotatedKeysDefault(t *testing.T) {
+	creationTime := time.Unix(1676418028, 0).UTC()
 	keys := []keystore.KeyDescription{
 		{
-			ID:           "Another ID",
+			KeyID:        "Another KeyID",
 			Purpose:      "testing",
-			CreationTime: time.Unix(1676418028, 0).UTC(),
+			CreationTime: &creationTime,
 		},
 	}
 
 	output := strings.Builder{}
-	err := PrintRotatedKeys(keys, &output, &CommonKeyListingParameters{useJSON: false})
+	err := keystore.PrintRotatedKeysTable(keys, &output)
 	if err != nil {
 		t.Fatalf("Failed to print keys: %v", err)
 	}
@@ -76,9 +78,9 @@ func TestPrintRotatedKeysDefault(t *testing.T) {
 	actual := output.String()
 	expected := `
 Rotated keys: 
-Key purpose | Client | Creation Time                 | Key ID
-------------+--------+-------------------------------+--------
-testing     |        | 2023-02-14 23:40:28 +0000 UTC | Another ID
+Index | Key purpose | Client | Creation Time                 | Key ID
+------------+--------+-------------------------------+-----------
+0     | testing     |        | 2023-02-14 23:40:28 +0000 UTC | Another KeyID
 `
 	if actual != expected {
 		t.Errorf("Incorrect output.\nActual:\n%s\nExpected:\n%s", actual, expected)
@@ -88,13 +90,13 @@ testing     |        | 2023-02-14 23:40:28 +0000 UTC | Another ID
 func TestPrintKeysJSON(t *testing.T) {
 	keys := []keystore.KeyDescription{
 		{
-			ID:      "Another ID",
+			KeyID:   "Another KeyID",
 			Purpose: "testing",
 		},
 	}
 
 	output := bytes.Buffer{}
-	err := PrintKeys(keys, &output, &CommonKeyListingParameters{useJSON: true})
+	err := printKeysJSON(keys, &output)
 	if err != nil {
 		t.Fatalf("Failed to print keys: %v", err)
 	}
@@ -197,14 +199,20 @@ func TestListRotatedKeysV1(t *testing.T) {
 		t.Fatal("Expect exact number of rotated keys description")
 	}
 
+	keyIdx := 1
 	for i := 0; i < timesToRotateKeys; i++ {
 		if descriptions[i].CreationTime.String() != privateKeysTimes[i].String() {
 			t.Fatalf("Not expected creation time of rotated private key, %s not equal %s", descriptions[i].CreationTime.String(), privateKeysTimes[i].String())
 		}
 
 		if i > 0 {
-			if descriptions[i-1].CreationTime.After(descriptions[i].CreationTime) {
+			if descriptions[i-1].CreationTime.After(*descriptions[i].CreationTime) {
 				t.Fatal("Not expected order, expected keys time increased gradually")
+			}
+
+			// rotated key index should be greater than 1 and increase in the order
+			if descriptions[i-1].Index != keyIdx {
+				t.Fatal("Expected key Index greater than 1")
 			}
 		}
 
@@ -213,9 +221,112 @@ func TestListRotatedKeysV1(t *testing.T) {
 		}
 
 		if i > timesToRotateKeys {
-			if descriptions[i+timesToRotateKeys-1].CreationTime.After(descriptions[i+timesToRotateKeys].CreationTime) {
+			if descriptions[i+timesToRotateKeys-1].CreationTime.After(*descriptions[i+timesToRotateKeys].CreationTime) {
 				t.Fatal("Not expected order, expected keys time increased gradually")
 			}
+
+			// rotated key index should be greater than 1 and increase in the order
+			if descriptions[i+timesToRotateKeys-1].Index != keyIdx+timesToRotateKeys {
+				t.Fatal("Expected key Index greater than 1")
+			}
+		}
+
+		keyIdx++
+	}
+}
+
+func TestListRotatedKeysJSON(t *testing.T) {
+	clientID := []byte("testclientid")
+	timesToRotateKeys := 3
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
+
+	masterKey, err := keystore.GenerateSymmetricKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	flagSet := flag.NewFlagSet(CmdMigrateKeys, flag.ContinueOnError)
+	keyloader.RegisterCLIParametersWithFlagSet(flagSet, "", "")
+
+	err = flagSet.Set("keystore_encryption_type", keyloader.KeystoreStrategyEnvMasterKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
+
+	dirName := t.TempDir()
+	if err := os.Chmod(dirName, 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	listCMD := &ListKeySubcommand{
+		CommonKeyStoreParameters: CommonKeyStoreParameters{
+			keyDir: dirName,
+		},
+		CommonKeyListingParameters: CommonKeyListingParameters{
+			rotatedKeys: true,
+			useJSON:     true,
+		},
+		FlagSet: flagSet,
+	}
+
+	store, err := openKeyStoreV1(listCMD)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = store.GenerateDataEncryptionKeys(clientID); err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < timesToRotateKeys; i++ {
+		if err = store.GenerateDataEncryptionKeys(clientID); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// overwrite os.Stdout with temp Pipe
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	ListKeysCommand(listCMD, store)
+
+	w.Close()
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var result []keystore.KeyDescription
+	if err := json.Unmarshal(out, &result); err != nil {
+		t.Fatal(err)
+	}
+
+	// expected length: public rotated keys + private rotated keys + current keys
+	if len(result) != timesToRotateKeys*2+2 {
+		t.Fatal("Not expected number of keys")
+	}
+
+	// check current keys
+	for i := 0; i < 2; i++ {
+		if result[i].State != keystore.StateCurrent {
+			t.Fatal("Expect current key in result")
+		}
+
+		if result[i].Index != 1 {
+			t.Fatal("Invalid key Index in result")
+		}
+	}
+
+	// check rotated keys
+	for i := 2; i < len(result); i++ {
+		if result[i].State != keystore.StateRotated {
+			t.Fatal("Expect rotated key in result")
+		}
+
+		if result[i].Index == 1 {
+			t.Fatal("Invalid key Index in result")
 		}
 	}
 }
@@ -280,12 +391,19 @@ func TestListRotatedKeysV2(t *testing.T) {
 		t.Fatal("Expect exact number of historical keys description")
 	}
 
+	keyIdx := 1
 	for i := 0; i < len(descriptions); i++ {
 		if i > 0 {
-			if descriptions[i-1].CreationTime.After(descriptions[i].CreationTime) {
+			if descriptions[i-1].CreationTime.After(*descriptions[i].CreationTime) {
 				t.Fatal("Not expected order, expected keys time increased gradually")
 			}
+
+			// rotated key index should be greater than 1 and increase in order
+			if descriptions[i-1].Index != keyIdx {
+				t.Fatal("Expected key Index greater than 1")
+			}
 		}
+		keyIdx++
 	}
 }
 
@@ -302,6 +420,5 @@ func equalDescriptionLists(a, b []keystore.KeyDescription) bool {
 }
 
 func equalDescriptions(a, b keystore.KeyDescription) bool {
-	return a.ID == b.ID && a.Purpose == b.Purpose &&
-		bytes.Equal(a.ClientID, b.ClientID)
+	return a.KeyID == b.KeyID && a.Purpose == b.Purpose && bytes.Equal([]byte(a.ClientID), []byte(b.ClientID)) && a.Index == b.Index
 }

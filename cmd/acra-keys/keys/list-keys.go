@@ -101,20 +101,51 @@ func (p *ListKeySubcommand) Execute() {
 	ListKeysCommand(p, keyStore)
 }
 
+// ListKeysCommand implements the "list" command.
+func ListKeysCommand(params ListKeysParams, keyStore keystore.ServerKeyStore) {
+	keyDescriptions, err := keyStore.ListKeys()
+	if err != nil {
+		log.WithError(err).Fatal("Failed to read key list")
+	}
+
+	var rotatedDescriptions []keystore.KeyDescription
+	if params.ListRotatedKeys() {
+		rotatedDescriptions, err = keyStore.ListRotatedKeys()
+		if err != nil {
+			log.WithError(err).Fatal("Failed to read rotated key list")
+		}
+	}
+
+	if params.UseJSON() {
+		keyDescriptions = append(keyDescriptions, rotatedDescriptions...)
+
+		if err := printKeysJSON(keyDescriptions, os.Stdout); err != nil {
+			log.WithError(err).Fatal("Failed to print key list in JSON")
+		}
+		return
+	}
+
+	// print current keys in table format
+	err = keystore.PrintKeysTable(keyDescriptions, os.Stdout)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to print key list")
+	}
+
+	if params.ListRotatedKeys() {
+		// print rotated keys in table format
+		err = keystore.PrintRotatedKeysTable(rotatedDescriptions, os.Stdout)
+		if err != nil {
+			log.WithError(err).Fatal("Failed to print list of rotated keys")
+		}
+	}
+}
+
 // PrintKeys prints key list prettily into the given writer.
 func PrintKeys(keys []keystore.KeyDescription, writer io.Writer, params ListKeysParams) error {
 	if params.UseJSON() {
 		return printKeysJSON(keys, writer)
 	}
 	return keystore.PrintKeysTable(keys, writer)
-}
-
-// PrintRotatedKeys prints rotated key list prettily into the given writer.
-func PrintRotatedKeys(keys []keystore.KeyDescription, writer io.Writer, params ListKeysParams) error {
-	if params.UseJSON() {
-		return printKeysJSON(keys, writer)
-	}
-	return keystore.PrintRotatedKeysTable(keys, writer)
 }
 
 func printKeysJSON(keys []keystore.KeyDescription, writer io.Writer) error {

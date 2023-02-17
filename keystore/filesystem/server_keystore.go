@@ -272,7 +272,7 @@ func (store *KeyStore) CacheOnStart() error {
 				return err
 			}
 		case keystore.PurposeSearchHMAC:
-			if _, err = store.GetHMACSecretKey(desc.ClientID); err != nil {
+			if _, err = store.GetHMACSecretKey([]byte(desc.ClientID)); err != nil {
 				return err
 			}
 		case keystore.PurposeAuditLog:
@@ -280,15 +280,15 @@ func (store *KeyStore) CacheOnStart() error {
 				return err
 			}
 		case keystore.PurposeStorageClientSymmetricKey:
-			if _, err = store.GetClientIDSymmetricKeys(desc.ClientID); err != nil {
+			if _, err = store.GetClientIDSymmetricKeys([]byte(desc.ClientID)); err != nil {
 				return err
 			}
 		case keystore.PurposeStorageClientPrivateKey:
-			if _, err = store.GetServerDecryptionPrivateKey(desc.ClientID); err != nil {
+			if _, err = store.GetServerDecryptionPrivateKey([]byte(desc.ClientID)); err != nil {
 				return err
 			}
 		case keystore.PurposeStorageClientPublicKey:
-			if _, err = store.GetClientIDEncryptionPublicKey(desc.ClientID); err != nil {
+			if _, err = store.GetClientIDEncryptionPublicKey([]byte(desc.ClientID)); err != nil {
 				return err
 			}
 		default:
@@ -785,9 +785,13 @@ func (store *KeyStore) describeDir(dirName string) ([]keystore.KeyDescription, e
 			return nil, err
 		}
 		if description.Purpose == keystore.PurposeLegacy {
-			log.WithField("ID", description.ID).Warn("Ignoring legacy key")
+			log.WithField("KeyID", description.KeyID).Warn("Ignoring legacy key")
 			continue
 		}
+
+		// virtual index of current key always 1
+		description.Index = 1
+		description.State = keystore.StateCurrent
 		keys = append(keys, *description)
 	}
 	return keys, nil
@@ -824,7 +828,7 @@ func (store *KeyStore) describeOldDir(dirName string) ([]keystore.KeyDescription
 			return nil, err
 		}
 		if description.Purpose == keystore.PurposeLegacy {
-			log.WithField("ID", description.ID).Warn("Ignoring legacy key")
+			log.WithField("KeyID", description.KeyID).Warn("Ignoring legacy key")
 			continue
 		}
 
@@ -835,13 +839,16 @@ func (store *KeyStore) describeOldDir(dirName string) ([]keystore.KeyDescription
 		}
 
 		if len(files) == 0 {
-			log.WithField("ID", fileInfo.Name()).Warn("Contains no key files")
+			log.WithField("KeyID", fileInfo.Name()).Warn("Contains no key files")
 			continue
 		}
 
+		// 1 is always index of current key of the keystore
+		// all rotated keys have index after 1
+		var rotatedKeyIdx = 2
 		for _, file := range files {
 			if file.IsDir() {
-				log.WithField("ID", file.Name()).Warn("Expected no directories in rotated keys folder")
+				log.WithField("KeyID", file.Name()).Warn("Expected no directories in rotated keys folder")
 				return nil, errors.New("expected no directories in rotated keys folder")
 			}
 
@@ -851,13 +858,16 @@ func (store *KeyStore) describeOldDir(dirName string) ([]keystore.KeyDescription
 			}
 
 			descriptionWithTime := keystore.KeyDescription{
-				ID:           description.ID,
+				Index:        rotatedKeyIdx,
+				KeyID:        description.KeyID,
 				Purpose:      description.Purpose,
 				ClientID:     description.ClientID,
-				CreationTime: creationTime,
+				CreationTime: &creationTime,
+				State:        keystore.StateRotated,
 			}
 
 			keys = append(keys, descriptionWithTime)
+			rotatedKeyIdx++
 		}
 	}
 	return keys, nil
@@ -1309,21 +1319,24 @@ func describeV2(fileName string) (*keystore.KeyDescription, bool, error) {
 		switch strings.TrimSuffix(file, ".keyring") {
 		case "hmac-sym":
 			return &keystore.KeyDescription{
-				ID:       file,
-				ClientID: []byte(splits[len(splits)-1]),
+				KeyID:    file,
+				ClientID: splits[len(splits)-1],
 				Purpose:  keystore.PurposeSearchHMAC,
+				State:    keystore.StateCurrent,
 			}, true, nil
 		case "storage":
 			return &keystore.KeyDescription{
-				ID:       file,
-				ClientID: []byte(splits[len(splits)-1]),
+				KeyID:    file,
+				ClientID: splits[len(splits)-1],
 				Purpose:  keystore.PurposeStorageClientKeyPair,
+				State:    keystore.StateCurrent,
 			}, true, nil
 		case "storage-sym":
 			return &keystore.KeyDescription{
-				ID:       file,
-				ClientID: []byte(splits[len(splits)-1]),
+				KeyID:    file,
+				ClientID: splits[len(splits)-1],
 				Purpose:  keystore.PurposeStorageClientSymmetricKey,
+				State:    keystore.StateCurrent,
 			}, true, nil
 		default:
 			return nil, false, ErrUnrecognizedKeyPurpose
@@ -1333,18 +1346,21 @@ func describeV2(fileName string) (*keystore.KeyDescription, bool, error) {
 	switch strings.TrimSuffix(file, ".keyring") {
 	case "audit-log":
 		return &keystore.KeyDescription{
-			ID:      fileName,
+			KeyID:   fileName,
 			Purpose: keystore.PurposeAuditLog,
+			State:   keystore.StateCurrent,
 		}, true, nil
 	case "poison-record":
 		return &keystore.KeyDescription{
-			ID:      fileName,
+			KeyID:   fileName,
 			Purpose: keystore.PurposePoisonRecordKeyPair,
+			State:   keystore.StateCurrent,
 		}, true, nil
 	case "poison-record-sym":
 		return &keystore.KeyDescription{
-			ID:      fileName,
+			KeyID:   fileName,
 			Purpose: keystore.PurposePoisonRecordSymmetricKey,
+			State:   keystore.StateCurrent,
 		}, true, nil
 	default:
 		return nil, false, ErrUnrecognizedKeyPurpose
@@ -1355,23 +1371,26 @@ func describeV1(fileName string) (*keystore.KeyDescription, bool, error) {
 	switch fileName {
 	case poisonPrivateKey:
 		return &keystore.KeyDescription{
-			ID:      poisonPrivateKey,
+			KeyID:   poisonPrivateKey,
 			Purpose: keystore.PurposePoisonRecordKeyPair,
+			State:   keystore.StateCurrent,
 		}, true, nil
 	case poisonPublicKey:
 		return &keystore.KeyDescription{
-			ID:      poisonPublicKey,
+			KeyID:   poisonPublicKey,
 			Purpose: keystore.PurposePoisonRecordKeyPair,
+			State:   keystore.StateCurrent,
 		}, true, nil
 	case poisonSymmetricKey:
 		return &keystore.KeyDescription{
-			ID:      poisonSymmetricKey,
+			KeyID:   poisonSymmetricKey,
 			Purpose: keystore.PurposePoisonRecordSymmetricKey,
 		}, true, nil
 	case legacyWebConfigKey:
 		return &keystore.KeyDescription{
-			ID:      fileName,
+			KeyID:   fileName,
 			Purpose: keystore.PurposeLegacy,
+			State:   keystore.StateCurrent,
 		}, true, nil
 	}
 
@@ -1381,9 +1400,10 @@ func describeV1(fileName string) (*keystore.KeyDescription, bool, error) {
 		id := strings.TrimSuffix(fileName, ".pub")
 
 		return &keystore.KeyDescription{
-			ID:       id,
+			KeyID:    id,
 			Purpose:  keystore.PurposeLegacy,
-			ClientID: []byte(components[0]),
+			ClientID: components[0],
+			State:    keystore.StateCurrent,
 		}, true, nil
 	}
 
@@ -1397,69 +1417,78 @@ func describeV1(fileName string) (*keystore.KeyDescription, bool, error) {
 
 	if lastKeyPart == "hmac" {
 		return &keystore.KeyDescription{
-			ID:       fileName,
+			KeyID:    fileName,
 			Purpose:  keystore.PurposeSearchHMAC,
-			ClientID: []byte(strings.Join(components[:len(components)-1], "_")),
+			ClientID: strings.Join(components[:len(components)-1], "_"),
+			State:    keystore.StateCurrent,
 		}, true, nil
 	}
 
 	if lastKeyPart == "storage" {
 		return &keystore.KeyDescription{
-			ID:       fileName,
+			KeyID:    fileName,
 			Purpose:  keystore.PurposeStorageClientPrivateKey,
-			ClientID: []byte(strings.Join(components[:len(components)-1], "_")),
+			ClientID: strings.Join(components[:len(components)-1], "_"),
+			State:    keystore.StateCurrent,
 		}, true, nil
 	}
 
 	if lastKeyPart == "storage.pub" {
 		return &keystore.KeyDescription{
-			ID:       fileName,
+			KeyID:    fileName,
 			Purpose:  keystore.PurposeStorageClientPublicKey,
-			ClientID: []byte(strings.Join(components[:len(components)-1], "_")),
+			ClientID: strings.Join(components[:len(components)-1], "_"),
+			State:    keystore.StateCurrent,
 		}, true, nil
 	}
 
 	if lastKeyPart == "zone" {
 		return &keystore.KeyDescription{
-			ID:      fileName,
+			KeyID:   fileName,
 			Purpose: keystore.PurposeLegacy,
+			State:   keystore.StateCurrent,
 		}, true, nil
 	}
 
 	if lastKeyPart == "zone.pub" {
 		return &keystore.KeyDescription{
-			ID:      fileName,
+			KeyID:   fileName,
 			Purpose: keystore.PurposeLegacy,
+			State:   keystore.StateCurrent,
 		}, true, nil
 	}
 
 	if penultimateKeyPart == "storage" && lastKeyPart == "sym" {
 		return &keystore.KeyDescription{
-			ID:       fileName,
+			KeyID:    fileName,
 			Purpose:  keystore.PurposeStorageClientSymmetricKey,
-			ClientID: []byte(strings.Join(components[:len(components)-2], "_")),
+			ClientID: strings.Join(components[:len(components)-2], "_"),
+			State:    keystore.StateCurrent,
 		}, true, nil
 	}
 
 	if penultimateKeyPart == "zone" && lastKeyPart == "sym" {
 		return &keystore.KeyDescription{
-			ID:      fileName,
+			KeyID:   fileName,
 			Purpose: keystore.PurposeLegacy,
+			State:   keystore.StateCurrent,
 		}, true, nil
 	}
 
 	if penultimateKeyPart == "log" && lastKeyPart == "key" {
 		return &keystore.KeyDescription{
-			ID:      fileName,
+			KeyID:   fileName,
 			Purpose: keystore.PurposeAuditLog,
+			State:   keystore.StateCurrent,
 		}, true, nil
 	}
 
 	if lastKeyPart == "server" || lastKeyPart == "server.pub" || lastKeyPart == "translator" || lastKeyPart == "translator.pub" {
 		return &keystore.KeyDescription{
-			ID:       fileName,
+			KeyID:    fileName,
 			Purpose:  keystore.PurposeLegacy,
-			ClientID: []byte(components[0]),
+			ClientID: components[0],
+			State:    keystore.StateCurrent,
 		}, true, nil
 	}
 
