@@ -95,7 +95,8 @@ func TestSequenceParsePackets(t *testing.T) {
 	tokenizer, err := pseudonymization.NewPseudoanonymizer(tokenStorage)
 	assert.Nil(err)
 	serverProxyFactory := getProxyFactory(t, serverConfig, tokenizer)
-	acraServer := acra_server.NewAcraServer(t, serverConfig, serverProxyFactory, freePort)
+	serverConfig.SetAcraConnectionString("tcp://localhost:" + strconv.Itoa(freePort))
+	acraServer := acra_server.NewAcraServer(t, serverConfig, serverProxyFactory)
 	go func() {
 		acraServer.Start(ctx)
 		t.Log("Finished")

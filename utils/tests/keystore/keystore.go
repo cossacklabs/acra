@@ -8,7 +8,8 @@ import (
 	"testing"
 )
 
-func GetNewDefaultKeystore(t *testing.T) keystore.ServerKeyStore {
+// GetNewDefaultKeystoreV1 returns keystore V1 targeted to the new temporary folder using SCell key encryptor
+func GetNewDefaultKeystoreV1(t *testing.T) keystore.ServerKeyStore {
 	keystoreDir, err := os.MkdirTemp("", "")
 	assert.Nil(t, err)
 	keyEncryptor, err := keystore.NewSCellKeyEncryptor([]byte(`key`))

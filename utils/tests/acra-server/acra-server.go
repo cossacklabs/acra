@@ -9,7 +9,6 @@ import (
 	"github.com/cossacklabs/acra/utils/tests/keystore"
 	"github.com/stretchr/testify/assert"
 	"os"
-	"strconv"
 	"testing"
 )
 
@@ -27,13 +26,13 @@ func NewDefaultAcraServerConfig(t *testing.T) *common.Config {
 	serverConfig.SetTLSClientIDExtractor(clientIDExtractor)
 	serverConfig.ConnectionWrapper = &network.RawConnectionWrapper{ClientID: nil}
 	serverConfig.SetUseClientIDFromCertificate(true)
-	serverKeystore := keystore.GetNewDefaultKeystore(t)
+	serverKeystore := keystore.GetNewDefaultKeystoreV1(t)
 	serverConfig.SetKeyStore(serverKeystore)
 	return serverConfig
 }
 
-func NewAcraServer(t *testing.T, serverConfig *common.Config, proxyFactory base.ProxyFactory, port int) *common.SServer {
-	serverConfig.SetAcraConnectionString("tcp://localhost:" + strconv.Itoa(port))
+// NewAcraServer returns new SServer configured by serverConfig and ProxyFactory
+func NewAcraServer(t *testing.T, serverConfig *common.Config, proxyFactory base.ProxyFactory) *common.SServer {
 	err := crypto.InitRegistry(serverConfig.GetKeyStore())
 	assert.Nil(t, err)
 	errCh := make(chan os.Signal, 2)
