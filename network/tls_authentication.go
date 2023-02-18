@@ -11,8 +11,9 @@ import (
 
 // Set of constants with
 const (
-	IdentifierExtractorTypeDistinguishedName = "distinguished_name"
-	IdentifierExtractorTypeSerialNumber      = "serial_number"
+	IdentifierExtractorTypeDistinguishedName        = "distinguished_name"
+	IdentifierExtractorTypeSerialNumber             = "serial_number"
+	DefaultIdentifierExtractorTypeDistinguishedName = IdentifierExtractorTypeDistinguishedName
 )
 
 // IdentifierExtractorTypesList list of all acceptable types for IdentifierExtractor
@@ -115,6 +116,19 @@ type tlsClientIDExtractor struct {
 
 // NewTLSClientIDExtractor create new TLSClientIDExtractor implementation which use idExtractor and idConvertor to extract clientID
 func NewTLSClientIDExtractor(idExtractor CertificateIdentifierExtractor, idConverter IdentifierConverter) (TLSClientIDExtractor, error) {
+	return &tlsClientIDExtractor{idExtractor, idConverter}, nil
+}
+
+// NewDefaultTLSClientIDExtractor create new TLSClientIDExtractor implementation which use idExtractor and idConvertor to extract clientID
+func NewDefaultTLSClientIDExtractor() (TLSClientIDExtractor, error) {
+	idConverter, err := NewDefaultHexIdentifierConverter()
+	if err != nil {
+		return nil, err
+	}
+	idExtractor, err := NewIdentifierExtractorByType(DefaultIdentifierExtractorTypeDistinguishedName)
+	if err != nil {
+		return nil, err
+	}
 	return &tlsClientIDExtractor{idExtractor, idConverter}, nil
 }
 
