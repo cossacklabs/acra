@@ -1,10 +1,12 @@
-package tests
+package acra_server
 
 import (
 	"github.com/cossacklabs/acra/cmd/acra-server/common"
 	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/utils/tests"
+	"github.com/cossacklabs/acra/utils/tests/keystore"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"strconv"
@@ -12,7 +14,7 @@ import (
 )
 
 func NewDefaultAcraServerConfig(t *testing.T) *common.Config {
-	dbConfig := GetDatabaseConfig(t)
+	dbConfig := tests.GetDatabaseConfig(t)
 	serverConfig, err := common.NewConfig()
 	assert.Nil(t, err)
 
@@ -25,7 +27,7 @@ func NewDefaultAcraServerConfig(t *testing.T) *common.Config {
 	serverConfig.SetTLSClientIDExtractor(clientIDExtractor)
 	serverConfig.ConnectionWrapper = &network.RawConnectionWrapper{ClientID: nil}
 	serverConfig.SetUseClientIDFromCertificate(true)
-	serverKeystore := GetNewDefaultKeystore(t)
+	serverKeystore := keystore.GetNewDefaultKeystore(t)
 	serverConfig.SetKeyStore(serverKeystore)
 	return serverConfig
 }

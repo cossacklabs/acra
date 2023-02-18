@@ -1,4 +1,4 @@
-package tests
+package keystore
 
 import (
 	"github.com/cossacklabs/acra/keystore"
