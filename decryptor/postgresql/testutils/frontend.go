@@ -77,6 +77,7 @@ type sendMessageStep struct {
 	msg pgproto3.FrontendMessage
 }
 
+// Step send message to frontends buffer
 func (e *sendMessageStep) Step(frontend *pgproto3.Frontend) error {
 	frontend.Send(e.msg)
 	return nil
@@ -113,6 +114,7 @@ func WaitForStep(msg pgproto3.BackendMessage) Step {
 
 type flushStep struct{}
 
+// Step flushes frontend's buffer and really sends messages to the connection
 func (f flushStep) Step(frontend *pgproto3.Frontend) error {
 	return frontend.Flush()
 }
@@ -131,6 +133,7 @@ func NewAuthStep(database, username, password string) Step {
 	return authStep{database, username, password}
 }
 
+// Step authenticates to database and wait completion of authentication phase
 func (step authStep) Step(frontend *pgproto3.Frontend) error {
 	frontend.Send(&pgproto3.StartupMessage{pgproto3.ProtocolVersionNumber, map[string]string{
 		"user":     step.username,
@@ -163,7 +166,10 @@ func (step authStep) Step(frontend *pgproto3.Frontend) error {
 	return WaitForStep(&pgproto3.ReadyForQuery{}).Step(frontend)
 }
 
+// RowData represents row of DataRow
 type RowData [][]byte
+
+// CollectDataRowsStep used to receive and store rows from the database DataRow response
 type CollectDataRowsStep struct {
 	count int
 	rows  []RowData
@@ -174,10 +180,12 @@ func NewCollectDataRowsStep(count int) *CollectDataRowsStep {
 	return &CollectDataRowsStep{count: count}
 }
 
+// GetRows returns collected rows
 func (step *CollectDataRowsStep) GetRows() []RowData {
 	return step.rows
 }
 
+// Step receive and store DataRow packets count times
 func (step *CollectDataRowsStep) Step(frontend *pgproto3.Frontend) error {
 	step.rows = make([]RowData, step.count)
 	for i := 0; i < step.count; i++ {

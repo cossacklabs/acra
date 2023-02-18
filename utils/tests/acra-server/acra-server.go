@@ -12,6 +12,8 @@ import (
 	"testing"
 )
 
+// NewDefaultAcraServerConfig returns new common.Config for AcraServer configured with default values from
+// cmd/acra-server/acra-server.go
 func NewDefaultAcraServerConfig(t *testing.T) *common.Config {
 	dbConfig := tests.GetDatabaseConfig(t)
 	serverConfig, err := common.NewConfig()

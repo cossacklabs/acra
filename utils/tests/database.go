@@ -8,11 +8,14 @@ import (
 	"testing"
 )
 
+// DatabaseConfig stores configuration for test database
 type DatabaseConfig struct {
 	DBHost, Database, User, Password string
 	Port                             int
 }
 
+// GetDatabaseConfig returns DatabaseConfig for integration tests configured with env variables or default values used
+// for tests/test.py
 func GetDatabaseConfig(t *testing.T) DatabaseConfig {
 	var ok bool
 	config := DatabaseConfig{}
