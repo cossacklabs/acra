@@ -148,7 +148,7 @@ func realMain() error {
 	network.RegisterTLSArgsForService(flag.CommandLine, false, "", network.ClientNameConstructorFunc())
 	network.RegisterTLSArgsForService(flag.CommandLine, true, "", network.DatabaseNameConstructorFunc())
 	tlsUseClientIDFromCertificate := flag.Bool("tls_client_id_from_cert", true, "Extract clientID from TLS certificate from application connection. Can't be used with --tls_client_auth=0 or --tls_auth=0")
-	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
+	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.DefaultIdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
 	clientID := flag.String("client_id", "", "Static ClientID used by AcraServer for data protection operations")
 	acraConnectionString := flag.String("incoming_connection_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerPort, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraAPIConnectionString := flag.String("incoming_connection_api_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerAPIPort, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
@@ -329,6 +329,11 @@ func realMain() error {
 	}
 
 	log.Infof("Configuring transport...")
+	serverConfig.SetUseClientIDFromCertificate(*tlsUseClientIDFromCertificate)
+	if err := serverConfig.SetStaticClientID([]byte(*clientID)); err != nil {
+		log.WithError(err).Errorln("Cannot be configured static clientID")
+		os.Exit(1)
+	}
 
 	appSideTLSConfig, err := network.NewTLSConfigByName(flag.CommandLine, "", "", network.ClientNameConstructorFunc())
 	if err != nil {
@@ -381,17 +386,17 @@ func realMain() error {
 					Warningln("--http_api_tls_transport_enable is provided, but the HTTP API server is not configured. Use --http_api_enable to enable it.")
 				os.Exit(1)
 			}
-			httpAPIConnWrapper, err = common.BuildHTTPAPIConnectionWrapper(tlsWrapper, *tlsUseClientIDFromCertificate, []byte(*clientID))
+			httpAPIConnWrapper, err = common.BuildHTTPAPIConnectionWrapper(tlsWrapper, *tlsUseClientIDFromCertificate, serverConfig.GetStaticClientID())
 		} else {
 			if *enableHTTPAPI {
 				log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).
 					Warningln("HTTP API server is used without TLS. Consider using TLS whenever possible.")
-				if *clientID == "" {
+				if len(serverConfig.GetStaticClientID()) == 0 {
 					log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 						Warning("HTTP API server is configured without TLS, which requires non-empty clientID. Either configure TLS for the HTTP API server, use --client_id option.")
 				}
 			}
-			httpAPIConnWrapper, err = common.BuildHTTPAPIConnectionWrapper(nil, *tlsUseClientIDFromCertificate, []byte(*clientID))
+			httpAPIConnWrapper, err = common.BuildHTTPAPIConnectionWrapper(nil, *tlsUseClientIDFromCertificate, serverConfig.GetStaticClientID())
 		}
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
@@ -407,13 +412,11 @@ func realMain() error {
 	// here ConnectionWrapper used to establish connection with app via pure net.Conn with known static clientID on server side
 	// which ClientID will be used in next steps depends on --tls_client_id_from_cert parameter. If --tls_client_id_from_cert=false
 	// then will be used static --client_id otherwise will be extracted from TLS certificate and override static variant
-	if (*clientID == "") && !*tlsUseClientIDFromCertificate {
+	if (len(serverConfig.GetStaticClientID()) == 0) && !*tlsUseClientIDFromCertificate {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 			Errorln("Configuration error: without encryption you must set <client_id> which will be used to connect to AcraServer")
 		return err
 	}
-	log.Infof("Selecting transport: use raw transport wrapper")
-	serverConfig.ConnectionWrapper = &network.RawConnectionWrapper{ClientID: []byte(*clientID)}
 
 	log.Debugf("Registering process signal handlers")
 	sigHandlerSIGTERM, err := cmd.NewSignalHandler([]os.Signal{os.Interrupt, syscall.SIGTERM})

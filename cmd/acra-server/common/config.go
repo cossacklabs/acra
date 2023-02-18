@@ -37,28 +37,30 @@ import (
 
 // Config describes AcraServer configuration
 type Config struct {
-	dbPort                   int
-	dbHost                   string
-	detectPoisonRecords      bool
-	stopOnPoison             bool
-	scriptOnPoison           string
-	withAPI                  bool
-	acraConnectionString     string
-	acraAPIConnectionString  string
-	ConnectionWrapper        network.ConnectionWrapper
-	HTTPAPIConnectionWrapper network.HTTPServerConnectionWrapper
-	tlsClientIDExtractor     network.TLSClientIDExtractor
-	mysql                    bool
-	postgresql               bool
-	debug                    bool
-	censor                   acracensor.AcraCensorInterface
-	TraceToLog               bool
-	tableSchema              encryptorConfig.TableSchemaStore
-	dataEncryptor            encryptor.DataEncryptor
-	keystore                 keystore.ServerKeyStore
-	traceOptions             []trace.StartOption
-	serviceName              string
-	configPath               string
+	dbPort                     int
+	dbHost                     string
+	detectPoisonRecords        bool
+	stopOnPoison               bool
+	scriptOnPoison             string
+	withAPI                    bool
+	acraConnectionString       string
+	acraAPIConnectionString    string
+	ConnectionWrapper          network.ConnectionWrapper
+	HTTPAPIConnectionWrapper   network.HTTPServerConnectionWrapper
+	tlsClientIDExtractor       network.TLSClientIDExtractor
+	useClientIDFromCertificate bool
+	mysql                      bool
+	postgresql                 bool
+	debug                      bool
+	censor                     acracensor.AcraCensorInterface
+	TraceToLog                 bool
+	tableSchema                encryptorConfig.TableSchemaStore
+	dataEncryptor              encryptor.DataEncryptor
+	keystore                   keystore.ServerKeyStore
+	traceOptions               []trace.StartOption
+	serviceName                string
+	configPath                 string
+	clientID                   []byte
 }
 
 // NewConfig returns new Config object
@@ -100,6 +102,11 @@ func (config *Config) LoadMapTableSchemaConfig(storageType string, useMySQL bool
 	}
 	config.tableSchema = schema
 	return nil
+}
+
+// SetTableSchema set TableSchemaStore
+func (config *Config) SetTableSchema(store encryptorConfig.TableSchemaStore) {
+	config.tableSchema = store
 }
 
 // GetTableSchema returns table schema in use.
@@ -278,4 +285,34 @@ func (config *Config) SetTLSClientIDExtractor(tlsClientIDExtractor network.TLSCl
 // GetTLSClientIDExtractor return configured TLSClietIDExtractor
 func (config *Config) GetTLSClientIDExtractor() network.TLSClientIDExtractor {
 	return config.tlsClientIDExtractor
+}
+
+// SetUseClientIDFromCertificate set should acra-server use clientID from the certificate or not
+func (config *Config) SetUseClientIDFromCertificate(use bool) {
+	config.useClientIDFromCertificate = use
+}
+
+// GetUseClientIDFromCertificate return is acra-server should use clientID from the certificate
+func (config *Config) GetUseClientIDFromCertificate() bool {
+	return config.useClientIDFromCertificate
+}
+
+// SetStaticClientID set clientID to use for all incoming connections with turned off through TLS certificate
+// identification
+func (config *Config) SetStaticClientID(clientID []byte) error {
+	// default configuration
+	config.ConnectionWrapper = &network.RawConnectionWrapper{ClientID: clientID}
+	if len(clientID) == 0 {
+		return nil
+	}
+	if !keystore.ValidateID(clientID) {
+		return keystore.ErrInvalidClientID
+	}
+	config.clientID = clientID
+	return nil
+}
+
+// GetStaticClientID returns configured static clientID
+func (config *Config) GetStaticClientID() []byte {
+	return config.clientID
 }
