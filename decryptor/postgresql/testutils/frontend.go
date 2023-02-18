@@ -147,6 +147,10 @@ func (step authStep) Step(frontend *pgproto3.Frontend) error {
 	if err != nil {
 		return err
 	}
+	_, ok := msg.(*pgproto3.AuthenticationOk)
+	if ok {
+		return WaitForStep(&pgproto3.ReadyForQuery{}).Step(frontend)
+	}
 	md5Msg, ok := msg.(*pgproto3.AuthenticationMD5Password)
 	if !ok {
 		return fmt.Errorf("msg => %#v, e.want => %#v", msg, &pgproto3.AuthenticationMD5Password{})
