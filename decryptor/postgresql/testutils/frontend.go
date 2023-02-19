@@ -26,6 +26,7 @@ func NewFrontend(connIn, connOut net.Conn) *Frontend {
 	return &Frontend{Frontend: f, connIn: connIn, connOut: connOut}
 }
 
+// Valid responses on SSLRequest
 const (
 	SSLRequestOk = 'S'
 	SSLRequestNo = 'N'
@@ -38,6 +39,7 @@ func (f *Frontend) ReadSSLResponse() (byte, error) {
 	return out[0], err
 }
 
+// SwitchToTLS switch frontend's connections to the TLS. Expects that database responded 'S' on SSLRequest
 func (f *Frontend) SwitchToTLS(ctx context.Context, tlsConfig *tls.Config) error {
 	newConn := tls.Client(f.connOut, tlsConfig)
 	if err := newConn.HandshakeContext(ctx); err != nil {
