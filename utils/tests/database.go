@@ -21,7 +21,7 @@ func GetDatabaseConfig(t *testing.T) DatabaseConfig {
 	config := DatabaseConfig{}
 	config.DBHost, ok = os.LookupEnv("TEST_DB_HOST")
 	if !ok {
-		config.Database = "localhost"
+		config.DBHost = "localhost"
 	}
 	dbPortStr, ok := os.LookupEnv("TEST_DB_PORT")
 	if ok {
