@@ -1,17 +1,55 @@
 package testutils
 
 import (
+	"context"
 	"crypto/md5"
+	"crypto/tls"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"github.com/cossacklabs/acra/utils/tests"
 	"github.com/jackc/pgx/v5/pgproto3"
 	"io"
+	"net"
 	"reflect"
 )
 
+// Frontend extends pgproto3.Frontend
+type Frontend struct {
+	*pgproto3.Frontend
+	connIn, connOut net.Conn
+}
+
+// NewFrontend returns new Frontend
+func NewFrontend(connIn, connOut net.Conn) *Frontend {
+	f := pgproto3.NewFrontend(connIn, connOut)
+	return &Frontend{Frontend: f, connIn: connIn, connOut: connOut}
+}
+
+const (
+	SSLRequestOk = 'S'
+	SSLRequestNo = 'N'
+)
+
+// ReadSSLResponse reads and returns response on SSLRequest
+func (f *Frontend) ReadSSLResponse() (byte, error) {
+	var out [1]byte
+	_, err := f.connIn.Read(out[:])
+	return out[0], err
+}
+
+func (f *Frontend) SwitchToTLS(ctx context.Context, tlsConfig *tls.Config) error {
+	newConn := tls.Client(f.connOut, tlsConfig)
+	if err := newConn.HandshakeContext(ctx); err != nil {
+		return err
+	}
+	f.Frontend = pgproto3.NewFrontend(newConn, newConn)
+	return nil
+}
+
 // Step execute one step of flow
 type Step interface {
-	Step(*pgproto3.Frontend) error
+	Step(*Frontend) error
 }
 
 // Script store and run steps until gets error
@@ -20,7 +58,7 @@ type Script struct {
 }
 
 // Run runs all steps until error
-func (s *Script) Run(frontend *pgproto3.Frontend) error {
+func (s *Script) Run(frontend *Frontend) error {
 	for _, step := range s.Steps {
 		err := step.Step(frontend)
 		if err != nil {
@@ -32,7 +70,7 @@ func (s *Script) Run(frontend *pgproto3.Frontend) error {
 }
 
 // Step whole script works as one step
-func (s *Script) Step(frontend *pgproto3.Frontend) error {
+func (s *Script) Step(frontend *Frontend) error {
 	return s.Run(frontend)
 }
 
@@ -42,7 +80,7 @@ type expectMessageStep struct {
 }
 
 // Step receives one message from the frontend and verify that it is fully equal to the expected message
-func (e *expectMessageStep) Step(frontend *pgproto3.Frontend) error {
+func (e *expectMessageStep) Step(frontend *Frontend) error {
 	msg, err := frontend.Receive()
 	if err != nil {
 		return err
@@ -78,7 +116,7 @@ type sendMessageStep struct {
 }
 
 // Step send message to frontends buffer
-func (e *sendMessageStep) Step(frontend *pgproto3.Frontend) error {
+func (e *sendMessageStep) Step(frontend *Frontend) error {
 	frontend.Send(e.msg)
 	return nil
 }
@@ -91,7 +129,7 @@ func SendMessage(msg pgproto3.FrontendMessage) Step {
 type waitForStep struct{ wants pgproto3.BackendMessage }
 
 // Step skips messages from the frontend until gets message with required type
-func (e *waitForStep) Step(frontend *pgproto3.Frontend) error {
+func (e *waitForStep) Step(frontend *Frontend) error {
 	for {
 		msg, err := frontend.Receive()
 		if err == io.EOF {
@@ -115,7 +153,7 @@ func WaitForStep(msg pgproto3.BackendMessage) Step {
 type flushStep struct{}
 
 // Step flushes frontend's buffer and really sends messages to the connection
-func (f flushStep) Step(frontend *pgproto3.Frontend) error {
+func (f flushStep) Step(frontend *Frontend) error {
 	return frontend.Flush()
 }
 
@@ -126,15 +164,34 @@ func NewFlushStep() Step {
 
 type authStep struct {
 	database, username, password string
+	ctx                          context.Context
+	tlsConfig                    *tls.Config
 }
 
 // NewAuthStep returns step to send Startup message and process authentication with password md5 authentication
-func NewAuthStep(database, username, password string) Step {
-	return authStep{database, username, password}
+func NewAuthStep(ctx context.Context, tlsConfig *tls.Config, database, username, password string) Step {
+	return authStep{database: database, username: username, password: password, ctx: ctx, tlsConfig: tlsConfig}
 }
 
 // Step authenticates to database and wait completion of authentication phase
-func (step authStep) Step(frontend *pgproto3.Frontend) error {
+func (step authStep) Step(frontend *Frontend) error {
+	if tests.TestWithTLS() {
+		frontend.Send(&pgproto3.SSLRequest{})
+		if err := frontend.Flush(); err != nil {
+			return err
+		}
+		response, err := frontend.ReadSSLResponse()
+		if err != nil {
+			return err
+		}
+		if response == SSLRequestNo {
+			return errors.New("postgresql denied SSLRequest")
+		}
+		if err = frontend.SwitchToTLS(step.ctx, step.tlsConfig); err != nil {
+			return err
+		}
+	}
+
 	frontend.Send(&pgproto3.StartupMessage{pgproto3.ProtocolVersionNumber, map[string]string{
 		"user":     step.username,
 		"database": step.database,
@@ -190,7 +247,7 @@ func (step *CollectDataRowsStep) GetRows() []RowData {
 }
 
 // Step receive and store DataRow packets count times
-func (step *CollectDataRowsStep) Step(frontend *pgproto3.Frontend) error {
+func (step *CollectDataRowsStep) Step(frontend *Frontend) error {
 	step.rows = make([]RowData, step.count)
 	for i := 0; i < step.count; i++ {
 		msg, err := frontend.Receive()

@@ -115,18 +115,25 @@ func TestSequenceParsePackets(t *testing.T) {
 		frontendConn.Close()
 		t.Log("Frontend closed")
 	})
-	frontend := pgproto3.NewFrontend(frontendConn, frontendConn)
+	frontend := testutils.NewFrontend(frontendConn, frontendConn)
 
 	testData1 := []byte("test data 1")
 	testData2 := 2
 	dbConfig := tests.GetDatabaseConfig(t)
 	row1 := testutils.NewCollectDataRowsStep(1)
 	row2 := testutils.NewCollectDataRowsStep(1)
+	workingDirectory := tests.GetSourceRootDirectory(t)
+	tlsConfig, err := network.NewTLSConfig("localhost",
+		filepath.Join(workingDirectory, "tests/ssl/ca/ca.crt"),
+		filepath.Join(workingDirectory, "tests/ssl/acra-writer/acra-writer.key"),
+		filepath.Join(workingDirectory, "tests/ssl/acra-writer/acra-writer.crt"),
+		1, nil)
+	assert.Nil(err)
 	// register two prepared statements and execute them in the opposite order as single group of packets to verify that acra-server
 	// applies correct ColumnEncryptionConfig
 	steps := []testutils.Step{
 		// authenticate
-		testutils.NewAuthStep(dbConfig.Database, dbConfig.User, dbConfig.Password),
+		testutils.NewAuthStep(ctx, tlsConfig, dbConfig.Database, dbConfig.User, dbConfig.Password),
 		// prepare schema
 		testutils.SendMessage(&pgproto3.Query{String: "drop table if exists mytable; drop table if exists mytable2; create table if not exists mytable(id serial primary key, data bytea); " +
 			"create table if not exists mytable2(id serial primary key, data integer);"}),
@@ -171,13 +178,6 @@ func TestSequenceParsePackets(t *testing.T) {
 	assert.Nil(err)
 	assert.Equal(intValue, testData2)
 
-	workingDirectory := tests.GetSourceRootDirectory(t)
-	tlsConfig, err := network.NewTLSConfig("localhost",
-		filepath.Join(workingDirectory, "tests/ssl/ca/ca.crt"),
-		filepath.Join(workingDirectory, "tests/ssl/acra-writer/acra-writer.key"),
-		filepath.Join(workingDirectory, "tests/ssl/acra-writer/acra-writer.crt"),
-		1, nil)
-	assert.Nil(t, err)
 	pgConfig, err := pgx.ParseConfig(fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s",
 		dbConfig.DBHost, dbConfig.Port, dbConfig.Database, dbConfig.User, dbConfig.Password))
 	assert.Nil(err)

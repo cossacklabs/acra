@@ -9,6 +9,11 @@ import (
 	"time"
 )
 
+// TestWithTLS returns true if integration tests should run with TLS configuration
+func TestWithTLS() bool {
+	return os.Getenv("TEST_TLS") == "on"
+}
+
 // CheckConnection connects to the endpoint until success 100 times with delay or fails
 func CheckConnection(t *testing.T, endpoint string) {
 	const (
