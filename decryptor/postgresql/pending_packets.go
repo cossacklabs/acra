@@ -42,7 +42,7 @@ var ErrRemoveFromEmptyPendingList = errors.New("removing from empty pending list
 // Add packet to pending list of packets of this type
 func (packets *pendingPacketsList) Add(packet interface{}) error {
 	switch packet.(type) {
-	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription:
+	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription, queryPacket:
 		packetType := reflect.TypeOf(packet)
 		packetList, ok := packets.lists[packetType]
 		if !ok {
@@ -59,7 +59,7 @@ func (packets *pendingPacketsList) Add(packet interface{}) error {
 // RemoveNextPendingPacket removes first in the list pending packet
 func (packets *pendingPacketsList) RemoveNextPendingPacket(packet interface{}) error {
 	switch packet.(type) {
-	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription:
+	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription, queryPacket:
 		packetType := reflect.TypeOf(packet)
 		packetList, ok := packets.lists[packetType]
 		if !ok {
@@ -79,7 +79,7 @@ func (packets *pendingPacketsList) RemoveNextPendingPacket(packet interface{}) e
 // RemoveAll pending packets of packet's type
 func (packets *pendingPacketsList) RemoveAll(packet interface{}) error {
 	switch packet.(type) {
-	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription:
+	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription, queryPacket:
 		packetList, ok := packets.lists[reflect.TypeOf(packet)]
 		if !ok {
 			return nil
@@ -94,7 +94,7 @@ func (packets *pendingPacketsList) RemoveAll(packet interface{}) error {
 // GetPendingPacket returns next pending packet
 func (packets *pendingPacketsList) GetPendingPacket(packet interface{}) (interface{}, error) {
 	switch packet.(type) {
-	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription:
+	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription, queryPacket:
 		packetType := reflect.TypeOf(packet)
 		packetList, ok := packets.lists[packetType]
 		if !ok {
@@ -113,7 +113,7 @@ func (packets *pendingPacketsList) GetPendingPacket(packet interface{}) (interfa
 // GetLastPending return last added pending packet
 func (packets *pendingPacketsList) GetLastPending(packet interface{}) (interface{}, error) {
 	switch packet.(type) {
-	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription:
+	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription, queryPacket:
 		packetType := reflect.TypeOf(packet)
 		packetList, ok := packets.lists[packetType]
 		if !ok {

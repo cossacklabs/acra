@@ -94,11 +94,16 @@ const (
 	ParseMessageType         byte = 'P'
 	BindMessageType          byte = 'B'
 	ExecuteMessageType       byte = 'E'
+	ErrorResponseType        byte = 'E'
 	ParseCompleteMessageType byte = '1'
 	BindCompleteMessageType  byte = '2'
 	ReadyForQueryMessageType byte = 'Z'
 	RowDescriptionType       byte = 'T'
 	ParameterDescriptionType byte = 't'
+	CommandCompleteType      byte = 'C'
+	EmptyQueryResponseType        = 'I'
+	NoDataType                    = 'n'
+	PortalSuspendedType           = 's'
 	ClientStopTimeout             = time.Second * 2
 )
 
@@ -124,6 +129,32 @@ const (
 	stateSkipResponse
 )
 
+// EncryptionSettingExtractor uses QueryDataEncryptor to extract ColumnEncryptionSetting for every column in the result
+type EncryptionSettingExtractor struct {
+	encryptor *encryptor.QueryDataEncryptor
+	ctx       context.Context
+}
+
+// NewEncryptionSettingExtractor returns new initialized EncryptionSettingExtractor
+func NewEncryptionSettingExtractor(ctx context.Context, schema config.TableSchemaStore, parser *sqlparser.Parser) (EncryptionSettingExtractor, error) {
+	queryEncryptor, err := encryptor.NewPostgresqlQueryEncryptor(schema, parser, nil)
+	if err != nil {
+		return EncryptionSettingExtractor{}, err
+	}
+	return EncryptionSettingExtractor{queryEncryptor, ctx}, nil
+}
+
+// GetEncryptorSettingsForQuery walk through the query and match result columns in SELECT and INSERT/DELETE + RETURNING
+// statements to the ColumnEncryptionSetting
+func (extractor EncryptionSettingExtractor) GetEncryptorSettingsForQuery(object base.OnQueryObject) ([]*encryptor.QueryDataItem, error) {
+	_, _, err := extractor.encryptor.OnQuery(extractor.ctx, object)
+	if err != nil {
+		return nil, err
+	}
+	settings := extractor.encryptor.GetQueryEncryptionSettings()
+	return settings, nil
+}
+
 // PgProxy represents PgSQL database connection between client and database with TLS support
 type PgProxy struct {
 	session                 base.ClientSession
@@ -139,6 +170,7 @@ type PgProxy struct {
 	setting                 base.ProxySetting
 	clientIDObserverManager base.ClientIDObservableManager
 	parser                  *sqlparser.Parser
+	settingExtractor        EncryptionSettingExtractor
 }
 
 // NewPgProxy returns new PgProxy
@@ -162,8 +194,12 @@ func NewPgProxy(session base.ClientSession, parser *sqlparser.Parser, setting ba
 			return nil, ErrInvalidProtocolState
 		}
 	} else {
-		protocolState = NewPgProtocolState(parser)
+		protocolState = NewPgProtocolState(parser, session.PreparedStatementRegistry())
 		session.SetProtocolState(protocolState)
+	}
+	settingExtractor, err := NewEncryptionSettingExtractor(session.Context(), setting.TableSchemaStore(), setting.SQLParser())
+	if err != nil {
+		return nil, err
 	}
 	return &PgProxy{
 		session:                 session,
@@ -178,6 +214,7 @@ func NewPgProxy(session base.ClientSession, parser *sqlparser.Parser, setting ba
 		protocolState:           protocolState,
 		clientIDObserverManager: clientIDObserverManager,
 		parser:                  parser,
+		settingExtractor:        settingExtractor,
 	}, nil
 }
 
@@ -191,11 +228,12 @@ func (proxy *PgProxy) Unsubscribe(subscriber base.DecryptionSubscriber) {
 	proxy.decryptionObserver.Unsubscribe(subscriber)
 }
 
-func (proxy *PgProxy) onColumnDecryption(parentCtx context.Context, i int, data []byte, binaryFormat bool) ([]byte, error) {
+func (proxy *PgProxy) onColumnDecryption(parentCtx context.Context, i int, data []byte, binaryFormat bool, encryptionSetting config.ColumnEncryptionSetting) ([]byte, error) {
 	accessContext := base.AccessContextFromContext(parentCtx)
 	accessContext.SetColumnInfo(base.NewColumnInfo(i, "", binaryFormat, len(data), 0, 0))
 	// create new ctx per column processing
 	ctx := base.SetAccessContextToContext(parentCtx, accessContext)
+	ctx = encryptor.NewContextWithEncryptionSetting(ctx, encryptionSetting)
 	_, newData, err := proxy.decryptionObserver.OnColumnDecryption(ctx, i, data)
 	return newData, err
 }
@@ -299,6 +337,30 @@ func (proxy *PgProxy) handleClientPacket(ctx context.Context, packet *PacketHand
 		return false, err
 	}
 	switch proxy.protocolState.LastPacketType() {
+	case ExecutePacketType:
+		executePacket, err := packet.GetExecuteData()
+		if err != nil {
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).
+				WithError(err).Errorln("Can't fetch executed query from Execute packet")
+			return false, err
+		}
+		cursor, err := proxy.protocolState.registry.CursorByName(executePacket.portal)
+		if err != nil {
+			return false, err
+		}
+		pgCursor, ok := cursor.(*PgPortal)
+		if !ok {
+			return false, errors.New("invalid type of cursor")
+		}
+		prepared, ok := cursor.PreparedStatement().(*PgPreparedStatement)
+		if !ok {
+			return false, errors.New("invalid type of registered prepared statement")
+		}
+		queryPacket := newExtendedQueryPacket(prepared, pgCursor.bind, executePacket)
+		if err = proxy.protocolState.pendingQueryPackets.Add(queryPacket); err != nil {
+			return false, err
+		}
+		break
 	case ParseStatementPacket:
 		censored, err := proxy.handleQueryPacket(ctx, packet, logger)
 		if err != nil || censored {
@@ -309,7 +371,7 @@ func (proxy *PgProxy) handleClientPacket(ctx context.Context, packet *PacketHand
 		// but for now it is not implemented yet. Therefore, connection with a
 		// large number of prepared statements with errors tend to leak memory,
 		// but on practice it is not that noticeable.
-		pendingParse, err := proxy.protocolState.LastParse()
+		pendingParse, err := packet.GetParseData()
 		if err != nil {
 			return false, err
 		}
@@ -322,6 +384,16 @@ func (proxy *PgProxy) handleClientPacket(ctx context.Context, packet *PacketHand
 		err = replaceOIDsInParsePackets(proxy.ctx, packet, pendingParse, logger)
 		return false, err
 	case SimpleQueryPacket:
+		query, err := packet.GetSimpleQuery()
+		if err != nil {
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).
+				WithError(err).Errorln("Can't fetch query string from Query packet")
+			return false, err
+		}
+		queryPacket := newQueryPacket(query)
+		if err = proxy.protocolState.pendingQueryPackets.Add(queryPacket); err != nil {
+			return false, err
+		}
 		// If that's some sort of a packet with a query inside it,
 		// process inline data if necessary and remember the query to handle future response.
 		return proxy.handleQueryPacket(ctx, packet, logger)
@@ -335,22 +407,42 @@ func (proxy *PgProxy) handleClientPacket(ctx context.Context, packet *PacketHand
 		// Forward all other uninteresting packets to the database without processing.
 		return false, nil
 	}
+	return false, nil
 }
 
 func (proxy *PgProxy) handleQueryPacket(ctx context.Context, packet *PacketHandler, logger *log.Entry) (bool, error) {
-	query := proxy.protocolState.PendingQuery()
+	var query string
+	var err error
+	if packet.IsParse() {
+		parsePacket, err := packet.GetParseData()
+		if err != nil {
+			logger.WithError(err).Errorln("Can't get Parse packet to handle query")
+			return false, err
+		}
+		query = parsePacket.QueryString()
+	} else if packet.IsSimpleQuery() {
+		query, err = packet.GetSimpleQuery()
+		if err != nil {
+			logger.WithError(err).Errorln("Can't get SimpleQuery packet to handle query")
+			return false, err
+		}
+	} else {
+		logger.WithField("type", string(packet.messageType[0])).Errorln("Unsupported type of packet to handle query")
+		return false, ErrUnsupportedPacketType
+	}
 
 	// Log query text -- if and only if we're in debug mode -- without inserted value data.
 	// The query can still be sensitive though, so only in debug mode can we do this.
 	if logging.GetLogLevel() == logging.LogDebug {
-		_, queryWithHiddenValues, _, err := proxy.parser.HandleRawSQLQuery(query.Query())
+		_, queryWithHiddenValues, _, err := proxy.parser.HandleRawSQLQuery(query)
 		if err == sqlparser.ErrQuerySyntaxError {
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).
 				Debugf("Parsing error on query: %s", queryWithHiddenValues)
 		} else {
+			// create new logger to log full sql only once and repeat it in the next log messages
 			log := logger.WithField("sql", queryWithHiddenValues)
 			if proxy.protocolState.LastPacketType() == ParseStatementPacket {
-				preparedStatement, err := proxy.protocolState.PendingParse()
+				preparedStatement, err := packet.GetParseData()
 				if err != nil {
 					return false, err
 				}
@@ -364,14 +456,15 @@ func (proxy *PgProxy) handleQueryPacket(ctx context.Context, packet *PacketHandl
 
 	// Let AcraCensor take a look at the query text.
 	// If it's not okay (and we're still alive), don't let the database see the query.
-	if censorErr := proxy.censor.HandleQuery(query.Query()); censorErr != nil {
+	if censorErr := proxy.censor.HandleQuery(query); censorErr != nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).
 			WithError(censorErr).Errorln("AcraCensor blocked query")
 		return true, nil
 	}
 
 	// Let the registered observers observe the query, potentially modifying it (e.g., transparent encryption).
-	newQuery, changed, err := proxy.queryObserverManager.OnQuery(ctx, query)
+	queryObj := base.NewOnQueryObjectFromQuery(query, proxy.parser)
+	newQuery, changed, err := proxy.queryObserverManager.OnQuery(ctx, queryObj)
 	if err != nil {
 		if filesystem.IsKeyReadError(err) {
 			return false, err
@@ -387,7 +480,7 @@ func (proxy *PgProxy) handleQueryPacket(ctx context.Context, packet *PacketHandl
 }
 
 func (proxy *PgProxy) handleBindPacket(ctx context.Context, packet *PacketHandler, logger *log.Entry) (bool, error) {
-	bind, err := proxy.protocolState.LastBind()
+	bind, err := packet.GetBindData()
 	if err != nil {
 		logger.WithError(err).Errorln("Can't get pending Bind packet")
 		return false, err
@@ -397,6 +490,9 @@ func (proxy *PgProxy) handleBindPacket(ctx context.Context, packet *PacketHandle
 	}
 	logger = logger.WithField("portal", bind.PortalName()).WithField("statement", bind.StatementName())
 	logger.Debug("Bind packet")
+	if err = proxy.registerCursor(bind, logger); err != nil {
+		return false, err
+	}
 	// There must be previously registered prepared statement with requested name. If there isn't
 	// it's likely due to a client error. Print a warning and let the packet through as is.
 	// We can't do anything with it and the database should respond with an error.
@@ -426,6 +522,7 @@ func (proxy *PgProxy) handleBindPacket(ctx context.Context, packet *PacketHandle
 	// Finally, if the parameter values have been changed, update the packet.
 	// If that fails, send the packet unchanged, as usual.
 	if changed {
+		logger.Debugln("Update bind packet")
 		bind.SetParameters(newParameters)
 		err = packet.ReplaceBind(bind)
 		if err != nil {
@@ -739,32 +836,6 @@ func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHa
 		// If that's some sort of a packet with a query response inside it,
 		// decrypt and process the data in it.
 		return proxy.handleQueryDataPacket(ctx, packet, logger)
-
-	case ParseCompletePacket:
-		pendingParse, err := proxy.protocolState.PendingParse()
-		if err != nil {
-			return err
-		}
-		if pendingParse != nil {
-			log.WithField("parse", pendingParse).Debugln("ParseComplete")
-		}
-		return proxy.protocolState.forgetPendingParse()
-	case BindCompletePacket:
-		// Previously requested cursor has been confirmed by the database, register it.
-		bindPacket, err := proxy.protocolState.PendingBind()
-		if err != nil {
-			logger.WithError(err).Errorln("Can't get pending Bind packet")
-			return err
-		}
-		if bindPacket == nil {
-			return ErrNilPendingPacket
-		}
-		defer func() {
-			if err := proxy.protocolState.zeroizePendingBind(); err != nil {
-				logger.WithError(err).Errorln("Can't forget pending Bind packet")
-			}
-		}()
-		return proxy.registerCursor(bindPacket, logger)
 	case RowDescriptionPacket:
 		return proxy.handleRowDescription(ctx, packet, logger)
 
@@ -874,11 +945,13 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 	logger.Debugln("Matched data row packet")
 	// by default it's text format
 	columnFormats := []uint16{uint16(base.TextFormat)}
-	if bindPacket, err := proxy.protocolState.PendingBind(); err != nil {
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
-			WithError(err).Errorln("Can't get pending Bind packet")
+	pendingPacket, err := proxy.protocolState.pendingQueryPackets.GetPendingPacket(queryPacket{})
+	if err != nil {
 		return err
-	} else if bindPacket != nil {
+	}
+	var bindPacket *BindPacket
+	if pendingPacket.(queryPacket).executePacket != nil {
+		bindPacket = pendingPacket.(queryPacket).bindPacket
 		columnFormats, err = bindPacket.GetResultFormats()
 		if err != nil {
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
@@ -895,6 +968,12 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 	if packet.columnCount == 0 {
 		return nil
 	}
+	sqlQuery := pendingPacket.(queryPacket).GetSQLQuery()
+	encryptionSettings, err := proxy.settingExtractor.GetEncryptorSettingsForQuery(base.NewOnQueryObjectFromQuery(sqlQuery, proxy.parser))
+	if err != nil {
+		logger.WithError(err).Warningln("Can't extract encryption settings from the query")
+		encryptionSettings = nil
+	}
 	logger.Debugf("Process columns data")
 	for i := 0; i < packet.columnCount; i++ {
 		column := packet.Columns[i]
@@ -903,14 +982,9 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 		}
 		// default values Text
 		format := 0
-		pendingBind, err := proxy.protocolState.pendingPackets.GetPendingPacket(&BindPacket{})
-		if err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDBProtocolError).
-				WithError(err).Errorln("Can't get pending Bind packet")
-			return err
-		}
-		if pendingBind != nil {
-			boundFormat, err := GetParameterFormatByIndex(i, pendingBind.(*BindPacket).resultFormats)
+
+		if bindPacket != nil {
+			boundFormat, err := GetParameterFormatByIndex(i, bindPacket.resultFormats)
 			if err != nil {
 				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
 					WithError(err).Errorln("Can't get format for column")
@@ -918,8 +992,12 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 			}
 			format = int(boundFormat)
 		}
+		var encryptionSetting config.ColumnEncryptionSetting = nil
+		if encryptionSettings != nil && i <= len(encryptionSettings) && encryptionSettings[i] != nil {
+			encryptionSetting = encryptionSettings[i].Setting()
+		}
 		logger.WithField("data_length", len(column.GetData())).WithField("column_index", i).Debugln("Process columns data")
-		newData, err := proxy.onColumnDecryption(ctx, i, column.GetData(), format == dataFormatBinary)
+		newData, err := proxy.onColumnDecryption(ctx, i, column.GetData(), format == dataFormatBinary, encryptionSetting)
 		if err != nil {
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				WithError(err).Errorln("Error on column data processing")
@@ -1006,15 +1084,14 @@ func (proxy *PgProxy) registerCursor(bindPacket *BindPacket, logger *log.Entry) 
 		return err
 	}
 	// Cursors are called portals in PostgreSQL.
-	cursorName := bindPacket.PortalName()
-	cursor := NewPortal(cursorName, preparedStatement)
+	cursor := NewPortal(bindPacket, preparedStatement)
 	err = registry.AddCursor(cursor)
 	if err != nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 			WithError(err).Errorln("Failed to add cursor")
 		return err
 	}
-	logger.WithField("cursor_name", cursorName).WithField("prepared_name", statementName).
+	logger.WithField("cursor_name", cursor.Name()).WithField("prepared_name", statementName).
 		Debug("Registered new cursor")
 	return nil
 }

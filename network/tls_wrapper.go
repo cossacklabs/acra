@@ -222,12 +222,16 @@ func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType t
 		certificates = append(certificates, cer)
 	}
 
-	verifyPeerCertificate := func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
-		err := certVerifier.Verify(rawCerts, verifiedChains)
+	// default do nothing
+	verifyPeerCertificate := func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error { return nil }
+	if certVerifier != nil {
+		verifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+			err := certVerifier.Verify(rawCerts, verifiedChains)
 
-		log.WithError(err).WithField("valid", err == nil).Debugln("verifyPeerCertificate")
+			log.WithError(err).WithField("valid", err == nil).Debugln("verifyPeerCertificate")
 
-		return err
+			return err
+		}
 	}
 	return &tls.Config{
 		RootCAs:               roots,

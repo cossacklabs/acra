@@ -1,10 +1,38 @@
 package tests
 
 import (
+	"github.com/stretchr/testify/assert"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
+
+// TestWithTLS returns true if integration tests should run with TLS configuration
+func TestWithTLS() bool {
+	return os.Getenv("TEST_TLS") == "on"
+}
+
+// CheckConnection connects to the endpoint until success 100 times with delay or fails
+func CheckConnection(t *testing.T, endpoint string) {
+	const (
+		waitTimeout = time.Microsecond * 20
+		tryCount    = 100
+	)
+	var conn net.Conn
+	var err error
+	for i := 0; i < tryCount; i++ {
+		conn, err = net.Dial("tcp", endpoint)
+		if err != nil {
+			time.Sleep(waitTimeout)
+			continue
+		}
+		assert.Nil(t, conn.Close())
+		return
+	}
+	assert.Nil(t, err, "Can't connect to test database")
+}
 
 // GetSourceRootDirectory expects that tests started from root of source code and accessible tests/ssl folder, otherwise try to walk
 // through parents folders and check that it's root of source until find or call t.Fatal

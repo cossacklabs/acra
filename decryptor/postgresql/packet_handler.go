@@ -275,6 +275,16 @@ func (packet *PacketHandler) IsDataRow() bool {
 	return packet.messageType[0] == DataRowMessageType
 }
 
+// IsEmptyQueryResponse returns True if packet is EmptyQueryResponse packet type
+func (packet *PacketHandler) IsEmptyQueryResponse() bool {
+	return packet.messageType[0] == EmptyQueryResponseType
+}
+
+// IsNoData returns True if it is NoData response packet type
+func (packet *PacketHandler) IsNoData() bool {
+	return packet.messageType[0] == NoDataType
+}
+
 // IsReadyForQuery returns true if packet has ReadyForQuery type.
 func (packet *PacketHandler) IsReadyForQuery() bool {
 	return packet.messageType[0] == ReadyForQueryMessageType
@@ -283,6 +293,11 @@ func (packet *PacketHandler) IsReadyForQuery() bool {
 // IsSimpleQuery return true if packet has SimpleQuery type
 func (packet *PacketHandler) IsSimpleQuery() bool {
 	return packet.messageType[0] == QueryMessageType
+}
+
+// IsPortalSuspended returns True if it is PortalSuspended packet type
+func (packet *PacketHandler) IsPortalSuspended() bool {
+	return packet.messageType[0] == PortalSuspendedType
 }
 
 // IsParse return true if packet has Parse type
@@ -305,9 +320,20 @@ func (packet *PacketHandler) IsBindComplete() bool {
 	return packet.messageType[0] == BindCompleteMessageType
 }
 
-// IsExecute return true if packet has Execute type
+// IsCommandComplete return true if packet has CommandComplete type
+func (packet *PacketHandler) IsCommandComplete() bool {
+	return packet.messageType[0] == CommandCompleteType
+}
+
+// IsExecute return true if packet has Execute type from the db driver
 func (packet *PacketHandler) IsExecute() bool {
 	return packet.messageType[0] == ExecuteMessageType
+}
+
+// IsErrorResponse returns True if it is ErrorResponse from the database
+func (packet *PacketHandler) IsErrorResponse() bool {
+	return packet.messageType[0] == ErrorResponseType
+
 }
 
 // GetParseData returns parsed Parse packet data.

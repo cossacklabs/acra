@@ -17,45 +17,74 @@ schemas:
       - specified_client_id
     encrypted: 
       - column: "default_client_id"
+        searchable: true
       - column: specified_client_id
         client_id: specified_client_id
+        searchable: true
 `
 	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr), config.UseMySQL)
 	if err != nil {
 		t.Fatalf("Can't parse config: %s", err.Error())
 	}
 
-	query := `SELECT * from SomeTableInUpperCase WHERE default_client_id = 'value'`
-
-	stmt, err := sqlparser.ParseWithDialect(postgresql.NewPostgreSQLDialect(), query)
-	if err != nil {
-		t.Fatalf("Can't parse query statement: %s", err.Error())
+	queries := []string{
+		`SELECT * from SomeTableInUpperCase WHERE default_client_id = 'value'`,
+		`SELECT * from SomeTableInUpperCase WHERE substr(default_client_id, 1, 33) = 'value'`,
 	}
 
-	selectQuery := stmt.(*sqlparser.Select)
-	columnInfo, err := findColumnInfo(selectQuery.From, selectQuery.Where.Expr.(*sqlparser.ComparisonExpr).Left.(*sqlparser.ColName), schemaStore)
-	if err != nil {
-		t.Fatalf("Can't find column info: %s", err.Error())
-	}
+	for _, query := range queries {
+		stmt, err := sqlparser.ParseWithDialect(postgresql.NewPostgreSQLDialect(), query)
+		if err != nil {
+			t.Fatalf("Can't parse query statement: %s", err.Error())
+		}
 
-	searchableQueryFilter := SearchableQueryFilter{
-		schemaStore: schemaStore,
-	}
+		selectQuery := stmt.(*sqlparser.Select)
+		leftExpr := selectQuery.Where.Expr.(*sqlparser.ComparisonExpr).Left
+		var columnInfo columnInfo
+		switch val := leftExpr.(type) {
+		case *sqlparser.ColName:
+			columnInfo, err = findColumnInfo(selectQuery.From, val, schemaStore)
+		case *sqlparser.SubstrExpr:
+			columnInfo, err = findColumnInfo(selectQuery.From, val.Name, schemaStore)
+		default:
+			t.Fatal("Unexpected type of expr")
+		}
+		if err != nil {
+			t.Fatalf("Can't find column info: %s", err.Error())
+		}
 
-	schemaTable := searchableQueryFilter.getColumnSetting(&sqlparser.ColName{
-		Name: sqlparser.NewColIdent("default_client_id"),
-	}, columnInfo)
+		searchableQueryFilter := SearchableQueryFilter{
+			schemaStore: schemaStore,
+		}
 
-	if schemaTable == nil {
-		t.Fatalf("Expect not nil schemaTable, matched with config")
+		schemaTable := searchableQueryFilter.getColumnSetting(&sqlparser.ColName{
+			Name: sqlparser.NewColIdent("default_client_id"),
+		}, columnInfo)
+
+		if schemaTable == nil {
+			t.Fatalf("Expect not nil schemaTable, matched with config")
+		}
 	}
 }
 
 func Test_getColumnEqualComparisonExprs_NotColumnComparisonQueries(t *testing.T) {
-	searchableQueryFilter := SearchableQueryFilter{}
+	configStr := `
+schemas:
+  - table: mytable
+    columns:
+      - name
+    encrypted: 
+      - column: "name"
+        searchable: true
+`
+	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr), config.UseMySQL)
+	if err != nil {
+		t.Fatalf("Can't parse config: %s", err.Error())
+	}
+	searchableQueryFilter := SearchableQueryFilter{schemaStore: schemaStore}
 
 	queries := []string{
-		`select * from mytable where substring(name, 1, 33) = '\x7F08FFD5012B0A7659EABE5758009178A2713749B1200C0BFD505B02D4FA26B08F';`,
+		`select * from mytable where substring(not_searchable, 1, 33) = '\x7F08FFD5012B0A7659EABE5758009178A2713749B1200C0BFD505B02D4FA26B08F';`,
 		`select * from mytable where encode('é', 'hex') = 'c3a9'`,
 	}
 

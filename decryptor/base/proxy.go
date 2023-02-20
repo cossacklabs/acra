@@ -93,7 +93,10 @@ func (p *proxySetting) TLSConnectionWrapper() TLSConnectionWrapper {
 
 // NewProxySetting return new ProxySetting implementation with data from params
 func NewProxySetting(parser *sqlparser.Parser, tableSchema config.TableSchemaStore, keystore keystore.DecryptionKeyStore, wrapper TLSConnectionWrapper, censor acracensor.AcraCensorInterface, callbackStorage PoisonRecordCallbackStorage) ProxySetting {
-	return &proxySetting{keystore: keystore, parser: parser, tableSchemaStore: tableSchema, censor: censor, connectionWrapper: wrapper, poisonRecordCallbackStorage: callbackStorage}
+	return &proxySetting{
+		keystore: keystore, parser: parser, tableSchemaStore: tableSchema, censor: censor,
+		connectionWrapper: wrapper, poisonRecordCallbackStorage: callbackStorage,
+	}
 }
 
 // Proxy interface to process client's requests to database and responses
