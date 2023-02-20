@@ -39,6 +39,19 @@ func (f *Frontend) ReadSSLResponse() (byte, error) {
 	return out[0], err
 }
 
+// Close sends Terminate packet and closes connections
+func (f *Frontend) Close() error {
+	f.Send(&pgproto3.Terminate{})
+	err := f.connOut.Close()
+	if f.connOut != f.connIn {
+		err2 := f.connIn.Close()
+		if err == nil {
+			err = err2
+		}
+	}
+	return err
+}
+
 // SwitchToTLS switch frontend's connections to the TLS. Expects that database responded 'S' on SSLRequest
 func (f *Frontend) SwitchToTLS(ctx context.Context, tlsConfig *tls.Config) error {
 	newConn := tls.Client(f.connOut, tlsConfig)
@@ -61,7 +74,8 @@ type Script struct {
 
 // Run runs all steps until error
 func (s *Script) Run(frontend *Frontend) error {
-	for _, step := range s.Steps {
+	for i, step := range s.Steps {
+		fmt.Printf("Run %d step\n", i)
 		err := step.Step(frontend)
 		if err != nil {
 			return err
