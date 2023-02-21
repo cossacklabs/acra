@@ -17,6 +17,7 @@
 package keys
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -30,10 +31,14 @@ import (
 // SupportedDestroyKeyKinds is a list of keys supported by `destroy-key` subcommand.
 var SupportedDestroyKeyKinds = []string{}
 
+// ErrInvalidIndex error represent invalid index for --index flag
+var ErrInvalidIndex = errors.New("invalid index value provided")
+
 // DestroyKeyParams are parameters of "acra-keys destroy" subcommand.
 type DestroyKeyParams interface {
 	DestroyKeyKind() string
 	ClientID() []byte
+	Index() int
 }
 
 // DestroyKeySubcommand is the "acra-keys destroy" subcommand.
@@ -41,6 +46,7 @@ type DestroyKeySubcommand struct {
 	CommonKeyStoreParameters
 	FlagSet *flag.FlagSet
 
+	index          int
 	destroyKeyKind string
 	contextID      []byte
 }
@@ -59,6 +65,7 @@ func (p *DestroyKeySubcommand) GetFlagSet() *flag.FlagSet {
 func (p *DestroyKeySubcommand) RegisterFlags() {
 	p.FlagSet = flag.NewFlagSet(CmdReadKey, flag.ContinueOnError)
 	p.CommonKeyStoreParameters.Register(p.FlagSet)
+	p.FlagSet.IntVar(&p.index, "index", 1, "Index of key to destroy (1 - represents current key, 2..n - rotated key)")
 	p.FlagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": destroy key material\n", CmdDestroyKey)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] <key-ID>\n\n", os.Args[0], CmdDestroyKey)
@@ -82,6 +89,11 @@ func (p *DestroyKeySubcommand) Parse(arguments []string) error {
 	if len(args) > 1 {
 		log.Errorf("\"%s\" command does not support more than one key kind", CmdDestroyKey)
 		return ErrMultipleKeyKinds
+	}
+
+	if p.index <= 0 {
+		log.Errorf("\"%s\" expected --index flag value greater than 1", CmdDestroyKey)
+		return ErrInvalidIndex
 	}
 
 	coarseKind, id, err := ParseKeyKind(args[0])
@@ -121,6 +133,11 @@ func (p *DestroyKeySubcommand) ClientID() []byte {
 	return p.contextID
 }
 
+// Index returns index of key to be destroyed.
+func (p *DestroyKeySubcommand) Index() int {
+	return p.index
+}
+
 // DestroyKeyCommand implements the "destroy" command.
 func DestroyKeyCommand(params DestroyKeyParams, keyStore keystore.KeyMaking) {
 	err := DestroyKey(params, keyStore)
@@ -132,8 +149,18 @@ func DestroyKeyCommand(params DestroyKeyParams, keyStore keystore.KeyMaking) {
 // DestroyKey destroys data of the requsted key.
 func DestroyKey(params DestroyKeyParams, keyStore keystore.KeyMaking) error {
 	kind := params.DestroyKeyKind()
+
 	switch kind {
 	case keystore.KeyPoisonKeypair:
+		if index := params.Index(); index > 1 {
+			if err := keyStore.DestroyRotatedPoisonKeyPair(index); err != nil {
+				log.WithError(err).Error("Cannot destroy poison record rotated key pair by index")
+				return err
+			}
+
+			return nil
+		}
+
 		err := keyStore.DestroyPoisonKeyPair()
 		if err != nil {
 			log.WithError(err).Error("Cannot destroy poison record key pair")
@@ -141,6 +168,15 @@ func DestroyKey(params DestroyKeyParams, keyStore keystore.KeyMaking) error {
 		}
 		return nil
 	case keystore.KeyPoisonSymmetric:
+		if index := params.Index(); index > 1 {
+			if err := keyStore.DestroyRotatedPoisonSymmetricKey(index); err != nil {
+				log.WithError(err).Error("Cannot destroy poison record rotated symmetric key by index")
+				return err
+			}
+
+			return nil
+		}
+
 		err := keyStore.DestroyPoisonSymmetricKey()
 		if err != nil {
 			log.WithError(err).Error("Cannot destroy poison record symmetric key")
@@ -149,6 +185,15 @@ func DestroyKey(params DestroyKeyParams, keyStore keystore.KeyMaking) error {
 		return nil
 
 	case keystore.KeyStorageKeypair:
+		if index := params.Index(); index > 1 {
+			if err := keyStore.DestroyRotatedClientIDEncryptionKeyPair(params.ClientID(), index); err != nil {
+				log.WithError(err).Error("Cannot destroy client storage rotated key pair by index")
+				return err
+			}
+
+			return nil
+		}
+
 		err := keyStore.DestroyClientIDEncryptionKeyPair(params.ClientID())
 		if err != nil {
 			log.WithError(err).Error("Cannot destroy client storage key pair")
@@ -157,6 +202,15 @@ func DestroyKey(params DestroyKeyParams, keyStore keystore.KeyMaking) error {
 		return nil
 
 	case keystore.KeySymmetric:
+		if index := params.Index(); index > 1 {
+			if err := keyStore.DestroyRotatedClientIDSymmetricKey(params.ClientID(), index); err != nil {
+				log.WithError(err).Error("Cannot destroy client symmetric rotated key by index")
+				return err
+			}
+
+			return nil
+		}
+
 		err := keyStore.DestroyClientIDSymmetricKey(params.ClientID())
 		if err != nil {
 			log.WithError(err).Error("Cannot destroy client symmetric key")
@@ -164,6 +218,15 @@ func DestroyKey(params DestroyKeyParams, keyStore keystore.KeyMaking) error {
 		}
 		return nil
 	case keystore.KeySearch:
+		if index := params.Index(); index > 1 {
+			if err := keyStore.DestroyRotatedHmacSecretKey(params.ClientID(), index); err != nil {
+				log.WithError(err).Error("Cannot destroy client hmac rotated key by index")
+				return err
+			}
+
+			return nil
+		}
+
 		err := keyStore.DestroyHmacSecretKey(params.ClientID())
 		if err != nil {
 			log.WithError(err).Error("Cannot destroy client hmac key")

@@ -122,6 +122,26 @@ func (s *ServerKeyStore) DestroyClientIDEncryptionKeyPair(clientID []byte) error
 	return nil
 }
 
+// DestroyRotatedClientIDEncryptionKeyPair destroy created rotated storage key pair
+func (s *ServerKeyStore) DestroyRotatedClientIDEncryptionKeyPair(clientID []byte, index int) error {
+	log := s.log.WithField("clientID", clientID)
+	ring, err := s.OpenKeyRingRW(s.clientStorageKeyPairPath(clientID))
+	if err != nil {
+		log.WithError(err).Debug("failed to open storage key ring for client")
+		return err
+	}
+
+	// Index represent virtual index of key
+	// 1 is always index of current key of the keystore
+	// all rotated keys have index after 1
+	if err := ring.DestroyKey(index - 1); err != nil {
+		log.WithError(err).Debug("failed to destroy poison symmetric key ring for client")
+		return err
+	}
+
+	return nil
+}
+
 // SaveDataEncryptionKeys overwrites storage keypair used by given client.
 func (s *ServerKeyStore) SaveDataEncryptionKeys(clientID []byte, keypair *keys.Keypair) error {
 	log := s.log.WithField("clientID", clientID)

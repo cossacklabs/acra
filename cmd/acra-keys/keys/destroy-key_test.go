@@ -6,8 +6,10 @@ import (
 	"flag"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
@@ -391,4 +393,322 @@ func TestDestroyCMD_FS_V1(t *testing.T) {
 			t.Fatal(errors.New("expected not exit error after key destruction"))
 		}
 	})
+}
+
+func TestDestroyRotatedCMD_FS_V1(t *testing.T) {
+	timesToRotated := 3
+	clientID := []byte("testclientid")
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
+
+	masterKey, err := keystore.GenerateSymmetricKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	flagSet := flag.NewFlagSet(CmdMigrateKeys, flag.ContinueOnError)
+	keyloader.RegisterCLIParametersWithFlagSet(flagSet, "", "")
+
+	err = flagSet.Set("keystore_encryption_type", keyloader.KeystoreStrategyEnvMasterKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
+
+	tcasesWithSymmetricKeys := []struct {
+		destroyKeyKind  string
+		generateKeyFunc func(store *filesystem.KeyStore) error
+	}{
+		{
+			destroyKeyKind: keystore.KeySearch,
+			generateKeyFunc: func(store *filesystem.KeyStore) error {
+				return store.GenerateHmacKey(clientID)
+			},
+		},
+		{
+			destroyKeyKind: keystore.KeySymmetric,
+			generateKeyFunc: func(store *filesystem.KeyStore) error {
+				return store.GenerateClientIDSymmetricKey(clientID)
+			},
+		},
+		{
+			destroyKeyKind: keystore.KeyPoisonSymmetric,
+			generateKeyFunc: func(store *filesystem.KeyStore) error {
+				return store.GeneratePoisonSymmetricKey()
+			},
+		},
+	}
+
+	for _, tcase := range tcasesWithSymmetricKeys {
+		dirName := t.TempDir()
+		if err := os.Chmod(dirName, 0700); err != nil {
+			t.Fatal(err)
+		}
+
+		destroyCMD := &DestroyKeySubcommand{
+			CommonKeyStoreParameters: CommonKeyStoreParameters{
+				keyDir: dirName,
+			},
+			index:          2,
+			contextID:      clientID,
+			destroyKeyKind: tcase.destroyKeyKind,
+			FlagSet:        flagSet,
+		}
+
+		store, err := openKeyStoreV1(destroyCMD)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err = tcase.generateKeyFunc(store); err != nil {
+			t.Fatal(err)
+		}
+
+		// rotate keys several times
+		for i := 0; i < timesToRotated; i++ {
+			if err = tcase.generateKeyFunc(store); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		rotatedKeys, err := store.ListRotatedKeys()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(rotatedKeys) != timesToRotated {
+			t.Fatalf("expected %d rotated keys, but got %d", timesToRotated, len(rotatedKeys))
+		}
+
+		// destroy rotated key
+		err = DestroyKey(destroyCMD, store)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rotatedKeysAfterDestruction, err := store.ListRotatedKeys()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(rotatedKeysAfterDestruction) != timesToRotated-1 {
+			t.Fatalf("expected %d rotated keys, but got %d", timesToRotated-1, len(rotatedKeysAfterDestruction))
+		}
+
+		for i := 0; i < len(rotatedKeysAfterDestruction); i++ {
+			if rotatedKeysAfterDestruction[i].CreationTime.Format(time.RFC3339) != rotatedKeys[i+1].CreationTime.Format(time.RFC3339) {
+				t.Fatalf("expected keys to be equal but got %s != %s", rotatedKeysAfterDestruction[i].CreationTime.Format(time.RFC3339), rotatedKeys[i+1].CreationTime.Format(time.RFC3339))
+			}
+		}
+	}
+
+	tcasesWithKeyPairs := []struct {
+		destroyKeyKind  string
+		generateKeyFunc func(store *filesystem.KeyStore) error
+	}{
+		{
+			destroyKeyKind: keystore.KeyStorageKeypair,
+			generateKeyFunc: func(store *filesystem.KeyStore) error {
+				return store.GenerateDataEncryptionKeys(clientID)
+			},
+		},
+		{
+			destroyKeyKind: keystore.KeyPoisonKeypair,
+			generateKeyFunc: func(store *filesystem.KeyStore) error {
+				return store.GeneratePoisonKeyPair()
+			},
+		},
+	}
+
+	for _, tcase := range tcasesWithKeyPairs {
+		dirName := t.TempDir()
+		if err := os.Chmod(dirName, 0700); err != nil {
+			t.Fatal(err)
+		}
+
+		destroyCMD := &DestroyKeySubcommand{
+			CommonKeyStoreParameters: CommonKeyStoreParameters{
+				keyDir: dirName,
+			},
+			// destroy first rotated key
+			index:          2,
+			contextID:      clientID,
+			destroyKeyKind: tcase.destroyKeyKind,
+			FlagSet:        flagSet,
+		}
+
+		store, err := openKeyStoreV1(destroyCMD)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err = tcase.generateKeyFunc(store); err != nil {
+			t.Fatal(err)
+		}
+
+		// rotate keys several times
+		for i := 0; i < timesToRotated; i++ {
+			if err = tcase.generateKeyFunc(store); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		rotatedKeys, err := store.ListRotatedKeys()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// expected timesToRotated of private keys and timesToRotated * 2 public keys
+		if len(rotatedKeys) != timesToRotated*2 {
+			t.Fatalf("expected %d rotated keys, but got %d", timesToRotated, len(rotatedKeys))
+		}
+
+		// destroy first rotated key
+		err = DestroyKey(destroyCMD, store)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rotatedKeysAfterDestruction, err := store.ListRotatedKeys()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// without one public and one private key
+		if len(rotatedKeysAfterDestruction) != (timesToRotated-1)*2 {
+			t.Fatalf("expected %d rotated keys, but got %d", timesToRotated-1, len(rotatedKeysAfterDestruction))
+		}
+
+		for i := 0; i < len(rotatedKeysAfterDestruction); i++ {
+			if rotatedKeysAfterDestruction[i].CreationTime.Format(time.RFC3339) != rotatedKeys[i+1].CreationTime.Format(time.RFC3339) {
+				t.Fatalf("expected keys to be equal but got %s != %s", rotatedKeysAfterDestruction[i].CreationTime.Format(time.RFC3339), rotatedKeys[i+1].CreationTime.Format(time.RFC3339))
+			}
+		}
+	}
+}
+
+func TestDestroyRotatedCMD_FS_V2(t *testing.T) {
+	timesToRotated := 3
+	dirName := t.TempDir()
+	if err := os.Chmod(dirName, 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	clientID := []byte("testclientid")
+
+	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(keystore.AcraMasterKeyVarName))
+	masterKey, err := keystoreV2.NewSerializedMasterKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+	flagSet := flag.NewFlagSet(CmdMigrateKeys, flag.ContinueOnError)
+	keyloader.RegisterCLIParametersWithFlagSet(flagSet, "", "")
+
+	err = flagSet.Set("keystore_encryption_type", keyloader.KeystoreStrategyEnvMasterKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tcases := []struct {
+		destroyKeyKind  string
+		generateKeyFunc func(store *keystoreV2.ServerKeyStore) error
+	}{
+		{
+			destroyKeyKind: keystore.KeySearch,
+			generateKeyFunc: func(store *keystoreV2.ServerKeyStore) error {
+				return store.GenerateHmacKey(clientID)
+			},
+		},
+
+		{
+			destroyKeyKind: keystore.KeyStorageKeypair,
+			generateKeyFunc: func(store *keystoreV2.ServerKeyStore) error {
+				return store.GenerateDataEncryptionKeys(clientID)
+			},
+		},
+
+		{
+			destroyKeyKind: keystore.KeySymmetric,
+			generateKeyFunc: func(store *keystoreV2.ServerKeyStore) error {
+				return store.GenerateClientIDSymmetricKey(clientID)
+			},
+		},
+		{
+			destroyKeyKind: keystore.KeyPoisonSymmetric,
+			generateKeyFunc: func(store *keystoreV2.ServerKeyStore) error {
+				return store.GeneratePoisonSymmetricKey()
+			},
+		},
+		{
+			destroyKeyKind: keystore.KeyPoisonKeypair,
+			generateKeyFunc: func(store *keystoreV2.ServerKeyStore) error {
+				return store.GeneratePoisonKeyPair()
+			},
+		},
+	}
+
+	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
+
+	for _, tcase := range tcases {
+		dirName := t.TempDir()
+		if err := os.Chmod(dirName, 0700); err != nil {
+			t.Fatal(err)
+		}
+
+		destroyCMD := &DestroyKeySubcommand{
+			CommonKeyStoreParameters: CommonKeyStoreParameters{
+				keyDir: dirName,
+			},
+			index:          2,
+			contextID:      clientID,
+			destroyKeyKind: tcase.destroyKeyKind,
+			FlagSet:        flagSet,
+		}
+
+		store, err := openKeyStoreV2(destroyCMD)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err = tcase.generateKeyFunc(store); err != nil {
+			t.Fatal(err)
+		}
+
+		// rotate keys several times
+		for i := 0; i < timesToRotated; i++ {
+			if err = tcase.generateKeyFunc(store); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		rotatedKeys, err := store.ListRotatedKeys()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(rotatedKeys) != timesToRotated {
+			t.Fatalf("expected %d rotated keys, but got %d", timesToRotated, len(rotatedKeys))
+		}
+
+		// destroy rotated key
+		err = DestroyKey(destroyCMD, store)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rotatedKeysAfterDestruction, err := store.ListRotatedKeys()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(rotatedKeysAfterDestruction) != timesToRotated-1 {
+			t.Fatalf("expected %d rotated keys, but got %d", timesToRotated-1, len(rotatedKeysAfterDestruction))
+		}
+
+		for i := 0; i < len(rotatedKeysAfterDestruction); i++ {
+			if rotatedKeysAfterDestruction[i].CreationTime.Format(time.RFC3339) != rotatedKeys[i+1].CreationTime.Format(time.RFC3339) {
+				t.Fatalf("expected keys to be equal but got %s != %s", rotatedKeysAfterDestruction[i].CreationTime.Format(time.RFC3339), rotatedKeys[i+1].CreationTime.Format(time.RFC3339))
+			}
+		}
+	}
 }

@@ -273,6 +273,17 @@ func (s *ServerKeyStore) listRotatedRings(path string, purpose keystore.KeyPurpo
 
 	result := make([]keystore.KeyDescription, 0, len(keys)-1)
 	for i := 1; i < len(keys); i++ {
+		keyState, err := ring.State(i)
+		if err != nil {
+			log.WithError(err).Debug("Failed to get key state by seqnum")
+			return nil, err
+		}
+
+		// if the key was destroyed previously, ignore it
+		if keyState == api.KeyDestroyed {
+			continue
+		}
+
 		creationTime, err := ring.ValidSince(i)
 		if err != nil {
 			log.WithError(err).Debug("Failed to get creation time state by segnum")

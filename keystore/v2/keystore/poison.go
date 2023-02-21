@@ -148,14 +148,34 @@ func (s *ServerKeyStore) DestroyPoisonKeyPair() error {
 	log := s.log
 	ring, err := s.OpenKeyRingRW(poisonKeyPath)
 	if err != nil {
-		log.WithError(err).Debug("failed to open connector transport key ring for client")
+		log.WithError(err).Debug("failed to open poison ring key pair for client")
 		return err
 	}
 	err = s.destroyCurrentKeyPair(ring)
 	if err != nil {
-		log.WithError(err).Debug("Failed to destroy connector transport key pair for client")
+		log.WithError(err).Debug("failed to destroy poison ring key pair for client")
 		return err
 	}
+	return nil
+}
+
+// DestroyRotatedPoisonKeyPair destroy created rotated poison record key pair
+func (s *ServerKeyStore) DestroyRotatedPoisonKeyPair(index int) error {
+	log := s.log
+	ring, err := s.OpenKeyRingRW(poisonKeyPath)
+	if err != nil {
+		log.WithError(err).Debug("failed to open poison ring key pair for client")
+		return err
+	}
+
+	// Index represent virtual index of key
+	// 1 is always index of current key of the keystore
+	// all rotated keys have index after 1
+	if err := ring.DestroyKey(index - 1); err != nil {
+		log.WithError(err).Debug("failed to destroy poison ring key pair for client by index")
+		return err
+	}
+
 	return nil
 }
 
@@ -164,14 +184,34 @@ func (s *ServerKeyStore) DestroyPoisonSymmetricKey() error {
 	log := s.log
 	ring, err := s.OpenKeyRingRW(poisonSymmetricKeyPath)
 	if err != nil {
-		log.WithError(err).Debug("failed to open connector transport key ring for client")
+		log.WithError(err).Debug("failed to open poison symmetric key ring for client")
 		return err
 	}
 	err = s.destroyCurrentKeyPair(ring)
 	if err != nil {
-		log.WithError(err).Debug("Failed to destroy connector transport key pair for client")
+		log.WithError(err).Debug("failed to destroy poison symmetric key ring for client")
 		return err
 	}
+	return nil
+}
+
+// DestroyRotatedPoisonSymmetricKey destroy created rotated poison record symmetric key
+func (s *ServerKeyStore) DestroyRotatedPoisonSymmetricKey(index int) error {
+	log := s.log
+	ring, err := s.OpenKeyRingRW(poisonSymmetricKeyPath)
+	if err != nil {
+		log.WithError(err).Debug("failed to open poison symmetric key ring for client")
+		return err
+	}
+
+	// Index represent virtual index of key
+	// 1 is always index of current key of the keystore
+	// all rotated keys have index after 1
+	if err := ring.DestroyKey(index - 1); err != nil {
+		log.WithError(err).Debug("failed to destroy poison symmetric key ring for client")
+		return err
+	}
+
 	return nil
 }
 

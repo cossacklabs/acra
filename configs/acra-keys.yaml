@@ -413,6 +413,9 @@ private: false
 # read public key of the keypair
 public: false
 
+# Index of key to destroy (1 - represents current key, 2..n - rotated key)
+index: 1
+
 # Generate symmetric key for log integrity checks
 audit_log_symmetric_key: false
 

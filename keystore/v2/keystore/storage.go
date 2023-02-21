@@ -101,6 +101,24 @@ func (s *ServerKeyStore) DestroyClientIDSymmetricKey(clientID []byte) error {
 	return nil
 }
 
+// DestroyRotatedClientIDSymmetricKey destroy created rotated symmetric key
+func (s *ServerKeyStore) DestroyRotatedClientIDSymmetricKey(clientID []byte, index int) error {
+	log := s.log.WithField("clientID", clientID)
+	ring, err := s.OpenKeyRingRW(s.clientStorageSymmetricKeyPath(clientID))
+	if err != nil {
+		log.WithError(err).Debug("Failed to open symmetric storage key ring for client")
+		return err
+	}
+	// Index represent virtual index of key
+	// 1 is always index of current key of the keystore
+	// all rotated keys have index after 1
+	if err := ring.DestroyKey(index - 1); err != nil {
+		log.WithError(err).Debug("Failed to destroy symmetric storage rotated key ring for client by index")
+		return err
+	}
+	return nil
+}
+
 func (s *ServerKeyStore) importClientIDSymmetricKey(clientID []byte, storageKey []byte) error {
 	log := s.log.WithField("clientID", clientID)
 	ring, err := s.OpenKeyRingRW(s.clientStorageSymmetricKeyPath(clientID))
