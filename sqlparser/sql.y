@@ -2612,6 +2612,10 @@ function_call_conflict:
   {
     $$ = &FuncExpr{Name: NewColIdent("database"), Exprs: $3}
   }
+| SCHEMA openb select_expression_list_opt closeb
+  {
+    $$ = &FuncExpr{Name: NewColIdent("schema"), Exprs: $3}
+  }
 | MOD openb select_expression_list closeb
   {
     $$ = &FuncExpr{Name: NewColIdent("mod"), Exprs: $3}
@@ -3355,7 +3359,6 @@ reserved_keyword:
 | AND
 | AS
 | ASC
-| AUTO_INCREMENT
 | BETWEEN
 | BINARY
 | BY
@@ -3456,6 +3459,7 @@ non_reserved_keyword:
   AGAINST
 | BEGIN
 | BIGINT
+| AUTO_INCREMENT
 | BIT
 | BLOB
 | BOOL
