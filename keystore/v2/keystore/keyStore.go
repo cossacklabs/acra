@@ -340,8 +340,9 @@ func destroyRingRotatedKeyByIndex(ring api.MutableKeyRing, index int) error {
 		log.WithField("index", index).Debug("no key matched to index")
 		return ErrInvalidIndex
 	}
-	// 1 is always index of current key of the keystore, so we need to subtract 1 from search index
-	// as slice element enumeration starts from 0 subtract 1 again
+	// Keyring internally stores keys from older to newer and the newest key has index len(keys) -1
+	// So we decrease once to start from the len(keys)-1 position. Incoming parameter index represents the virtual index
+	// starting from 1 where 1 is the newest key. But slices work with 0-indexation, so we decrease one more time
 	idxToDestroy := index - 2
 
 	keyToDestroy := rotatedActiveKeys[idxToDestroy]
