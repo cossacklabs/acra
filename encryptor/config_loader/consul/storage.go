@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
-	"github.com/cossacklabs/acra/encryptor"
 	"github.com/hashicorp/consul/api"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/encryptor"
 )
 
 // StorageCreator implement config_loader.EncryptorConfigStorage via Hashicorp Consul Backend
@@ -168,6 +170,11 @@ func (s Storage) ReadDir(path string) ([]os.FileInfo, error) {
 			}
 		}
 	}
+
+	// sort fileInfos by its filename
+	sort.Slice(infos, func(i, j int) bool {
+		return infos[i].Name() < infos[j].Name()
+	})
 	return infos, nil
 }
 

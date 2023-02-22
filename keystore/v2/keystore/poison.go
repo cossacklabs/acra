@@ -168,10 +168,7 @@ func (s *ServerKeyStore) DestroyRotatedPoisonKeyPair(index int) error {
 		return err
 	}
 
-	// Index represent virtual index of key
-	// 1 is always index of current key of the keystore
-	// all rotated keys have index after 1
-	if err := ring.DestroyKey(index - 1); err != nil {
+	if err := destroyRingRotatedKeyByIndex(ring, index); err != nil {
 		log.WithError(err).Debug("failed to destroy poison ring key pair for client by index")
 		return err
 	}
@@ -204,10 +201,7 @@ func (s *ServerKeyStore) DestroyRotatedPoisonSymmetricKey(index int) error {
 		return err
 	}
 
-	// Index represent virtual index of key
-	// 1 is always index of current key of the keystore
-	// all rotated keys have index after 1
-	if err := ring.DestroyKey(index - 1); err != nil {
+	if err := destroyRingRotatedKeyByIndex(ring, index); err != nil {
 		log.WithError(err).Debug("failed to destroy poison symmetric key ring for client")
 		return err
 	}

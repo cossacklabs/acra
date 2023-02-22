@@ -35,6 +35,9 @@ var (
 	ErrUnrecognizedKeyPurpose = errors.New("key purpose not recognized")
 )
 
+// ErrInvalidIndex error represent invalid index for --index flag
+var ErrInvalidIndex = errors.New("invalid index value provided")
+
 const (
 	clientPrefixIndex = iota
 	clientIDIndex
@@ -271,6 +274,10 @@ func (s *ServerKeyStore) listRotatedRings(path string, purpose keystore.KeyPurpo
 		return []keystore.KeyDescription{}, nil
 	}
 
+	// Index represent virtual index of key
+	// 1 is always index of current key of the keystore
+	// all rotated keys have index after 1
+	keyIdx := 1
 	result := make([]keystore.KeyDescription, 0, len(keys)-1)
 	for i := 1; i < len(keys); i++ {
 		keyState, err := ring.State(i)
@@ -291,17 +298,57 @@ func (s *ServerKeyStore) listRotatedRings(path string, purpose keystore.KeyPurpo
 		}
 
 		result = append(result, keystore.KeyDescription{
-			// Index represent virtual index of key
-			// 1 is always index of current key of the keystore
-			// all rotated keys have index after 1
-			Index:        i + 1,
+			Index:        keyIdx + 1,
 			KeyID:        path,
 			Purpose:      purpose,
 			ClientID:     clientID,
 			CreationTime: &creationTime,
 			State:        keystore.StateRotated,
 		})
+		keyIdx++
 	}
 
 	return result, nil
+}
+
+// destroyRingRotatedKeyByIndex destroy rotated key from the ring by its index
+func destroyRingRotatedKeyByIndex(ring api.MutableKeyRing, index int) error {
+	keys, err := ring.AllKeys()
+	if err != nil {
+		return err
+	}
+
+	rotatedActiveKeys := make([]int, 0, len(keys))
+
+	// indexes in the ring incrementally increases, starting from 1
+	// we need to iterate until (not inclusive) the last index which represent the current key
+	for i := 1; i < len(keys); i++ {
+		keyState, err := ring.State(i)
+		if err != nil {
+			log.WithError(err).Debug("Failed to get key state by seqnum")
+			return err
+		}
+
+		// if the key was destroyed previously, ignore it
+		if keyState == api.KeyDestroyed {
+			continue
+		}
+		rotatedActiveKeys = append(rotatedActiveKeys, i)
+	}
+
+	if index-1 > len(rotatedActiveKeys) {
+		log.WithField("index", index).Debug("no key matched to index")
+		return ErrInvalidIndex
+	}
+	// 1 is always index of current key of the keystore, so we need to subtract 1 from search index
+	// as slice element enumeration starts from 0 subtract 1 again
+	idxToDestroy := index - 2
+
+	keyToDestroy := rotatedActiveKeys[idxToDestroy]
+	if err := ring.DestroyKey(keyToDestroy); err != nil {
+		log.WithError(err).Debug("failed to destroy poison symmetric key ring for client")
+		return err
+	}
+
+	return nil
 }

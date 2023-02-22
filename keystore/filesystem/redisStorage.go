@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -204,6 +205,12 @@ func (r *redisStorage) ReadDir(path string) ([]os.FileInfo, error) {
 			}
 		}
 	}
+
+	// sort fileInfos by its filename
+	sort.Slice(fileInfos, func(i, j int) bool {
+		return fileInfos[i].Name() < fileInfos[j].Name()
+	})
+
 	return fileInfos, nil
 }
 

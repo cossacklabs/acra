@@ -649,66 +649,146 @@ func TestDestroyRotatedCMD_FS_V2(t *testing.T) {
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
-	for _, tcase := range tcases {
-		dirName := t.TempDir()
-		if err := os.Chmod(dirName, 0700); err != nil {
-			t.Fatal(err)
-		}
+	t.Run("test rotated destruction working properly", func(t *testing.T) {
+		for _, tcase := range tcases {
+			dirName := t.TempDir()
+			if err := os.Chmod(dirName, 0700); err != nil {
+				t.Fatal(err)
+			}
 
-		destroyCMD := &DestroyKeySubcommand{
-			CommonKeyStoreParameters: CommonKeyStoreParameters{
-				keyDir: dirName,
-			},
-			index:          2,
-			contextID:      clientID,
-			destroyKeyKind: tcase.destroyKeyKind,
-			FlagSet:        flagSet,
-		}
+			destroyCMD := &DestroyKeySubcommand{
+				CommonKeyStoreParameters: CommonKeyStoreParameters{
+					keyDir: dirName,
+				},
+				index:          2,
+				contextID:      clientID,
+				destroyKeyKind: tcase.destroyKeyKind,
+				FlagSet:        flagSet,
+			}
 
-		store, err := openKeyStoreV2(destroyCMD)
-		if err != nil {
-			t.Fatal(err)
-		}
+			store, err := openKeyStoreV2(destroyCMD)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		if err = tcase.generateKeyFunc(store); err != nil {
-			t.Fatal(err)
-		}
-
-		// rotate keys several times
-		for i := 0; i < timesToRotated; i++ {
 			if err = tcase.generateKeyFunc(store); err != nil {
 				t.Fatal(err)
 			}
-		}
 
-		rotatedKeys, err := store.ListRotatedKeys()
-		if err != nil {
-			t.Fatal(err)
-		}
+			// rotate keys several times
+			for i := 0; i < timesToRotated; i++ {
+				if err = tcase.generateKeyFunc(store); err != nil {
+					t.Fatal(err)
+				}
+			}
 
-		if len(rotatedKeys) != timesToRotated {
-			t.Fatalf("expected %d rotated keys, but got %d", timesToRotated, len(rotatedKeys))
-		}
+			rotatedKeys, err := store.ListRotatedKeys()
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		// destroy rotated key
-		err = DestroyKey(destroyCMD, store)
-		if err != nil {
-			t.Fatal(err)
-		}
+			if len(rotatedKeys) != timesToRotated {
+				t.Fatalf("expected %d rotated keys, but got %d", timesToRotated, len(rotatedKeys))
+			}
 
-		rotatedKeysAfterDestruction, err := store.ListRotatedKeys()
-		if err != nil {
-			t.Fatal(err)
-		}
+			// destroy rotated key
+			err = DestroyKey(destroyCMD, store)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		if len(rotatedKeysAfterDestruction) != timesToRotated-1 {
-			t.Fatalf("expected %d rotated keys, but got %d", timesToRotated-1, len(rotatedKeysAfterDestruction))
-		}
+			rotatedKeysAfterDestruction, err := store.ListRotatedKeys()
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		for i := 0; i < len(rotatedKeysAfterDestruction); i++ {
-			if rotatedKeysAfterDestruction[i].CreationTime.Format(time.RFC3339) != rotatedKeys[i+1].CreationTime.Format(time.RFC3339) {
-				t.Fatalf("expected keys to be equal but got %s != %s", rotatedKeysAfterDestruction[i].CreationTime.Format(time.RFC3339), rotatedKeys[i+1].CreationTime.Format(time.RFC3339))
+			if len(rotatedKeysAfterDestruction) != timesToRotated-1 {
+				t.Fatalf("expected %d rotated keys, but got %d", timesToRotated-1, len(rotatedKeysAfterDestruction))
+			}
+
+			for i := 0; i < len(rotatedKeysAfterDestruction); i++ {
+				if rotatedKeysAfterDestruction[i].CreationTime.Format(time.RFC3339) != rotatedKeys[i+1].CreationTime.Format(time.RFC3339) {
+					t.Fatalf("expected keys to be equal but got %s != %s", rotatedKeysAfterDestruction[i].CreationTime.Format(time.RFC3339), rotatedKeys[i+1].CreationTime.Format(time.RFC3339))
+				}
 			}
 		}
-	}
+	})
+
+	t.Run("test shifting ids after rotated keys destruction", func(t *testing.T) {
+		for _, tcase := range tcases {
+			dirName := t.TempDir()
+			if err := os.Chmod(dirName, 0700); err != nil {
+				t.Fatal(err)
+			}
+
+			destroyCMD := &DestroyKeySubcommand{
+				CommonKeyStoreParameters: CommonKeyStoreParameters{
+					keyDir: dirName,
+				},
+				contextID:      clientID,
+				destroyKeyKind: tcase.destroyKeyKind,
+				FlagSet:        flagSet,
+			}
+
+			store, err := openKeyStoreV2(destroyCMD)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if err = tcase.generateKeyFunc(store); err != nil {
+				t.Fatal(err)
+			}
+
+			// rotate keys several times
+			for i := 0; i < timesToRotated; i++ {
+				if err = tcase.generateKeyFunc(store); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			rotatedKeys, err := store.ListRotatedKeys()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(rotatedKeys) != timesToRotated {
+				t.Fatalf("expected %d rotated keys, but got %d", timesToRotated, len(rotatedKeys))
+			}
+
+			// test invalid index
+			destroyCMD.index = timesToRotated * 2
+			if err := DestroyKey(destroyCMD, store); err == nil {
+				t.Fatal("expected error on destroying invalid index, but got nil")
+			}
+
+			// valid index - first rotated key
+			destroyCMD.index = 2
+
+			for i := 1; i < timesToRotated; i++ {
+				// test destroy valid index
+				// check no error on destroying the same index again, indexes should be shifted
+				if err := DestroyKey(destroyCMD, store); err != nil {
+					t.Fatal("expected no error on destroying valid index, but got ", err)
+				}
+
+				rotatedKeys, err = store.ListRotatedKeys()
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if len(rotatedKeys) != timesToRotated-i {
+					t.Fatalf("expected %d rotated keys, but got %d", timesToRotated-i, len(rotatedKeys))
+				}
+
+				// check rotatedKeys indexes shifted properly
+				expectedKeyIdx := 2
+				for _, rotatedKey := range rotatedKeys {
+					if rotatedKey.Index != expectedKeyIdx {
+						t.Fatalf("expected rotated key index %d but got %d", expectedKeyIdx, rotatedKey.Index)
+					}
+					expectedKeyIdx++
+				}
+			}
+		}
+	})
 }

@@ -92,10 +92,8 @@ func (s *ServerKeyStore) DestroyRotatedHmacSecretKey(clientID []byte, index int)
 		log.WithError(err).Debug("Failed to open HMAC key ring for client")
 		return err
 	}
-	// Index represent virtual index of key
-	// 1 is always index of current key of the keystore
-	// all rotated keys have index after 1
-	if err := ring.DestroyKey(index - 1); err != nil {
+
+	if err := destroyRingRotatedKeyByIndex(ring, index); err != nil {
 		log.WithError(err).Debug("Failed to destroy HMAC rotated key ring for client by index")
 		return err
 	}
