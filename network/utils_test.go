@@ -90,6 +90,20 @@ func TestGetDriverConnectionStringHost(t *testing.T) {
 		assert.Equal(t, "localhost", host)
 	})
 
+	t.Run("MySQL valid connection URL & login with non-schema characters", func(t *testing.T) {
+		url := "test_-test:test@tcp(localhost:3306)/test"
+		host, err := GetDriverConnectionStringHost(url, true)
+		assert.NoError(t, err)
+		assert.Equal(t, "localhost", host)
+	})
+
+	t.Run("MySQL valid connection URL without credentials and protocol", func(t *testing.T) {
+		url := "(localhost:3306)/test"
+		host, err := GetDriverConnectionStringHost(url, true)
+		assert.NoError(t, err)
+		assert.Equal(t, "localhost", host)
+	})
+
 	t.Run("MySQL invalid connection URL", func(t *testing.T) {
 		url := "test:test@tcp://localhost:3306/test"
 		_, err := GetDriverConnectionStringHost(url, true)
@@ -106,7 +120,7 @@ func TestGetDriverConnectionStringHost(t *testing.T) {
 		url := "postgresql://test:test@localhost:5432/test"
 		_, err := GetDriverConnectionStringHost(url, true)
 		assert.Error(t, err)
-		assert.Equal(t, err.Error(), "invalid MySQL connectionURL")
+		assert.Equal(t, err.Error(), "default addr for network 'localhost:5432' unknown")
 	})
 
 	t.Run("PostgreSQL valid connection URL", func(t *testing.T) {
