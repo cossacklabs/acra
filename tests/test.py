@@ -233,6 +233,7 @@ class EscapeFormatTest(HexFormatTest):
 
 
 class TestConnectionClosing(BaseTestCase):
+    LOCK_NAME = 111  # should be bigint
     class mysql_closing(contextlib.closing):
         """
         extended contextlib.closing that add close() method that call close()
@@ -256,6 +257,11 @@ class TestConnectionClosing(BaseTestCase):
                 tls_ocsp_url='',
                 tls_crl_url='',
             )
+            # get .thing due to wrapped in contextlib.closing
+            self.lock_connection = self.get_connection().thing
+            self.lock_cursor = self.lock_connection.cursor()
+            # we lock because tests rely on global state of the database
+            self.acquire_lock(self.lock_cursor)
         except:
             self.tearDown()
             raise
@@ -282,6 +288,9 @@ class TestConnectionClosing(BaseTestCase):
             procs.append(self.acra)
         stop_process(procs)
         send_signal_by_process_name('acra-server', signal.SIGKILL)
+        self.release_lock(self.lock_cursor)
+        self.lock_cursor.close()
+        self.lock_connection.close()
 
     def getActiveConnectionCount(self, cursor):
         if TEST_MYSQL:
@@ -379,6 +388,34 @@ class TestConnectionClosing(BaseTestCase):
                 connection.close()
             raise
         return connections
+
+    def acquire_lock(self, connection, timeout=base.STATEMENT_TIMEOUT):
+        if base.TEST_POSTGRESQL:
+            step = timeout / base.SQL_EXECUTE_TRY_COUNT
+            step = step if step > 0 else base.STATEMENT_TIMEOUT
+            while timeout > 0:
+                connection.execute("SELECT pg_try_advisory_lock({})".format(self.LOCK_NAME))
+                locked = connection.fetchone()[0]
+                if locked:
+                    return
+                # convert from ms to s
+                time.sleep(step/1000)
+                timeout -= step
+        else:
+            connection.execute("SELECT GET_LOCK(%s, %s);", [str(self.LOCK_NAME), timeout])
+            return
+        raise Exception("Can't get lock")
+
+    def release_lock(self, connection):
+        try:
+            if base.TEST_POSTGRESQL:
+                connection.execute("SELECT pg_advisory_unlock(%s)", [self.LOCK_NAME])
+            else:
+                connection.execute("SELECT RELEASE_LOCK(%s);", [str(self.LOCK_NAME)])
+
+        except (psycopg2.OperationalError, pymysql.err.OperationalError):
+            # no matter what happens, databases release lock on session termination
+            pass
 
     def testClosingConnectionsWithDB(self):
         with self.get_connection() as connection:
