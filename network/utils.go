@@ -19,6 +19,7 @@ package network
 import (
 	"flag"
 	"fmt"
+	"github.com/go-sql-driver/mysql"
 	"net"
 	url_ "net/url"
 	"os"
@@ -247,28 +248,25 @@ func isFlagSet(name string, flagset *flag.FlagSet) bool {
 // PostgreSQL - postgresql://{user}:{password}@{host}:{port}/{dbname}
 // MySQL - ({user}:{password}@tcp({host}:{port})/{dbname}
 func GetDriverConnectionStringHost(connectionString string, useMySQL bool) (string, error) {
-	connectionURL, err := url_.Parse(connectionString)
-	if err != nil {
-		return "", err
-	}
-
-	var hostPortURL = connectionURL.Host
-
+	var hostport string
 	if useMySQL {
-		hostPortStartIdx := strings.Index(connectionURL.Opaque, "(")
-		hostPortEndIdx := strings.Index(connectionURL.Opaque, ")")
-
-		if hostPortEndIdx <= hostPortStartIdx {
-			return "", errors.New("invalid MySQL connectionURL")
+		config, err := mysql.ParseDSN(connectionString)
+		if err != nil {
+			return "", err
 		}
-
-		hostPortURL = connectionURL.Opaque[hostPortStartIdx+1 : hostPortEndIdx]
+		hostport = config.Addr
+	} else {
+		connectionURL, err := url_.Parse(connectionString)
+		if err != nil {
+			return "", err
+		}
+		hostport = connectionURL.Host
 	}
 
-	if hostPortURL == "" {
+	if hostport == "" {
 		return "", errors.New("invalid connectionURL: expect not empty host:port")
 	}
 
-	host, _, err := net.SplitHostPort(hostPortURL)
+	host, _, err := net.SplitHostPort(hostport)
 	return host, err
 }

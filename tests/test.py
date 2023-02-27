@@ -1221,7 +1221,7 @@ class TestAcraRollback(BaseTestCase):
             DB_ARGS = ['--postgresql_enable']
 
         self.default_acrarollback_args = [
-                                             '--client_id=keypair1',
+                                             '--client_id={}'.format(base.TLS_CERT_CLIENT_ID_1),
                                              '--connection_string={}'.format(connection_string),
                                              '--output_file={}'.format(self.output_filename),
                                              '--keys_dir={}'.format(base.KEYS_FOLDER.name),
@@ -1280,6 +1280,7 @@ class TestAcraRollback(BaseTestCase):
         source_data = set([i['raw_data'].encode('ascii') for i in rows])
         result = self.engine_raw.execute(acrarollback_output_table.select())
         result = result.fetchall()
+        self.assertEqual(len(result), len(rows))
         for data in result:
             self.assertIn(data[0], source_data)
 
@@ -1308,6 +1309,7 @@ class TestAcraRollback(BaseTestCase):
         source_data = set([i['raw_data'].encode('ascii') for i in rows])
         result = self.engine_raw.execute(acrarollback_output_table.select())
         result = result.fetchall()
+        self.assertEqual(len(result), len(rows))
         for data in result:
             self.assertIn(data[0], source_data)
 
@@ -1351,13 +1353,14 @@ class TestAcraRollback(BaseTestCase):
         rows = insert_random_data()
 
         # Rotate storage keys for 'keypair1'
-        create_client_keypair('keypair1', only_storage=True)
+        create_client_keypair(base.TLS_CERT_CLIENT_ID_1, only_storage=True)
 
         # Insert some more data encrypted with new key
         rows = rows + insert_random_data()
 
         # Run acra-rollback for the test table
         self.run_acrarollback([
+            '--execute=true',
             '--select=select data from {};'.format(test_table.name),
             '--insert=insert into {} values({});'.format(
                 acrarollback_output_table.name, self.placeholder)
@@ -1367,6 +1370,7 @@ class TestAcraRollback(BaseTestCase):
         source_data = set([i['raw_data'].encode('ascii') for i in rows])
         result = self.engine_raw.execute(acrarollback_output_table.select())
         result = result.fetchall()
+        self.assertEqual(len(result), len(rows))
         for data in result:
             self.assertIn(data[0], source_data)
 
