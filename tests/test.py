@@ -261,7 +261,8 @@ class TestConnectionClosing(BaseTestCase):
             self.lock_connection = self.get_connection().thing
             self.lock_cursor = self.lock_connection.cursor()
             # we lock because tests rely on global state of the database
-            self.acquire_lock(self.lock_cursor)
+            # multiply 3 due to 3 background workers in buildbot
+            self.acquire_lock(self.lock_cursor, base.STATEMENT_TIMEOUT*3)
         except:
             self.tearDown()
             raise
