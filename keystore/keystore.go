@@ -384,6 +384,15 @@ type StorageKeyDestruction interface {
 	DestroyHmacSecretKey(clientID []byte) error
 }
 
+// StorageRotatedKeyDestruction enables destruction of created rotated keys.
+type StorageRotatedKeyDestruction interface {
+	DestroyRotatedPoisonKeyPair(index int) error
+	DestroyRotatedPoisonSymmetricKey(index int) error
+	DestroyRotatedClientIDEncryptionKeyPair(clientID []byte, index int) error
+	DestroyRotatedClientIDSymmetricKey(clientID []byte, index int) error
+	DestroyRotatedHmacSecretKey(clientID []byte, index int) error
+}
+
 // DecryptionKeyStore enables AcraStruct decryption. It is used by acra-server.
 type DecryptionKeyStore interface {
 	PublicKeyStore
@@ -402,6 +411,7 @@ type StorageKeyGenerator interface {
 type KeyMaking interface {
 	StorageKeyCreation
 	StorageKeyDestruction
+	StorageRotatedKeyDestruction
 	PoisonKeyGenerator
 	AuditLogKeyGenerator
 	HmacKeyGenerator

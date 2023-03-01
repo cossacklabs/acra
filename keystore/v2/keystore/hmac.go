@@ -84,6 +84,23 @@ func (s *ServerKeyStore) DestroyHmacSecretKey(clientID []byte) error {
 	return nil
 }
 
+// DestroyRotatedHmacSecretKey destroy created rotated hmac symmetric key
+func (s *ServerKeyStore) DestroyRotatedHmacSecretKey(clientID []byte, index int) error {
+	log := s.log.WithField("clientID", clientID)
+	ring, err := s.OpenKeyRingRW(s.clientHMACKeyPath(clientID))
+	if err != nil {
+		log.WithError(err).Debug("Failed to open HMAC key ring for client")
+		return err
+	}
+
+	if err := destroyRingRotatedKeyByIndex(ring, index); err != nil {
+		log.WithError(err).Debug("Failed to destroy HMAC rotated key ring for client by index")
+		return err
+	}
+
+	return nil
+}
+
 func (s *ServerKeyStore) importHmacKey(clientID []byte, hmacKey []byte) error {
 	log := s.log.WithField("clientID", clientID)
 	ring, err := s.OpenKeyRingRW(s.clientHMACKeyPath(clientID))

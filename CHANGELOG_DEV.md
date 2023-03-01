@@ -1,4 +1,7 @@
 # 0.95.0 - 2023-02-14
+- Extend `acra-keys` `destroy` with destroying specific rotated keys for V1/V2;
+
+# 0.95.0 - 2023-02-14
 - Extend `acra-keys` `list` with supporting rotated keys for V1/V2;
 
 # 0.95.0 - 2023-02-07

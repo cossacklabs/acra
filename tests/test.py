@@ -902,6 +902,138 @@ class TestKeyStoreMigration(BaseTestCase):
             self.assertEquals(selected['data'], data.encode('ascii'))
 
 
+class TestAcraKeysWithRotatedKeys(unittest.TestCase):
+    def setUp(self):
+        self.master_key = get_master_key()
+        self.dir_with_distinguished_name_client_id = tempfile.TemporaryDirectory()
+        self.time_to_rotate = 3
+        self.create_key_store_with_client_id_from_cert(TLS_CLIENT_ID_SOURCE_DN,
+                                                       self.dir_with_distinguished_name_client_id.name)
+
+    def test_keys_rotation(self):
+        extract_resp = self.extrac_client_id(TLS_CLIENT_ID_SOURCE_DN)
+
+        if KEYSTORE_VERSION == 'v1':
+            key_ids = [
+                'poison_key',
+                'poison_key.pub',
+                'poison_key_sym',
+                'secure_log_key',
+                '{}_storage_sym'.format(extract_resp['client_id']),
+                '{}_storage.pub'.format(extract_resp['client_id']),
+                '{}_storage'.format(extract_resp['client_id']),
+                '{}_hmac'.format(extract_resp['client_id']),
+            ]
+        else:
+            key_ids = [
+                'audit-log',
+                'poison-record-sym',
+                'poison-record',
+                'client/{}/storage-sym'.format(extract_resp['client_id']),
+                'client/{}/hmac-sym'.format(extract_resp['client_id']),
+                'client/{}/storage-sym'.format(extract_resp['client_id']),
+            ]
+
+        expected_keys_count = len(key_ids) * (self.time_to_rotate + 1)
+        for _x in range(self.time_to_rotate):
+            self.create_key_store_with_client_id_from_cert(TLS_CLIENT_ID_SOURCE_DN,
+                                                           self.dir_with_distinguished_name_client_id.name)
+
+        resp = self.list_key_store_keys_in_json(self.dir_with_distinguished_name_client_id.name)
+        self.assertEqual(len(resp), expected_keys_count)
+
+        key_id_count = {}
+        for entry in resp:
+            self.assertTrue(entry['Purpose'])
+            self.assertTrue(entry['KeyID'])
+            if entry['Index'] == 1:
+                self.assertEqual(entry['State'], 'current')
+            else:
+                self.assertEqual(entry['State'], 'rotated')
+                self.assertTrue(entry['CreationTime'])
+
+            if entry['KeyID'] not in key_id_count:
+                key_id_count[entry['KeyID']] = 1
+            else:
+                key_id_count[entry['KeyID']] += 1
+
+        for key_id in key_ids:
+            self.assertEqual(key_id_count[key_id], self.time_to_rotate + 1)
+
+        # try destroy invalid key by index
+        with self.assertRaises(Exception) as ctx:
+            self.destroy_rotated_key(index=self.time_to_rotate + 5,
+                                     dir_name=self.dir_with_distinguished_name_client_id.name, key_id=key_ids[0])
+
+        # destroy first rotated key
+        self.destroy_rotated_key(index=2, dir_name=self.dir_with_distinguished_name_client_id.name,
+                                 key_id='poison-record-symmetric')
+
+        resp = self.list_key_store_keys_in_json(self.dir_with_distinguished_name_client_id.name)
+        # w/o one destroyed key
+        self.assertEqual(len(resp), expected_keys_count - 1)
+
+        if KEYSTORE_VERSION == 'v1':
+            purpose = 'poison_sym_key'
+        else:
+            purpose = 'poison record symmetric key'
+
+        # check indexes shifter after destroy
+        expected_idx = 1
+        for entry in resp:
+            if entry['Purpose'] == purpose:
+                self.assertEqual(entry['Index'], expected_idx)
+                expected_idx += 1
+
+    def create_key_store_with_client_id_from_cert(self, extractor, dir_name):
+        """Create new keystore of given version using acra-keys tool."""
+        subprocess.check_call([
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
+            'generate',
+            '--tls_cert={}'.format(TEST_TLS_SERVER_CERT),
+            '--tls_identifier_extractor_type={}'.format(extractor),
+            '--keys_dir={}'.format(dir_name),
+            '--keys_dir_public={}'.format(dir_name),
+            '--keystore={}'.format(KEYSTORE_VERSION),
+        ],
+            env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
+            timeout=PROCESS_CALL_TIMEOUT)
+
+    def destroy_rotated_key(self, index, dir_name, key_id):
+        subprocess.check_call([
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
+            'destroy',
+            '--index={}'.format(index),
+            '--keys_dir={}'.format(dir_name),
+            '{}'.format(key_id),
+        ],
+            env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
+            timeout=PROCESS_CALL_TIMEOUT)
+
+    def extrac_client_id(self, extractor):
+        cmd_output = json.loads(subprocess.check_output([
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
+            'extract-client-id',
+            '--tls_identifier_extractor_type={}'.format(extractor),
+            '--tls_cert={}'.format(TEST_TLS_SERVER_CERT),
+            '--print_json'
+        ],
+            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8'))
+        return cmd_output
+
+    def list_key_store_keys_in_json(self, dir_name):
+        """List all keys from keystore in JSON format."""
+        cmd_output = json.loads(subprocess.check_output([
+            os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
+            'list',
+            '--rotated-keys',
+            '--json',
+            '--keys_dir={}'.format(dir_name),
+        ],
+            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8'))
+        return cmd_output
+
+
 class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
     def setUp(self):
         self.master_key = get_master_key()
