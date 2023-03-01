@@ -22,7 +22,6 @@ import (
 	"crypto/tls"
 	"database/sql"
 	"flag"
-	"net/url"
 	"os"
 
 	"github.com/go-sql-driver/mysql"
@@ -117,25 +116,25 @@ func main() {
 		var db *sql.DB
 		var encoder utils.BinaryEncoder
 		if *useMysql {
+			config, err := mysql.ParseDSN(*connectionString)
+			if err != nil {
+				log.WithError(err).Errorln("Can't parse connection string for MySQL driver")
+				os.Exit(1)
+			}
 			if dbTLSConfig != nil {
-				connectionURL, err := url.Parse(*connectionString)
-				if err != nil {
-					log.WithError(err).Errorln("Failed to parse DB connection string")
-					os.Exit(1)
-				}
-
-				if err := mysql.RegisterTLSConfig("custom", dbTLSConfig); err != nil {
+				tlsConfigName := "custom"
+				if err := mysql.RegisterTLSConfig(tlsConfigName, dbTLSConfig); err != nil {
 					log.WithError(err).Errorln("Failed to register TLS config")
 					os.Exit(1)
 				}
-
-				connectioQueryParams := connectionURL.Query()
-				connectioQueryParams.Set("tls", "custom")
-				connectionURL.RawQuery = connectioQueryParams.Encode()
-				*connectionString = connectionURL.String()
+				config.TLSConfig = tlsConfigName
 			}
-
-			db, err = sql.Open("mysql", *connectionString)
+			connector, err := mysql.NewConnector(config)
+			if err != nil {
+				log.WithError(err).Errorln("Can't initialize MySQL connector")
+				os.Exit(1)
+			}
+			db = sql.OpenDB(connector)
 			encoder = &utils.HexEncoder{}
 		} else {
 			config, err := pgx.ParseConfig(*connectionString)
