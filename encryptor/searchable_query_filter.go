@@ -18,9 +18,11 @@ package encryptor
 
 import (
 	"errors"
+
+	"github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
-	"github.com/sirupsen/logrus"
 )
 
 // ErrUnsupportedQueryType represent error related unsupported Query type
@@ -57,7 +59,7 @@ func NewSearchableQueryFilter(schemaStore config.TableSchemaStore, mode Searchab
 
 // FilterSearchableComparisons filter search comparisons from statement
 func (filter *SearchableQueryFilter) FilterSearchableComparisons(statement sqlparser.Statement) []SearchableExprItem {
-	tableExps, err := filter.filterTableExpressions(statement)
+	tableExps, err := filterTableExpressions(statement)
 	if err != nil {
 		logrus.Debugln("Unsupported search query")
 		return nil
@@ -93,7 +95,7 @@ func (filter *SearchableQueryFilter) ChangeSearchableOperator(expr *sqlparser.Co
 	}
 }
 
-func (filter *SearchableQueryFilter) filterTableExpressions(statement sqlparser.Statement) (sqlparser.TableExprs, error) {
+func filterTableExpressions(statement sqlparser.Statement) (sqlparser.TableExprs, error) {
 	switch query := statement.(type) {
 	case *sqlparser.Select:
 		return query.From, nil
@@ -112,8 +114,8 @@ func (filter *SearchableQueryFilter) filterTableExpressions(statement sqlparser.
 	}
 }
 
-func (filter *SearchableQueryFilter) getColumnSetting(column *sqlparser.ColName, columnInfo columnInfo) config.ColumnEncryptionSetting {
-	schema := filter.schemaStore.GetTableSchema(columnInfo.Table)
+func getColumnSetting(column *sqlparser.ColName, columnInfo columnInfo, schemaStore config.TableSchemaStore) config.ColumnEncryptionSetting {
+	schema := schemaStore.GetTableSchema(columnInfo.Table)
 	if schema == nil {
 		return nil
 	}
@@ -176,7 +178,7 @@ func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(stmt sqlpa
 			return true, nil
 		}
 
-		lColumnSetting := filter.getColumnSetting(lColumn, columnInfo)
+		lColumnSetting := getColumnSetting(lColumn, columnInfo, filter.schemaStore)
 		if lColumnSetting == nil {
 			return true, nil
 		}
@@ -197,7 +199,7 @@ func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(stmt sqlpa
 				return true, nil
 			}
 
-			rColumnSetting := filter.getColumnSetting(rColumn, columnInfo)
+			rColumnSetting := getColumnSetting(rColumn, columnInfo, filter.schemaStore)
 			if rColumnSetting != nil {
 				if rColumnSetting.IsSearchable() {
 					exprs = append(exprs, SearchableExprItem{

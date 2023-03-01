@@ -30,15 +30,16 @@ import (
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
 
+	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
+	"go.opencensus.io/trace"
+
 	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/sqlparser"
-	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
-	"go.opencensus.io/trace"
 )
 
 // ReadyForQuery - 'Z' ReadyForQuery, 0 0 0 5 length, 'I' idle status
@@ -969,7 +970,28 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 		return nil
 	}
 	sqlQuery := pendingPacket.(queryPacket).GetSQLQuery()
-	encryptionSettings, err := proxy.settingExtractor.GetEncryptorSettingsForQuery(base.NewOnQueryObjectFromQuery(sqlQuery, proxy.parser))
+
+	sqlOnQuery := base.NewOnQueryObjectFromQuery(sqlQuery, proxy.parser)
+	sqlStmt, err := proxy.parser.Parse(sqlQuery)
+	if err != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
+			WithError(err).Errorln("Failed to parse SQL query")
+		return err
+	}
+
+	if executeStmt, ok := sqlStmt.(*sqlparser.Execute); ok {
+		preparedStatementRegistry := proxy.session.PreparedStatementRegistry()
+
+		storedStatement, err := preparedStatementRegistry.StatementByName(executeStmt.PreparedStatementName.String())
+		if err != nil {
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
+				WithError(err).Errorln("No prepared statement in registry on execute query")
+			return err
+		}
+		sqlOnQuery = base.NewOnQueryObjectFromQuery(storedStatement.QueryText(), proxy.parser)
+	}
+
+	encryptionSettings, err := proxy.settingExtractor.GetEncryptorSettingsForQuery(sqlOnQuery)
 	if err != nil {
 		logger.WithError(err).Warningln("Can't extract encryption settings from the query")
 		encryptionSettings = nil

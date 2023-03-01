@@ -3,13 +3,16 @@ package sqlparser
 import (
 	"errors"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/sqlparser/dependency/querypb"
 	"github.com/cossacklabs/acra/sqlparser/dependency/sqltypes"
 	"github.com/cossacklabs/acra/sqlparser/dialect"
+	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
+	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
 )
 
 // Mode enum type used for sqlparser.Parser mode definition
@@ -551,10 +554,12 @@ func (ts *TableSpec) walkSubtree(visit Visit) error {
 // Format formats the node.
 func (node ColumnTypes) Format(buf *TrackedBuffer) {
 	var prefix string
+	buf.Myprintf("(")
 	for _, n := range node {
-		buf.Myprintf("(%s%v)", prefix, n)
+		buf.Myprintf("%s%s", prefix, n.Type)
 		prefix = ", "
 	}
+	buf.Myprintf(")")
 }
 
 func (node ColumnTypes) walkSubtree(visit Visit) error {
@@ -859,7 +864,11 @@ func (node UsingInExecuteList) walkSubtree(visit Visit) error {
 // Format formats the node.
 func (node *Execute) Format(buf *TrackedBuffer) {
 	if node.Using == nil {
-		buf.Myprintf("execute %v", node.PreparedStatementName)
+		if len(node.Values) > 0 {
+			buf.Myprintf("execute %v %v", node.PreparedStatementName, node.Values)
+		} else {
+			buf.Myprintf("execute %v", node.PreparedStatementName)
+		}
 	} else {
 		buf.Myprintf("execute %v using %v", node.PreparedStatementName, node.Using)
 	}
@@ -871,10 +880,14 @@ func (node *Execute) walkSubtree(visit Visit) error {
 
 // Format formats the node.
 func (node *Prepare) Format(buf *TrackedBuffer) {
-	if node.ColumnTypes != nil {
-		buf.Myprintf("prepare %v (%v) from (as) %v", node.PreparedStatementName, node.ColumnTypes, node.PreparedStatementQuery)
+	switch buf.dialect.(type) {
+	case *mysql.MySQLDialect:
+		if node.ColumnTypes != nil {
+			buf.Myprintf("prepare %v (%v) from (as) %v", node.PreparedStatementName, node.ColumnTypes, node.PreparedStatementQuery)
+		}
+	case *postgresql.PostgreSQLDialect:
+		buf.Myprintf("prepare %v %v as %v", node.PreparedStatementName, node.ColumnTypes, node.PreparedStatementQuery)
 	}
-
 }
 
 func (node *Prepare) walkSubtree(visit Visit) error {

@@ -265,6 +265,15 @@ func (p *pgBoundValue) SetData(newData []byte, setting config.ColumnEncryptionSe
 func (p *pgBoundValue) setTokenizedData(newData []byte, setting config.ColumnEncryptionSetting) error {
 	p.data = newData
 	switch p.format {
+	case base.TextFormat:
+		// here we take encrypted data and encode it to SQL String value that contains binary data in hex format
+		// or pass it as is if it is already valid string (all other SQL literals)
+		if utils.IsPrintablePostgresqlString(newData) {
+			p.data = newData
+		} else {
+			p.data = encryptor.PgEncodeToHexString(newData)
+		}
+		return nil
 	case base.BinaryFormat:
 		switch setting.GetTokenType() {
 		case tokens.TokenType_Int32:
@@ -319,7 +328,7 @@ func (p *pgBoundValue) GetData(setting config.ColumnEncryptionSetting) ([]byte, 
 
 	switch p.format {
 	case base.TextFormat:
-		if setting.OnlyEncryption() || setting.IsSearchable() {
+		if setting.OnlyEncryption() || setting.IsSearchable() || setting.IsConsistentTokenization() {
 			// binary data in TextFormat received as Hex/Octal encoded values
 			// so we should decode them before processing
 

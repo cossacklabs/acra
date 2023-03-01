@@ -191,7 +191,7 @@ func setDebugLevel(level int) {
 %token <bytes> BIT TINYINT SMALLINT MEDIUMINT INT INTEGER BIGINT INTNUM
 %token <bytes> REAL DOUBLE FLOAT_TYPE DECIMAL NUMERIC
 %token <bytes> TIME TIMESTAMP DATETIME
-%token <bytes> CHAR VARCHAR BOOL CHARACTER VARBINARY NCHAR
+%token <bytes> CHAR VARCHAR BOOL CHARACTER VARBINARY NCHAR BYTEA INT4 INT8
 %token <bytes> TEXT TINYTEXT MEDIUMTEXT LONGTEXT
 %token <bytes> BLOB TINYBLOB MEDIUMBLOB LONGBLOB JSON ENUM
 %token <bytes> GEOMETRY POINT LINESTRING POLYGON GEOMETRYCOLLECTION MULTIPOINT MULTILINESTRING MULTIPOLYGON
@@ -793,6 +793,14 @@ int_type:
   {
     $$ = ColumnType{Type: string($1)}
   }
+| INT4
+  {
+    $$ = ColumnType{Type: string($1)}
+  }
+| INT8
+  {
+    $$ = ColumnType{Type: string($1)}
+  }
 
 decimal_type:
 REAL float_length_opt
@@ -858,6 +866,10 @@ char_type:
     $$ = ColumnType{Type: string($1), Length: $2, Charset: $3, Collate: $4}
   }
 | BINARY length_opt
+  {
+    $$ = ColumnType{Type: string($1), Length: $2}
+  }
+| BYTEA length_opt
   {
     $$ = ColumnType{Type: string($1), Length: $2}
   }
@@ -1670,6 +1682,11 @@ deallocate_prepare_statement:
   {
     $$ = &DeallocatePrepare{PreparedStatementName: $3}
   }
+|
+  DEALLOCATE ID
+  {
+    $$ = &DeallocatePrepare{PreparedStatementName: NewTableIdent(string($2))}
+  }
 
 prepare_statement:
   PREPARE table_id FROM prepared_query
@@ -1728,6 +1745,14 @@ execute_statement:
 | EXECUTE ID USING using_in_execute_list
   {
     $$ = &Execute{PreparedStatementName: NewTableIdent(string($2)), Using: $4}
+  }
+| EXECUTE ID row_tuple
+  {
+    if yylex.(*Tokenizer).IsMySQL() {
+       yylex.Error("MySQL dialect doesn't support `EXECUTE prepared_statement_name (parameter_values)` statement")
+       return 1
+     }
+    $$ = &Execute{PreparedStatementName: NewTableIdent(string($2)), Values: $3}
   }
 
 using_in_execute_list:
@@ -3543,6 +3568,9 @@ non_reserved_keyword:
 | UNSIGNED
 | UNUSED
 | VARBINARY
+| BYTEA
+| INT4
+| INT8
 | VARCHAR
 | VARIABLES
 | VIEW

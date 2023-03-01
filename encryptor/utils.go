@@ -22,10 +22,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
-	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -513,6 +514,67 @@ func ParsePlaceholderIndex(placeholder *sqlparser.SQLVal) (int, error) {
 		return updateMapByPlaceholderPart(":v")
 	}
 	return InvalidPlaceholderIndex, ErrInvalidPlaceholder
+}
+
+func ParseSearchQueryPlaceholdersSettings(statement sqlparser.Statement, schemaStore config.TableSchemaStore) map[int]config.ColumnEncryptionSetting {
+	tableExps, err := filterTableExpressions(statement)
+	if err != nil {
+		logrus.Debugln("Unsupported search query")
+		return nil
+	}
+
+	// Walk through WHERE clauses of a SELECT statements...
+	whereExprs, err := getWhereStatements(statement)
+	if err != nil {
+		logrus.WithError(err).Debugln("Failed to extract WHERE clauses")
+		return nil
+	}
+
+	placeHolderSettings := make(map[int]config.ColumnEncryptionSetting)
+	for _, whereExpr := range whereExprs {
+		err = sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
+			comparisonExpr, ok := node.(*sqlparser.ComparisonExpr)
+			if !ok {
+				return true, nil
+			}
+
+			lColumn, ok := comparisonExpr.Left.(*sqlparser.ColName)
+			if !ok {
+				return true, nil
+			}
+
+			columnInfo, err := findColumnInfo(tableExps, lColumn, schemaStore)
+			if err != nil {
+				return true, nil
+			}
+
+			lColumnSetting := getColumnSetting(lColumn, columnInfo, schemaStore)
+			if lColumnSetting == nil {
+				return true, nil
+			}
+
+			if !lColumnSetting.IsSearchable() && !lColumnSetting.IsConsistentTokenization() {
+				return true, nil
+			}
+
+			if sqlVal, ok := comparisonExpr.Right.(*sqlparser.SQLVal); ok && isSupportedSQLVal(sqlVal) {
+				if comparisonExpr.Operator == sqlparser.EqualStr || comparisonExpr.Operator == sqlparser.NotEqualStr || comparisonExpr.Operator == sqlparser.NullSafeEqualStr {
+
+					placeholderIndex, err := ParsePlaceholderIndex(sqlVal)
+					if err == ErrInvalidPlaceholder {
+						return true, nil
+					} else if err != nil {
+						return false, err
+					}
+					placeHolderSettings[placeholderIndex] = lColumnSetting
+				}
+			}
+
+			return true, nil
+		}, whereExpr)
+	}
+
+	return placeHolderSettings
 }
 
 const queryDataItemKey = "query_data_items"

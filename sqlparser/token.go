@@ -20,10 +20,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
+
 	"github.com/cossacklabs/acra/sqlparser/dialect"
 	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
 	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
-	"io"
 
 	"github.com/cossacklabs/acra/sqlparser/dependency/bytes2"
 	"github.com/cossacklabs/acra/sqlparser/dependency/sqltypes"
@@ -146,6 +147,7 @@ var keywords = map[string]int{
 	"between":             BETWEEN,
 	"bigint":              BIGINT,
 	"binary":              BINARY,
+	"bytea":               BYTEA,
 	"_binary":             UNDERSCORE_BINARY,
 	"bit":                 BIT,
 	"blob":                BLOB,
@@ -258,8 +260,8 @@ var keywords = map[string]int{
 	"int1":                UNUSED,
 	"int2":                UNUSED,
 	"int3":                UNUSED,
-	"int4":                UNUSED,
-	"int8":                UNUSED,
+	"int4":                INT4,
+	"int8":                INT8,
 	"integer":             INTEGER,
 	"interval":            INTERVAL,
 	"into":                INTO,

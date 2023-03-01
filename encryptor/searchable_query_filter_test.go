@@ -53,13 +53,9 @@ schemas:
 			t.Fatalf("Can't find column info: %s", err.Error())
 		}
 
-		searchableQueryFilter := SearchableQueryFilter{
-			schemaStore: schemaStore,
-		}
-
-		schemaTable := searchableQueryFilter.getColumnSetting(&sqlparser.ColName{
+		schemaTable := getColumnSetting(&sqlparser.ColName{
 			Name: sqlparser.NewColIdent("default_client_id"),
-		}, columnInfo)
+		}, columnInfo, schemaStore)
 
 		if schemaTable == nil {
 			t.Fatalf("Expect not nil schemaTable, matched with config")

@@ -4378,8 +4378,9 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
                             self.assertNotIn('ReadyForQueryPacket', new_line)
                             if 'ignoring error of non parsed sql statement' in new_line:
                                 if TEST_POSTGRESQL:
-                                    self.assertIn("PostgreSQL dialect doesn't allow 'LIMIT offset, limit' syntax of LIMIT "
-                                                  "statements", new_line)
+                                    self.assertIn(
+                                        "PostgreSQL dialect doesn't allow 'LIMIT offset, limit' syntax of LIMIT "
+                                        "statements", new_line)
                                 elif TEST_MYSQL:
                                     self.assertIn("MySQL dialect doesn't allow 'LIMIT ALL' syntax of LIMIT statements",
                                                   new_line)
@@ -4647,6 +4648,189 @@ class TestEncryptorSettingReset(SeparateMetadataMixin, AcraCatchLogsMixin, BaseT
                 if not v:
                     continue
                 self.assertNotEqual(row[k], v)
+
+
+class TestSQLPreparedStatements:
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('./encryptor_configs/ee_prepared_statements_sql.yaml')
+
+    def get_specified_client_id(self):
+        return base.TLS_CERT_CLIENT_ID_1
+
+    def testSearchableTokenizationDefaultClientID(self):
+        default_client_id_table = sa.Table(
+            'test_tokenization_default_client_id', base.metadata,
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('nullable_column', sa.Text, nullable=True),
+            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_i32', sa.Integer()),
+            sa.Column('token_i64', sa.BigInteger()),
+            sa.Column('token_str', sa.Text),
+            sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_email', sa.Text),
+            extend_existing=True,
+        )
+        base.metadata.create_all(self.engine_raw, [default_client_id_table])
+        self.engine1.execute(default_client_id_table.delete())
+
+        row_id = 1
+        data = {
+            'id': row_id,
+            'nullable_column': None,
+            'empty': b'',
+            'token_i32': random_int32(),
+            'token_i64': random_int64(),
+            'token_str': random_str(),
+            'token_bytes': random_bytes(),
+            'token_email': random_email(),
+        }
+        data_types = {
+            'id': 'int',
+            'nullable_column': 'text',
+            'empty': 'bytea',
+            'token_i32': 'int4',
+            'token_i64': 'int8',
+            'token_str': 'text',
+            'token_bytes': 'bytea',
+            'token_email': 'text',
+        }
+
+        # create SQL prepared statements in DB with name `insert_data`
+        self.prepare_1(prepared_name='insert_data', query=default_client_id_table.insert(), data_types=data_types)
+        self.execute_prepared_1(prepared_name='insert_data', data=data)
+
+        # create SQL prepared statements in DB with name `insert_data`
+        self.prepare_1(prepared_name='select_all_data', query=default_client_id_table.select())
+        rows = self.execute_prepared_fetch_1(prepared_name='select_all_data')
+        self.assertEqual(len(rows), 1)
+
+        for k in ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email'):
+            if isinstance(rows[0][k], memoryview) and isinstance(data[k], bytes):
+                self.assertEqual(bytes(rows[0][k]), data[k])
+            else:
+                self.assertEqual(rows[0][k], data[k])
+
+        columns = {
+            'token_i32': default_client_id_table.c.token_i32,
+            'token_i64': default_client_id_table.c.token_i64,
+            'token_str': default_client_id_table.c.token_str,
+            'token_bytes': default_client_id_table.c.token_bytes,
+            'token_email': default_client_id_table.c.token_email,
+        }
+
+        query = sa.select(default_client_id_table).where(columns['token_i64'] == data['token_i64'])
+
+        self.prepare_1(prepared_name='select_data_by_field', query=query, data_types={
+            'token_i64': 'int8'
+        }, literal_binds=False)
+        rows = self.execute_prepared_fetch_1(prepared_name='select_data_by_field', data={
+            'token_i64': data['token_i64']
+        })
+        self.assertEqual(len(rows), 1)
+
+        for k in ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email'):
+            if isinstance(rows[0][k], memoryview) and isinstance(data[k], bytes):
+                self.assertEqual(bytes(rows[0][k]), data[k])
+            else:
+                self.assertEqual(rows[0][k], data[k])
+
+    #
+    def testSearchableEncryption(self):
+        searchable_transparent_encryption_table = sa.Table(
+            'test_searchable_transparent_encryption', base.metadata,
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('specified_client_id',
+                      sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+            sa.Column('default_client_id',
+                      sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+
+            sa.Column('number', sa.Integer),
+            sa.Column('raw_data', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+            sa.Column('nullable', sa.Text, nullable=True),
+            sa.Column('searchable', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_i32', sa.Integer(), nullable=False, default=1),
+            sa.Column('token_i64', sa.BigInteger(), nullable=False, default=1),
+            sa.Column('token_str', sa.Text, nullable=False, default=''),
+            sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+            sa.Column('token_email', sa.Text, nullable=False, default=''),
+            sa.Column('masking', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+        )
+        base.metadata.create_all(self.engine_raw, [searchable_transparent_encryption_table])
+        self.engine1.execute(searchable_transparent_encryption_table.delete())
+
+        context = {
+            'id': base.get_random_id(),
+            'default_client_id': base.get_pregenerated_random_data().encode('ascii'),
+            'number': base.get_random_id(),
+            'specified_client_id': base.get_pregenerated_random_data().encode('ascii'),
+            'raw_data': base.get_pregenerated_random_data().encode('ascii'),
+            'searchable': base.get_pregenerated_random_data().encode('ascii'),
+            'empty': b'',
+            'nullable': None,
+            'masking': base.get_pregenerated_random_data().encode('ascii'),
+            'token_bytes': base.get_pregenerated_random_data().encode('ascii'),
+            'token_email': base.get_pregenerated_random_data(),
+            'token_str': base.get_pregenerated_random_data(),
+            'token_i32': base.random.randint(0, 2 ** 16),
+            'token_i64': base.random.randint(0, 2 ** 32),
+        }
+
+        data_types = {
+            'id': 'int',
+            'default_client_id': 'bytea',
+            'number': 'int',
+            'specified_client_id': 'bytea',
+            'raw_data': 'bytea',
+            'searchable': 'bytea',
+            'empty': 'bytea',
+            'nullable': 'text',
+            'masking': 'bytea',
+            'token_bytes': 'bytea',
+            'token_email': 'text',
+            'token_str': 'text',
+            'token_i32': 'int4',
+            'token_i64': 'int8',
+        }
+
+        search_term = context['searchable']
+
+        # Insert searchable data and some additional different rows
+        self.prepare_2(prepared_name='insert_data', query=searchable_transparent_encryption_table.insert(),
+                       data_types=data_types)
+        self.execute_prepared_2(prepared_name='insert_data', data=context)
+
+        extra_rows_count = 5
+        temp_context = context.copy()
+        while extra_rows_count != 0:
+            new_data = base.get_pregenerated_random_data().encode('utf-8')
+            if new_data != search_term:
+                temp_context['searchable'] = new_data
+                temp_context['id'] = context['id'] + extra_rows_count
+                self.execute_prepared_2(prepared_name='insert_data', data=temp_context)
+                extra_rows_count -= 1
+
+        query = sa.select(searchable_transparent_encryption_table).where(
+            searchable_transparent_encryption_table.c.searchable == search_term)
+
+        self.prepare_2(prepared_name='select_data_by_field', query=query, data_types={
+            'searchable': 'bytea'
+        }, literal_binds=False)
+        rows = self.execute_prepared_fetch_2(prepared_name='select_data_by_field', data={
+            'searchable': search_term
+        })
+        self.assertEqual(len(rows), 1)
+
+        # should be decrypted
+        self.assertEqual(bytes(rows[0]['default_client_id']), context['default_client_id'])
+        # should be as is
+        self.assertEqual(rows[0]['number'], context['number'])
+        self.assertEqual(bytes(rows[0]['raw_data']), context['raw_data'])
+        # other data should be encrypted
+        self.assertNotEqual(bytes(rows[0]['specified_client_id']), context['specified_client_id'])
+
+
+class TestPostgresSQLPreparedStatements(TestSQLPreparedStatements, BaseTokenizationWithBinaryPostgreSQL):
+    pass
 
 
 if __name__ == '__main__':
