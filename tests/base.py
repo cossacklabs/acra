@@ -191,6 +191,8 @@ TLS_CLIENT_ID_SOURCE_SERIAL = 'serial_number'
 POISON_KEY_PATH = '.poison_key/poison_key'
 
 STATEMENT_TIMEOUT = 5 * 1000  # 5 sec
+# we believe that tests with lock will finish faster than 10 secs
+DB_LOCK_TIMEOUT = int(os.environ.get('TEST_DB_LOCK_TIMEOUT', 10))
 SETUP_SQL_COMMAND_TIMEOUT = 0.1
 # how long wait forked process to respond
 FORK_TIMEOUT = 2
@@ -212,6 +214,20 @@ SSLMODE = os.environ.get('TEST_SSL_MODE', 'require' if TEST_WITH_TLS else 'disab
 TEST_MYSQL = get_bool_env('TEST_MYSQL', default=False)
 TEST_MARIADB = get_bool_env('TEST_MARIADB', default=False)
 
+
+def set_pymysql_connection_args_command_timeout(connection_args: dict, timeout: int):
+    connection_args['read_timeout'] = timeout
+    connection_args['write_timeout'] = timeout
+
+
+def set_psycopg2_connection_args_command_timeout(connection_args: dict, timeout: int):
+    connection_args['options'] = "-c statement_timeout={}".format(timeout)
+
+
+def set_asyncpg_connection_args_command_timeout(connection_args: dict, timeout: int):
+    connection_args['command_timeout'] = timeout
+
+
 if TEST_MYSQL or TEST_MARIADB:
     TEST_POSTGRESQL = False
     DB_DRIVER = "mysql+pymysql"
@@ -219,10 +235,9 @@ if TEST_MYSQL or TEST_MARIADB:
     connect_args = {
         'user': DB_USER, 'password': DB_USER_PASSWORD,
         'database': DB_NAME,
-        'read_timeout': SOCKET_CONNECT_TIMEOUT,
-        'write_timeout': SOCKET_CONNECT_TIMEOUT,
         'ssl_disabled': True if SSLMODE == 'disable' else False,
     }
+    set_pymysql_connection_args_command_timeout(connect_args, SOCKET_CONNECT_TIMEOUT)
     pymysql_tls_args = {}
     if TEST_WITH_TLS:
         pymysql_tls_args.update(
@@ -242,16 +257,17 @@ else:
     DB_DRIVER = "postgresql"
     connect_args = {
         'connect_timeout': SOCKET_CONNECT_TIMEOUT,
-        'user': DB_USER, 'password': DB_USER_PASSWORD,
-        "options": "-c statement_timeout={}".format(STATEMENT_TIMEOUT),
+        'user': DB_USER,
+        'password': DB_USER_PASSWORD,
         'sslmode': 'disable',
         'application_name': 'acra-tests'
     }
     asyncpg_connect_args = {
         'timeout': SOCKET_CONNECT_TIMEOUT,
         'statement_cache_size': 0,
-        'command_timeout': STATEMENT_TIMEOUT,
     }
+    set_psycopg2_connection_args_command_timeout(connect_args, STATEMENT_TIMEOUT)
+    set_asyncpg_connection_args_command_timeout(asyncpg_connect_args, STATEMENT_TIMEOUT)
     db_dialect = postgresql_dialect.dialect()
     if TEST_WITH_TLS:
         connect_args.update({

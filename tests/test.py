@@ -257,26 +257,33 @@ class TestConnectionClosing(BaseTestCase):
                 tls_ocsp_url='',
                 tls_crl_url='',
             )
-            # get .thing due to wrapped in contextlib.closing
-            self.lock_connection = self.get_connection().thing
-            self.lock_cursor = self.lock_connection.cursor()
+            connection_args = base.get_connect_args(base.DB_PORT)
+            if base.TEST_POSTGRESQL:
+                 base.set_psycopg2_connection_args_command_timeout(connection_args, base.DB_LOCK_TIMEOUT)
+            else:
+                base.set_pymysql_connection_args_command_timeout(connection_args, base.DB_LOCK_TIMEOUT)
+
             # we lock because tests rely on global state of the database
-            # multiply 3 due to 3 background workers in buildbot
-            self.acquire_lock(self.lock_cursor, base.STATEMENT_TIMEOUT*3)
+            # use separate connection directly to the database
+            self.lock_connection = self.get_connection(connection_args).thing
+            self.lock_cursor = self.lock_connection.cursor()
+            self.acquire_lock(self.lock_cursor, base.DB_LOCK_TIMEOUT)
         except:
             self.tearDown()
             raise
 
-    def get_connection(self):
+    def get_connection(self, connection_args=None):
         count = CONNECT_TRY_COUNT
+        if connection_args is None:
+            connection_args = get_connect_args(port=base.DB_PORT)
         while True:
             try:
                 if TEST_MYSQL:
                     return TestConnectionClosing.mysql_closing(
-                        pymysql.connect(host='localhost', **get_connect_args(port=self.ACRASERVER_PORT)))
+                        pymysql.connect(host=base.DB_HOST, **connection_args))
                 else:
                     return TestConnectionClosing.mysql_closing(psycopg2.connect(
-                        host='localhost', **get_connect_args(port=self.ACRASERVER_PORT)))
+                        host=base.DB_HOST, **connection_args))
             except:
                 count -= 1
                 if count == 0:
