@@ -18,6 +18,7 @@ package filesystem
 
 import (
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -30,7 +31,7 @@ type Storage interface {
 	Stat(path string) (os.FileInfo, error)
 	// Exists checks whether a file exists at a given path.
 	Exists(path string) (bool, error)
-	// ReadDir reads a directory and returns information about its contents.
+	// ReadDir reads a directory and returns information about its contents sorted by filename.
 	ReadDir(path string) ([]os.FileInfo, error)
 	// MkdirAll creates directory at given path with given permissions, including all missing intermediate directories.
 	// It is not at error if a directory already exists at this path.
@@ -87,7 +88,19 @@ func (*FileStorage) Exists(path string) (bool, error) {
 
 // ReadDir implementation of Storage interface
 func (*FileStorage) ReadDir(path string) ([]os.FileInfo, error) {
-	return ioutil.ReadDir(path)
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+	infos := make([]fs.FileInfo, 0, len(entries))
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil {
+			return nil, err
+		}
+		infos = append(infos, info)
+	}
+	return infos, nil
 }
 
 // MkdirAll implementation of Storage interface

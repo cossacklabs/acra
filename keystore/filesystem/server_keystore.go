@@ -68,6 +68,9 @@ const (
 // ErrUnrecognizedKeyPurpose describe key mismatch error
 var ErrUnrecognizedKeyPurpose = errors.New("key purpose not recognized")
 
+// ErrInvalidIndex represent invalid key index for destroying
+var ErrInvalidIndex = errors.New("invalid index value provided")
+
 // KeyStore represents keystore that reads keys from key folders, and stores them in memory.
 type KeyStore struct {
 	cache               keystore.Cache
@@ -1277,6 +1280,67 @@ func (store *KeyStore) DestroyClientIDSymmetricKey(clientID []byte) error {
 // DestroyHmacSecretKey destroy hmac secter key
 func (store *KeyStore) DestroyHmacSecretKey(clientID []byte) error {
 	return store.destroyKeyWithFilename(getHmacKeyFilename(clientID))
+}
+
+// DestroyRotatedPoisonKeyPair destroy poison rotated key pair by index
+func (store *KeyStore) DestroyRotatedPoisonKeyPair(index int) error {
+	if err := store.destroyRotatedKeyByIndex(store.GetPrivateKeyFilePath(PoisonKeyFilename), index); err != nil {
+		return err
+	}
+
+	return store.destroyRotatedKeyByIndex(store.GetPublicKeyFilePath(poisonKeyFilenamePublic), index)
+}
+
+// DestroyRotatedPoisonSymmetricKey destroy created rotated poison record symmetric key
+func (store *KeyStore) DestroyRotatedPoisonSymmetricKey(index int) error {
+	keyName := getSymmetricKeyName(PoisonKeyFilename)
+	return store.destroyRotatedKeyByIndex(store.GetPrivateKeyFilePath(keyName), index)
+}
+
+// DestroyRotatedClientIDEncryptionKeyPair destroy created rotated storage key pair
+func (store *KeyStore) DestroyRotatedClientIDEncryptionKeyPair(clientID []byte, index int) error {
+	fileName := GetServerDecryptionKeyFilename(clientID)
+
+	if err := store.destroyRotatedKeyByIndex(store.GetPrivateKeyFilePath(fileName), index); err != nil {
+		return err
+	}
+
+	pubKeyName := getPublicKeyFilename([]byte(fileName))
+	return store.destroyRotatedKeyByIndex(store.GetPublicKeyFilePath(pubKeyName), index)
+}
+
+// DestroyRotatedClientIDSymmetricKey destroy created rotated symmetric key
+func (store *KeyStore) DestroyRotatedClientIDSymmetricKey(clientID []byte, index int) error {
+	keyName := getClientIDSymmetricKeyName(clientID)
+	return store.destroyRotatedKeyByIndex(store.GetPrivateKeyFilePath(keyName), index)
+}
+
+// DestroyRotatedHmacSecretKey destroy created rotated hmac symmetric key
+func (store *KeyStore) DestroyRotatedHmacSecretKey(clientID []byte, index int) error {
+	keyName := getHmacKeyFilename(clientID)
+	return store.destroyRotatedKeyByIndex(store.GetPrivateKeyFilePath(keyName), index)
+}
+
+func (store *KeyStore) destroyRotatedKeyByIndex(path string, index int) error {
+	oldDir := getHistoryDirName(path)
+	rotatedKeyFiles, err := store.fs.ReadDir(oldDir)
+	if err != nil {
+		return err
+	}
+
+	// 1 is always index of current key of the keystore
+	// all rotated keys have index after 1
+	if len(rotatedKeyFiles) == 0 || index > len(rotatedKeyFiles)+1 {
+		return ErrInvalidIndex
+	}
+
+	rotatedKey := rotatedKeyFiles[index-1]
+	err = store.fs.Remove(filepath.Join(oldDir, rotatedKey.Name()))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	return nil
 }
 
 // DescribeKeyFile describes key by its purpose path for V1 and V2 keystore
