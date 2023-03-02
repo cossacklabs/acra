@@ -4651,7 +4651,7 @@ class TestEncryptorSettingReset(SeparateMetadataMixin, AcraCatchLogsMixin, BaseT
 
 
 class TestSQLPreparedStatements:
-    ENCRYPTOR_CONFIG = base.get_encryptor_config('./encryptor_configs/ee_prepared_statements_sql.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/ee_prepared_statements_sql.yaml')
 
     def get_specified_client_id(self):
         return base.TLS_CERT_CLIENT_ID_1

@@ -536,7 +536,7 @@ class TestTokenization(BaseTokenization):
 
 
 class TestSearchableTokenization(test_common.AcraCatchLogsMixin, BaseTokenization):
-    ENCRYPTOR_CONFIG = base.get_encryptor_config('./encryptor_configs/ee_searchable_tokenization_config.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/ee_searchable_tokenization_config.yaml')
 
     def testSearchableTokenizationDefaultClientID(self):
         default_client_id_table = sa.Table(
