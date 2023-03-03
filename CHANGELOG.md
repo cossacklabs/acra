@@ -5,45 +5,45 @@
 _Core_:
 
 - **AcraServer**:
-  - `consistent_tokenization` applies by default for tokenization [#614](https://github.com/cossacklabs/acra/pull/614)
-  - Improved processing packets related to transparent encryption/tokenization [#628](https://github.com/cossacklabs/acra/pull/628), [#630](https://github.com/cossacklabs/acra/pull/630), [#637](https://github.com/cossacklabs/acra/pull/637)
+  - Changed default tokenization settings: `consistent_tokenization` is now used by default for tokenization [#614](https://github.com/cossacklabs/acra/pull/614)
+  - Improved processing of packets related to transparent encryption/tokenization [#628](https://github.com/cossacklabs/acra/pull/628), [#630](https://github.com/cossacklabs/acra/pull/630), [#637](https://github.com/cossacklabs/acra/pull/637)
   - Improved searchable encryption:
-    - Supports NotEqual/Like/ILike operators [#605](https://github.com/cossacklabs/acra/pull/605) , [#606](https://github.com/cossacklabs/acra/pull/606), [#607](https://github.com/cossacklabs/acra/pull/607), [#609](https://github.com/cossacklabs/acra/pull/609)
-    - Handles properly `response_on_fail` option for error cases. [#612](https://github.com/cossacklabs/acra/pull/612)
-    - Allows `response_on_fail` in encryptor config [#618](https://github.com/cossacklabs/acra/pull/618)
+    - Added support of NotEqual/Like/ILike operators [#605](https://github.com/cossacklabs/acra/pull/605) , [#606](https://github.com/cossacklabs/acra/pull/606), [#607](https://github.com/cossacklabs/acra/pull/607), [#609](https://github.com/cossacklabs/acra/pull/609)
+    - Improved handling of the `response_on_fail` option for error cases [#612](https://github.com/cossacklabs/acra/pull/612)
+    - Added the `response_on_fail` option in encryptor config [#618](https://github.com/cossacklabs/acra/pull/618)
   - Improved SQL parser:
-    - Supports non-aliased columns with aliased queries [#602](https://github.com/cossacklabs/acra/pull/602)
-    - Improved support limit/offset for PostgreSQL [#603](https://github.com/cossacklabs/acra/pull/603)
-    - Supports `RETURNING` statement for INSERT/UPDATE/DELETE [#610](https://github.com/cossacklabs/acra/pull/610)
-    - Handle `RESET` packets for MySQL binary protocol [#611](https://github.com/cossacklabs/acra/pull/611)
-    - Supports `schema()` functions, thanks to the new contributor @jercheng [#634](https://github.com/cossacklabs/acra/pull/634)
+    - Added support of non-aliased columns with aliased queries [#602](https://github.com/cossacklabs/acra/pull/602)
+    - Improved support of limit/offset for PostgreSQL [#603](https://github.com/cossacklabs/acra/pull/603)
+    - Added support of `RETURNING` statement for INSERT/UPDATE/DELETE [#610](https://github.com/cossacklabs/acra/pull/610)
+    - Added support of `RESET` packets for MySQL binary protocol [#611](https://github.com/cossacklabs/acra/pull/611)
+    - Added support of `schema()` functions, thanks to the new contributor @jercheng [#634](https://github.com/cossacklabs/acra/pull/634)
   - Added new and deprecated some of existing prometheus metrics [#632](https://github.com/cossacklabs/acra/pull/632)
-    - Added `acra_decryptions_total` - labels: `{"status": [ "success", "fail"], "type": [ "acrastruct", "acrablock", "acrablock_searchable", "acrastruct_searchable"]}`
-    - Added `acra_encryptions_total`  - labels: `{"status": [ "success", "fail"], "type": [ "acrastruct", "acrablock", "acrablock_searchable", "acrastruct_searchable"]]}`
-    - Added `acra_tokenizations_total` -  labels: `{"status": [ "success", "fail"], "token_type": "{token_type}"}`
-    - Added `acra_detokenizations_total` - labels: `{"status": [ "success", "fail"], "token_type": "{token_type}"}`
-    - Deprecated `acra_acrastruct_decryptions_total`
-    - Deprecated `acra_api_encryptions_total`
-  - Builds and tests binaries using only the latest version of the golang [#624](https://github.com/cossacklabs/acra/pull/624)
+    - Added the `acra_decryptions_total` with labels: `{"status": [ "success", "fail"], "type": [ "acrastruct", "acrablock", "acrablock_searchable", "acrastruct_searchable"]}`
+    - Added the `acra_encryptions_total` with labels: `{"status": [ "success", "fail"], "type": [ "acrastruct", "acrablock", "acrablock_searchable", "acrastruct_searchable"]]}`
+    - Added the `acra_tokenizations_total` with labels: `{"status": [ "success", "fail"], "token_type": "{token_type}"}`
+    - Added the `acra_detokenizations_total` with labels: `{"status": [ "success", "fail"], "token_type": "{token_type}"}`
+    - Deprecated the `acra_acrastruct_decryptions_total`
+    - Deprecated the `acra_api_encryptions_total`
+  - Removed building and testing Acra binaries for old golang versions: now Acra supports only the latest version of golang [#624](https://github.com/cossacklabs/acra/pull/624)
 
 - **AcraTranslator**:
-  - `--http_api_enable` will be `true` by default **starting from 0.96.0** [#627](https://github.com/cossacklabs/acra/pull/627)
+  - Changed default HTTP API settings: `--http_api_enable` is now `true` by default **starting from 0.96.0** [#627](https://github.com/cossacklabs/acra/pull/627)
 
 - **AcraServer, AcraTranslator, AcraKeys**:
-  - Apply `tls_ocsp_*`/`tls_crl_*` options if weren't specified `tls_ocsp_[client|database]_*`/`tls_crl_[client|database]_*` [#617](https://github.com/cossacklabs/acra/pull/617)
+  - Improved support of `tls_ocsp_*`/`tls_crl_*` options if the options `tls_ocsp_[client|database]_*`/`tls_crl_[client|database]_*` were not specified [#617](https://github.com/cossacklabs/acra/pull/617)
 
 - **AcraRollback, AcraRotate**:
-  - Support options for TLS connections to the database [#623](https://github.com/cossacklabs/acra/pull/623)
-  - Improved parsing connection strings with complicated usernames [#642](https://github.com/cossacklabs/acra/pull/642), [#643](https://github.com/cossacklabs/acra/pull/643)
+  - Added support of TLS configuration options for connections to the database [#623](https://github.com/cossacklabs/acra/pull/623)
+  - Improved parsing of connection strings with complicated usernames [#642](https://github.com/cossacklabs/acra/pull/642), [#643](https://github.com/cossacklabs/acra/pull/643)
 
 - **AcraTokens**:
-  - Support options for TLS connections for Redis storage [#619](https://github.com/cossacklabs/acra/pull/619)
+  - Added support of TLS configuration options for Redis storage [#619](https://github.com/cossacklabs/acra/pull/619)
 
 - **AcraKeys**:
   - `acra-keys destroy` command supports destroying poison record symmetric keys and keypairs, searchable and storage keypairs and symmetric keys [#625](https://github.com/cossacklabs/acra/pull/625)
-  - `acra-keys destroy` command supports destroying rotated key with the **new flag** `--index=<index:int>` [#641](https://github.com/cossacklabs/acra/pull/641). You can find examples on the [documentation page](https://docs.cossacklabs.com/acra/configuring-maintaining/general-configuration/acra-keys/destroy/)/
+  - `acra-keys destroy` command supports destroying rotated key with the **new flag** `--index=<index:int>` [#641](https://github.com/cossacklabs/acra/pull/641). You can find examples on the [documentation page](https://docs.cossacklabs.com/acra/configuring-maintaining/general-configuration/acra-keys/destroy/)
   - `acra-keys import`/`acra-keys export` supports keystore v1 [#629](https://github.com/cossacklabs/acra/pull/629)
-  - `acra-keys list` lists rotated keys for keystore v1 & v2 with the **new flag** `--rotated-keys` [#636](https://github.com/cossacklabs/acra/pull/636). Also were updated formats for listed keys. You can find examples on the [documentation page](https://docs.cossacklabs.com/acra/configuring-maintaining/general-configuration/acra-keys/list/)/
+  - `acra-keys list` lists the rotated keys for keystore v1 & v2 with the **new flag** `--rotated-keys` [#636](https://github.com/cossacklabs/acra/pull/636). The formats of listed keys are updated. You can find examples on the [documentation page](https://docs.cossacklabs.com/acra/configuring-maintaining/general-configuration/acra-keys/list/)/
 
 ## [0.94.0](https://github.com/cossacklabs/acra/releases/tag/0.94.0), November 16th 2022
 
@@ -276,7 +276,7 @@ _New_:
   Read more details in the [Acra documentation](https://docs.cossacklabs.com/acra/acra-in-depth/data-structures/acrablock/)
   section dedicated to AcraBlock.
 
-- ** KeyStore v2**
+- **KeyStore v2**
   Added new storage format for keys in KeyStore that cryptographically strong key integrity checks,
   additional tracking metadata simplifying key management, KMS integrations.
   Read more details in the [Acra documentation](https://docs.cossacklabs.com/acra/security-controls/key-management/versions/)
