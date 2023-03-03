@@ -1,4 +1,4 @@
-version: 0.94.0
+version: 0.95.0
 encryptor_config_file: /config/encryptor_config.yaml
 tls_ca: /ssl.ca/example.cossacklabs.com.crt
 tls_cert: /ssl.server/acra-server.crt
