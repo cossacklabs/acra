@@ -191,7 +191,7 @@ func setDebugLevel(level int) {
 %token <bytes> BIT TINYINT SMALLINT MEDIUMINT INT INTEGER BIGINT INTNUM
 %token <bytes> REAL DOUBLE FLOAT_TYPE DECIMAL NUMERIC
 %token <bytes> TIME TIMESTAMP DATETIME
-%token <bytes> CHAR VARCHAR BOOL CHARACTER VARBINARY NCHAR BYTEA INT4 INT8
+%token <bytes> CHAR VARCHAR BOOL CHARACTER VARBINARY NCHAR
 %token <bytes> TEXT TINYTEXT MEDIUMTEXT LONGTEXT
 %token <bytes> BLOB TINYBLOB MEDIUMBLOB LONGBLOB JSON ENUM
 %token <bytes> GEOMETRY POINT LINESTRING POLYGON GEOMETRYCOLLECTION MULTIPOINT MULTILINESTRING MULTIPOLYGON
@@ -816,14 +816,6 @@ int_type:
   {
     $$ = ColumnType{Type: string($1)}
   }
-| INT4
-  {
-    $$ = ColumnType{Type: string($1)}
-  }
-| INT8
-  {
-    $$ = ColumnType{Type: string($1)}
-  }
 
 decimal_type:
 REAL float_length_opt
@@ -925,10 +917,6 @@ char_type:
     $$ = ColumnType{Type: string($1)}
   }
 | LONGBLOB
-  {
-    $$ = ColumnType{Type: string($1)}
-  }
-| BYTEA
   {
     $$ = ColumnType{Type: string($1)}
   }
@@ -3591,9 +3579,6 @@ non_reserved_keyword:
 | UNSIGNED
 | UNUSED
 | VARBINARY
-| BYTEA
-| INT4
-| INT8
 | VARCHAR
 | VARIABLES
 | VIEW

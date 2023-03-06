@@ -882,11 +882,13 @@ func (node *Execute) walkSubtree(visit Visit) error {
 func (node *Prepare) Format(buf *TrackedBuffer) {
 	switch buf.dialect.(type) {
 	case *mysql.MySQLDialect:
-		if node.ColumnTypes != nil {
-			buf.Myprintf("prepare %v (%v) from (as) %v", node.PreparedStatementName, node.ColumnTypes, node.PreparedStatementQuery)
-		}
+		buf.Myprintf("prepare %v from '%v'", node.PreparedStatementName, node.PreparedStatementQuery)
 	case *postgresql.PostgreSQLDialect:
-		buf.Myprintf("prepare %v %v as %v", node.PreparedStatementName, node.ColumnTypes, node.PreparedStatementQuery)
+		if len(node.ColumnTypes) > 0 {
+			buf.Myprintf("prepare %v %v as %v", node.PreparedStatementName, node.ColumnTypes, node.PreparedStatementQuery)
+		} else {
+			buf.Myprintf("prepare %v as %v", node.PreparedStatementName, node.PreparedStatementQuery)
+		}
 	}
 }
 

@@ -1,3 +1,6 @@
+# 0.96.0 - 2023-02-14
+- Added support of PreparedStatement from SQL for PostgreSQL;
+
 # 0.95.0 - 2023-02-14
 - Extend `acra-keys` `list` with supporting rotated keys for V1/V2;
 

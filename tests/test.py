@@ -110,7 +110,11 @@ class CensorBlacklistTest(BaseCensorTest):
 
 
 class CensorWhitelistTest(BaseCensorTest):
-    CENSOR_CONFIG_FILE = abs_path('tests/acra-censor_configs/acra-censor_whitelist.yaml')
+    if TEST_MYSQL:
+        CENSOR_CONFIG_FILE = abs_path('tests/acra-censor_configs/acra-censor_whitelist_mysql.yaml')
+
+    if TEST_POSTGRESQL:
+        CENSOR_CONFIG_FILE = abs_path('tests/acra-censor_configs/acra-censor_whitelist_pgsql.yaml')
 
     def testWhitelist(self):
         connection_args = ConnectionArgs(host='localhost', port=self.ACRASERVER_PORT,
@@ -121,7 +125,7 @@ class CensorWhitelistTest(BaseCensorTest):
         if TEST_MYSQL:
             expectedException = (pymysql.err.OperationalError,
                                  mysql.connector.errors.DatabaseError)
-            expectedExceptionInPreparedStatement = mysql.connector.errors.DatabaseError
+            expectedExceptionInPreparedStatement = (pymysql.err.OperationalError, mysql.connector.errors.DatabaseError)
             executors = [PyMysqlExecutor(connection_args),
                          MysqlExecutor(connection_args)]
         if TEST_POSTGRESQL:
@@ -145,7 +149,7 @@ class CensorWhitelistTest(BaseCensorTest):
                 try:
                     executor.execute_prepared_statement(testQuery)
                 except psycopg2.ProgrammingError as e:
-                    self.assertTrue(str(e) == "no results to fetch")
+                    self.assertIn("AcraCensor blocked this query", str(e))
                 except expectedExceptionInPreparedStatement:
                     return
 

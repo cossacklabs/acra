@@ -56,7 +56,7 @@ func NewPostgresqlHashQuery(keystore HashDecryptStore, schemaStore config.TableS
 // NewMysqlHashQuery return HashQuery with coder for mysql
 func NewMysqlHashQuery(keystore HashDecryptStore, schemaStore config.TableSchemaStore, processor base.ExtendedDataProcessor) *HashQuery {
 	searchableQueryFilter := queryEncryptor.NewSearchableQueryFilter(schemaStore, queryEncryptor.QueryFilterModeSearchableEncryption)
-	return &HashQuery{keystore: keystore, coder: &queryEncryptor.MysqlDBDataCoder{}, searchableQueryFilter: searchableQueryFilter, decryptor: processor}
+	return &HashQuery{keystore: keystore, coder: &queryEncryptor.MysqlDBDataCoder{}, searchableQueryFilter: searchableQueryFilter, decryptor: processor, schemaStore: schemaStore}
 }
 
 // ID returns name of this QueryObserver.

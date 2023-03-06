@@ -242,12 +242,6 @@ func realMain() error {
 	}
 	serverConfig.SetDBConnectionSettings(*dbHost, *dbPort)
 
-	if err := serverConfig.SetDatabaseType(*useMysql, *usePostgresql); err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-			Errorln("Can't configure database type")
-		return err
-	}
-
 	if config_loader.IsEncryptorConfigLoaderCLIConfigured() {
 		if err := serverConfig.LoadMapTableSchemaConfig(*encryptorConfigStorageType, *useMysql); err != nil {
 			log.WithError(err).Errorln("Can't load encryptor config")
@@ -255,6 +249,14 @@ func realMain() error {
 		}
 		log.Infoln("Encryptor configuration loaded")
 	}
+
+	if err := serverConfig.SetDatabaseType(*useMysql, *usePostgresql); err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+			Errorln("Can't configure database type")
+		return err
+	}
+
+	sqlparser.SetDefaultDialect(serverConfig.GetSQLDialect())
 
 	if err := serverConfig.SetCensor(*censorConfig); err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSetupError).
@@ -556,8 +558,6 @@ func realMain() error {
 			return err
 		}
 	}
-
-	sqlparser.SetDefaultDialect(serverConfig.GetSQLDialect())
 
 	server, err := common.NewEEAcraServerMainComponent(serverConfig, proxyFactory, errorSignalChannel, restartSignalsChannel)
 	if err != nil {

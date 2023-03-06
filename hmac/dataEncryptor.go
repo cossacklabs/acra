@@ -17,8 +17,6 @@ limitations under the License.
 package hmac
 
 import (
-	"fmt"
-
 	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/decryptor/base"
@@ -78,7 +76,6 @@ func (e *SearchableDataEncryptor) EncryptWithClientID(clientID, data []byte, set
 			}
 		}
 		logrus.Debugln("Hash data")
-		fmt.Println("settting ", setting.ColumnName(), "    -----", string(encryptor.PgEncodeToHexString(hash)))
 		return append(hash, encryptedData...), nil
 	}
 	return data, nil
