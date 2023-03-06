@@ -516,6 +516,7 @@ func ParsePlaceholderIndex(placeholder *sqlparser.SQLVal) (int, error) {
 	return InvalidPlaceholderIndex, ErrInvalidPlaceholder
 }
 
+// ParseSearchQueryPlaceholdersSettings parse encryption settings of statement with placeholders
 func ParseSearchQueryPlaceholdersSettings(statement sqlparser.Statement, schemaStore config.TableSchemaStore) map[int]config.ColumnEncryptionSetting {
 	tableExps, err := filterTableExpressions(statement)
 	if err != nil {
@@ -538,17 +539,21 @@ func ParseSearchQueryPlaceholdersSettings(statement sqlparser.Statement, schemaS
 				return true, nil
 			}
 
-			lColumn, ok := comparisonExpr.Left.(*sqlparser.ColName)
-			if !ok {
-				return true, nil
+			var colName *sqlparser.ColName
+
+			switch expr := comparisonExpr.Left.(type) {
+			case *sqlparser.ColName:
+				colName = expr
+			case *sqlparser.SubstrExpr:
+				colName = expr.Name
 			}
 
-			columnInfo, err := findColumnInfo(tableExps, lColumn, schemaStore)
+			columnInfo, err := findColumnInfo(tableExps, colName, schemaStore)
 			if err != nil {
 				return true, nil
 			}
 
-			lColumnSetting := getColumnSetting(lColumn, columnInfo, schemaStore)
+			lColumnSetting := getColumnSetting(colName, columnInfo, schemaStore)
 			if lColumnSetting == nil {
 				return true, nil
 			}

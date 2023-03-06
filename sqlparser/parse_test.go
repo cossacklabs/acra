@@ -1406,6 +1406,9 @@ var (
 			input:   "prepare fooplan (int, text, bool, bytea) as insert into foo values ($1, $2, $3, $4)",
 			dialect: postgresql.NewPostgreSQLDialect(),
 		}, {
+			input:   "prepare fooplan (int, some_unknown_type) as select * from table_1 where field = $1",
+			dialect: postgresql.NewPostgreSQLDialect(),
+		}, {
 			input:   "execute fooplan ('test', 11, true)",
 			dialect: postgresql.NewPostgreSQLDialect(),
 		},

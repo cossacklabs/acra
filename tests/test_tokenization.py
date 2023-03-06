@@ -144,10 +144,10 @@ class BaseTokenizationWithBinaryPostgreSQL(BaseTokenization, test_common.BaseBin
                 if x is None:
                     values_str += 'null, '
                 if isinstance(x, str):
-                    values_str += '\'{}\', '.format(x)
+                    values_str += '\'{}\', '.format(str(sa.text(x)))
                 if isinstance(x, bytes):
                     if len(x) == 0:
-                        values_str += '\' \', '
+                        values_str += '\'\', '
                     else:
                         values_str += '\'\\x{}\', '.format(x.hex())
 
@@ -181,6 +181,10 @@ class BaseTokenizationWithBinaryPostgreSQL(BaseTokenization, test_common.BaseBin
 
     def execute_prepared_2(self, prepared_name, data={}):
         prepare_query_sql = self.compile_execute_prepare(prepared_name, data)
+        return self.engine2.execute(sa.text(prepare_query_sql).execution_options(autocommit=True))
+
+    def deallocate_2(self, prepared_name):
+        prepare_query_sql = "deallocate {} ".format(prepared_name)
         return self.engine2.execute(sa.text(prepare_query_sql).execution_options(autocommit=True))
 
     def execute_prepared_fetch_2(self, prepared_name, data={}):

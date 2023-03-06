@@ -24,12 +24,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/sirupsen/logrus"
 )
 
 // QueryDataItem stores information about table column and encryption setting

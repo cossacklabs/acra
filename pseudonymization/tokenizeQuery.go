@@ -147,7 +147,7 @@ func (encryptor *TokenizeQuery) OnBind(ctx context.Context, statement sqlparser.
 	}
 
 	bindData := queryEncryptor.ParseSearchQueryPlaceholdersSettings(statement, encryptor.schemaStore)
-	if len(bindData) != len(values) {
+	if len(bindData) != len(indexes) {
 		return values, false, nil
 	}
 	// Finally, once we know which values to replace with tokenized values, do this replacement.

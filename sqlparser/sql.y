@@ -294,8 +294,8 @@ func setDebugLevel(level int) {
 %type <str> set_session_or_global show_session_or_global
 %type <str> set_operation_scope show_operation_scope
 %type <convertType> convert_type
-%type <columnTypes> column_type_list
-%type <columnType> column_type
+%type <columnTypes> column_type_list column_any_type_list
+%type <columnType> column_type column_any_type
 %type <columnType> int_type decimal_type numeric_type time_type char_type spatial_type bool_type
 %type <optVal> length_opt column_default_opt column_comment_opt on_update_opt
 %type <str> charset_opt collate_opt
@@ -734,6 +734,29 @@ column_type_list:
     $$ = append($1, $3)
   }
 
+column_any_type_list:
+  column_any_type
+  {
+    $$ = ColumnTypes{$1}
+  }
+| column_any_type_list ',' column_any_type
+  {
+    $$ = append($1, $3)
+  }
+
+// column_any_type represent generic data type
+// currently used only in PrepareStatement from SQL for PostgreSQL
+column_any_type:
+  ID
+  {
+    $$ =ColumnType{Type: string($1)}
+  }
+| non_reserved_keyword
+  {
+    $$ = ColumnType{Type: string($1)}
+  }
+
+
 column_type:
   numeric_type unsigned_opt zero_fill_opt
   {
@@ -869,10 +892,6 @@ char_type:
   {
     $$ = ColumnType{Type: string($1), Length: $2}
   }
-| BYTEA length_opt
-  {
-    $$ = ColumnType{Type: string($1), Length: $2}
-  }
 | VARBINARY length_opt
   {
     $$ = ColumnType{Type: string($1), Length: $2}
@@ -906,6 +925,10 @@ char_type:
     $$ = ColumnType{Type: string($1)}
   }
 | LONGBLOB
+  {
+    $$ = ColumnType{Type: string($1)}
+  }
+| BYTEA
   {
     $$ = ColumnType{Type: string($1)}
   }
@@ -1697,7 +1720,7 @@ prepare_statement:
   {
     $$ = &Prepare{PreparedStatementName: $2, PreparedStatementQuery: $4}
   }
-| PREPARE table_id openb column_type_list closeb AS prepared_query
+| PREPARE table_id openb column_any_type_list closeb AS prepared_query
   {
     $$ = &Prepare{PreparedStatementName: $2, ColumnTypes: $4, PreparedStatementQuery: $7}
   }

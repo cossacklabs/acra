@@ -205,7 +205,7 @@ func (encryptor *HashQuery) OnBind(ctx context.Context, statement sqlparser.Stat
 	}
 
 	bindData := queryEncryptor.ParseSearchQueryPlaceholdersSettings(statement, encryptor.schemaStore)
-	if len(bindData) != len(values) {
+	if len(bindData) != len(indexes) {
 		return values, false, nil
 	}
 
