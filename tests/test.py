@@ -4628,7 +4628,7 @@ class TestEncryptorSettingReset(SeparateMetadataMixin, AcraCatchLogsMixin, BaseT
             elif TEST_MARIADB:
                 # use raw sql due to only sqlalchemy 2.x supports returning for mariadb
                 # TODO use sqlalchemy core after upgrading from 1.x to 2.x version
-                columns = ','.join(['nullable', 'empty', 'token_i32', 'token_i64', 'token_str',
+                columns = ','.join(['nullable_column', 'empty', 'token_i32', 'token_i64', 'token_str',
                                     'token_bytes', 'token_email'])
                 result = connection.execute(sa.text(
                     "insert into {} ({}) values ( :nullable_column, :empty, :token_i32, :token_i64, :token_str, :token_bytes, :token_email) returning {};".format(
