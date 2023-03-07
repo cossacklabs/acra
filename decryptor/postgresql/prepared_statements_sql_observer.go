@@ -65,7 +65,7 @@ func (encryptor *PreparedStatementsQuery) onPrepare(ctx context.Context, prepare
 	var registry = encryptor.session.PreparedStatementRegistry()
 
 	// PostgreSQL allows create statement only once during the session
-	if _, err := registry.StatementByName(prepareQuery.PreparedStatementName.String()); err == nil {
+	if _, err := registry.StatementByName(preparedStatementName); err == nil {
 		logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 			WithError(err).Errorln("PreparedStatement already stored in registry")
 		return nil, false, ErrStatementAlreadyInRegistry

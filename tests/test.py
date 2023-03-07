@@ -4710,7 +4710,11 @@ class TestSQLPreparedStatements(AcraCatchLogsMixin):
 
     def tearDown(self):
         self.engine_raw.execute(self.test_prepared_sql_statements_table.delete())
+        base.metadata.remove(self.test_prepared_sql_statements_table)
+
         self.engine_raw.execute(self.default_client_id_table.delete())
+        base.metadata.remove(self.default_client_id_table)
+
         super(TestSQLPreparedStatements, self).tearDown()
 
 
