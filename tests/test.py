@@ -4569,7 +4569,7 @@ class TestEncryptorSettingReset(SeparateMetadataMixin, AcraCatchLogsMixin, BaseT
         self.test_table = sa.Table(
             'test_tokenization_default_client_id', self.get_metadata(),
             sa.Column('id', sa.Integer, primary_key=True),
-            sa.Column('nullable', sa.Text, nullable=True),
+            sa.Column('nullable_column', sa.Text, nullable=True),
             sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_i32', sa.Integer()),
             sa.Column('token_i64', sa.BigInteger()),
@@ -4589,7 +4589,7 @@ class TestEncryptorSettingReset(SeparateMetadataMixin, AcraCatchLogsMixin, BaseT
     def test_select(self):
         """verify that after valid SELECT query over transparently encrypted data same config will not be applied
         for the next query and will be cleared"""
-        encrypted_row = {'nullable': None, 'empty': b'', 'token_i32': random_int32(), 'token_i64': random_int64(),
+        encrypted_row = {'nullable_column': None, 'empty': b'', 'token_i32': random_int32(), 'token_i64': random_int64(),
                          'token_str': random_str(), 'token_bytes': random_bytes(), 'token_email': random_email()}
         with self.engine1.begin() as connection:
             connection.execute(self.test_table.insert(encrypted_row))
@@ -4619,7 +4619,7 @@ class TestEncryptorSettingReset(SeparateMetadataMixin, AcraCatchLogsMixin, BaseT
         if not (base.TEST_POSTGRESQL or TEST_MARIADB):
             self.skipTest("MySQL doesn't support returning statement for insert")
 
-        encrypted_row = {'nullable': None, 'empty': b'', 'token_i32': random_int32(), 'token_i64': random_int64(),
+        encrypted_row = {'nullable_column': None, 'empty': b'', 'token_i32': random_int32(), 'token_i64': random_int64(),
                          'token_str': random_str(), 'token_bytes': random_bytes(), 'token_email': random_email()}
         with self.engine1.begin() as connection:
             if TEST_POSTGRESQL:
@@ -4631,7 +4631,7 @@ class TestEncryptorSettingReset(SeparateMetadataMixin, AcraCatchLogsMixin, BaseT
                 columns = ','.join(['nullable', 'empty', 'token_i32', 'token_i64', 'token_str',
                                     'token_bytes', 'token_email'])
                 result = connection.execute(sa.text(
-                    "insert into {} ({}) values ( :nullable, :empty, :token_i32, :token_i64, :token_str, :token_bytes, :token_email) returning {};".format(
+                    "insert into {} ({}) values ( :nullable_column, :empty, :token_i32, :token_i64, :token_str, :token_bytes, :token_email) returning {};".format(
                         self.test_table.name, columns, columns)), encrypted_row
                 ).fetchall()
             else:
