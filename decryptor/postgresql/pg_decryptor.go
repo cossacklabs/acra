@@ -979,6 +979,10 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 		return err
 	}
 
+	// if the sqlStmt represent Execute, it means that previously Acra processed SQL prepared statement, e.q:
+	// prepare some_name (params...) as insert into some_table(id, ...) values($1,...)
+	// so we need to read prepared statement from registry and use its inner query (insert into some_table(id, ...) values($1,...))
+	// for processing in `onColumnDecryption`
 	if executeStmt, ok := sqlStmt.(*sqlparser.Execute); ok {
 		preparedStatementRegistry := proxy.session.PreparedStatementRegistry()
 

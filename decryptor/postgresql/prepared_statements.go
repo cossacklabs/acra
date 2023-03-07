@@ -337,7 +337,6 @@ func (p *pgBoundValue) GetData(setting config.ColumnEncryptionSetting) ([]byte, 
 				return p.data, err
 			}
 			return decoded, nil
-
 		}
 	case base.BinaryFormat:
 		if setting.IsTokenized() || setting.IsSearchable() || setting.OnlyEncryption() {

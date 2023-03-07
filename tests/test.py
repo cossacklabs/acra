@@ -4695,6 +4695,25 @@ class TestSQLPreparedStatements(AcraCatchLogsMixin):
         sa.Column('masking', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
     )
 
+    default_client_id_table = sa.Table(
+        'test_tokenization_default_client_id', base.metadata,
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('nullable_column', sa.Text, nullable=True),
+        sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('token_i32', sa.Integer()),
+        sa.Column('token_i64', sa.BigInteger()),
+        sa.Column('token_str', sa.Text),
+        sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('token_email', sa.Text),
+        extend_existing=True,
+    )
+
+    def tearDown(self):
+        self.engine_raw.execute(self.test_prepared_sql_statements_table.delete())
+        self.engine_raw.execute(self.default_client_id_table.delete())
+        super(TestSQLPreparedStatements, self).tearDown()
+
+
     def get_test_prepared_sql_statements_table_context(self):
         return {
             'id': base.get_random_id(),
@@ -4717,20 +4736,8 @@ class TestSQLPreparedStatements(AcraCatchLogsMixin):
         return base.TLS_CERT_CLIENT_ID_1
 
     def testSearchableTokenizationDefaultClientID(self):
-        default_client_id_table = sa.Table(
-            'test_tokenization_default_client_id', base.metadata,
-            sa.Column('id', sa.Integer, primary_key=True),
-            sa.Column('nullable_column', sa.Text, nullable=True),
-            sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('token_i32', sa.Integer()),
-            sa.Column('token_i64', sa.BigInteger()),
-            sa.Column('token_str', sa.Text),
-            sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
-            sa.Column('token_email', sa.Text),
-            extend_existing=True,
-        )
-        base.metadata.create_all(self.engine_raw, [default_client_id_table])
-        self.engine1.execute(default_client_id_table.delete())
+        base.metadata.create_all(self.engine_raw, [self.default_client_id_table])
+        self.engine1.execute(self.default_client_id_table.delete())
 
         row_id = 1
         data = {
@@ -4754,20 +4761,23 @@ class TestSQLPreparedStatements(AcraCatchLogsMixin):
             'token_email': 'text',
         }
 
-        # create SQL prepared statements in DB with name `insert_data`
-        self.prepare_1(prepared_name='insert_data', query=default_client_id_table.insert(), data_types=data_types)
+        # create SQL prepared statements in DB with name `insert_data` with engine1
+        self.prepare(prepared_name='insert_data', engine=self.engine1, query=self.default_client_id_table.insert(),
+                     data_types=data_types)
 
         # expect fail on the prepare query with the same name
         try:
-            self.prepare_1(prepared_name='insert_data', query=default_client_id_table.insert(), data_types=data_types)
+            self.prepare(prepared_name='insert_data', engine=self.engine1, query=self.default_client_id_table.insert(),
+                         data_types=data_types)
         except Exception:
             self.assertIn("PreparedStatement already stored in registry", self.read_log(self.acra))
             pass
 
-        self.execute_prepared_1(prepared_name='insert_data', data=data)
-        # create SQL prepared statements in DB with name `insert_data`
-        self.prepare_1(prepared_name='select_all_data', query=default_client_id_table.select())
-        rows = self.execute_prepared_fetch_1(prepared_name='select_all_data')
+        self.execute_prepared(prepared_name='insert_data', engine=self.engine1, data=data)
+
+        # create SQL prepared statements in DB with name `select_all_data` with engine1
+        self.prepare(prepared_name='select_all_data', engine=self.engine1, query=self.default_client_id_table.select())
+        rows = self.execute_prepared_fetch(prepared_name='select_all_data', engine=self.engine1)
         self.assertEqual(len(rows), 1)
 
         for k in ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email'):
@@ -4777,19 +4787,19 @@ class TestSQLPreparedStatements(AcraCatchLogsMixin):
                 self.assertEqual(rows[0][k], data[k])
 
         columns = {
-            'token_i32': default_client_id_table.c.token_i32,
-            'token_i64': default_client_id_table.c.token_i64,
-            'token_str': default_client_id_table.c.token_str,
-            'token_bytes': default_client_id_table.c.token_bytes,
-            'token_email': default_client_id_table.c.token_email,
+            'token_i32': self.default_client_id_table.c.token_i32,
+            'token_i64': self.default_client_id_table.c.token_i64,
+            'token_str': self.default_client_id_table.c.token_str,
+            'token_bytes': self.default_client_id_table.c.token_bytes,
+            'token_email': self.default_client_id_table.c.token_email,
         }
 
-        query = sa.select(default_client_id_table).where(columns['token_i64'] == data['token_i64'])
+        query = sa.select(self.default_client_id_table).where(columns['token_i64'] == data['token_i64'])
 
-        self.prepare_1(prepared_name='select_data_by_field', query=query, data_types={
+        self.prepare(prepared_name='select_data_by_field', query=query, engine=self.engine1, data_types={
             'token_i64': 'int8'
         }, literal_binds=False)
-        rows = self.execute_prepared_fetch_1(prepared_name='select_data_by_field', data={
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine1, data={
             'token_i64': data['token_i64']
         })
         self.assertEqual(len(rows), 1)
@@ -4809,9 +4819,10 @@ class TestSQLPreparedStatements(AcraCatchLogsMixin):
         search_term = context['searchable']
 
         # Insert searchable data and some additional different rows
-        self.prepare_2(prepared_name='insert_data', query=self.test_prepared_sql_statements_table.insert(),
-                       data_types=self.prepared_sql_statements_table_data_types)
-        self.execute_prepared_2(prepared_name='insert_data', data=context)
+        self.prepare(prepared_name='insert_data', engine=self.engine2,
+                     query=self.test_prepared_sql_statements_table.insert(),
+                     data_types=self.prepared_sql_statements_table_data_types)
+        self.execute_prepared(prepared_name='insert_data', engine=self.engine2, data=context)
 
         extra_rows_count = 5
         temp_context = context.copy()
@@ -4820,16 +4831,16 @@ class TestSQLPreparedStatements(AcraCatchLogsMixin):
             if new_data != search_term:
                 temp_context['searchable'] = new_data
                 temp_context['id'] = context['id'] + extra_rows_count
-                self.execute_prepared_2(prepared_name='insert_data', data=temp_context)
+                self.execute_prepared(prepared_name='insert_data', engine=self.engine2, data=temp_context)
                 extra_rows_count -= 1
 
         query = sa.select(self.test_prepared_sql_statements_table).where(
             self.test_prepared_sql_statements_table.c.searchable == search_term)
 
-        self.prepare_2(prepared_name='select_data_by_field', query=query, data_types={
+        self.prepare(prepared_name='select_data_by_field', engine=self.engine2, query=query, data_types={
             'searchable': 'bytea'
         }, literal_binds=False)
-        rows = self.execute_prepared_fetch_2(prepared_name='select_data_by_field', data={
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, data={
             'searchable': search_term
         })
         self.assertEqual(len(rows), 1)
@@ -4839,21 +4850,42 @@ class TestSQLPreparedStatements(AcraCatchLogsMixin):
         # should be as is
         self.assertEqual(rows[0]['number'], context['number'])
         self.assertEqual(bytes(rows[0]['raw_data']), context['raw_data'])
+        # expected data to be detokenized
+        self.assertEqual(rows[0]['token_i32'], context['token_i32'])
+        self.assertEqual(rows[0]['token_i64'], context['token_i64'])
         # other data should be encrypted
         self.assertNotEqual(bytes(rows[0]['specified_client_id']), context['specified_client_id'])
+
+        # read raw data via engine1 to check data is encrypted
+        query = sa.select(self.test_prepared_sql_statements_table).where(
+            self.test_prepared_sql_statements_table.c.id == context['id'])
+
+        self.prepare(prepared_name='select_data_by_id', engine=self.engine1, query=query, data_types={
+            'id': 'int'
+        }, literal_binds=False)
+        row = self.execute_prepared_fetch(prepared_name='select_data_by_id', engine=self.engine1, data={
+            'id': context['id']
+        })[0]
+
+        # expected data to tokenized
+        self.assertNotEqual(row['token_i32'], context['token_i32'])
+        self.assertNotEqual(row['token_i64'], context['token_i64'])
+        self.assertNotEqual(row['default_client_id'], context['default_client_id'])
+        # expect data is decrypted
+        self.assertEqual(bytes(row['specified_client_id']), context['specified_client_id'])
 
         query = sa.delete(self.test_prepared_sql_statements_table).where(
             self.test_prepared_sql_statements_table.c.searchable == search_term)
 
         # delete search record with prepared
-        self.prepare_2(prepared_name='delete_data_by_field', query=query, data_types={
+        self.prepare(prepared_name='delete_data_by_field', engine=self.engine2, query=query, data_types={
             'searchable': 'bytea'
         }, literal_binds=False)
-        self.execute_prepared_2(prepared_name='delete_data_by_field', data={
+        self.execute_prepared(prepared_name='delete_data_by_field', engine=self.engine2, data={
             'searchable': search_term
         })
 
-        rows = self.execute_prepared_fetch_2(prepared_name='select_data_by_field', data={
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, data={
             'searchable': search_term
         })
         self.assertEqual(len(rows), 0)
@@ -4867,9 +4899,10 @@ class TestSQLPreparedStatements(AcraCatchLogsMixin):
         search_term = context['searchable']
 
         # Insert searchable data and some additional different rows
-        self.prepare_2(prepared_name='insert_data', query=self.test_prepared_sql_statements_table.insert(),
-                       data_types=self.prepared_sql_statements_table_data_types)
-        self.execute_prepared_2(prepared_name='insert_data', data=context)
+        self.prepare(prepared_name='insert_data', engine=self.engine2,
+                     query=self.test_prepared_sql_statements_table.insert(),
+                     data_types=self.prepared_sql_statements_table_data_types)
+        self.execute_prepared(prepared_name='insert_data', engine=self.engine2, data=context)
 
         extra_rows_count = 5
         temp_context = context.copy()
@@ -4878,26 +4911,27 @@ class TestSQLPreparedStatements(AcraCatchLogsMixin):
             if new_data != search_term:
                 temp_context['searchable'] = new_data
                 temp_context['id'] = context['id'] + extra_rows_count
-                self.execute_prepared_2(prepared_name='insert_data', data=temp_context)
+                self.execute_prepared(prepared_name='insert_data', engine=self.engine2, data=temp_context)
                 extra_rows_count -= 1
 
         query = sa.select(self.test_prepared_sql_statements_table).where(
             self.test_prepared_sql_statements_table.c.searchable == search_term)
 
-        self.prepare_2(prepared_name='select_data_by_field', query=query, data_types={
+        self.prepare(prepared_name='select_data_by_field', engine=self.engine2, query=query, data_types={
             'searchable': 'bytea'
         }, literal_binds=False)
-        rows = self.execute_prepared_fetch_2(prepared_name='select_data_by_field', data={
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, data={
             'searchable': search_term
         })
         self.assertEqual(len(rows), 1)
 
         # deallocate prepared statement from DB and delete statement from session registry
-        self.deallocate_2(prepared_name='select_data_by_field')
+        self.deallocate(prepared_name='select_data_by_field', engine=self.engine2)
 
         # expect fail on the deallocated prepared statement
         try:
-            self.execute_prepared_fetch_2(prepared_name='select_data_by_field', data={'searchable': search_term})
+            self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2,
+                                        data={'searchable': search_term})
         except Exception:
             self.assertIn("no prepared statement with given name", self.read_log(self.acra))
             pass
@@ -4909,19 +4943,19 @@ class TestSQLPreparedStatements(AcraCatchLogsMixin):
             token_i32=new_token_int)
 
         # update search record with prepared
-        self.prepare_2(prepared_name='update_data_by_field', query=update_query, data_types={
+        self.prepare(prepared_name='update_data_by_field', engine=self.engine2, query=update_query, data_types={
             'searchable': 'bytea',
             'token_i32': 'int'
         }, literal_binds=False)
-        self.execute_prepared_2(prepared_name='update_data_by_field', data={
+        self.execute_prepared(prepared_name='update_data_by_field', engine=self.engine2, data={
             'searchable': search_term,
             'token_i32': new_token_int
         })
 
-        self.prepare_2(prepared_name='select_data_by_field', query=query, data_types={
+        self.prepare(prepared_name='select_data_by_field', engine=self.engine2, query=query, data_types={
             'searchable': 'bytea'
         }, literal_binds=False)
-        rows = self.execute_prepared_fetch_2(prepared_name='select_data_by_field', data={
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, data={
             'searchable': search_term
         })
         self.assertEqual(len(rows), 1)

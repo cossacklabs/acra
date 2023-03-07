@@ -51,3 +51,9 @@ schemas:
 
       - column: searchable
         searchable: true
+
+      - column: token_i32
+        token_type: int32
+
+      - column: token_i64
+        token_type: int64

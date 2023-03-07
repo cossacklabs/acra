@@ -1,4 +1,4 @@
-# 0.96.0 - 2023-02-14
+# 0.96.0 - 2023-03-06
 - Added support of PreparedStatement from SQL for PostgreSQL;
 
 # 0.95.0 - 2023-02-14

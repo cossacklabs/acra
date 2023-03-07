@@ -40,7 +40,7 @@ func (encryptor *PreparedStatementsQuery) ID() string {
 // OnQuery processes query text before database sees it.
 func (encryptor *PreparedStatementsQuery) OnQuery(ctx context.Context, query base.OnQueryObject) (base.OnQueryObject, bool, error) {
 	logrus.Debugln("PreparedStatementsQuery.OnQuery")
-	parsedQuery, err := encryptor.parser.Parse(query.Query())
+	parsedQuery, err := query.Statement()
 	if err != nil {
 		logrus.WithError(err).Debugln("Can't parse SQL statement")
 		return query, false, nil
@@ -127,6 +127,8 @@ func (encryptor *PreparedStatementsQuery) onExecute(ctx context.Context, execute
 			values = append(values, NewPgBoundValue(val.Val, bindFormatText))
 		case *sqlparser.NullVal:
 			values = append(values, NewPgBoundValue(nil, bindFormatText))
+		default:
+			logrus.WithError(err).Debugln("Unexpected Execute query Values format")
 		}
 	}
 

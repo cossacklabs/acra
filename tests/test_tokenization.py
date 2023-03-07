@@ -163,33 +163,21 @@ class BaseTokenizationWithBinaryPostgreSQL(BaseTokenization, test_common.BaseBin
             prepare_query_sql = "prepare {} as {}".format(prepared_name, query)
         return prepare_query_sql
 
-    def prepare_1(self, prepared_name, query, data_types={}, literal_binds=True):
+    def prepare(self, prepared_name, query, engine, data_types={}, literal_binds=True):
         prepare_query_sql = self.compile_prepare(prepared_name, query, data_types, literal_binds)
-        return self.engine1.execute(sa.text(prepare_query_sql).execution_options(autocommit=True))
+        return engine.execute(sa.text(prepare_query_sql).execution_options(autocommit=True))
 
-    def prepare_2(self, prepared_name, query, data_types={}, literal_binds=True):
-        prepare_query_sql = self.compile_prepare(prepared_name, query, data_types, literal_binds)
-        return self.engine2.execute(sa.text(prepare_query_sql).execution_options(autocommit=True))
-
-    def execute_prepared_1(self, prepared_name, data={}):
+    def execute_prepared(self, prepared_name, engine, data={}):
         prepare_query_sql = self.compile_execute_prepare(prepared_name, data)
-        return self.engine1.execute(sa.text(prepare_query_sql).execution_options(autocommit=True))
+        return engine.execute(sa.text(prepare_query_sql).execution_options(autocommit=True))
 
-    def execute_prepared_fetch_1(self, prepared_name, data={}):
+    def execute_prepared_fetch(self, prepared_name, engine, data={}):
         prepare_query_sql = self.compile_execute_prepare(prepared_name, data)
-        return self.engine1.execute(sa.text(prepare_query_sql).execution_options(autocommit=True)).fetchall()
+        return engine.execute(sa.text(prepare_query_sql).execution_options(autocommit=True)).fetchall()
 
-    def execute_prepared_2(self, prepared_name, data={}):
-        prepare_query_sql = self.compile_execute_prepare(prepared_name, data)
-        return self.engine2.execute(sa.text(prepare_query_sql).execution_options(autocommit=True))
-
-    def deallocate_2(self, prepared_name):
+    def deallocate(self, prepared_name, engine):
         prepare_query_sql = "deallocate {} ".format(prepared_name)
-        return self.engine2.execute(sa.text(prepare_query_sql).execution_options(autocommit=True))
-
-    def execute_prepared_fetch_2(self, prepared_name, data={}):
-        prepare_query_sql = self.compile_execute_prepare(prepared_name, data)
-        return self.engine2.execute(sa.text(prepare_query_sql).execution_options(autocommit=True)).fetchall()
+        return engine.execute(sa.text(prepare_query_sql).execution_options(autocommit=True))
 
 
 class BaseTokenizationWithTextPostgreSQL(BaseTokenizationWithBinaryPostgreSQL):
