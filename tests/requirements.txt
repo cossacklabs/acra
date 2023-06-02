@@ -18,7 +18,7 @@ grpcio-tools==1.42.0
 googleapis-common-protos==1.53.0
 prometheus_client==0.10.1
 unittest-xml-reporting==3.0.4
-cryptography==39.0.1
+cryptography==41.0.0
 redis==4.4.4
 hiredis==2.0.0
 # don't upgrade until stop supporting Centos 7 with python3.6
