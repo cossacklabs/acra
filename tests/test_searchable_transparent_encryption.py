@@ -1,5 +1,4 @@
 import os
-import random
 import signal
 import tempfile
 
@@ -195,7 +194,7 @@ class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
                       default=b''),
             sa.Column('masked_prefix', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False,
                       default=b''),
-            )
+        )
         return encryptor_table
 
     def testAcraStructReEncryption(self):
@@ -517,6 +516,19 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
             sa.select([self.encryptor_table])
             .where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
             {'searchable': search_term},
+        )
+        self.assertEqual(self.get_result_len(rows), 1)
+
+        # check with null value
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(sa.or_(
+                self.encryptor_table.c.searchable == sa.bindparam('searchable'),
+                self.encryptor_table.c.token_i64 == sa.bindparam('token_i64'))),
+            {
+                'searchable': search_term,
+                'token_i64': None
+            },
         )
         self.assertEqual(self.get_result_len(rows), 1)
 
