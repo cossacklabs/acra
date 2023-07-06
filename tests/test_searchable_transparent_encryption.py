@@ -1,4 +1,5 @@
 import os
+import random
 import signal
 import tempfile
 
@@ -175,6 +176,7 @@ class TestTransparentEncryption(BaseTransparentEncryption):
 
 class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
     ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/ee_acrablock_config.yaml')
+
     def get_encryptor_table(self):
         encryptor_table = sa.Table(
             'test_transparent_acrablock_encryption', self.get_metadata(),
@@ -517,7 +519,11 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
             .where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
             {'searchable': search_term},
         )
+
         self.assertEqual(self.get_result_len(rows), 1)
+
+        self.checkDefaultIdEncryption(**context)
+        self.assertEqual(rows[0]['searchable'], search_term)
 
         # check with null value
         rows = self.executeSelect2(
