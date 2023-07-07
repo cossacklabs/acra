@@ -13,7 +13,7 @@ requests==2.31.0
 pyyaml==5.4.1
 hvac==0.10.11
 # https://grpc.io/docs/quickstart/python.html
-grpcio==1.42.0
+grpcio==1.53.0
 grpcio-tools==1.42.0
 googleapis-common-protos==1.53.0
 prometheus_client==0.10.1
