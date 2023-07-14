@@ -17,12 +17,13 @@ limitations under the License.
 package hmac
 
 import (
+	"github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/keystore"
 	estore "github.com/cossacklabs/acra/keystore"
-	"github.com/sirupsen/logrus"
 )
 
 // SearchableDataEncryptor adds hash prefix to AcraStruct generated with encryptor.AcrawriterDataEncryptor

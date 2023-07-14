@@ -1402,6 +1402,15 @@ var (
 		}, {
 			input:   "update test_table set price = price * 1.10 from table2 as t2 where price <= 99.99 returning 1, 0 as literal, t2.zone_id, specified_client_id, other_column, default_client_id, null",
 			dialect: postgresql.NewPostgreSQLDialect(),
+		}, {
+			input:   "prepare fooplan (int, text, bool, bytea) as insert into foo values ($1, $2, $3, $4)",
+			dialect: postgresql.NewPostgreSQLDialect(),
+		}, {
+			input:   "prepare fooplan (int, some_unknown_type) as select * from table_1 where field = $1",
+			dialect: postgresql.NewPostgreSQLDialect(),
+		}, {
+			input:   "execute fooplan ('test', 11, true)",
+			dialect: postgresql.NewPostgreSQLDialect(),
 		},
 	}
 )
@@ -1422,7 +1431,7 @@ func TestValid(t *testing.T) {
 			t.Errorf("Parse(%q) err: %v, want nil", tcase.input, err)
 			continue
 		}
-		out := String(tree)
+		out := StringWithDialect(testDialect, tree)
 		if out != tcase.output {
 			t.Errorf("[%d] Parse(%q) = %q, want: %q", i, tcase.input, out, tcase.output)
 		}
@@ -2107,6 +2116,7 @@ func TestPreparedStatements(t *testing.T) {
 		`PREPARE usrrptplan (int) AS SELECT * FROM users u, logs l WHERE u.usrid=$1 AND u.usrid=l.usrid AND l.date = $1;`,
 		`PREPARE fooplan (int, text, bool, numeric) AS	INSERT INTO foo DEFAULT VALUES;`,
 		`PREPARE fooplan (int, text, bool, numeric) AS INSERT INTO foo VALUES($1, $2, $3, $4);`,
+		`PREPARE fooplan (int, text, int4, int8) AS INSERT INTO foo VALUES($1, $2, $3, $4);`,
 	}
 
 	parser := New(ModeStrict)

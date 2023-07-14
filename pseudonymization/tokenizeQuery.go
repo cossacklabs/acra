@@ -16,6 +16,7 @@ type TokenizeQuery struct {
 	coder                 queryEncryptor.DBDataCoder
 	tokenEncryptor        *TokenEncryptor
 	searchableQueryFilter *queryEncryptor.SearchableQueryFilter
+	schemaStore           config.TableSchemaStore
 }
 
 // NewPostgresqlTokenizeQuery return TokenizeQuery with coder for postgresql
@@ -24,6 +25,7 @@ func NewPostgresqlTokenizeQuery(schemaStore config.TableSchemaStore, tokenEncryp
 		searchableQueryFilter: queryEncryptor.NewSearchableQueryFilter(schemaStore, queryEncryptor.QueryFilterModeConsistentTokenization),
 		tokenEncryptor:        tokenEncryptor,
 		coder:                 &queryEncryptor.PostgresqlDBDataCoder{},
+		schemaStore:           schemaStore,
 	}
 }
 
@@ -33,6 +35,7 @@ func NewMySQLTokenizeQuery(schemaStore config.TableSchemaStore, tokenEncryptor *
 		searchableQueryFilter: queryEncryptor.NewSearchableQueryFilter(schemaStore, queryEncryptor.QueryFilterModeConsistentTokenization),
 		tokenEncryptor:        tokenEncryptor,
 		coder:                 &queryEncryptor.MysqlDBDataCoder{},
+		schemaStore:           schemaStore,
 	}
 }
 
@@ -124,6 +127,10 @@ func (encryptor *TokenizeQuery) OnBind(ctx context.Context, statement sqlparser.
 	// and map them onto values that we need to update.
 	indexes := make([]int, 0, len(values))
 	for _, item := range items {
+		if !item.Setting.IsTokenized() {
+			continue
+		}
+
 		switch value := item.Expr.Right.(type) {
 		case *sqlparser.SQLVal:
 			var err error
@@ -139,11 +146,16 @@ func (encryptor *TokenizeQuery) OnBind(ctx context.Context, statement sqlparser.
 			indexes = append(indexes, index)
 		}
 	}
+
+	bindData := queryEncryptor.ParseSearchQueryPlaceholdersSettings(statement, encryptor.schemaStore)
+	if len(bindData) > len(indexes) {
+		return values, false, nil
+	}
 	// Finally, once we know which values to replace with tokenized values, do this replacement.
-	return encryptor.replaceValuesWithTokenizedData(ctx, values, indexes)
+	return encryptor.replaceValuesWithTokenizedData(ctx, values, indexes, bindData)
 }
 
-func (encryptor *TokenizeQuery) replaceValuesWithTokenizedData(ctx context.Context, values []base.BoundValue, placeholders []int) ([]base.BoundValue, bool, error) {
+func (encryptor *TokenizeQuery) replaceValuesWithTokenizedData(ctx context.Context, values []base.BoundValue, placeholders []int, bindData map[int]config.ColumnEncryptionSetting) ([]base.BoundValue, bool, error) {
 	// If there are no interesting placholder positions then we don't have to process anything.
 	if len(placeholders) == 0 {
 		return values, false, nil
@@ -151,8 +163,6 @@ func (encryptor *TokenizeQuery) replaceValuesWithTokenizedData(ctx context.Conte
 	// Otherwise, decrypt values at positions indicated by placeholders and replace them with their HMACs.
 	newValues := make([]base.BoundValue, len(values))
 	copy(newValues, values)
-	clientSession := base.ClientSessionFromContext(ctx)
-	bindData := queryEncryptor.PlaceholderSettingsFromClientSession(clientSession)
 
 	for _, valueIndex := range placeholders {
 		var encryptionSetting config.ColumnEncryptionSetting = nil

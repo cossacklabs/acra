@@ -39,8 +39,6 @@ handlers:
     queries:
       - prepare test_statement from 'select * from acrarollback_output'
       - prepare test_statement from 'insert into test(id, data) values(1, DEFAULT)'
-      - prepare test_statement as select * from acrarollback_output
-      - prepare test_statement as insert into test(id, data) values(1, DEFAULT)
       - execute test_statement
     patterns:
       - select * from acra_rollback_output where someValue = %%VALUE%%
