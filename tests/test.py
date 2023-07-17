@@ -4725,7 +4725,8 @@ class TestEncryptorSettingReset(SeparateMetadataMixin, AcraCatchLogsMixin, BaseT
     def test_select(self):
         """verify that after valid SELECT query over transparently encrypted data same config will not be applied
         for the next query and will be cleared"""
-        encrypted_row = {'nullable_column': None, 'empty': b'', 'token_i32': random_int32(), 'token_i64': random_int64(),
+        encrypted_row = {'nullable_column': None, 'empty': b'', 'token_i32': random_int32(),
+                         'token_i64': random_int64(),
                          'token_str': random_str(), 'token_bytes': random_bytes(), 'token_email': random_email()}
         with self.engine1.begin() as connection:
             connection.execute(self.test_table.insert(encrypted_row))
@@ -4755,7 +4756,8 @@ class TestEncryptorSettingReset(SeparateMetadataMixin, AcraCatchLogsMixin, BaseT
         if not (base.TEST_POSTGRESQL or TEST_MARIADB):
             self.skipTest("MySQL doesn't support returning statement for insert")
 
-        encrypted_row = {'nullable_column': None, 'empty': b'', 'token_i32': random_int32(), 'token_i64': random_int64(),
+        encrypted_row = {'nullable_column': None, 'empty': b'', 'token_i32': random_int32(),
+                         'token_i64': random_int64(),
                          'token_str': random_str(), 'token_bytes': random_bytes(), 'token_email': random_email()}
         with self.engine1.begin() as connection:
             if TEST_POSTGRESQL:
@@ -4853,7 +4855,6 @@ class TestSQLPreparedStatements(AcraCatchLogsMixin):
 
         super(TestSQLPreparedStatements, self).tearDown()
 
-
     def get_test_prepared_sql_statements_table_context(self):
         return {
             'id': base.get_random_id(),
@@ -4949,6 +4950,16 @@ class TestSQLPreparedStatements(AcraCatchLogsMixin):
                 self.assertEqual(bytes(rows[0][k]), data[k])
             else:
                 self.assertEqual(rows[0][k], data[k])
+
+    # currently Acra fully doesn`t support multi-line queries for PostgreSQL
+    # https://www.postgresql.org/docs/15/protocol-flow.html#PROTOCOL-FLOW-MULTI-STATEMENT
+    # but still it should be able to proxy such queries w/o failures
+    def testMultilineQuery(self):
+        # expected query to be run successfully
+        self.engine1.execute('prepare t1 as (select 1); execute t1;')
+        self.assertIn(
+            "nil pendingPacket in handleQueryDataPacket: potential Multi-Statement query not supported by Acra",
+            self.read_log(self.acra))
 
     def testSearchableEncryption(self):
         base.metadata.create_all(self.engine_raw, [self.test_prepared_sql_statements_table])
