@@ -4951,10 +4951,10 @@ class TestSQLPreparedStatements(AcraCatchLogsMixin):
             else:
                 self.assertEqual(rows[0][k], data[k])
 
-    # currently Acra fully doesn`t support multi-line queries for PostgreSQL
+    # currently Acra fully doesn`t support multi-statement queries for PostgreSQL
     # https://www.postgresql.org/docs/15/protocol-flow.html#PROTOCOL-FLOW-MULTI-STATEMENT
     # but still it should be able to proxy such queries w/o failures
-    def testMultilineQuery(self):
+    def testMultiStatementQuery(self):
         # expected query to be run successfully
         self.engine1.execute('prepare t1 as (select 1); execute t1;')
         self.assertIn(
