@@ -950,6 +950,13 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 	if err != nil {
 		return err
 	}
+
+	if pendingPacket == nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
+			Warnln("nil pendingPacket in handleQueryDataPacket: potential Multi-Statement query not supported by Acra")
+		return nil
+	}
+
 	var bindPacket *BindPacket
 	if pendingPacket.(queryPacket).executePacket != nil {
 		bindPacket = pendingPacket.(queryPacket).bindPacket
