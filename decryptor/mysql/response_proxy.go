@@ -25,6 +25,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
+	"go.opencensus.io/trace"
+
 	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/decryptor/base"
 	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
@@ -32,9 +36,6 @@ import (
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/sqlparser"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
-	"go.opencensus.io/trace"
 )
 
 const (
@@ -110,11 +111,12 @@ func defaultResponseHandler(ctx context.Context, packet *Packet, _, clientConnec
 
 // Handler handles connection between client and MySQL db
 type Handler struct {
-	responseHandler      ResponseHandler
-	clientSequenceNumber int
-	clientProtocol41     bool
-	serverProtocol41     bool
-	currentCommand       byte
+	responseHandler               ResponseHandler
+	clientSequenceNumber          int
+	clientProtocol41              bool
+	serverProtocol41              bool
+	MariaDBClientExtendedTypeInfo bool
+	currentCommand                byte
 	// clientDeprecateEOF  if false then expect EOF on response result as terminator otherwise not
 	clientDeprecateEOF      bool
 	acracensor              acracensor.AcraCensorInterface
@@ -635,7 +637,7 @@ func (handler *Handler) QueryResponseHandler(ctx context.Context, packet *Packet
 				}
 			}
 			handler.logger.WithField("column_index", i).Debugln("Parse field")
-			field, err := ParseResultField(fieldPacket)
+			field, err := ParseResultField(fieldPacket, handler.MariaDBClientExtendedTypeInfo)
 			if err != nil {
 				handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't parse result field")
 				return err
@@ -836,6 +838,11 @@ func (handler *Handler) ProxyDatabaseConnection(ctx context.Context, errCh chan<
 		case stateFirstPacket:
 			state = stateServe
 			handler.serverProtocol41 = packet.ServerSupportProtocol41()
+			handler.MariaDBClientExtendedTypeInfo = packet.MariaDBClientExtendedTypeInfo()
+
+			if handler.MariaDBClientExtendedTypeInfo {
+				serverLog.Debugf("MARIADB_CLIENT_EXTENDED_TYPE_INFO flag SET")
+			}
 			serverLog.Debugf("Set support protocol 41 %v", handler.serverProtocol41)
 			fallthrough
 

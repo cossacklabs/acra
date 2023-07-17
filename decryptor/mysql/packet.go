@@ -35,8 +35,10 @@ const (
 	ClientProtocol41 = 0x00000200
 	// SslRequest - https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_SSL
 	SslRequest = 0x00000800
-	// ClientDeprecateEOF - https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_DEPRECATE_EOF - 0x1000000
+	// ClientDeprecateEOF - https://dev.mysql.com/doc/dev/mysql-server/latest/group__group__cs__capabilities__flags.html#gaad8e6e886899e90e820d6c2e0248469d- 0x1000000
 	ClientDeprecateEOF = 0x01000000
+	// MARIADB_CLIENT_EXTENDED_TYPE_INFO - https://mariadb.com/kb/en/connection/#capabilities-
+	MariaDBClientExtendedTypeInfo = 0x8
 )
 
 // MySQL packets significant bytes.
@@ -314,24 +316,36 @@ func (packet *Packet) getServerCapabilities() int {
 	return int(binary.LittleEndian.Uint16(rawCapabilities))
 }
 
-func (packet *Packet) getServerCapabilitiesExtended() (int, error) {
+// https://mariadb.com/kb/en/connection/#initial-handshake-packet
+func (packet *Packet) getExtendedMariaDBCapabilities() (int, error) {
 	// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#idm140437490034448
 	endOfServerVersion := bytes.Index(packet.data[1:], []byte{0}) + 2 // 1 first byte of protocol version and 1 to point to next byte
 	// 4 bytes connection string + 8 bytes of auth plugin + 1 byte filler
 	baseCapabilitiesOffset := endOfServerVersion + 13
-	// 2 bytes of base capabilities + 1 byte character set + 2 bytes of status flags
-	capabilitiesOffset := baseCapabilitiesOffset + 2 + 3
-	if len(packet.data) < capabilitiesOffset+2 {
+	// 2 bytes of base capabilities + 1 byte character set + 2 bytes of status flags + 2 bytes sever capabilities (2nd part) + auth plugin 1 byte + filler 6 byte
+	capabilitiesOffset := baseCapabilitiesOffset + 2 + 3 + 2 + 1 + 6
+	if len(packet.data) < capabilitiesOffset+4 {
 		return 0, ErrPacketHasNotExtendedCapabilities
 	}
-	rawCapabilities := packet.data[capabilitiesOffset : capabilitiesOffset+2]
-	return int(binary.LittleEndian.Uint16(rawCapabilities)), nil
+
+	extendedCapabilities := packet.data[capabilitiesOffset : capabilitiesOffset+4]
+	return int(binary.LittleEndian.Uint32(extendedCapabilities)), nil
 }
 
 // ServerSupportProtocol41 if server supports client_protocol_41
 func (packet *Packet) ServerSupportProtocol41() bool {
 	capabilities := packet.getServerCapabilities()
 	return (capabilities & ClientProtocol41) > 0
+}
+
+// MariaDBClientExtendedTypeInfo if server add extended metadata information
+func (packet *Packet) MariaDBClientExtendedTypeInfo() bool {
+	capabilities, err := packet.getExtendedMariaDBCapabilities()
+	if err != nil {
+		return false
+	}
+
+	return (capabilities & MariaDBClientExtendedTypeInfo) > 0
 }
 
 func (packet *Packet) getClientCapabilities() uint32 {

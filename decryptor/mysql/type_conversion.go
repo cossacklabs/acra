@@ -8,6 +8,15 @@ import (
 	"github.com/cossacklabs/acra/encryptor/config/common"
 )
 
+var TypeFormatConfiguration = map[base_mysql.Type]struct {
+	Charset      uint16
+	ColumnLength uint32
+}{
+	base_mysql.TypeString:   {},
+	base_mysql.TypeLong:     {},
+	base_mysql.TypeLongLong: {},
+}
+
 // DataTypeFormat implementation of type_awareness.DataTypeFormat for PostgreSQL
 type DataTypeFormat struct {
 	columnInfo    base.ColumnInfo
