@@ -176,6 +176,7 @@ class TestTransparentEncryption(BaseTransparentEncryption):
 
 class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
     ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/ee_acrablock_config.yaml')
+
     def get_encryptor_table(self):
         encryptor_table = sa.Table(
             'test_transparent_acrablock_encryption', self.get_metadata(),
@@ -195,7 +196,7 @@ class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
                       default=b''),
             sa.Column('masked_prefix', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False,
                       default=b''),
-            )
+        )
         return encryptor_table
 
     def testAcraStructReEncryption(self):
@@ -517,6 +518,23 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
             sa.select([self.encryptor_table])
             .where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
             {'searchable': search_term},
+        )
+
+        self.assertEqual(self.get_result_len(rows), 1)
+
+        self.checkDefaultIdEncryption(**context)
+        self.assertEqual(rows[0]['searchable'], search_term)
+
+        # check with null value
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(sa.or_(
+                self.encryptor_table.c.searchable == sa.bindparam('searchable'),
+                self.encryptor_table.c.token_i64 == sa.bindparam('token_i64'))),
+            {
+                'searchable': search_term,
+                'token_i64': None
+            },
         )
         self.assertEqual(self.get_result_len(rows), 1)
 
