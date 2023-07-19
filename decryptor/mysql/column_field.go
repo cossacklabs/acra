@@ -26,6 +26,29 @@ import (
 	"github.com/cossacklabs/acra/logging"
 )
 
+// https://dev.mysql.com/doc/dev/mysql-server/latest/group__group__cs__column__definition__flags.html#details
+const (
+	BlobFlag           = 1 << 4
+	NoDefaultValueFlag = 1 << 12
+)
+
+// Flags represent protocol ColumnDefinitionFlags
+// https://dev.mysql.com/doc/dev/mysql-server/latest/group__group__cs__column__definition__flags.html
+type Flags uint16
+
+func (f *Flags) ContainsFlag(flag int) bool {
+	if f == nil {
+		return false
+	}
+	return int(*f)&flag == flag
+}
+
+func (f *Flags) RemoveFlag(flag int) {
+	mask := ^flag
+	new := int(*f) & mask
+	*f = Flags(new)
+}
+
 // ColumnDescription https://dev.mysql.com/doc/internals/en/com-query-response.html#packet-Protocol::ColumnDefinition41
 type ColumnDescription struct {
 	changed                 bool
@@ -43,7 +66,7 @@ type ColumnDescription struct {
 	Charset          uint16
 	ColumnLength     uint32
 	Type             base.Type
-	Flag             uint16
+	Flag             Flags
 	Decimal          uint8
 
 	DefaultValueLength uint64
@@ -112,7 +135,6 @@ func ParseResultField(packet *Packet, mariaDBExtendedTypeInfo bool) (*ColumnDesc
 	field.data = packet.data
 	field.header = packet.header
 	field.mariaDBExtendedTypeInfo = mariaDBExtendedTypeInfo
-
 	var n int
 	var err error
 	//skip catalog, always def
@@ -197,10 +219,14 @@ func ParseResultField(packet *Packet, mariaDBExtendedTypeInfo bool) (*ColumnDesc
 	pos++
 
 	//flag
-	field.Flag = binary.LittleEndian.Uint16(packet.data[pos:])
+	field.Flag = Flags(binary.LittleEndian.Uint16(packet.data[pos:]))
 	pos += 2
 
-	//decimals 1
+	//decimals 1 byte
+	// max shown decimal digits:
+	//  0x00 for integers and static strings
+	//  0x1f for dynamic strings, double, float
+	//  0x00 to 0x51 for decimals
 	field.Decimal = packet.data[pos]
 	pos++
 
@@ -270,7 +296,7 @@ func (field *ColumnDescription) Dump() []byte {
 	data = append(data, base.Uint16ToBytes(field.Charset)...)
 	data = append(data, base.Uint32ToBytes(field.ColumnLength)...)
 	data = append(data, byte(field.Type))
-	data = append(data, base.Uint16ToBytes(field.Flag)...)
+	data = append(data, base.Uint16ToBytes(uint16(field.Flag))...)
 	data = append(data, field.Decimal)
 	// filler
 	data = append(data, 0, 0)

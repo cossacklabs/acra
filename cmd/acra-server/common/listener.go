@@ -30,12 +30,13 @@ import (
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/utils"
 
-	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/network"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
+
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/network"
 )
 
 type closer func()
@@ -51,12 +52,12 @@ func sessionCloseToCloser(close func()) io.Closer {
 }
 
 func recoverConnection(logger *log.Entry, session io.Closer) {
-	if recMsg := recover(); recMsg != nil {
-		logger.WithField("error", recMsg).Errorln("Panic in connection processing, close connection")
-		if err := session.Close(); err != nil {
-			logger.WithError(err).Errorln("Error on Close() callback in panic handler")
-		}
-	}
+	//if recMsg := recover(); recMsg != nil {
+	//	logger.WithField("error", recMsg).Errorln("Panic in connection processing, close connection")
+	//	if err := session.Close(); err != nil {
+	//		logger.WithError(err).Errorln("Error on Close() callback in panic handler")
+	//	}
+	//}
 }
 
 // SServer represents AcraServer server, connects with KeyStorage, configuration file,

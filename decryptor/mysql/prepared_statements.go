@@ -331,7 +331,7 @@ func (p *PreparedStatementFieldTracker) ParamsTrackHandler(ctx context.Context, 
 		return nil
 	}
 
-	field, err := ParseResultField(packet, p.proxyHandler.MariaDBClientExtendedTypeInfo)
+	field, err := ParseResultField(packet, p.proxyHandler.mariaDBClientExtendedTypeInfo)
 	if err != nil {
 		p.proxyHandler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't parse result field")
 		return err
@@ -370,7 +370,7 @@ func (p *PreparedStatementFieldTracker) ColumnsTrackHandler(ctx context.Context,
 		return nil
 	}
 
-	field, err := ParseResultField(packet, p.proxyHandler.MariaDBClientExtendedTypeInfo)
+	field, err := ParseResultField(packet, p.proxyHandler.mariaDBClientExtendedTypeInfo)
 	if err != nil {
 		p.proxyHandler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't parse result field")
 		return err

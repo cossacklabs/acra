@@ -332,15 +332,37 @@ func (packet *Packet) getExtendedMariaDBCapabilities() (int, error) {
 	return int(binary.LittleEndian.Uint32(extendedCapabilities)), nil
 }
 
+// https://mariadb.com/kb/en/connection/#handshake-response-packet
+func (packet *Packet) getClientExtendedMariaDBCapabilities() (int, error) {
+	// client cap 4 bytes + max packet size 4 bytes + client character collation 1 byte + reserver 19 bytes
+	capabilitiesOffset := 4 + 4 + 1 + 19
+	if len(packet.data) < capabilitiesOffset+4 {
+		return 0, ErrPacketHasNotExtendedCapabilities
+	}
+
+	extendedCapabilities := packet.data[capabilitiesOffset : capabilitiesOffset+4]
+	return int(binary.LittleEndian.Uint32(extendedCapabilities)), nil
+}
+
 // ServerSupportProtocol41 if server supports client_protocol_41
 func (packet *Packet) ServerSupportProtocol41() bool {
 	capabilities := packet.getServerCapabilities()
 	return (capabilities & ClientProtocol41) > 0
 }
 
-// MariaDBClientExtendedTypeInfo if server add extended metadata information
-func (packet *Packet) MariaDBClientExtendedTypeInfo() bool {
+// MariaDBClientExtendedTypeInfoServerCapability return DB capabilities if server add extended metadata information
+func (packet *Packet) MariaDBClientExtendedTypeInfoServerCapability() bool {
 	capabilities, err := packet.getExtendedMariaDBCapabilities()
+	if err != nil {
+		return false
+	}
+
+	return (capabilities & MariaDBClientExtendedTypeInfo) > 0
+}
+
+// MariaDBClientExtendedTypeInfoClientCapability return client capabilities if server add extended metadata information
+func (packet *Packet) MariaDBClientExtendedTypeInfoClientCapability() bool {
+	capabilities, err := packet.getClientExtendedMariaDBCapabilities()
 	if err != nil {
 		return false
 	}

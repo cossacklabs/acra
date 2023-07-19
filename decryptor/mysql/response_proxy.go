@@ -111,12 +111,13 @@ func defaultResponseHandler(ctx context.Context, packet *Packet, _, clientConnec
 
 // Handler handles connection between client and MySQL db
 type Handler struct {
-	responseHandler               ResponseHandler
-	clientSequenceNumber          int
-	clientProtocol41              bool
-	serverProtocol41              bool
-	MariaDBClientExtendedTypeInfo bool
-	currentCommand                byte
+	responseHandler                        ResponseHandler
+	clientSequenceNumber                   int
+	clientProtocol41                       bool
+	serverProtocol41                       bool
+	mariaDBClientExtendedTypeInfo          bool
+	mariaDBClientExtendedTypeInfoServerCap bool
+	currentCommand                         byte
 	// clientDeprecateEOF  if false then expect EOF on response result as terminator otherwise not
 	clientDeprecateEOF      bool
 	acracensor              acracensor.AcraCensorInterface
@@ -240,6 +241,13 @@ func (handler *Handler) ProxyClientConnection(ctx context.Context, errCh chan<- 
 			firstPacket = false
 			handler.clientProtocol41 = packet.ClientSupportProtocol41()
 			handler.clientDeprecateEOF = packet.IsClientDeprecateEOF()
+			clientMariaDBClientExtendedTypeInfoClientCap := packet.MariaDBClientExtendedTypeInfoClientCapability()
+
+			if clientMariaDBClientExtendedTypeInfoClientCap {
+				handler.logger.Debugf("Client MARIADB_CLIENT_EXTENDED_TYPE_INFO flag SET")
+				handler.mariaDBClientExtendedTypeInfo = clientMariaDBClientExtendedTypeInfoClientCap == handler.mariaDBClientExtendedTypeInfoServerCap
+			}
+
 			clientLog = clientLog.WithField("deprecate_eof", handler.clientDeprecateEOF)
 			if packet.IsSSLRequest() {
 				if handler.setting.TLSConnectionWrapper() == nil {
@@ -637,7 +645,7 @@ func (handler *Handler) QueryResponseHandler(ctx context.Context, packet *Packet
 				}
 			}
 			handler.logger.WithField("column_index", i).Debugln("Parse field")
-			field, err := ParseResultField(fieldPacket, handler.MariaDBClientExtendedTypeInfo)
+			field, err := ParseResultField(fieldPacket, handler.mariaDBClientExtendedTypeInfo)
 			if err != nil {
 				handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't parse result field")
 				return err
@@ -838,10 +846,10 @@ func (handler *Handler) ProxyDatabaseConnection(ctx context.Context, errCh chan<
 		case stateFirstPacket:
 			state = stateServe
 			handler.serverProtocol41 = packet.ServerSupportProtocol41()
-			handler.MariaDBClientExtendedTypeInfo = packet.MariaDBClientExtendedTypeInfo()
+			handler.mariaDBClientExtendedTypeInfoServerCap = packet.MariaDBClientExtendedTypeInfoServerCapability()
 
-			if handler.MariaDBClientExtendedTypeInfo {
-				serverLog.Debugf("MARIADB_CLIENT_EXTENDED_TYPE_INFO flag SET")
+			if handler.mariaDBClientExtendedTypeInfoServerCap {
+				serverLog.Debugf("DB MARIADB_CLIENT_EXTENDED_TYPE_INFO flag SET")
 			}
 			serverLog.Debugf("Set support protocol 41 %v", handler.serverProtocol41)
 			fallthrough

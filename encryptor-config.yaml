@@ -1,0 +1,16 @@
+schemas:
+  - table: customer
+    columns:
+      - name
+      - field_int
+      - field_int2
+    encrypted:
+      - column: name
+        data_type_db_identifier: 254
+      - column: searchable
+        searchable: true
+        data_type_db_identifier: 254
+      - column: field_int
+        data_type_db_identifier: 3
+      - column: field_int2
+        data_type_db_identifier: 8

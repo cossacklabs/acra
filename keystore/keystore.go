@@ -441,6 +441,7 @@ type ServerKeyStore interface {
 	DecryptionKeyStore
 	StorageKeyCreation
 	AuditLogKeyStore
+	HmacKeyGenerator
 	SymmetricEncryptionKeyStoreGenerator
 
 	CacheOnStart() error
