@@ -1,3 +1,6 @@
+//go:build integration && mysql
+// +build integration,mysql
+
 package mysql
 
 import (
@@ -20,6 +23,7 @@ import (
 	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
 	"github.com/cossacklabs/acra/decryptor/mysql/types"
 	encryptorConfig "github.com/cossacklabs/acra/encryptor/config"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/acra/pseudonymization"
@@ -50,7 +54,7 @@ func getProxyFactory(t *testing.T, serverConfig *common.Config, tokenizer common
 	return serverProxyFactory
 }
 
-func TestSequenceParsePackets(t *testing.T) {
+func TestTransparentEncryption(t *testing.T) {
 	const timeout = time.Millisecond * 400
 	freePort := tests.GetFreePortForListener(t)
 	serverConfig := acra_server.NewDefaultAcraServerConfig(t)
@@ -62,6 +66,7 @@ func TestSequenceParsePackets(t *testing.T) {
 	serverKeystore := serverConfig.GetKeyStore()
 	assert.Nil(serverKeystore.GenerateClientIDSymmetricKey(clientID))
 	assert.Nil(serverKeystore.GenerateHmacKey(clientID))
+	logging.SetLogLevel(logging.LogDebug)
 
 	type_awareness.RegisterMySQLDataTypeIDEncoder(uint32(base_mysql.TypeBlob), &types.BlobDataTypeEncoder{})
 	type_awareness.RegisterMySQLDataTypeIDEncoder(uint32(base_mysql.TypeString), &types.StringDataTypeEncoder{})
@@ -73,6 +78,7 @@ schemas:
   - table: customer
     columns:
       - name
+      - searchable
       - field_int
       - field_int2
     encrypted:
@@ -112,22 +118,38 @@ schemas:
 	acraCon := openConnection(dbConfig, freePort)
 
 	var (
-		nameArg   = "test_name"
-		searchArg = "search_arg"
-		field1Arg = 12345
-		field2Arg = 12345678901
+		nameArg         = "test_name"
+		searchArg       = "search_arg"
+		field1Arg       = 12345
+		field2Arg int64 = 12345678901
 	)
 	executeQuery(dbCon, "CREATE TABLE IF NOT EXISTS customer(name blob, searchable blob, field_int blob, field_int2 blob);")
 	executeQuery(dbCon, "TRUNCATE table customer;")
 	executeQuery(acraCon, "insert into customer (name, searchable, field_int, field_int2) values (?, ?, ?, ?);", nameArg, searchArg, field1Arg, field2Arg)
 
 	var (
-		nameResult   string
-		searchResult string
-		field1Result int
-		field2Result int64
+		nameQueryResult   string
+		searchQueryResult string
+		field1QueryResult int
+		field2QueryResult int64
 	)
-	executeAndReadQuery(acraCon, "select * from customer", &nameResult, &searchResult, &field1Result, &field2Result)
+	executeAndReadQuery(acraCon, "select * from customer", nil, &nameQueryResult, &searchQueryResult, &field1QueryResult, &field2QueryResult)
+	assert.Equal(nameArg, nameQueryResult)
+	assert.Equal(searchArg, searchQueryResult)
+	assert.Equal(field1Arg, field1QueryResult)
+	assert.Equal(field2Arg, field2QueryResult)
+
+	var (
+		nameSearchResult   string
+		searchResult       string
+		field1SearchResult int
+		field2SearchResult int64
+	)
+	executeAndReadQuery(acraCon, "select * from customer where searchable = ?", []interface{}{searchArg}, &nameSearchResult, &searchResult, &field1SearchResult, &field2SearchResult)
+	assert.Equal(nameArg, nameSearchResult)
+	assert.Equal(searchArg, searchResult)
+	assert.Equal(field1Arg, field1SearchResult)
+	assert.Equal(field2Arg, field2SearchResult)
 }
 
 func openConnection(dbConfig tests.DatabaseConfig, port int) *sql.DB {
@@ -152,8 +174,8 @@ func executeQuery(con *sql.DB, query string, args ...interface{}) {
 	}
 }
 
-func executeAndReadQuery(con *sql.DB, query string, target ...interface{}) {
-	rows, err := con.Query(query)
+func executeAndReadQuery(con *sql.DB, query string, args []interface{}, target ...interface{}) {
+	rows, err := con.Query(query, args...)
 	defer rows.Close()
 	if err != nil {
 		log.Fatal(err)

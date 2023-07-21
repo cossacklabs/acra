@@ -36,6 +36,7 @@ const (
 // https://dev.mysql.com/doc/dev/mysql-server/latest/group__group__cs__column__definition__flags.html
 type Flags uint16
 
+// ContainsFlag check if specific flag contains in flagset
 func (f *Flags) ContainsFlag(flag int) bool {
 	if f == nil {
 		return false
@@ -43,6 +44,7 @@ func (f *Flags) ContainsFlag(flag int) bool {
 	return int(*f)&flag == flag
 }
 
+// RemoveFlag remove flag from flag set
 func (f *Flags) RemoveFlag(flag int) {
 	mask := ^flag
 	new := int(*f) & mask

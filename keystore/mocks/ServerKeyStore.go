@@ -56,6 +56,20 @@ func (_m *ServerKeyStore) GenerateDataEncryptionKeys(clientID []byte) error {
 	return r0
 }
 
+// GenerateHmacKey provides a mock function with given fields: id
+func (_m *ServerKeyStore) GenerateHmacKey(id []byte) error {
+	ret := _m.Called(id)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func([]byte) error); ok {
+		r0 = rf(id)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // GetClientIDEncryptionPublicKey provides a mock function with given fields: clientID
 func (_m *ServerKeyStore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
 	ret := _m.Called(clientID)

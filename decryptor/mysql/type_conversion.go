@@ -10,6 +10,7 @@ import (
 	"github.com/cossacklabs/acra/encryptor/config/common"
 )
 
+// TypeConfiguration represent configurations details of specific type
 type TypeConfiguration struct {
 	// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_character_set.html
 	Charset      uint16

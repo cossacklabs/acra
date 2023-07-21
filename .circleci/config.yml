@@ -357,6 +357,11 @@ jobs:
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: NUM_PINGS=15 DELAY=1 .circleci/check_mysql_connection.sh
+      - run:
+          command: .circleci/check_gotest.sh
+          environment:
+            - TEST_BUILD_TAGS: "integration,mysql"
+            - GO_VERSIONS: 1.19
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -469,6 +474,11 @@ jobs:
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: NUM_PINGS=15 DELAY=1 .circleci/check_mysql_connection.sh
+      - run:
+          command: .circleci/check_gotest.sh
+          environment:
+            - TEST_BUILD_TAGS: "integration,mysql"
+            - GO_VERSIONS: 1.19
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
