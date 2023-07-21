@@ -81,6 +81,7 @@ schemas:
       - searchable
       - field_int
       - field_int2
+      - point_field	
     encrypted:
       - column: name
         data_type_db_identifier: 254
@@ -123,33 +124,37 @@ schemas:
 		field1Arg       = 12345
 		field2Arg int64 = 12345678901
 	)
-	executeQuery(dbCon, "CREATE TABLE IF NOT EXISTS customer(name blob, searchable blob, field_int blob, field_int2 blob);")
+	executeQuery(dbCon, "CREATE TABLE IF NOT EXISTS customer(name blob, searchable blob, field_int blob, field_int2 blob, point_field point);")
 	executeQuery(dbCon, "TRUNCATE table customer;")
-	executeQuery(acraCon, "insert into customer (name, searchable, field_int, field_int2) values (?, ?, ?, ?);", nameArg, searchArg, field1Arg, field2Arg)
+	executeQuery(acraCon, "insert into customer (name, searchable, field_int, field_int2, point_field) values (?, ?, ?, ?, POINT(25.7786222, -80.1956483));", nameArg, searchArg, field1Arg, field2Arg)
 
 	var (
 		nameQueryResult   string
 		searchQueryResult string
 		field1QueryResult int
 		field2QueryResult int64
+		pointQueryResult  []byte
 	)
-	executeAndReadQuery(acraCon, "select * from customer", nil, &nameQueryResult, &searchQueryResult, &field1QueryResult, &field2QueryResult)
+	executeAndReadQuery(acraCon, "select * from customer", nil, &nameQueryResult, &searchQueryResult, &field1QueryResult, &field2QueryResult, &pointQueryResult)
 	assert.Equal(nameArg, nameQueryResult)
 	assert.Equal(searchArg, searchQueryResult)
 	assert.Equal(field1Arg, field1QueryResult)
 	assert.Equal(field2Arg, field2QueryResult)
+	assert.True(len(pointQueryResult) > 0)
 
 	var (
 		nameSearchResult   string
 		searchResult       string
 		field1SearchResult int
 		field2SearchResult int64
+		pointSearchResult  []byte
 	)
-	executeAndReadQuery(acraCon, "select * from customer where searchable = ?", []interface{}{searchArg}, &nameSearchResult, &searchResult, &field1SearchResult, &field2SearchResult)
+	executeAndReadQuery(acraCon, "select * from customer where searchable = ?", []interface{}{searchArg}, &nameSearchResult, &searchResult, &field1SearchResult, &field2SearchResult, &pointSearchResult)
 	assert.Equal(nameArg, nameSearchResult)
 	assert.Equal(searchArg, searchResult)
 	assert.Equal(field1Arg, field1SearchResult)
 	assert.Equal(field2Arg, field2SearchResult)
+	assert.True(len(pointSearchResult) > 0)
 }
 
 func openConnection(dbConfig tests.DatabaseConfig, port int) *sql.DB {
