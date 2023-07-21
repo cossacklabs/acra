@@ -30,7 +30,7 @@ func GetDatabaseConfig(t *testing.T) DatabaseConfig {
 		assert.Nil(t, err)
 		config.Port = dbPort
 	} else {
-		config.Port = 3306
+		config.Port = 5432
 	}
 	config.Database, ok = os.LookupEnv("TEST_DB_NAME")
 	if !ok {
