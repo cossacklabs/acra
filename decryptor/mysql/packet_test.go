@@ -1,6 +1,7 @@
 package mysql
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -94,7 +95,7 @@ func TestParseResultField(t *testing.T) {
 		assert.Equal(t, []byte("shapeb"), columnDescription.OrgName)
 		assert.Equal(t, []byte("test"), columnDescription.Schema)
 		assert.Equal(t, uint16(63), columnDescription.Charset)
-		assert.Equal(t, base.TypeGeometry, columnDescription.Type)
+		assert.Equal(t, base_mysql.TypeGeometry, columnDescription.Type)
 		assert.True(t, len(columnDescription.ExtendedTypeInfo) > 0)
 		assert.True(t, bytes.Contains(columnDescription.ExtendedTypeInfo, []byte("point")))
 
@@ -118,7 +119,7 @@ func TestParseResultField(t *testing.T) {
 		assert.Equal(t, []byte("shapeb"), columnDescription.OrgName)
 		assert.Equal(t, []byte("test"), columnDescription.Schema)
 		assert.Equal(t, uint16(63), columnDescription.Charset)
-		assert.Equal(t, base.TypeGeometry, columnDescription.Type)
+		assert.Equal(t, base_mysql.TypeGeometry, columnDescription.Type)
 		assert.True(t, len(columnDescription.ExtendedTypeInfo) > 0)
 		assert.True(t, bytes.Contains(columnDescription.ExtendedTypeInfo, []byte("multipolygon")))
 
@@ -142,7 +143,7 @@ func TestParseResultField(t *testing.T) {
 		assert.Equal(t, []byte("email"), columnDescription.OrgName)
 		assert.Equal(t, []byte("test"), columnDescription.Schema)
 		assert.Equal(t, uint16(63), columnDescription.Charset)
-		assert.Equal(t, base.TypeBlob, columnDescription.Type)
+		assert.Equal(t, base_mysql.TypeBlob, columnDescription.Type)
 		assert.True(t, len(columnDescription.ExtendedTypeInfo) == 0)
 
 		// check serialization
@@ -165,7 +166,7 @@ func TestParseResultField(t *testing.T) {
 		assert.Equal(t, []byte("name"), columnDescription.OrgName)
 		assert.Equal(t, []byte("test"), columnDescription.Schema)
 		assert.Equal(t, uint16(8), columnDescription.Charset)
-		assert.Equal(t, base.TypeVarString, columnDescription.Type)
+		assert.Equal(t, base_mysql.TypeVarString, columnDescription.Type)
 		assert.True(t, len(columnDescription.ExtendedTypeInfo) == 0)
 
 		// check serialization
