@@ -54,7 +54,7 @@ func TestParseNextValid(t *testing.T) {
 			t.Fatalf("[%d] ParseNext(%q) err: %q, want nil", i, input, err)
 		}
 
-		if got := String(tree); got != want {
+		if got := StringWithDialect(dialect, tree); got != want {
 			t.Fatalf("[%d] ParseNext(%q) = %q, want %q", i, input, got, want)
 		}
 	}

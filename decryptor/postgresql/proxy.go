@@ -85,6 +85,11 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 		envelopeDetector.AddCallback(poisonDetector)
 	}
 
+	observerManager, err := base.NewArrayQueryObservableManager(proxy.session.Context())
+	if err != nil {
+		return nil, err
+	}
+
 	chainEncryptors := make([]encryptor.DataEncryptor, 0, 10)
 	if storeMask&config.SettingTokenizationFlag == config.SettingTokenizationFlag {
 		tokenizer, err := pseudonymization.NewDataTokenizer(factory.tokenizer)
@@ -104,7 +109,7 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 		chainEncryptors = append(chainEncryptors, tokenEncryptor)
 
 		acraBlockStructTokenEncryptor := pseudonymization.NewPostgresqlTokenizeQuery(schemaStore, tokenEncryptor)
-		proxy.AddQueryObserver(acraBlockStructTokenEncryptor)
+		observerManager.AddQueryObserver(acraBlockStructTokenEncryptor)
 	}
 
 	chainEncryptors = append(chainEncryptors, crypto.NewEncryptHandler(registryHandler))
@@ -119,7 +124,7 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 		}
 		chainEncryptors = append(chainEncryptors, searchableAcrawriterEncryptor)
 		acraBlockStructHashEncryptor := hashDecryptor.NewPostgresqlHashQuery(factory.keystore, schemaStore, registryHandler)
-		proxy.AddQueryObserver(acraBlockStructHashEncryptor)
+		observerManager.AddQueryObserver(acraBlockStructHashEncryptor)
 	}
 
 	if storeMask&config.SettingMaskingFlag == config.SettingMaskingFlag {
@@ -154,7 +159,13 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 	if err != nil {
 		return nil, err
 	}
-	proxy.AddQueryObserver(queryEncryptor)
+
+	observerManager.AddQueryObserver(queryEncryptor)
+	preparedStatementsEncryptor := NewPostgresqlPreparedStatementsQuery(proxy.session, proxy.parser, observerManager)
+
+	proxy.AddQueryObserver(preparedStatementsEncryptor)
+	proxy.AddQueryObserver(observerManager)
+
 	// register last to encode all data into correct format according to client/database requested formats
 	// and ColumnEncryptionSetting
 	proxy.SubscribeOnAllColumnsDecryption(encoderProcessor)

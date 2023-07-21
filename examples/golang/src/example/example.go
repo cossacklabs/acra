@@ -17,13 +17,15 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
-	acrastruct2 "github.com/cossacklabs/acra/acrastruct"
 	"math/rand"
 
-	"github.com/cossacklabs/acra/utils"
+	acrastruct2 "github.com/cossacklabs/acra/acrastruct"
+
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/utils"
 )
 
 func main() {

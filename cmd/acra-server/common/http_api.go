@@ -24,12 +24,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/network"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
+
+	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/network"
 )
 
 const (

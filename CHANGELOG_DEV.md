@@ -1,3 +1,6 @@
+# 0.96.0 - 2023-03-06
+- Added support of PreparedStatement from SQL for PostgreSQL;
+
 # 0.95.0 - 2023-02-14
 - Extend `acra-keys` `destroy` with destroying specific rotated keys for V1/V2;
 

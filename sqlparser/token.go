@@ -20,10 +20,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
+
 	"github.com/cossacklabs/acra/sqlparser/dialect"
 	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
 	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
-	"io"
 
 	"github.com/cossacklabs/acra/sqlparser/dependency/bytes2"
 	"github.com/cossacklabs/acra/sqlparser/dependency/sqltypes"

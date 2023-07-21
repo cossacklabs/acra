@@ -806,6 +806,7 @@ type UsingInExecuteList []TableIdent
 // Execute executes prepared statement
 type Execute struct {
 	PreparedStatementName TableIdent
+	Values                ValTuple
 	Using                 UsingInExecuteList
 }
 

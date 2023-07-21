@@ -118,15 +118,26 @@ func (packet *Packet) GetBindParameters(paramNum int) ([]base.BoundValue, error)
 	// 4 - stmt-id
 	// 1 - flags
 	// 4 - iteration-count
-	pos := 10
+	var pos = 10
+	var newParamsBindFlag bool
+	var nullBitmap []byte
+
 	if paramNum > 0 {
+		// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_binary_resultset.html#sect_protocol_binary_resultset_row
 		// 7 + num-params offset from docs
-		pos = 10 + ((paramNum + 7) >> 3)
+		// For COM_STMT_EXECUTE this offset is 0
+		nullBitMapLength := (paramNum + 7) / 8
+		if nullBitMapLength > 0 {
+			nullBitmap = packet.data[pos : pos+nullBitMapLength]
+		}
+
+		pos = 10 + nullBitMapLength
+		// 	int<1> new_params_bind_flag - Flag if parameters must be re-bound
+		newParamsBindFlag = packet.data[pos] == byte(1)
 	}
 
 	values := make([]base.BoundValue, paramNum)
-	// new-params-bound-flag
-	if packet.data[pos] != 1 {
+	if !newParamsBindFlag {
 		return values, nil
 	}
 	pos += +1
@@ -139,6 +150,13 @@ func (packet *Packet) GetBindParameters(paramNum int) ([]base.BoundValue, error)
 	}
 
 	for i := 0; i < paramNum; i++ {
+		// i / 8 -- calculate byte number in bitmap
+		// i % 8 -- calculate bit number for current field
+		if len(nullBitmap) > 0 && nullBitmap[i/8]&(1<<(i%8)) > 0 {
+			values[i] = &mysqlBoundValue{data: nil, format: base.BinaryFormat, paramType: base_mysql.Type(paramTypes[i])}
+			continue
+		}
+
 		boundValue, n, err := NewMysqlBoundValue(packet.data[pos:], base.BinaryFormat, base_mysql.Type(paramTypes[i]))
 		if err != nil {
 			return nil, err
