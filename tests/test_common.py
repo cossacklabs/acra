@@ -41,14 +41,15 @@ class ExecutorMixin:
     """
     RAW_EXECUTOR = True
     FORMAT = ''
+    HOST = 'localhost'
 
     def setUp(self):
         super().setUp()
         acra_port = self.ACRASERVER_PORT
         self.executor1 = self.executor_with_ssl(
-            base.TEST_TLS_CLIENT_KEY, base.TEST_TLS_CLIENT_CERT, acra_port, 'localhost')
+            base.TEST_TLS_CLIENT_KEY, base.TEST_TLS_CLIENT_CERT, acra_port, self.HOST)
         self.executor2 = self.executor_with_ssl(
-            base.TEST_TLS_CLIENT_2_KEY, base.TEST_TLS_CLIENT_2_CERT, acra_port, 'localhost')
+            base.TEST_TLS_CLIENT_2_KEY, base.TEST_TLS_CLIENT_2_CERT, acra_port, self.HOST)
         self.raw_executor = self.executor_with_ssl(
             base.TEST_TLS_CLIENT_KEY, base.TEST_TLS_CLIENT_CERT, base.DB_PORT, base.DB_HOST)
 
@@ -77,6 +78,11 @@ class AsyncpgExecutorMixin(ExecutorMixin):
 
 class MysqlExecutorMixin(ExecutorMixin):
     executor_cls = base.MysqlExecutor
+
+
+class MariaDBExecutorMixin(ExecutorMixin):
+    HOST = '127.0.0.1'
+    executor_cls = base.MariaDBExecutor
 
 
 class KeyMakerTest(unittest.TestCase):
@@ -717,6 +723,90 @@ class BaseBinaryPostgreSQLTestCase(AsyncpgExecutorMixin, BaseTestCase):
 
 
 class BaseBinaryMySQLTestCase(MysqlExecutorMixin, BaseTestCase):
+    """Setup test fixture for testing MySQL extended protocol."""
+
+    def checkSkip(self):
+        super().checkSkip()
+        if not base.TEST_MYSQL:
+            self.skipTest("test only MySQL")
+
+    def compileInsertQuery(self, query, parameters={}, literal_binds=False):
+        """
+        Compile SQLAlchemy insert query and parameter dictionary into SQL text and parameter list for the executor.
+        It is used regexp parsing to get the correct order of insert params, values are stored in tuple with the same order.
+        """
+        compile_kwargs = {"literal_binds": literal_binds}
+        query = str(query.compile(compile_kwargs=compile_kwargs))
+        values = []
+        # example of the insert string:
+        # INSERT INTO test_table (id, nullable_column, empty) VALUES (:id, :nullable_column, :empty)
+        pattern_string = r'(INSERT INTO) (\S+).*\((.*?)\).*(VALUES).*\((.*?)\)(.*\;?)'
+
+        res = re.findall(pattern_string, query, re.IGNORECASE | re.DOTALL)
+        if len(res) > 0:
+            # regexp matching result should look like this:
+            # `id, nullable_column, empty`
+            intos = str(res[0][2])
+
+            # so we need to split it by comma value to iterate over
+            for into_value in intos.split(', '):
+                values.append(parameters[into_value])
+                query = query.replace(':' + into_value, '?')
+        return query, tuple(values)
+
+    def compileBulkInsertQuery(self, query, parameters={}, literal_binds=False):
+        """
+        Compile SQLAlchemy insert query and parameter dictionary into SQL text and parameter list for the executor.
+        It is used regexp parsing to get the correct order of insert params, values are stored in tuple with the same order.
+        """
+        compile_kwargs = {"literal_binds": literal_binds}
+        query = str(query.compile(compile_kwargs=compile_kwargs))
+        values = []
+        # example of the insert string:
+        # INSERT INTO test_table (id, nullable_column, empty) VALUES (:id, :nullable_column, :empty)
+        pattern_string = r'(INSERT INTO) (\S+).*\((.*?)\).*(VALUES).*\((.*?)\)(.*\;?)'
+
+        res = re.findall(pattern_string, query, re.IGNORECASE | re.DOTALL)
+        if len(res) > 0:
+            # regexp matching result should look like this:
+            # `id, nullable_column, empty`
+            intos = str(res[0][2])
+            for idx, params in enumerate(parameters):
+                # each value in bulk insert contains unique suffix like ':id_m0'
+                suffix = '_m' + str(idx)
+                # so we need to split it by comma value to iterate over
+                for into_value in intos.split(', '):
+                    values.append(params[into_value])
+                    query = query.replace(':' + into_value + suffix, '?')
+        return query, tuple(values)
+
+    def compileQuery(self, query, parameters={}, literal_binds=False):
+        """
+        Compile SQLAlchemy query and parameter dictionary into SQL text and parameter list for the executor.
+        It is used regexp parsing to get the correct order of parameters, values are stored in tuple with the same order.
+        """
+        compile_kwargs = {"literal_binds": literal_binds}
+        query = str(query.compile(compile_kwargs=compile_kwargs))
+        values = []
+        # parse all parameters like `:id` in the query
+        pattern_string = r'(:\w+)'
+        res = re.findall(pattern_string, query, re.IGNORECASE | re.DOTALL)
+        param_counter = 1
+        if len(res) > 0:
+            for placeholder in res:
+                # parameters map contain values where keys without ':' so we need trim the placeholder before
+                key = placeholder.lstrip(':')
+                if key not in parameters.keys():
+                    index_suffix = '_' + str(param_counter)
+                    if index_suffix in key:
+                        key = key.rstrip(index_suffix)
+                        param_counter += 1
+                values.append(parameters[key])
+                query = query.replace(placeholder, '?')
+        return query, tuple(values)
+
+
+class BaseBinaryMariaDBTestCase(MariaDBExecutorMixin, BaseTestCase):
     """Setup test fixture for testing MySQL extended protocol."""
 
     def checkSkip(self):

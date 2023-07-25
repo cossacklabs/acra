@@ -1,0 +1,10 @@
+schemas:
+  - table: customer
+    columns:
+      - name
+      - searchable
+      - field_int
+      - field_int2
+      - point_field
+    encrypted:
+      - column: name

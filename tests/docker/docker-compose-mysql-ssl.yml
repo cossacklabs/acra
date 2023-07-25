@@ -2,7 +2,7 @@ version: '3'
 
 services:
   mydb:
-    image: cossacklabs/mysql-ssl:5.7.31-1
+    image: 3f534c2b85d0
     environment:
       MYSQL_DATABASE: test
       MYSQL_USER: test

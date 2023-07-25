@@ -25,3 +25,4 @@ hiredis==2.0.0
 # this version is last supported for python3.6
 boto3==1.23.10
 python-consul==1.1.0
+mariadb=1.1.7

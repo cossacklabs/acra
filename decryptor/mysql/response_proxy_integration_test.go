@@ -112,9 +112,7 @@ schemas:
 		acraServer.Close()
 	}()
 
-	assert.Nil(err)
 	dbConfig := tests.GetDatabaseConfig(t)
-
 	dbCon := openConnection(dbConfig, dbConfig.Port)
 	acraCon := openConnection(dbConfig, freePort)
 

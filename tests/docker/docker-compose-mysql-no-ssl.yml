@@ -2,7 +2,7 @@ version: '3'
 
 services:
   mydb:
-    image: mysql:5.7.25
+    image: mariadb:10.7
     environment:
       MYSQL_DATABASE: test
       MYSQL_USER: test

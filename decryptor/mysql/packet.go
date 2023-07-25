@@ -39,6 +39,8 @@ const (
 	ClientDeprecateEOF = 0x01000000
 	// MARIADB_CLIENT_EXTENDED_TYPE_INFO - https://mariadb.com/kb/en/connection/#capabilities-
 	MariaDBClientExtendedTypeInfo = 0x8
+	// MARIADB_CLIENT_CACHE_METADATA - https://mariadb.com/kb/en/connection/#capabilities-
+	MariaDBClientCacheMetadata = 0x10
 )
 
 // MySQL packets significant bytes.
@@ -378,6 +380,16 @@ func (packet *Packet) MariaDBClientExtendedTypeInfoServerCapability() bool {
 	return (capabilities & MariaDBClientExtendedTypeInfo) > 0
 }
 
+// MariaDBClientCacheMetadataServerCapability return DB capabilities if server can cache metadata
+func (packet *Packet) MariaDBClientCacheMetadataServerCapability() bool {
+	capabilities, err := packet.getExtendedMariaDBCapabilities()
+	if err != nil {
+		return false
+	}
+
+	return (capabilities & MariaDBClientCacheMetadata) > 0
+}
+
 // MariaDBClientExtendedTypeInfoClientCapability return client capabilities if server add extended metadata information
 func (packet *Packet) MariaDBClientExtendedTypeInfoClientCapability() bool {
 	capabilities, err := packet.getClientExtendedMariaDBCapabilities()
@@ -386,6 +398,16 @@ func (packet *Packet) MariaDBClientExtendedTypeInfoClientCapability() bool {
 	}
 
 	return (capabilities & MariaDBClientExtendedTypeInfo) > 0
+}
+
+// MariaDBClientCacheMetadataClientCapability return client capabilities if client set MARIADB_CLIENT_CACHE_METADATA capabilities
+func (packet *Packet) MariaDBClientCacheMetadataClientCapability() bool {
+	capabilities, err := packet.getClientExtendedMariaDBCapabilities()
+	if err != nil {
+		return false
+	}
+
+	return (capabilities & MariaDBClientCacheMetadata) > 0
 }
 
 func (packet *Packet) getClientCapabilities() uint32 {
