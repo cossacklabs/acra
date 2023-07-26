@@ -431,7 +431,7 @@ schemas:
 		{
 			Query:             `INSERT INTO "tablewithoutcolumnschema" ("specified_client_id", "other_column", "default_client_id") VALUES ('%s', 1, '%s')`,
 			QueryData:         []interface{}{simpleStringData, simpleStringData},
-			ExpectedQueryData: []interface{}{encryptedValue, encryptedValue},
+			ExpectedQueryData: []interface{}{PgEncodeToHexString(encryptedValue), PgEncodeToHexString(encryptedValue)},
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{specifiedClientID, defaultClientID},
@@ -442,7 +442,7 @@ schemas:
 		{
 			Query:             `UPDATE "tablewithoutcolumnschema" as "t" set "other_column"='%s', "specified_client_id"='%s', "default_client_id"='%s'`,
 			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData},
-			ExpectedQueryData: []interface{}{simpleStringData, encryptedValue, encryptedValue},
+			ExpectedQueryData: []interface{}{simpleStringData, PgEncodeToHexString(encryptedValue), PgEncodeToHexString(encryptedValue)},
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{specifiedClientID, defaultClientID},
@@ -496,7 +496,7 @@ schemas:
 		{
 			Query:             `UPDATE lowercasetable set other_column='%s', specified_client_id='%s', "DEFAULT_client_id"='%s'`,
 			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData},
-			ExpectedQueryData: []interface{}{simpleStringData, encryptedValue, encryptedValue},
+			ExpectedQueryData: []interface{}{simpleStringData, PgEncodeToHexString(encryptedValue), PgEncodeToHexString(encryptedValue)},
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{specifiedClientID, defaultClientID},
@@ -507,7 +507,7 @@ schemas:
 		{
 			Query:             `UPDATE lowercasetable set other_column='%s', specified_client_id='%s', DEFAULT_client_id='%s'`,
 			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData},
-			ExpectedQueryData: []interface{}{simpleStringData, encryptedValue, simpleStringData},
+			ExpectedQueryData: []interface{}{simpleStringData, PgEncodeToHexString(encryptedValue), simpleStringData},
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{specifiedClientID},
@@ -518,7 +518,7 @@ schemas:
 		{
 			Query:             `UPDATE "lowercasetable" set other_column='%s', specified_client_id='%s', "DEFAULT_client_id"='%s'`,
 			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData},
-			ExpectedQueryData: []interface{}{simpleStringData, encryptedValue, encryptedValue},
+			ExpectedQueryData: []interface{}{simpleStringData, PgEncodeToHexString(encryptedValue), PgEncodeToHexString(encryptedValue)},
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{specifiedClientID, defaultClientID},
@@ -529,7 +529,7 @@ schemas:
 		{
 			Query:             `UPDATE LOWERCASETABLE set other_column='%s', specified_client_id='%s', "DEFAULT_client_id"='%s'`,
 			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData},
-			ExpectedQueryData: []interface{}{simpleStringData, encryptedValue, encryptedValue},
+			ExpectedQueryData: []interface{}{simpleStringData, PgEncodeToHexString(encryptedValue), PgEncodeToHexString(encryptedValue)},
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{specifiedClientID, defaultClientID},
@@ -584,7 +584,7 @@ schemas:
 		{
 			Query:             `UPDATE "UPPERCASETABLE" set "other_column"='%s', "specified_client_id"='%s', "DEFAULT_client_id"='%s'`,
 			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData},
-			ExpectedQueryData: []interface{}{simpleStringData, encryptedValue, encryptedValue},
+			ExpectedQueryData: []interface{}{simpleStringData, PgEncodeToHexString(encryptedValue), PgEncodeToHexString(encryptedValue)},
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{specifiedClientID, defaultClientID},
