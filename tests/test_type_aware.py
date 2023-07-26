@@ -1133,7 +1133,7 @@ class TestMariaDBTextTypeAwareDecryptionWithCiphertext(test_common.AcraCatchLogs
         sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
         extend_existing=True
     )
-    ENCRYPTOR_CONFIG = base.get_encryptor_config('./encryptor_configs/transparent_type_aware_decryption.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
 
     # switch off raw mode to be able to convert result rows to python types
     RAW_EXECUTOR = False

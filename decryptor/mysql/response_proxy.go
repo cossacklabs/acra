@@ -46,6 +46,9 @@ const (
 
 	// ClientWaitDbTLSHandshake shows max time to wait for database TLS handshake
 	ClientWaitDbTLSHandshake = 5
+
+	// MariaDBDirectStatementID - https://mariadb.com/kb/en/com_stmt_execute/#specific-1-statement-id-value
+	MariaDBDirectStatementID = 0xFFFFFFFF
 )
 
 // Possible commands
@@ -110,19 +113,57 @@ func defaultResponseHandler(ctx context.Context, packet *Packet, _, clientConnec
 	return nil
 }
 
+// Capability represent MariaDB/MySQL capability with indicator set on client and server
+type Capability struct {
+	ServerCapability bool
+	ClientCapability bool
+}
+
+// SetClient set client capability
+func (c *Capability) SetClient(cap bool) {
+	c.ClientCapability = cap
+}
+
+// SetSever set server capability
+func (c *Capability) SetSever(cap bool) {
+	c.ServerCapability = cap
+}
+
+// IsSet check weather capability is set on server and client
+func (c *Capability) IsSet() bool {
+	return c.ClientCapability == true && c.ServerCapability == true
+}
+
+// Capabilities represent list of capabilities between client and server
+type Capabilities struct {
+	Protocol41                    Capability
+	MariaDBCacheMetadata          Capability
+	MariaDBClientExtendedTypeInfo Capability
+	// clientDeprecateEOF  if false then expect EOF on response result as terminator otherwise not
+	ClientDeprecateEOF bool
+}
+
+// IsSetProtocol41 return true if Protocol41 capability set
+func (c Capabilities) IsSetProtocol41() bool {
+	return c.Protocol41.IsSet()
+}
+
+// IsSetMariaDBCacheMetadata return true if MariaDBCacheMetadata capability set
+func (c Capabilities) IsSetMariaDBCacheMetadata() bool {
+	return c.MariaDBCacheMetadata.IsSet()
+}
+
+// IsSetMariaDBClientExtendedTypeInfo return true if MariaDBClientExtendedTypeInfo capability set
+func (c Capabilities) IsSetMariaDBClientExtendedTypeInfo() bool {
+	return c.MariaDBClientExtendedTypeInfo.IsSet()
+}
+
 // Handler handles connection between client and MySQL db
 type Handler struct {
-	responseHandler                        ResponseHandler
-	clientSequenceNumber                   int
-	clientProtocol41                       bool
-	serverProtocol41                       bool
-	mariaDBClientExtendedTypeInfo          bool
-	mariaDBCacheMetadata                   bool
-	mariaDBClientExtendedTypeInfoServerCap bool
-	mariaDBCacheMetadataServerCap          bool
-	currentCommand                         byte
-	// clientDeprecateEOF  if false then expect EOF on response result as terminator otherwise not
-	clientDeprecateEOF      bool
+	responseHandler         ResponseHandler
+	clientSequenceNumber    int
+	Capabilities            Capabilities
+	currentCommand          byte
 	acracensor              acracensor.AcraCensorInterface
 	isTLSHandshake          bool
 	dbTLSHandshakeFinished  chan bool
@@ -152,7 +193,6 @@ func NewMysqlProxy(session base.ClientSession, parser *sqlparser.Parser, setting
 	return &Handler{
 		isTLSHandshake:          false,
 		dbTLSHandshakeFinished:  make(chan bool),
-		clientDeprecateEOF:      false,
 		responseHandler:         defaultResponseHandler,
 		acracensor:              setting.Censor(),
 		clientConnection:        session.ClientConnection(),
@@ -242,22 +282,20 @@ func (handler *Handler) ProxyClientConnection(ctx context.Context, errCh chan<- 
 		handler.dbConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 		if firstPacket {
 			firstPacket = false
-			handler.clientProtocol41 = packet.ClientSupportProtocol41()
-			handler.clientDeprecateEOF = packet.IsClientDeprecateEOF()
+			handler.Capabilities.ClientDeprecateEOF = packet.IsClientDeprecateEOF()
+			handler.Capabilities.Protocol41.SetClient(packet.ClientSupportProtocol41())
+			handler.Capabilities.MariaDBClientExtendedTypeInfo.SetClient(packet.MariaDBClientExtendedTypeInfoClientCapability())
+			handler.Capabilities.MariaDBCacheMetadata.SetClient(packet.MariaDBClientCacheMetadataClientCapability())
 
-			clientMariaDBClientExtendedTypeInfoClientCap := packet.MariaDBClientExtendedTypeInfoClientCapability()
-			if clientMariaDBClientExtendedTypeInfoClientCap {
-				handler.logger.Debugf("Client MARIADB_CLIENT_EXTENDED_TYPE_INFO flag SET")
-				handler.mariaDBClientExtendedTypeInfo = clientMariaDBClientExtendedTypeInfoClientCap == handler.mariaDBClientExtendedTypeInfoServerCap
+			if handler.Capabilities.IsSetMariaDBClientExtendedTypeInfo() {
+				handler.logger.Debugf("MARIADB_CLIENT_EXTENDED_TYPE_INFO flag SET")
 			}
 
-			clientMariaDBClientCacheMetadataClientCap := packet.MariaDBClientCacheMetadataClientCapability()
-			if clientMariaDBClientCacheMetadataClientCap {
-				handler.logger.Debugf("Client MARIADB_CLIENT_CACHE_METADATA flag SET")
-				handler.mariaDBCacheMetadata = clientMariaDBClientCacheMetadataClientCap == handler.mariaDBCacheMetadataServerCap
+			if handler.Capabilities.IsSetMariaDBCacheMetadata() {
+				handler.logger.Debugf("MARIADB_CLIENT_CACHE_METADATA flag SET")
 			}
 
-			clientLog = clientLog.WithField("deprecate_eof", handler.clientDeprecateEOF)
+			clientLog = clientLog.WithField("deprecate_eof", handler.Capabilities.ClientDeprecateEOF)
 			if packet.IsSSLRequest() {
 				if handler.setting.TLSConnectionWrapper() == nil {
 					handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used " +
@@ -393,14 +431,14 @@ func (handler *Handler) ProxyClientConnection(ctx context.Context, errCh chan<- 
 			censorSpan.End()
 			break
 		case CommandStatementExecute:
-			stmtId, err := handler.handleStatementExecute(ctx, packet)
+			stmtID, err := handler.handleStatementExecute(ctx, packet)
 			if err != nil {
 				errCh <- base.NewClientProxyError(err)
 				return
 			}
 
-			handler.protocolState.SetStmtID(stmtId)
-			if stmtId != 0xFFFFFFFF {
+			handler.protocolState.SetStmtID(stmtID)
+			if stmtID != MariaDBDirectStatementID {
 				handler.setQueryHandler(handler.QueryResponseHandler)
 			}
 			break
@@ -427,7 +465,7 @@ func getParamsCount(stmt sqlparser.Statement) (int, error) {
 		switch nodeType := node.(type) {
 		case *sqlparser.SQLVal:
 			if bytes.HasPrefix(nodeType.Val, []byte(":v")) {
-				paramsCount += 1
+				paramsCount++
 			}
 		}
 		return true, nil
@@ -446,7 +484,7 @@ func (handler *Handler) handleStatementExecute(ctx context.Context, packet *Pack
 	// https://mariadb.com/kb/en/com_stmt_execute/#statement-id
 	// Since MariaDB server version 10.2, value -1 (0xFFFFFFFF) can be used to indicate to use the last
 	// statement prepared on current connection if no COM_STMT_PREPARE has fail since.
-	if stmtID == 0xFFFFFFFF {
+	if stmtID == MariaDBDirectStatementID {
 		log = handler.logger.WithField("proxy", "client").WithField("statement", -1)
 		log.Debug("Statement Execute")
 
@@ -650,7 +688,7 @@ func (handler *Handler) extractData(pos int, rowData []byte, field *ColumnDescri
 }
 
 func (handler *Handler) expectEOFOnColumnDefinition() bool {
-	return !handler.clientDeprecateEOF
+	return !handler.Capabilities.ClientDeprecateEOF
 }
 
 func (handler *Handler) isPreparedStatementResult() bool {
@@ -688,7 +726,7 @@ func (handler *Handler) QueryResponseHandler(ctx context.Context, packet *Packet
 	// MariaDB sends `send_metadata` qualifier that says send ColumnDef packets or not
 	// https://mariadb.com/kb/en/result-set-packets/#column-count-packet
 	var sendMetadata byte
-	if len(packetData) > 1 && handler.mariaDBCacheMetadata {
+	if len(packetData) > 1 && handler.Capabilities.IsSetMariaDBCacheMetadata() {
 		sendMetadata = packetData[1]
 	}
 
@@ -696,11 +734,11 @@ func (handler *Handler) QueryResponseHandler(ctx context.Context, packet *Packet
 	if fieldCount != ErrPacket && fieldCount > 0 {
 		handler.logger.Debugln("Read column descriptions")
 
-		if handler.mariaDBCacheMetadata && sendMetadata == 0 {
+		if handler.Capabilities.IsSetMariaDBCacheMetadata() && sendMetadata == 0 {
 			// we should ignore Column Definition packets
 			fields = handler.protocolState.fields
 
-			if !handler.clientDeprecateEOF {
+			if !handler.Capabilities.ClientDeprecateEOF {
 				eofPacket, err := ReadPacket(dbConnection)
 				if err != nil {
 					handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantProcessColumn).
@@ -738,7 +776,7 @@ func (handler *Handler) QueryResponseHandler(ctx context.Context, packet *Packet
 					}
 				}
 				handler.logger.WithField("column_index", i).Debugln("Parse field")
-				field, err := ParseResultField(fieldPacket, handler.mariaDBClientExtendedTypeInfo)
+				field, err := ParseResultField(fieldPacket, handler.Capabilities.IsSetMariaDBClientExtendedTypeInfo())
 				if err != nil {
 					handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't parse result field")
 					return err
@@ -938,14 +976,11 @@ func (handler *Handler) ProxyDatabaseConnection(ctx context.Context, errCh chan<
 			continue
 		case stateFirstPacket:
 			state = stateServe
-			handler.serverProtocol41 = packet.ServerSupportProtocol41()
-			handler.mariaDBClientExtendedTypeInfoServerCap = packet.MariaDBClientExtendedTypeInfoServerCapability()
-			handler.mariaDBCacheMetadataServerCap = packet.MariaDBClientCacheMetadataServerCapability()
+			handler.Capabilities.Protocol41.SetSever(packet.ServerSupportProtocol41())
+			handler.Capabilities.MariaDBClientExtendedTypeInfo.SetSever(packet.MariaDBClientExtendedTypeInfoServerCapability())
+			handler.Capabilities.MariaDBCacheMetadata.SetSever(packet.MariaDBClientCacheMetadataServerCapability())
 
-			if handler.mariaDBClientExtendedTypeInfoServerCap {
-				serverLog.Debugf("DB MARIADB_CLIENT_EXTENDED_TYPE_INFO flag SET")
-			}
-			serverLog.Debugf("Set support protocol 41 %v", handler.serverProtocol41)
+			serverLog.Debugf("Set support protocol 41 %v", handler.Capabilities.Protocol41.ServerCapability)
 			fallthrough
 
 		case stateServe:
@@ -979,7 +1014,7 @@ func (handler *Handler) ProxyDatabaseConnection(ctx context.Context, errCh chan<
 
 // sendClientError sends an `QueryInterruptedError` with a custom message
 func (handler *Handler) sendClientError(msg string, packet *Packet) error {
-	errPacket := NewQueryInterruptedError(handler.clientProtocol41, msg)
+	errPacket := NewQueryInterruptedError(handler.Capabilities.Protocol41.ClientCapability, msg)
 	packet.SetData(errPacket)
 	_, err := handler.clientConnection.Write(packet.Dump())
 	return err

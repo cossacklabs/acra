@@ -335,7 +335,7 @@ func (p *PreparedStatementFieldTracker) ParamsTrackHandler(ctx context.Context, 
 		return nil
 	}
 
-	field, err := ParseResultField(packet, p.proxyHandler.mariaDBClientExtendedTypeInfo)
+	field, err := ParseResultField(packet, p.proxyHandler.Capabilities.IsSetMariaDBClientExtendedTypeInfo())
 	if err != nil {
 		p.proxyHandler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't parse result field")
 		return err
@@ -367,7 +367,7 @@ func (p *PreparedStatementFieldTracker) ColumnsTrackHandler(ctx context.Context,
 	if packet.IsEOF() {
 		p.proxyHandler.resetQueryHandler()
 
-		if p.proxyHandler.protocolState.GetStmtID() == 0xFFFFFFFF {
+		if p.proxyHandler.protocolState.GetStmtID() == MariaDBDirectStatementID {
 			p.proxyHandler.setQueryHandler(p.proxyHandler.QueryResponseHandler)
 		}
 
@@ -378,7 +378,7 @@ func (p *PreparedStatementFieldTracker) ColumnsTrackHandler(ctx context.Context,
 		return nil
 	}
 
-	field, err := ParseResultField(packet, p.proxyHandler.mariaDBClientExtendedTypeInfo)
+	field, err := ParseResultField(packet, p.proxyHandler.Capabilities.IsSetMariaDBClientExtendedTypeInfo())
 	if err != nil {
 		p.proxyHandler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't parse result field")
 		return err

@@ -1866,6 +1866,7 @@ class TestMariaDBBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase
                            user=DB_USER, password=DB_USER_PASSWORD,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                            ssl_key=TEST_TLS_CLIENT_KEY,
+                           raw=True,
                            ssl_cert=TEST_TLS_CLIENT_CERT)
         ).execute_prepared_statement(query, args=args)
 

@@ -7,23 +7,23 @@ jobs:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       GO_VERSIONS: 1.19
     steps:
-        # prepare
-        - checkout
-        - run:
-            command: python3 tests/generate_random_data.py
-            environment:
-              TEST_RANDOM_DATA_FOLDER: /tmp/test_data
-        - run:
-            command: ".circleci/build_binaries.sh"
-            environment:
-              OUTPUT_FOLDER: /tmp/acra-binaries
-        - save_cache:
-            # cache only for one commit, don't cache between commits because binaries should be changed
-            # but it's okay to cache them for same commit because it will avoid re-building on re-run commands
-            key: integration_tests_preparements_.{{ .Revision }}
-            paths:
-              - /tmp/test_data
-              - /tmp/acra-binaries
+      # prepare
+      - checkout
+      - run:
+          command: python3 tests/generate_random_data.py
+          environment:
+            TEST_RANDOM_DATA_FOLDER: /tmp/test_data
+      - run:
+          command: ".circleci/build_binaries.sh"
+          environment:
+            OUTPUT_FOLDER: /tmp/acra-binaries
+      - save_cache:
+          # cache only for one commit, don't cache between commits because binaries should be changed
+          # but it's okay to cache them for same commit because it will avoid re-building on re-run commands
+          key: integration_tests_preparements_.{{ .Revision }}
+          paths:
+            - /tmp/test_data
+            - /tmp/acra-binaries
 
   general_validation:
     docker:
@@ -37,9 +37,9 @@ jobs:
       - image: redis:6.0.16-alpine
       # run one more redis container with tls support on 6380 port
       - image: cossacklabs/redis-ssl:7.0-alpine
-        command: ['--tls-cert-file /tmp.ssl/redis.crt', '--tls-key-file /tmp.ssl/redis.key',
-                  '--tls-ca-cert-file /tmp.ssl/ca.crt', '--tls-auth-clients yes',
-                  '--port 0', '--tls-port 6380']
+        command: [ '--tls-cert-file /tmp.ssl/redis.crt', '--tls-key-file /tmp.ssl/redis.key',
+                   '--tls-ca-cert-file /tmp.ssl/ca.crt', '--tls-auth-clients yes',
+                   '--port 0', '--tls-port 6380' ]
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       GO_VERSIONS: 1.19
@@ -357,11 +357,6 @@ jobs:
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: NUM_PINGS=15 DELAY=1 .circleci/check_mysql_connection.sh
-      - run:
-          command: .circleci/check_gotest.sh
-          environment:
-            - TEST_BUILD_TAGS: "integration,mysql"
-            - GO_VERSIONS: 1.19
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -419,6 +414,11 @@ jobs:
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: NUM_PINGS=15 DELAY=1 .circleci/check_mysql_connection.sh
+      - run:
+          command: .circleci/check_gotest.sh
+          environment:
+            - TEST_BUILD_TAGS: "integration,mysql"
+            - GO_VERSIONS: 1.19
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -474,11 +474,6 @@ jobs:
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: NUM_PINGS=15 DELAY=1 .circleci/check_mysql_connection.sh
-      - run:
-          command: .circleci/check_gotest.sh
-          environment:
-            - TEST_BUILD_TAGS: "integration,mysql"
-            - GO_VERSIONS: 1.19
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -533,6 +528,11 @@ jobs:
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: NUM_PINGS=15 DELAY=1 .circleci/check_mysql_connection.sh
+      - run:
+          command: .circleci/check_gotest.sh
+          environment:
+            - TEST_BUILD_TAGS: "integration,mysql"
+            - GO_VERSIONS: 1.19
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py

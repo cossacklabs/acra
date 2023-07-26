@@ -20,6 +20,8 @@ type TypeConfiguration struct {
 }
 
 // TypeConfigurations contains specific info for used in TA types
+// supported charset - https://mariadb.com/kb/en/supported-character-sets-and-collations/
+// SELECT id, collation_name FROM information_schema.collations ORDER BY id;
 var TypeConfigurations = map[base_mysql.Type]TypeConfiguration{
 	base_mysql.TypeString: {
 		Charset:      8,
@@ -110,6 +112,8 @@ func updateFieldEncodedType(field *ColumnDescription, schemaStore config.TableSc
 			field.Decimal = fieldConfig.Decimal
 
 			if field.Flag.ContainsFlag(BlobFlag) {
+				// during the TypeAwareness type transformation we need to remove the BlobFlag if the type was change to
+				// some specific types: TypeLong, TypeLongLong, TypeString
 				for _, fieldType := range specificTypes {
 					if uint16(fieldType) == uint16(newFieldType) {
 						field.Flag.RemoveFlag(BlobFlag)

@@ -24,6 +24,16 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install \
 
 WORKDIR /root
 
+# Install MariaDB Connector/C for mariadb python driver
+RUN wget https://r.mariadb.com/downloads/mariadb_repo_setup && \
+    echo "3a562a8861fc6362229314772c33c289d9096bafb0865ba4ea108847b78768d2  mariadb_repo_setup" \
+        | sha256sum -c - && chmod +x mariadb_repo_setup
+
+# Configure the CS package repository using the mariadb_repo_setup utility:
+RUN sudo /root/mariadb_repo_setup --mariadb-server-version="mariadb-10.6"
+
+RUN apt install libmariadb3 libmariadb-dev
+
 # Install libthemis
 RUN set -o pipefail && \
     curl -sSL https://pkgs.cossacklabs.com/scripts/libthemis_install.sh | \
@@ -60,11 +70,11 @@ WORKDIR /home/user
 ENV PATH="$GOROOT/bin:/home/user/gopath/bin:/home/user/.local/bin:$PATH"
 
 # Install some Go linters
-RUN go install golang.org/x/lint/golint && \
-    go install github.com/client9/misspell/cmd/misspell && \
-    go install golang.org/x/tools/cmd/goyacc && \
+RUN go install golang.org/x/lint/golint@latest && \
+    go install github.com/client9/misspell/cmd/misspell@latest && \
+    go install golang.org/x/tools/cmd/goyacc@latest && \
     go install github.com/swaggo/swag/cmd/swag@latest && \
-    go install github.com/gordonklaus/ineffassign
+    go install github.com/gordonklaus/ineffassign@latest
 
 # download dependencies to avoid next downloads in tests
 RUN cp /image.scripts/go.mod . && go mod download && rm go.mod go.sum
