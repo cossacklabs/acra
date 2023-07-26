@@ -93,9 +93,9 @@ class KeyMakerTest(unittest.TestCase):
                 signature = os.urandom(size)
                 keys = {
                     'encryption': b64encode(encryption).decode('ascii'),
-                    'signature': b64encode(signature).decode('utf-8'),
+                    'signature': b64encode(signature).decode('ascii'),
                 }
-                value = json.dumps(keys).encode('utf-8')
+                value = json.dumps(keys).encode('ascii')
             else:
                 self.fail("keystore version not supported")
 
@@ -452,22 +452,22 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         log_entry = {
             'master_key': base.get_master_key(),
             'key_name': key_name(),
-            'data': b64encode(data).decode('utf-8'),
-            'expected': b64encode(expected).decode('utf-8'),
+            'data': b64encode(data).decode('ascii'),
+            'expected': b64encode(expected).decode('ascii'),
         }
 
         if storage_client_id:
             public_key = base.read_storage_public_key(storage_client_id, base.KEYS_FOLDER.name)
             private_key = base.read_storage_private_key(base.KEYS_FOLDER.name, storage_client_id)
-            log_entry['public_key'] = b64encode(public_key).decode('utf-8')
-            log_entry['private_key'] = b64encode(private_key).decode('utf-8')
+            log_entry['public_key'] = b64encode(public_key).decode('ascii')
+            log_entry['private_key'] = b64encode(private_key).decode('ascii')
 
         if poison_key:
             public_key = base.read_poison_public_key(base.KEYS_FOLDER.name)
             private_key = base.read_poison_private_key(base.KEYS_FOLDER.name)
-            log_entry['public_key'] = b64encode(public_key).decode('utf-8')
-            log_entry['private_key'] = b64encode(private_key).decode('utf-8')
-            log_entry['poison_record'] = b64encode(base.get_poison_record()).decode('utf-8')
+            log_entry['public_key'] = b64encode(public_key).decode('ascii')
+            log_entry['private_key'] = b64encode(private_key).decode('ascii')
+            log_entry['poison_record'] = b64encode(base.get_poison_record()).decode('ascii')
 
         logging.debug("test log: {}".format(json.dumps(log_entry)))
 
@@ -568,7 +568,7 @@ class AcraTranslatorMixin(object):
             stub = api_pb2_grpc.WriterStub(channel)
             try:
                 response = stub.Encrypt(api_pb2.EncryptRequest(
-                    client_id=client_id.encode('utf-8'), data=data),
+                    client_id=client_id.encode('ascii'), data=data),
                     timeout=base.SOCKET_CONNECT_TIMEOUT)
             except grpc.RpcError as exc:
                 logging.info(exc)
@@ -580,7 +580,7 @@ class AcraTranslatorMixin(object):
             stub = api_pb2_grpc.ReaderStub(channel)
             try:
                 response = stub.Decrypt(api_pb2.DecryptRequest(
-                    client_id=client_id.encode('utf-8'), acrastruct=acrastruct),
+                    client_id=client_id.encode('ascii'), acrastruct=acrastruct),
                     timeout=base.SOCKET_CONNECT_TIMEOUT)
             except grpc.RpcError as exc:
                 logging.info(exc)
@@ -1102,7 +1102,7 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
             self.assertEqual(base.create_client_keypair_from_certificate(tls_cert=base.TEST_TLS_CLIENT_CERT,
                                                                          extractor=self.get_identifier_extractor_type(),
                                                                          keys_dir=key_folder.name), 0)
-            data = base.get_pregenerated_random_data().encode('utf-8')
+            data = base.get_pregenerated_random_data().encode('ascii')
             client_id_private_key = base.read_storage_private_key(key_folder.name, client_id)
             connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
             translator_kwargs = {
@@ -1140,7 +1140,7 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
             self.assertEqual(base.create_client_keypair_from_certificate(tls_cert=base.TEST_TLS_CLIENT_CERT,
                                                                          extractor=self.get_identifier_extractor_type(),
                                                                          keys_dir=key_folder.name), 0)
-            data = base.get_pregenerated_random_data().encode('utf-8')
+            data = base.get_pregenerated_random_data().encode('ascii')
             encryption_key = base.read_storage_public_key(client_id, keys_dir=key_folder.name)
             acrastruct = base.create_acrastruct(data, encryption_key)
             connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
@@ -1167,7 +1167,7 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
 
     def testHTTPSApiResponses(self):
         translator_port = 3456
-        data = base.get_pregenerated_random_data().encode('utf-8')
+        data = base.get_pregenerated_random_data().encode('ascii')
         encryption_key = base.read_storage_public_key(
             base.TLS_CERT_CLIENT_ID_1, keys_dir=base.KEYS_FOLDER.name)
         acrastruct = base.create_acrastruct(data, encryption_key)
@@ -1259,11 +1259,11 @@ class HexFormatTest(BaseTestCase):
         server_public1 = base.read_storage_public_key(client_id, base.KEYS_FOLDER.name)
         data = base.get_pregenerated_random_data()
         acra_struct = base.create_acrastruct(
-            data.encode('utf-8'), server_public1)
+            data.encode('ascii'), server_public1)
         row_id = base.get_random_id()
 
         self.log(storage_client_id=client_id,
-                 data=acra_struct, expected=data.encode('utf-8'))
+                 data=acra_struct, expected=data.encode('ascii'))
 
         self.engine1.execute(
             base.test_table.insert(),
@@ -1279,7 +1279,7 @@ class HexFormatTest(BaseTestCase):
             sa.select([base.test_table])
             .where(base.test_table.c.id == row_id))
         row = result.fetchone()
-        self.assertNotEqual(row['data'].decode('utf-8', errors='ignore'),
+        self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
                             row['raw_data'])
         self.assertEqual(row['empty'], b'')
 
@@ -1287,7 +1287,7 @@ class HexFormatTest(BaseTestCase):
             sa.select([base.test_table])
             .where(base.test_table.c.id == row_id))
         row = result.fetchone()
-        self.assertNotEqual(row['data'].decode('utf-8', errors='ignore'),
+        self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
                             row['raw_data'])
         self.assertEqual(row['empty'], b'')
 
@@ -1301,16 +1301,16 @@ class HexFormatTest(BaseTestCase):
         suffix_data = base.get_pregenerated_random_data()[:10]
         fake_offset = (3 + 45 + 84) - 4
         fake_acra_struct = base.create_acrastruct(
-            incorrect_data.encode('utf-8'), server_public1)[:fake_offset]
+            incorrect_data.encode('ascii'), server_public1)[:fake_offset]
         inner_acra_struct = base.create_acrastruct(
-            correct_data.encode('utf-8'), server_public1)
-        data = fake_acra_struct + inner_acra_struct + suffix_data.encode('utf-8')
+            correct_data.encode('ascii'), server_public1)
+        data = fake_acra_struct + inner_acra_struct + suffix_data.encode('ascii')
         correct_data = correct_data + suffix_data
         row_id = base.get_random_id()
 
         self.log(storage_client_id=client_id,
                  data=data,
-                 expected=fake_acra_struct + correct_data.encode('utf-8'))
+                 expected=fake_acra_struct + correct_data.encode('ascii'))
 
         self.engine1.execute(
             base.test_table.insert(),
@@ -1333,7 +1333,7 @@ class HexFormatTest(BaseTestCase):
             sa.select([base.test_table])
             .where(base.test_table.c.id == row_id))
         row = result.fetchone()
-        self.assertNotEqual(row['data'][fake_offset:].decode('utf-8', errors='ignore'),
+        self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
                             row['raw_data'])
         self.assertEqual(row['empty'], b'')
 
@@ -1341,7 +1341,7 @@ class HexFormatTest(BaseTestCase):
             sa.select([base.test_table])
             .where(base.test_table.c.id == row_id))
         row = result.fetchone()
-        self.assertNotEqual(row['data'][fake_offset:].decode('utf-8', errors='ignore'),
+        self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
                             row['raw_data'])
         self.assertEqual(row['empty'], b'')
 
@@ -1384,7 +1384,7 @@ class TestKeyRotation(BaseTestCase):
             row_id = base.get_random_id()
             data = base.get_pregenerated_random_data()
             public_key = self.read_rotation_public_key()
-            acra_struct = base.create_acrastruct(data.encode('utf-8'), public_key)
+            acra_struct = base.create_acrastruct(data.encode('ascii'), public_key)
             self.engine1.execute(
                 base.test_table.insert(),
                 {'id': row_id, 'data': acra_struct, 'raw_data': data})
@@ -1453,7 +1453,7 @@ class TestTranslatorDisableCachedOnStartup(AcraTranslatorMixin, BaseTestCase):
         self.assertEqual(base.create_client_keypair_from_certificate(tls_cert=base.TEST_TLS_CLIENT_CERT,
                                                                      extractor=self.get_identifier_extractor_type(),
                                                                      keys_dir=self.cached_dir.name), 0)
-        data = base.get_pregenerated_random_data().encode('utf-8')
+        data = base.get_pregenerated_random_data().encode('ascii')
         client_id_private_key = base.read_storage_private_key(self.cached_dir.name, client_id)
         connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
         translator_kwargs = {

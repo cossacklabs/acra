@@ -1082,7 +1082,7 @@ class TestMasking(BaseMasking):
             self.assertEqual(source_data[0][i], data[i])
 
         hidden_data = hidden_data[0]
-        mask_pattern = 'xxxx'.encode('utf8')
+        mask_pattern = 'xxxx'.encode('ascii')
         # check that mask at correct place
         self.assertEqual(hidden_data['masked_prefix'][:len(mask_pattern)], mask_pattern)
         # check that len of masked value not equal to source data because acrastruct always longer than plaintext
@@ -1162,7 +1162,7 @@ class TestMasking(BaseMasking):
             self.assertEqual(source_data[0][i], data[i])
 
         hidden_data = hidden_data[0]
-        mask_pattern = 'xxxx'.encode('utf-8')
+        mask_pattern = 'xxxx'.encode('ascii')
         # check that mask at correct place
         self.assertEqual(hidden_data['masked_prefix'][:len(mask_pattern)], mask_pattern)
         # check that len of masked value not equal to source data because acrastruct always longer than plaintext

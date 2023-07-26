@@ -808,7 +808,7 @@ class TestKeyStoreMigration(BaseTestCase):
         old_master_key = os.environ[ACRA_MASTER_KEY_VAR_NAME]
         os.environ[ACRA_MASTER_KEY_VAR_NAME] = new_master_key
         acra_struct = create_acrastruct(
-            data.encode('utf-8'),
+            data.encode('ascii'),
             read_storage_public_key(
                 self.client_id,
                 self.current_key_store_path()))
@@ -857,12 +857,12 @@ class TestKeyStoreMigration(BaseTestCase):
 
             # Check that we're able to put and get data via AcraServer.
             selected = self.select_as_client(row_id_1)
-            self.assertEquals(selected['data'], data_1.encode('utf-8'))
+            self.assertEquals(selected['data'], data_1.encode('ascii'))
             self.assertEquals(selected['raw_data'], data_1)
 
             # Get encrypted data. It should really be encrypted.
             encrypted_1 = self.select_directly(row_id_1)
-            self.assertNotEquals(encrypted_1['data'], data_1.encode('utf-8'))
+            self.assertNotEquals(encrypted_1['data'], data_1.encode('ascii'))
 
         self.migrate_key_store('v2')
 
@@ -870,7 +870,7 @@ class TestKeyStoreMigration(BaseTestCase):
         with self.running_services():
             # Old data should still be there, accessible via AcraServer.
             selected = self.select_as_client(row_id_1)
-            self.assertEquals(selected['data'], data_1.encode('utf-8'))
+            self.assertEquals(selected['data'], data_1.encode('ascii'))
             self.assertEquals(selected['raw_data'], data_1)
 
             # Key migration does not change encrypted data.
@@ -881,7 +881,7 @@ class TestKeyStoreMigration(BaseTestCase):
             # We're able to put some new data into the table and get it back.
             row_id_2 = self.insert_as_client(data_2)
             selected = self.select_as_client(row_id_2)
-            self.assertEquals(selected['data'], data_2.encode('utf-8'))
+            self.assertEquals(selected['data'], data_2.encode('ascii'))
             self.assertEquals(selected['raw_data'], data_2)
 
     def test_moved_key_store(self):
@@ -893,7 +893,7 @@ class TestKeyStoreMigration(BaseTestCase):
         with self.running_services():
             row_id = self.insert_as_client(data)
             selected = self.select_as_client(row_id)
-            self.assertEquals(selected['data'], data.encode('utf-8'))
+            self.assertEquals(selected['data'], data.encode('ascii'))
 
         # Move the keystore to a different (still temporary) location.
         self.change_key_store_path()
@@ -903,7 +903,7 @@ class TestKeyStoreMigration(BaseTestCase):
         # but located at different path.
         with self.running_services():
             selected = self.select_as_client(row_id)
-            self.assertEquals(selected['data'], data.encode('utf-8'))
+            self.assertEquals(selected['data'], data.encode('ascii'))
 
 
 class TestAcraKeysWithRotatedKeys(unittest.TestCase):
@@ -1247,7 +1247,7 @@ class TestPostgreSQLParseQueryErrorSkipExit(AcraCatchLogsMixin, BaseTestCase):
         row_id = get_random_id()
         data = get_pregenerated_random_data()
         public_key = self.read_public_key()
-        acra_struct = create_acrastruct(data.encode('utf-8'), public_key)
+        acra_struct = create_acrastruct(data.encode('ascii'), public_key)
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': acra_struct, 'raw_data': data})
@@ -1396,7 +1396,7 @@ class TestAcraRollback(BaseTestCase):
             data = get_pregenerated_random_data()
             row = {
                 'raw_data': data,
-                'data': create_acrastruct(data.encode('utf-8'), server_public1),
+                'data': create_acrastruct(data.encode('ascii'), server_public1),
                 'id': get_random_id()
             }
             rows.append(row)
@@ -1413,7 +1413,7 @@ class TestAcraRollback(BaseTestCase):
             for line in f:
                 self.engine_raw.execute(line)
 
-        source_data = set([i['raw_data'].encode('utf-8') for i in rows])
+        source_data = set([i['raw_data'].encode('ascii') for i in rows])
         result = self.engine_raw.execute(acrarollback_output_table.select())
         result = result.fetchall()
         self.assertEqual(len(result), len(rows))
@@ -1428,7 +1428,7 @@ class TestAcraRollback(BaseTestCase):
             data = get_pregenerated_random_data()
             row = {
                 'raw_data': data,
-                'data': create_acrastruct(data.encode('utf-8'), server_public1),
+                'data': create_acrastruct(data.encode('ascii'), server_public1),
                 'id': get_random_id()
             }
             rows.append(row)
@@ -1442,7 +1442,7 @@ class TestAcraRollback(BaseTestCase):
         ]
         self.run_acrarollback(args)
 
-        source_data = set([i['raw_data'].encode('utf-8') for i in rows])
+        source_data = set([i['raw_data'].encode('ascii') for i in rows])
         result = self.engine_raw.execute(acrarollback_output_table.select())
         result = result.fetchall()
         self.assertEqual(len(result), len(rows))
@@ -1478,7 +1478,7 @@ class TestAcraRollback(BaseTestCase):
                 data = get_pregenerated_random_data()
                 row = {
                     'raw_data': data,
-                    'data': create_acrastruct(data.encode('utf-8'), public_key),
+                    'data': create_acrastruct(data.encode('ascii'), public_key),
                     'id': get_random_id()
                 }
                 rows.append(row)
@@ -1503,7 +1503,7 @@ class TestAcraRollback(BaseTestCase):
         ])
 
         # Rollback should successfully use previous keys to decrypt data
-        source_data = set([i['raw_data'].encode('utf-8') for i in rows])
+        source_data = set([i['raw_data'].encode('ascii') for i in rows])
         result = self.engine_raw.execute(acrarollback_output_table.select())
         result = result.fetchall()
         self.assertEqual(len(result), len(rows))
@@ -1723,11 +1723,11 @@ class BasePrepareStatementMixin:
         server_public1 = read_storage_public_key(client_id, base.KEYS_FOLDER.name)
         data = get_pregenerated_random_data()
         acra_struct = create_acrastruct(
-            data.encode('utf-8'), server_public1)
+            data.encode('ascii'), server_public1)
         row_id = get_random_id()
 
         self.log(storage_client_id=client_id,
-                 data=acra_struct, expected=data.encode('utf-8'))
+                 data=acra_struct, expected=data.encode('ascii'))
 
         self.engine1.execute(
             test_table.insert(),
@@ -1744,7 +1744,7 @@ class BasePrepareStatementMixin:
             sa.select([test_table])
             .where(test_table.c.id == row_id))
         row = result.fetchone()
-        self.assertNotEqual(row['data'].decode('utf-8', errors='ignore'),
+        self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
                             row['raw_data'])
         self.assertEqual(row['empty'], b'')
 
@@ -1752,7 +1752,7 @@ class BasePrepareStatementMixin:
             sa.select([test_table])
             .where(test_table.c.id == row_id))
         row = result.fetchone()
-        self.assertNotEqual(row['data'].decode('utf-8', errors='ignore'),
+        self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
                             row['raw_data'])
         self.assertEqual(row['empty'], b'')
 
@@ -1766,16 +1766,16 @@ class BasePrepareStatementMixin:
         suffix_data = get_pregenerated_random_data()[:10]
         fake_offset = (3 + 45 + 84) - 4
         fake_acra_struct = create_acrastruct(
-            incorrect_data.encode('utf-8'), server_public1)[:fake_offset]
+            incorrect_data.encode('ascii'), server_public1)[:fake_offset]
         inner_acra_struct = create_acrastruct(
-            correct_data.encode('utf-8'), server_public1)
-        data = fake_acra_struct + inner_acra_struct + suffix_data.encode('utf-8')
+            correct_data.encode('ascii'), server_public1)
+        data = fake_acra_struct + inner_acra_struct + suffix_data.encode('ascii')
         correct_data = correct_data + suffix_data
         row_id = get_random_id()
 
         self.log(storage_client_id=client_id,
                  data=data,
-                 expected=fake_acra_struct + correct_data.encode('utf-8'))
+                 expected=fake_acra_struct + correct_data.encode('ascii'))
 
         self.engine1.execute(
             test_table.insert(),
@@ -1800,7 +1800,7 @@ class BasePrepareStatementMixin:
             sa.select([test_table])
             .where(test_table.c.id == row_id))
         row = result.fetchone()
-        self.assertNotEqual(row['data'][fake_offset:].decode('utf-8', errors='ignore'),
+        self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
                             row['raw_data'])
         self.assertEqual(row['empty'], b'')
 
@@ -1808,7 +1808,7 @@ class BasePrepareStatementMixin:
             sa.select([test_table])
             .where(test_table.c.id == row_id))
         row = result.fetchone()
-        self.assertNotEqual(row['data'][fake_offset:].decode('utf-8', errors='ignore'),
+        self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
                             row['raw_data'])
         self.assertEqual(row['empty'], b'')
 
@@ -1934,7 +1934,7 @@ class TestTranslatorEnableCachedOnStartup(AcraTranslatorMixin, BaseTestCase):
         self.assertEqual(create_client_keypair_from_certificate(tls_cert=TEST_TLS_CLIENT_CERT,
                                                                 extractor=self.get_identifier_extractor_type(),
                                                                 keys_dir=self.cached_dir.name), 0)
-        data = get_pregenerated_random_data().encode('utf-8')
+        data = get_pregenerated_random_data().encode('ascii')
         client_id_private_key = read_storage_private_key(self.cached_dir.name, client_id)
         connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
         translator_kwargs = {
@@ -2027,7 +2027,7 @@ class TestAcraRotate(BaseTestCase):
             key_before_rotate = {client_id: b64encode(self.read_public_key(client_id, keys_folder))}
 
             for i in range(keys_file_count):
-                data = get_pregenerated_random_data().encode('utf-8')
+                data = get_pregenerated_random_data().encode('ascii')
                 acrastruct = create_acrastruct(data, b64decode(key_before_rotate[client_id]))
                 filename = filename_template.format(
                     dir=data_folder, id=client_id, num=i)
@@ -2119,13 +2119,13 @@ class TestAcraRotate(BaseTestCase):
 
         data = get_pregenerated_random_data()
         client_id = base.TLS_CERT_CLIENT_ID_1
-        acra_struct = create_acrastruct_with_client_id(data.encode('utf-8'), client_id)
+        acra_struct = create_acrastruct_with_client_id(data.encode('ascii'), client_id)
         row_id = get_random_id()
         data_before_rotate[row_id] = acra_struct
         self.engine_raw.execute(
             rotate_test_table.insert(),
             {'id': row_id, 'data': acra_struct, 'raw_data': data,
-             'key_id': client_id.encode('utf-8')})
+             'key_id': client_id.encode('ascii')})
 
         if rotate_storage_keys:
             create_client_keypair(client_id, only_storage=True)
@@ -2387,7 +2387,7 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
         }
         translator_port = 3456
         metrics_port = translator_port + 1
-        data = get_pregenerated_random_data().encode('utf-8')
+        data = get_pregenerated_random_data().encode('ascii')
         client_id = base.TLS_CERT_CLIENT_ID_1
         encryption_key = read_storage_public_key(
             client_id, keys_dir=base.KEYS_FOLDER.name)
@@ -2725,11 +2725,11 @@ class TestTLSAuthenticationDirectlyToAcraByDistinguishedName(TLSAuthenticationDi
         server_public1 = read_storage_public_key(self.acra_writer_id, base.KEYS_FOLDER.name)
         data = get_pregenerated_random_data()
         acra_struct = create_acrastruct(
-            data.encode('utf-8'), server_public1)
+            data.encode('ascii'), server_public1)
         row_id = get_random_id()
 
         self.log(storage_client_id=self.acra_writer_id,
-                 data=acra_struct, expected=data.encode('utf-8'))
+                 data=acra_struct, expected=data.encode('ascii'))
 
         self.engine1.execute(
             test_table.insert(),
@@ -2745,7 +2745,7 @@ class TestTLSAuthenticationDirectlyToAcraByDistinguishedName(TLSAuthenticationDi
             sa.select([test_table])
             .where(test_table.c.id == row_id))
         row = result.fetchone()
-        self.assertNotEqual(row['data'].decode('utf-8', errors='ignore'),
+        self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
                             row['raw_data'])
         self.assertEqual(row['empty'], b'')
 
@@ -2753,7 +2753,7 @@ class TestTLSAuthenticationDirectlyToAcraByDistinguishedName(TLSAuthenticationDi
             sa.select([test_table])
             .where(test_table.c.id == row_id))
         row = result.fetchone()
-        self.assertNotEqual(row['data'].decode('utf-8', errors='ignore'),
+        self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
                             row['raw_data'])
         self.assertEqual(row['empty'], b'')
 
@@ -2766,16 +2766,16 @@ class TestTLSAuthenticationDirectlyToAcraByDistinguishedName(TLSAuthenticationDi
         suffix_data = get_pregenerated_random_data()[:10]
         fake_offset = (3 + 45 + 84) - 4
         fake_acra_struct = create_acrastruct(
-            incorrect_data.encode('utf-8'), server_public1)[:fake_offset]
+            incorrect_data.encode('ascii'), server_public1)[:fake_offset]
         inner_acra_struct = create_acrastruct(
-            correct_data.encode('utf-8'), server_public1)
-        data = fake_acra_struct + inner_acra_struct + suffix_data.encode('utf-8')
+            correct_data.encode('ascii'), server_public1)
+        data = fake_acra_struct + inner_acra_struct + suffix_data.encode('ascii')
         correct_data = correct_data + suffix_data
         row_id = get_random_id()
 
         self.log(storage_client_id=self.acra_writer_id,
                  data=data,
-                 expected=fake_acra_struct + correct_data.encode('utf-8'))
+                 expected=fake_acra_struct + correct_data.encode('ascii'))
 
         self.engine1.execute(
             test_table.insert(),
@@ -2798,7 +2798,7 @@ class TestTLSAuthenticationDirectlyToAcraByDistinguishedName(TLSAuthenticationDi
             sa.select([test_table])
             .where(test_table.c.id == row_id))
         row = result.fetchone()
-        self.assertNotEqual(row['data'][fake_offset:].decode('utf-8', errors='ignore'),
+        self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
                             row['raw_data'])
         self.assertEqual(row['empty'], b'')
 
@@ -2806,7 +2806,7 @@ class TestTLSAuthenticationDirectlyToAcraByDistinguishedName(TLSAuthenticationDi
             sa.select([test_table])
             .where(test_table.c.id == row_id))
         row = result.fetchone()
-        self.assertNotEqual(row['data'][fake_offset:].decode('utf-8', errors='ignore'),
+        self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
                             row['raw_data'])
         self.assertEqual(row['empty'], b'')
 
@@ -4319,9 +4319,9 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
 
         for i in range(data_amount):
             if i % 2 == 0:
-                row = {'id': i, 'data': searchable_data.encode('utf-8'), 'raw_data': searchable_data}
+                row = {'id': i, 'data': searchable_data.encode('ascii'), 'raw_data': searchable_data}
             else:
-                data = get_pregenerated_random_data().encode('utf-8')
+                data = get_pregenerated_random_data().encode('ascii')
                 row = {'id': i, 'data': data, 'raw_data': data}
             data_set.append(row)
             self.engine1.execute(self.encryptor_table.insert(), row)
@@ -4337,7 +4337,7 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
             for i, row in enumerate(result):
                 self.assertEqual(row['id'], expected_data_slice[i]['id'])
                 self.assertEqual(memoryview_to_bytes(row['data']),
-                                 expected_data_slice[i]['raw_data'].encode('utf-8'))
+                                 expected_data_slice[i]['raw_data'].encode('ascii'))
                 self.assertEqual(row['raw_data'], expected_data_slice[i]['raw_data'])
                 self.assertEqual(row['empty'], b'')
 
@@ -4402,9 +4402,9 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
         for i in range(10):
             data = get_pregenerated_random_data()
             acra_struct = create_acrastruct(
-                data.encode('utf-8'), server_public1)
+                data.encode('ascii'), server_public1)
             self.log(storage_client_id=client_id,
-                     data=acra_struct, expected=data.encode('utf-8'))
+                     data=acra_struct, expected=data.encode('ascii'))
             row = {'id': i, 'data': acra_struct, 'raw_data': data}
             data_set.append(row)
             self.engine1.execute(test_table.insert(), row)
@@ -4417,7 +4417,7 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
             for i, row in enumerate(result):
                 self.assertEqual(row['id'], expected_data_slice[i]['id'])
                 self.assertEqual(memoryview_to_bytes(row['data']),
-                                 expected_data_slice[i]['raw_data'].encode('utf-8'))
+                                 expected_data_slice[i]['raw_data'].encode('ascii'))
                 self.assertEqual(row['raw_data'], expected_data_slice[i]['raw_data'])
                 self.assertEqual(row['empty'], b'')
 
@@ -4429,7 +4429,7 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
             for i, row in enumerate(result):
                 self.assertEqual(row['id'], expected_data_slice[i]['id'])
                 self.assertNotEqual(
-                    memoryview_to_bytes(row['data']), expected_data_slice[i]['raw_data'].encode('utf-8'))
+                    memoryview_to_bytes(row['data']), expected_data_slice[i]['raw_data'].encode('ascii'))
                 self.assertEqual(row['raw_data'], expected_data_slice[i]['raw_data'])
                 self.assertEqual(row['empty'], b'')
 
@@ -4442,17 +4442,17 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
         incorrect_data = get_pregenerated_random_data()
         suffix_data = get_pregenerated_random_data()[:10]
         fake_acra_struct = create_acrastruct(
-            incorrect_data.encode('utf-8'), server_public1)[:fake_offset]
+            incorrect_data.encode('ascii'), server_public1)[:fake_offset]
         data_set = []
         for i in range(10):
             correct_data = get_pregenerated_random_data()
             inner_acra_struct = create_acrastruct(
-                correct_data.encode('utf-8'), server_public1)
-            data = fake_acra_struct + inner_acra_struct + suffix_data.encode('utf-8')
+                correct_data.encode('ascii'), server_public1)
+            data = fake_acra_struct + inner_acra_struct + suffix_data.encode('ascii')
             correct_data = correct_data + suffix_data
             self.log(storage_client_id=client_id,
                      data=data,
-                     expected=fake_acra_struct + correct_data.encode('utf-8'))
+                     expected=fake_acra_struct + correct_data.encode('ascii'))
             row = {'id': i, 'data': data, 'raw_data': correct_data}
             data_set.append(row)
             self.engine1.execute(test_table.insert(), row)
@@ -4476,7 +4476,7 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
             self.assertEqual(len(expected_data_slice), len(result))
             for i, row in enumerate(result):
                 self.assertNotEqual(
-                    memoryview_to_bytes(row['data'][fake_offset:]).decode('utf-8', errors='ignore'),
+                    memoryview_to_bytes(row['data'][fake_offset:]).decode('ascii', errors='ignore'),
                     row['raw_data'])
 
                 self.assertEqual(row['id'], expected_data_slice[i]['id'])
@@ -4858,15 +4858,15 @@ class TestSQLPreparedStatements(AcraCatchLogsMixin):
     def get_test_prepared_sql_statements_table_context(self):
         return {
             'id': base.get_random_id(),
-            'default_client_id': base.get_pregenerated_random_data().encode('utf-8'),
+            'default_client_id': base.get_pregenerated_random_data().encode('ascii'),
             'number': base.get_random_id(),
-            'specified_client_id': base.get_pregenerated_random_data().encode('utf-8'),
-            'raw_data': base.get_pregenerated_random_data().encode('utf-8'),
-            'searchable': base.get_pregenerated_random_data().encode('utf-8'),
+            'specified_client_id': base.get_pregenerated_random_data().encode('ascii'),
+            'raw_data': base.get_pregenerated_random_data().encode('ascii'),
+            'searchable': base.get_pregenerated_random_data().encode('ascii'),
             'empty': b'',
             'nullable': None,
-            'masking': base.get_pregenerated_random_data().encode('utf-8'),
-            'token_bytes': base.get_pregenerated_random_data().encode('utf-8'),
+            'masking': base.get_pregenerated_random_data().encode('ascii'),
+            'token_bytes': base.get_pregenerated_random_data().encode('ascii'),
             'token_email': base.get_pregenerated_random_data(),
             'token_str': base.get_pregenerated_random_data(),
             'token_i32': base.random.randint(0, 2 ** 16),

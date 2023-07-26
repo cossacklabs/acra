@@ -2,14 +2,13 @@ import json
 import os
 import random
 import string
-from random_utils import string_set
 
 TEMP_DATA_FOLDER_VARNAME = 'TEST_RANDOM_DATA_FOLDER'
 
 
 def get_random_data(config):
     size = random.randint(config['data_min_size'], config['data_max_size'])
-    return ''.join(random.SystemRandom().choice(string_set) for _ in range(size)).encode('utf-8')
+    return ''.join(random.SystemRandom().choice(string.ascii_letters) for _ in range(size)).encode('ascii')
 
 
 if __name__ == '__main__':

@@ -60,10 +60,10 @@ class TestTransparentEncryption(BaseTransparentEncryption):
     def get_context_data(self):
         context = {
             'id': base.get_random_id(),
-            'default_client_id': base.get_pregenerated_random_data().encode('utf-8'),
+            'default_client_id': base.get_pregenerated_random_data().encode('ascii'),
             'number': base.get_random_id(),
-            'specified_client_id': base.get_pregenerated_random_data().encode('utf-8'),
-            'raw_data': base.get_pregenerated_random_data().encode('utf-8'),
+            'specified_client_id': base.get_pregenerated_random_data().encode('ascii'),
+            'raw_data': base.get_pregenerated_random_data().encode('ascii'),
             'empty': b'',
         }
         return context
@@ -209,8 +209,8 @@ class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
         data = {'specified_client_id': specified_acrastruct,
                 'default_client_id': default_acrastruct,
                 'id': row_id,
-                'masked_prefix': base.get_pregenerated_random_data().encode('utf-8'),
-                'token_bytes': base.get_pregenerated_random_data().encode('utf-8'),
+                'masked_prefix': base.get_pregenerated_random_data().encode('ascii'),
+                'token_bytes': base.get_pregenerated_random_data().encode('ascii'),
                 'token_str': base.get_pregenerated_random_data(),
                 'token_i64': base.random.randint(0, 2 ** 32),
                 }
@@ -422,16 +422,16 @@ class BaseSearchableTransparentEncryption(TestTransparentEncryption):
     def get_context_data(self):
         context = {
             'id': base.get_random_id(),
-            'default_client_id': base.get_pregenerated_random_data().encode('utf-8'),
+            'default_client_id': base.get_pregenerated_random_data().encode('ascii'),
             'number': base.get_random_id(),
-            'specified_client_id': base.get_pregenerated_random_data().encode('utf-8'),
-            'raw_data': base.get_pregenerated_random_data().encode('utf-8'),
-            'searchable': base.get_pregenerated_random_data().encode('utf-8'),
-            'searchable_acrablock': base.get_pregenerated_random_data().encode('utf-8'),
+            'specified_client_id': base.get_pregenerated_random_data().encode('ascii'),
+            'raw_data': base.get_pregenerated_random_data().encode('ascii'),
+            'searchable': base.get_pregenerated_random_data().encode('ascii'),
+            'searchable_acrablock': base.get_pregenerated_random_data().encode('ascii'),
             'empty': b'',
             'nullable': None,
-            'masking': base.get_pregenerated_random_data().encode('utf-8'),
-            'token_bytes': base.get_pregenerated_random_data().encode('utf-8'),
+            'masking': base.get_pregenerated_random_data().encode('ascii'),
+            'token_bytes': base.get_pregenerated_random_data().encode('ascii'),
             'token_email': base.get_pregenerated_random_data(),
             'token_str': base.get_pregenerated_random_data(),
             'token_i32': base.random.randint(0, 2 ** 16),
@@ -1233,7 +1233,7 @@ class TestSearchableTransparentEncryptionWithJOINs(BaseSearchableTransparentEncr
         self.insertRow(context)
         self.insertDifferentRows(context, count=5)
 
-        search_term_join = base.get_pregenerated_random_data().encode('utf-8')
+        search_term_join = base.get_pregenerated_random_data().encode('ascii')
         context['searchable'] = search_term_join
 
         # Insert the same data into encryptor_table_join table with different search term
