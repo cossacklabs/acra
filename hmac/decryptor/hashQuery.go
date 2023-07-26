@@ -138,7 +138,7 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObjec
 
 		// substring(column, 1, <HMAC_size>) = 'value' ===> substring(column, 1, <HMAC_size>) = <HMAC('value')>
 		// substring(column, 1, <HMAC_size>) = $1      ===> no changes
-		err := queryEncryptor.UpdateExpressionValue(ctx, item.Expr.Right, encryptor.coder, encryptor.calculateHmac)
+		err := queryEncryptor.UpdateExpressionValue(ctx, item.Expr.Right, encryptor.coder, item.Setting, encryptor.calculateHmac)
 		if err != nil {
 			logrus.WithError(err).Debugln("Failed to update expression")
 			return query, false, err

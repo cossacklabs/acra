@@ -1,3 +1,6 @@
+# 0.96.0 - 2023-07-26
+- Improve unicode support
+
 # 0.96.0 - 2023-03-06
 - Added support of PreparedStatement from SQL for PostgreSQL;
 

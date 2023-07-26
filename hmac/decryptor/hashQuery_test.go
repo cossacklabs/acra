@@ -199,7 +199,7 @@ func TestSearchableWithTextFormat(t *testing.T) {
 		hmacValue, err := encryptor.calculateHmac(ctx, []byte(dataQueryPart))
 		assert.NoError(t, err)
 
-		newData, err := coder.Encode(rightVal, hmacValue)
+		newData, err := coder.Encode(rightVal, hmacValue, &config.BasicColumnEncryptionSetting{})
 		assert.NoError(t, err)
 		assert.Equal(t, len(rightVal.Val), len(newData))
 	}

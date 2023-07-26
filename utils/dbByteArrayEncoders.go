@@ -24,6 +24,8 @@ import (
 	"github.com/lib/pq"
 	"github.com/sirupsen/logrus"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // EncodeToOctal escape string
@@ -49,37 +51,46 @@ var ErrDecodeOctalString = errors.New("can't decode escaped string")
 // DecodeOctal escaped string
 // See https://www.postgresql.org/docs/current/static/datatype-binary.html#AEN5667
 func DecodeOctal(data []byte) ([]byte, error) {
+	text := []rune(BytesToString(data))
 	output := make([]byte, 0, len(data))
-	for i := 0; i < len(data); i++ {
-		ch := data[i]
-		if !IsPrintableEscapeChar(ch) {
+	var buf [4]byte
+	for i := 0; i < len(text); i++ {
+		ch := text[i]
+		if unicode.IsControl(ch) {
 			return nil, ErrDecodeOctalString
 		}
 		if ch != '\\' {
-			output = append(output, ch)
+			n := utf8.EncodeRune(buf[:], ch)
+			output = append(output, buf[:n]...)
 			continue
 		}
-		if i >= len(data)-1 {
+		if i >= len(text)-1 {
 			logrus.Debugln("Encoded string incomplete")
 			return nil, ErrDecodeOctalString
 		}
-		if data[i+1] == '\\' {
+		if text[i+1] == '\\' {
 			output = append(output, '\\')
 			i++
 			continue
 		}
-		if i+3 >= len(data) {
+		if i+3 >= len(text) {
 			logrus.Debugln("Encoded string incomplete")
 			return nil, ErrDecodeOctalString
 		}
 		b := byte(0)
 		for j := 1; j <= 3; j++ {
-			octDigit := data[i+j]
+			octDigit := text[i+j]
 			if octDigit < '0' || octDigit > '7' {
 				logrus.Debugln("Invalid bytea escape sequence")
 				return nil, ErrDecodeOctalString
 			}
-			b = (b << 3) | (octDigit - '0')
+			n := utf8.EncodeRune(buf[:], octDigit)
+			if n != 1 {
+				logrus.Debugln("Unexpected digit symbol")
+				return nil, ErrDecodeOctalString
+			}
+
+			b = (b << 3) | (buf[0] - '0')
 		}
 		output = append(output, b)
 		i += 3
