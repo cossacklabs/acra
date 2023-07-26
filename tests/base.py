@@ -1070,7 +1070,7 @@ class MysqlConnectorCExecutor(QueryExecutor):
         if args is None:
             args = []
         with contextlib.closing(mysql.connector.connect(
-                use_unicode=True, raw=self.connection_args.raw, charset='utf8',
+                use_unicode=True, raw=self.connection_args.raw, charset='utf8mb4',
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user,
                 password=self.connection_args.password,
@@ -1089,7 +1089,7 @@ class MysqlConnectorCExecutor(QueryExecutor):
         if args is None:
             args = []
         with contextlib.closing(mysql.connector.connect(
-                use_unicode=True, charset='utf8',
+                use_unicode=True, charset='utf8mb4',
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user,
                 password=self.connection_args.password,
@@ -1108,7 +1108,7 @@ class MysqlConnectorCExecutor(QueryExecutor):
         if args is None:
             args = []
         with contextlib.closing(mysql.connector.connect(
-                use_unicode=True, charset='utf8',
+                use_unicode=True, charset='utf8mb4',
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user,
                 password=self.connection_args.password,
@@ -1137,7 +1137,7 @@ class MysqlExecutor(QueryExecutor):
         if args is None:
             args = []
         with contextlib.closing(mysql.connector.connection.MySQLConnection(
-                use_unicode=False, raw=self.connection_args.raw, charset='utf8',
+                use_unicode=True, raw=self.connection_args.raw, charset='utf8mb4',
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user,
                 password=self.connection_args.password,
@@ -1156,7 +1156,7 @@ class MysqlExecutor(QueryExecutor):
         if args is None:
             args = []
         with contextlib.closing(mysql.connector.connection.MySQLConnection(
-                use_unicode=False, charset='utf8',
+                use_unicode=True, charset='utf8mb4',
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user,
                 password=self.connection_args.password,
@@ -1175,7 +1175,7 @@ class MysqlExecutor(QueryExecutor):
         if args is None:
             args = []
         with contextlib.closing(mysql.connector.connection.MySQLConnection(
-                use_unicode=False, charset='utf8',
+                use_unicode=True, charset='utf8mb4',
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user,
                 password=self.connection_args.password,

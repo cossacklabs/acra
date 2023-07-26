@@ -9,7 +9,7 @@ ddt==1.4.2
 semver==2.13.0
 requests==2.31.0
 # driver with binary prepared statements support
-#mysql-connector-python==8.0.11
+mysql-connector-python==8.1.0
 pyyaml==5.4.1
 hvac==0.10.11
 # https://grpc.io/docs/quickstart/python.html

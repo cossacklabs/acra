@@ -340,8 +340,7 @@ class TestMySQLBinaryFormatTypeAwareDecryptionWithDefaults(TestMySQLTextFormatTy
             .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
         row = self.executor1.execute_prepared_statement(query, args)[0]
 
-        # mysql bytes response present bytearray type not bytes
-        self.assertIsInstance(row['value_bytes'], type(bytearray(data['value_bytes'])))
+        self.assertIsInstance(row['value_bytes'], str)
 
         for column in columns:
             self.assertEqual(data[column], row[column])
@@ -351,7 +350,7 @@ class TestMySQLBinaryFormatTypeAwareDecryptionWithDefaults(TestMySQLTextFormatTy
 
         # mysql bytes response present bytearray type not bytes
         self.assertNotEqual(row['value_bytes'], bytearray(data['value_bytes']))
-        self.assertEqual(row['value_bytes'], bytearray(default_expected_values['value_bytes']))
+        self.assertEqual(row['value_bytes'].encode('utf-8'), default_expected_values['value_bytes'])
 
         for column in columns:
             if 'empty' in column:
