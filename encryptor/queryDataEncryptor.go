@@ -161,18 +161,18 @@ func (encryptor *QueryDataEncryptor) encryptInsertQuery(ctx context.Context, ins
 var ErrUpdateLeaveDataUnchanged = errors.New("updateFunc didn't change data")
 
 // UpdateExpressionValue decode value from DB related string to binary format, call updateFunc, encode to DB string format and replace value in expression with new
-func UpdateExpressionValue(ctx context.Context, expr sqlparser.Expr, coder DBDataCoder, updateFunc func(context.Context, []byte) ([]byte, error)) error {
+func UpdateExpressionValue(ctx context.Context, expr sqlparser.Expr, coder DBDataCoder, setting config.ColumnEncryptionSetting, updateFunc func(context.Context, []byte) ([]byte, error)) error {
 	switch val := expr.(type) {
 	case *sqlparser.UnaryExpr:
-		return UpdateUnaryExpressionValue(ctx, expr.(*sqlparser.UnaryExpr), coder, updateFunc)
+		return UpdateUnaryExpressionValue(ctx, expr.(*sqlparser.UnaryExpr), coder, setting, updateFunc)
 	// Update Parenthese expression like  `('AAAA')` just by processing inner
 	// expression 'AAAA'.
 	case *sqlparser.ParenExpr:
-		return UpdateExpressionValue(ctx, expr.(*sqlparser.ParenExpr).Expr, coder, updateFunc)
+		return UpdateExpressionValue(ctx, expr.(*sqlparser.ParenExpr).Expr, coder, setting, updateFunc)
 	case *sqlparser.SQLVal:
 		switch val.Type {
 		case sqlparser.StrVal, sqlparser.HexVal, sqlparser.PgEscapeString, sqlparser.IntVal, sqlparser.HexNum:
-			rawData, err := coder.Decode(val)
+			rawData, err := coder.Decode(val, setting)
 			if err != nil {
 				if err == utils.ErrDecodeOctalString || err == errUnsupportedExpression {
 					logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeSQLValue).
@@ -190,7 +190,7 @@ func UpdateExpressionValue(ctx context.Context, expr sqlparser.Expr, coder DBDat
 			if len(newData) == len(rawData) && bytes.Equal(newData, rawData) {
 				return ErrUpdateLeaveDataUnchanged
 			}
-			coded, err := coder.Encode(expr, newData)
+			coded, err := coder.Encode(expr, newData, setting)
 			if err != nil {
 				return err
 			}
@@ -202,12 +202,12 @@ func UpdateExpressionValue(ctx context.Context, expr sqlparser.Expr, coder DBDat
 
 // UpdateUnaryExpressionValue updates supported unary expression
 // By now, supported are only `_binary` charsets, that are parsed as unary expr.
-func UpdateUnaryExpressionValue(ctx context.Context, expr *sqlparser.UnaryExpr, coder DBDataCoder, updateFunc func(context.Context, []byte) ([]byte, error)) error {
+func UpdateUnaryExpressionValue(ctx context.Context, expr *sqlparser.UnaryExpr, coder DBDataCoder, setting config.ColumnEncryptionSetting, updateFunc func(context.Context, []byte) ([]byte, error)) error {
 	switch unaryVal := expr.Expr.(type) {
 	case *sqlparser.SQLVal:
 		switch strings.TrimSpace(expr.Operator) {
 		case "_binary":
-			return UpdateExpressionValue(ctx, unaryVal, coder, updateFunc)
+			return UpdateExpressionValue(ctx, unaryVal, coder, setting, updateFunc)
 		}
 	}
 	return nil
@@ -216,14 +216,14 @@ func UpdateUnaryExpressionValue(ctx context.Context, expr *sqlparser.UnaryExpr, 
 // encryptExpression check that expr is SQLVal and has Hexval then try to encrypt
 func (encryptor *QueryDataEncryptor) encryptExpression(ctx context.Context, expr sqlparser.Expr, schema config.TableSchema, columnName string, bindPlaceholder map[int]config.ColumnEncryptionSetting) (bool, error) {
 	if schema.NeedToEncrypt(columnName) {
+		setting := schema.GetColumnEncryptionSettings(columnName)
 		if sqlVal, ok := expr.(*sqlparser.SQLVal); ok {
 			placeholderIndex, err := ParsePlaceholderIndex(sqlVal)
 			if err == nil {
-				setting := schema.GetColumnEncryptionSettings(columnName)
 				bindPlaceholder[placeholderIndex] = setting
 			}
 		}
-		err := UpdateExpressionValue(ctx, expr, encryptor.dataCoder, func(ctx context.Context, data []byte) ([]byte, error) {
+		err := UpdateExpressionValue(ctx, expr, encryptor.dataCoder, setting, func(ctx context.Context, data []byte) ([]byte, error) {
 			if len(data) == 0 {
 				return data, nil
 			}

@@ -85,7 +85,7 @@ func (encryptor *TokenizeQuery) OnQuery(ctx context.Context, query base.OnQueryO
 
 		encryptor.searchableQueryFilter.ChangeSearchableOperator(item.Expr)
 
-		err = queryEncryptor.UpdateExpressionValue(ctx, item.Expr.Right, encryptor.coder, encryptor.getTokenizerDataWithSetting(item.Setting))
+		err = queryEncryptor.UpdateExpressionValue(ctx, item.Expr.Right, encryptor.coder, item.Setting, encryptor.getTokenizerDataWithSetting(item.Setting))
 		if err != nil {
 			logrus.WithError(err).Debugln("Failed to update expression")
 			return query, false, err
