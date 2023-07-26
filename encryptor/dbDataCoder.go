@@ -201,7 +201,7 @@ func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr, setting config.ColumnE
 }
 
 // Encode data to correct literal from binary data for this expression
-func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte, _ config.ColumnEncryptionSetting) ([]byte, error) {
+func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
 		switch val.Type {
@@ -222,12 +222,25 @@ func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte, _ config.
 			// otherwise change type and pass it below for hex encoding
 			val.Type = sqlparser.PgEscapeString
 			fallthrough
-		case sqlparser.StrVal, sqlparser.PgEscapeString:
-			// valid strings we pass as is without extra encoding
-			if utils.IsPrintablePostgresqlString(data) {
-				return data, nil
+		case sqlparser.PgEscapeString:
+			// if type is not byte array, then it probably string or int and we pass printable strings
+			if setting.GetDBDataTypeID() != 0 && setting.GetDBDataTypeID() != pgtype.ByteaOID {
+				// valid strings we pass as is without extra encoding
+				if utils.IsPrintablePostgresqlString(data) {
+					return data, nil
+				}
 			}
-			// bytea type accepts strings with hex/octal encoding, just encode
+			// valid string can contain escaped symbols, or tokenizer may generate string with symbols that should be escaped
+			return utils.EncodeToOctal(data), nil
+		case sqlparser.StrVal:
+			// if type is not byte array, then it probably string or int and we pass printable strings
+			if setting.GetDBDataTypeID() != 0 && setting.GetDBDataTypeID() != pgtype.ByteaOID {
+				// valid strings we pass as is without extra encoding
+				if utils.IsPrintablePostgresqlString(data) {
+					return data, nil
+				}
+			}
+			// byte array can be valid hex/octal encoded value, eventually we should encode it as binary data
 			return PgEncodeToHexString(data), nil
 		}
 	}
