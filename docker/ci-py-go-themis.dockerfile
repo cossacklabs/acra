@@ -70,11 +70,11 @@ WORKDIR /home/user
 ENV PATH="$GOROOT/bin:/home/user/gopath/bin:/home/user/.local/bin:$PATH"
 
 # Install some Go linters
-RUN go install golang.org/x/lint/golint@latest && \
-    go install github.com/client9/misspell/cmd/misspell@latest && \
-    go install golang.org/x/tools/cmd/goyacc@latest && \
-    go install github.com/swaggo/swag/cmd/swag@latest && \
-    go install github.com/gordonklaus/ineffassign@latest
+RUN go install golang.org/x/lint/golint@v0.0.0-20210508222113-6edffad5e616 && \
+    go install github.com/client9/misspell/cmd/misspell@v0.3.4 && \
+    go install golang.org/x/tools/cmd/goyacc@v0.11.0 && \
+    go install github.com/swaggo/swag/cmd/swag@v1.16.1 && \
+    go install github.com/gordonklaus/ineffassign@v0.0.0-20230610083614-0e73809eb601
 
 # download dependencies to avoid next downloads in tests
 RUN cp /image.scripts/go.mod . && go mod download && rm go.mod go.sum

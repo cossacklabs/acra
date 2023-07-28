@@ -323,7 +323,7 @@ func (p *PreparedStatementFieldTracker) ParamsTrackHandler(ctx context.Context, 
 		if p.columnsNum > 0 {
 			p.proxyHandler.setQueryHandler(p.ColumnsTrackHandler)
 		} else {
-			if p.proxyHandler.protocolState.GetStmtID() == 0xFFFFFFFF {
+			if p.proxyHandler.protocolState.GetStmtID() == MariaDBDirectStatementID {
 				p.proxyHandler.setQueryHandler(p.proxyHandler.QueryResponseHandler)
 			}
 		}

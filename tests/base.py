@@ -21,8 +21,8 @@ from base64 import b64decode, b64encode
 from contextlib import closing
 from urllib.parse import urlparse
 
-import mariadb
 import asyncpg
+import mariadb
 import mysql.connector
 import psycopg as psycopg3
 import psycopg2

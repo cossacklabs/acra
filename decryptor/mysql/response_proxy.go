@@ -113,49 +113,51 @@ func defaultResponseHandler(ctx context.Context, packet *Packet, _, clientConnec
 	return nil
 }
 
-// Capability represent MariaDB/MySQL capability with indicator set on client and server
-type Capability struct {
-	ServerCapability bool
-	ClientCapability bool
-}
-
-// SetClient set client capability
-func (c *Capability) SetClient(cap bool) {
-	c.ClientCapability = cap
-}
-
-// SetSever set server capability
-func (c *Capability) SetSever(cap bool) {
-	c.ServerCapability = cap
-}
-
-// IsSet check weather capability is set on server and client
-func (c *Capability) IsSet() bool {
-	return c.ClientCapability == true && c.ServerCapability == true
-}
-
 // Capabilities represent list of capabilities between client and server
 type Capabilities struct {
-	Protocol41                    Capability
-	MariaDBCacheMetadata          Capability
-	MariaDBClientExtendedTypeInfo Capability
-	// clientDeprecateEOF  if false then expect EOF on response result as terminator otherwise not
-	ClientDeprecateEOF bool
+	Client, Server                 uint32
+	ClientExtended, ServerExtended uint32
+}
+
+func (c *Capabilities) SetClientCapabilities(cap, extendedCap uint32) {
+	c.Client = cap
+	c.ClientExtended = extendedCap
+}
+
+func (c *Capabilities) SetServerCapabilities(cap, extendedCap uint32) {
+	c.Server = cap
+	c.ServerExtended = extendedCap
 }
 
 // IsSetProtocol41 return true if Protocol41 capability set
-func (c Capabilities) IsSetProtocol41() bool {
-	return c.Protocol41.IsSet()
+func (c *Capabilities) IsSetProtocol41() bool {
+	return (c.Server&ClientProtocol41) > 0 && (c.Client&ClientProtocol41) > 0
 }
 
 // IsSetMariaDBCacheMetadata return true if MariaDBCacheMetadata capability set
-func (c Capabilities) IsSetMariaDBCacheMetadata() bool {
-	return c.MariaDBCacheMetadata.IsSet()
+func (c *Capabilities) IsSetMariaDBCacheMetadata() bool {
+	return (c.ServerExtended&MariaDBClientCacheMetadata) > 0 && (c.ClientExtended&MariaDBClientCacheMetadata) > 0
 }
 
 // IsSetMariaDBClientExtendedTypeInfo return true if MariaDBClientExtendedTypeInfo capability set
-func (c Capabilities) IsSetMariaDBClientExtendedTypeInfo() bool {
-	return c.MariaDBClientExtendedTypeInfo.IsSet()
+func (c *Capabilities) IsSetMariaDBClientExtendedTypeInfo() bool {
+	return (c.ServerExtended&MariaDBClientExtendedTypeInfo) > 0 && (c.ClientExtended&MariaDBClientExtendedTypeInfo) > 0
+}
+
+// IsClientDeprecateEOF return true if flag set
+// https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_DEPRECATE_EOF
+func (c *Capabilities) IsClientDeprecateEOF() bool {
+	return (c.Client & ClientDeprecateEOF) > 0
+}
+
+// IsClientSetProtocol41 return true if flag set
+func (c *Capabilities) IsClientSetProtocol41() bool {
+	return (c.Client & ClientProtocol41) > 0
+}
+
+// IsSSLRequest return true if SslRequest flag up
+func (c *Capabilities) IsSSLRequest() bool {
+	return (c.Client & SslRequest) > 0
 }
 
 // Handler handles connection between client and MySQL db
@@ -282,10 +284,7 @@ func (handler *Handler) ProxyClientConnection(ctx context.Context, errCh chan<- 
 		handler.dbConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 		if firstPacket {
 			firstPacket = false
-			handler.Capabilities.ClientDeprecateEOF = packet.IsClientDeprecateEOF()
-			handler.Capabilities.Protocol41.SetClient(packet.ClientSupportProtocol41())
-			handler.Capabilities.MariaDBClientExtendedTypeInfo.SetClient(packet.MariaDBClientExtendedTypeInfoClientCapability())
-			handler.Capabilities.MariaDBCacheMetadata.SetClient(packet.MariaDBClientCacheMetadataClientCapability())
+			handler.Capabilities.SetClientCapabilities(packet.getClientCapabilities(), packet.getClientExtendedMariaDBCapabilities())
 
 			if handler.Capabilities.IsSetMariaDBClientExtendedTypeInfo() {
 				handler.logger.Debugf("MARIADB_CLIENT_EXTENDED_TYPE_INFO flag SET")
@@ -295,8 +294,8 @@ func (handler *Handler) ProxyClientConnection(ctx context.Context, errCh chan<- 
 				handler.logger.Debugf("MARIADB_CLIENT_CACHE_METADATA flag SET")
 			}
 
-			clientLog = clientLog.WithField("deprecate_eof", handler.Capabilities.ClientDeprecateEOF)
-			if packet.IsSSLRequest() {
+			clientLog = clientLog.WithField("deprecate_eof", handler.Capabilities.IsClientDeprecateEOF())
+			if handler.Capabilities.IsSSLRequest() {
 				if handler.setting.TLSConnectionWrapper() == nil {
 					handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used " +
 						"for connections AcraServer->Database and CA certificate which will be used to verify certificate " +
@@ -474,6 +473,12 @@ func getParamsCount(stmt sqlparser.Statement) (int, error) {
 }
 
 func (handler *Handler) handleStatementExecute(ctx context.Context, packet *Packet) (uint32, error) {
+	packetData := packet.GetData()
+	if len(packetData) < 2 {
+		handler.logger.Debug("Execute statement packet has not enough data")
+		return 0, ErrInvalidResponseLength
+	}
+
 	var (
 		paramsNumber int
 		statement    sqlparser.Statement
@@ -688,7 +693,7 @@ func (handler *Handler) extractData(pos int, rowData []byte, field *ColumnDescri
 }
 
 func (handler *Handler) expectEOFOnColumnDefinition() bool {
-	return !handler.Capabilities.ClientDeprecateEOF
+	return !handler.Capabilities.IsClientDeprecateEOF()
 }
 
 func (handler *Handler) isPreparedStatementResult() bool {
@@ -721,6 +726,12 @@ func (handler *Handler) QueryResponseHandler(ctx context.Context, packet *Packet
 	// first byte of payload is field count
 	// https://dev.mysql.com/doc/internals/en/com-query-response.html#text-resultset
 	packetData := packet.GetData()
+
+	if len(packetData) == 0 {
+		handler.logger.Debugln("QueryResponseHandler length packet is not enough")
+		return ErrInvalidResponseLength
+	}
+
 	fieldCount := int(packetData[0])
 
 	// MariaDB sends `send_metadata` qualifier that says send ColumnDef packets or not
@@ -738,7 +749,7 @@ func (handler *Handler) QueryResponseHandler(ctx context.Context, packet *Packet
 			// we should ignore Column Definition packets
 			fields = handler.protocolState.fields
 
-			if !handler.Capabilities.ClientDeprecateEOF {
+			if !handler.Capabilities.IsClientDeprecateEOF() {
 				eofPacket, err := ReadPacket(dbConnection)
 				if err != nil {
 					handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantProcessColumn).
@@ -976,11 +987,10 @@ func (handler *Handler) ProxyDatabaseConnection(ctx context.Context, errCh chan<
 			continue
 		case stateFirstPacket:
 			state = stateServe
-			handler.Capabilities.Protocol41.SetSever(packet.ServerSupportProtocol41())
-			handler.Capabilities.MariaDBClientExtendedTypeInfo.SetSever(packet.MariaDBClientExtendedTypeInfoServerCapability())
-			handler.Capabilities.MariaDBCacheMetadata.SetSever(packet.MariaDBClientCacheMetadataServerCapability())
+			serverCapabilities := packet.getServerCapabilities()
+			handler.Capabilities.SetServerCapabilities(serverCapabilities, packet.getExtendedMariaDBCapabilities())
 
-			serverLog.Debugf("Set support protocol 41 %v", handler.Capabilities.Protocol41.ServerCapability)
+			serverLog.Debugf("Set DB support protocol 41 %v", serverCapabilities)
 			fallthrough
 
 		case stateServe:
@@ -1014,7 +1024,7 @@ func (handler *Handler) ProxyDatabaseConnection(ctx context.Context, errCh chan<
 
 // sendClientError sends an `QueryInterruptedError` with a custom message
 func (handler *Handler) sendClientError(msg string, packet *Packet) error {
-	errPacket := NewQueryInterruptedError(handler.Capabilities.Protocol41.ClientCapability, msg)
+	errPacket := NewQueryInterruptedError(handler.Capabilities.IsClientSetProtocol41(), msg)
 	packet.SetData(errPacket)
 	_, err := handler.clientConnection.Write(packet.Dump())
 	return err
