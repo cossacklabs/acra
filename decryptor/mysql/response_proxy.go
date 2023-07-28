@@ -119,11 +119,13 @@ type Capabilities struct {
 	ClientExtended, ServerExtended uint32
 }
 
+// SetClientCapabilities set client default and extended capabilities
 func (c *Capabilities) SetClientCapabilities(cap, extendedCap uint32) {
 	c.Client = cap
 	c.ClientExtended = extendedCap
 }
 
+// SetServerCapabilities set server default and extended capabilities
 func (c *Capabilities) SetServerCapabilities(cap, extendedCap uint32) {
 	c.Server = cap
 	c.ServerExtended = extendedCap
