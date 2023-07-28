@@ -1,0 +1,11 @@
+version: '3'
+
+services:
+  mydb:
+    image: cossacklabs/mariadb-ssl:10.7.1
+    environment:
+      MYSQL_DATABASE: test
+      MYSQL_USER: test
+      MYSQL_PASSWORD: test
+      MYSQL_ROOT_PASSWORD: root
+    ports: [ "3306:3306" ]

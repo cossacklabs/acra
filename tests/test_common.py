@@ -83,8 +83,16 @@ class MysqlExecutorMixin(ExecutorMixin):
 
 
 class MariaDBExecutorMixin(ExecutorMixin):
+    def checkSkip(self):
+        if not base.TEST_MARIADB:
+            self.skipTest("test only for MariaDB")
+
+    # MariaDB used socket auth by default and in case of localhost trying to connect to unix socket
     def get_db_host(self):
-        return '127.0.0.1'
+        if base.DB_HOST == 'localhost':
+            return '127.0.0.1'
+        else:
+            return base.DB_HOST
 
     executor_cls = base.MariaDBExecutor
 
