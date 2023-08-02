@@ -495,6 +495,22 @@ class BaseSearchableTransparentEncryptionBinaryMySQLMixin(test_common.BaseBinary
         return self.executor2.execute_prepared_statement_no_result(query, parameters)
 
 
+class BaseSearchableTransparentEncryptionBinaryMariaDBMixin(test_common.BaseBinaryMariaDBTestCase,
+                                                            test_common.BaseTestCase):
+    def executeSelect2(self, query, parameters):
+        query, parameters = self.compileQuery(query, parameters)
+        return self.executor2.execute_prepared_statement(query, parameters)
+
+    def execute_via_2(self, query, parameters):
+        query, parameters = self.compileQuery(query, parameters)
+        return self.executor2.execute_prepared_statement_no_result(query, parameters)
+
+    def executeBulkInsert(self, query, values):
+        """Execute a Bulk Insert query with list of values via AcraServer for "TEST_TLS_CLIENT_2_CERT"."""
+        query, parameters = self.compileBulkInsertQuery(query.values(values), values)
+        return self.executor2.execute_prepared_statement_no_result(query, parameters)
+
+
 class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
     def get_result_len(self, result):
         '''returns len of object as rowcount field or len() call
@@ -1315,6 +1331,11 @@ class TestSearchableTransparentEncryptionBinaryPostgreSQL(BaseSearchableTranspar
 
 class TestSearchableTransparentEncryptionBinaryMySQL(BaseSearchableTransparentEncryptionBinaryMySQLMixin,
                                                      TestSearchableTransparentEncryption):
+    pass
+
+
+class TestSearchableTransparentEncryptionBinaryMariaDB(BaseSearchableTransparentEncryptionBinaryMariaDBMixin,
+                                                       TestSearchableTransparentEncryption):
     pass
 
 

@@ -1,12 +1,13 @@
 package tests
 
 import (
-	"github.com/stretchr/testify/assert"
 	"net"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // TestWithTLS returns true if integration tests should run with TLS configuration
@@ -32,6 +33,14 @@ func CheckConnection(t *testing.T, endpoint string) {
 		return
 	}
 	assert.Nil(t, err, "Can't connect to test database")
+}
+
+// GetFreePortForListener open new connection on free port
+func GetFreePortForListener(t *testing.T) int {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err)
+	assert.Nil(t, listener.Close())
+	return listener.Addr().(*net.TCPAddr).Port
 }
 
 // GetSourceRootDirectory expects that tests started from root of source code and accessible tests/ssl folder, otherwise try to walk

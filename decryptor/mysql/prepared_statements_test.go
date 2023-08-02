@@ -103,7 +103,7 @@ schemas:
 		resPacket := NewPacket()
 		// without header which is 4 bytes
 		resPacket.SetData(resData[4:])
-		resDesc, err := ParseResultField(resPacket)
+		resDesc, err := ParseResultField(resPacket, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -166,7 +166,7 @@ func TestParamsTrackHandler(t *testing.T) {
 			resPacket := NewPacket()
 			// without header which is 4 bytes
 			resPacket.SetData(resData[4:])
-			resField, err := ParseResultField(resPacket)
+			resField, err := ParseResultField(resPacket, false)
 			if err != nil {
 				t.Fatal(err)
 			}

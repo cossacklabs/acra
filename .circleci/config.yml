@@ -2,32 +2,32 @@ version: 2
 jobs:
   build_binaries:
     docker:
-      - image: cossacklabs/ci-py-go-themis:0.93.0
+      - image: cossacklabs/ci-py-go-themis:0.95.0
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       GO_VERSIONS: 1.19
     steps:
-        # prepare
-        - checkout
-        - run:
-            command: python3 tests/generate_random_data.py
-            environment:
-              TEST_RANDOM_DATA_FOLDER: /tmp/test_data
-        - run:
-            command: ".circleci/build_binaries.sh"
-            environment:
-              OUTPUT_FOLDER: /tmp/acra-binaries
-        - save_cache:
-            # cache only for one commit, don't cache between commits because binaries should be changed
-            # but it's okay to cache them for same commit because it will avoid re-building on re-run commands
-            key: integration_tests_preparements_.{{ .Revision }}
-            paths:
-              - /tmp/test_data
-              - /tmp/acra-binaries
+      # prepare
+      - checkout
+      - run:
+          command: python3 tests/generate_random_data.py
+          environment:
+            TEST_RANDOM_DATA_FOLDER: /tmp/test_data
+      - run:
+          command: ".circleci/build_binaries.sh"
+          environment:
+            OUTPUT_FOLDER: /tmp/acra-binaries
+      - save_cache:
+          # cache only for one commit, don't cache between commits because binaries should be changed
+          # but it's okay to cache them for same commit because it will avoid re-building on re-run commands
+          key: integration_tests_preparements_.{{ .Revision }}
+          paths:
+            - /tmp/test_data
+            - /tmp/acra-binaries
 
   general_validation:
     docker:
-      - image: cossacklabs/ci-py-go-themis:0.93.0
+      - image: cossacklabs/ci-py-go-themis:0.95.0
       - image: cossacklabs/vault-ssl:1.6.2
         command: server -dev -dev-root-token-id="root_token"
         environment:
@@ -37,9 +37,9 @@ jobs:
       - image: redis:6.0.16-alpine
       # run one more redis container with tls support on 6380 port
       - image: cossacklabs/redis-ssl:7.0-alpine
-        command: ['--tls-cert-file /tmp.ssl/redis.crt', '--tls-key-file /tmp.ssl/redis.key',
-                  '--tls-ca-cert-file /tmp.ssl/ca.crt', '--tls-auth-clients yes',
-                  '--port 0', '--tls-port 6380']
+        command: [ '--tls-cert-file /tmp.ssl/redis.crt', '--tls-key-file /tmp.ssl/redis.key',
+                   '--tls-ca-cert-file /tmp.ssl/ca.crt', '--tls-auth-clients yes',
+                   '--port 0', '--tls-port 6380' ]
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       GO_VERSIONS: 1.19
@@ -92,7 +92,7 @@ jobs:
 
   postgresql-ssl:
     docker:
-      - image: cossacklabs/ci-py-go-themis:0.93.0
+      - image: cossacklabs/ci-py-go-themis:0.95.0
       - image: cossacklabs/postgresql-ssl:11-1
         environment:
           POSTGRES_PASSWORD: test
@@ -149,7 +149,7 @@ jobs:
 
   postgresql:
     docker:
-      - image: cossacklabs/ci-py-go-themis:0.93.0
+      - image: cossacklabs/ci-py-go-themis:0.95.0
       - image: postgres:11-alpine
         environment:
           POSTGRES_PASSWORD: test
@@ -206,7 +206,7 @@ jobs:
 
   postgresql-integrations:
     docker:
-      - image: cossacklabs/ci-py-go-themis:0.93.0
+      - image: cossacklabs/ci-py-go-themis:0.95.0
       - image: nsmithuk/local-kms:3.11.2
       - image: consul:1.13
       - image: cossacklabs/postgresql-ssl:11-1
@@ -265,7 +265,7 @@ jobs:
 
   postgresql-integrations-ssl:
     docker:
-      - image: cossacklabs/ci-py-go-themis:0.93.0
+      - image: cossacklabs/ci-py-go-themis:0.95.0
       - image: cossacklabs/postgresql-ssl:11-1
         environment:
           POSTGRES_PASSWORD: test
@@ -326,7 +326,7 @@ jobs:
 
   mariadb-ssl:
     docker:
-      - image: cossacklabs/ci-py-go-themis:0.93.0
+      - image: cossacklabs/ci-py-go-themis:0.95.0
       # use the same credentials for mysql db as for postgresql (which support was added first)
       # has latest tag on 2018.03.29
       - image: cossacklabs/mariadb-ssl:10.7.1
@@ -382,7 +382,7 @@ jobs:
 
   mariadb:
     docker:
-      - image: cossacklabs/ci-py-go-themis:0.93.0
+      - image: cossacklabs/ci-py-go-themis:0.95.0
       # use the same credentials for mysql db as for postgresql (which support was added first)
       # has latest tag on 2018.03.29
       - image: mariadb:latest
@@ -414,6 +414,11 @@ jobs:
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: NUM_PINGS=15 DELAY=1 .circleci/check_mysql_connection.sh
+      - run:
+          command: .circleci/check_gotest.sh
+          environment:
+            - TEST_BUILD_TAGS: "integration,mysql"
+            - GO_VERSIONS: 1.19
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -439,7 +444,7 @@ jobs:
 
   mysql-ssl:
     docker:
-      - image: cossacklabs/ci-py-go-themis:0.94.1
+      - image: cossacklabs/ci-py-go-themis:0.95.0
       # use the same credentials for mysql db as for postgresql (which support was added first)
       # has latest tag on 2018.03.29
       - image: cossacklabs/mysql-ssl:5.7.31-1
@@ -494,7 +499,7 @@ jobs:
 
   mysql:
     docker:
-      - image: cossacklabs/ci-py-go-themis:0.93.0
+      - image: cossacklabs/ci-py-go-themis:0.95.0
       - image: mysql:5.7.25
         environment:
           MYSQL_DATABASE: test
@@ -523,6 +528,11 @@ jobs:
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: NUM_PINGS=15 DELAY=1 .circleci/check_mysql_connection.sh
+      - run:
+          command: .circleci/check_gotest.sh
+          environment:
+            - TEST_BUILD_TAGS: "integration,mysql"
+            - GO_VERSIONS: 1.19
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -548,7 +558,7 @@ jobs:
 
   build_image:
     docker:
-      - image: cossacklabs/ci-py-go-themis:0.93.0
+      - image: cossacklabs/ci-py-go-themis:0.95.0
     steps:
       # prepare
       - checkout

@@ -1,15 +1,17 @@
 package acra_server
 
 import (
+	"os"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
 	"github.com/cossacklabs/acra/cmd/acra-server/common"
 	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils/tests"
 	"github.com/cossacklabs/acra/utils/tests/keystore"
-	"github.com/stretchr/testify/assert"
-	"os"
-	"testing"
 )
 
 // NewDefaultAcraServerConfig returns new common.Config for AcraServer configured with default values from
