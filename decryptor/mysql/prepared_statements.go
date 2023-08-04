@@ -24,13 +24,15 @@ var ErrStatementNotFound = errors.New("no prepared statement with given statemen
 
 // PreparedStatementRegistry is a MySQL PreparedStatementRegistry.
 type PreparedStatementRegistry struct {
-	statements map[string]base.PreparedStatement
+	statements          map[string]base.PreparedStatement
+	querySelectSettings map[string][]*encryptor.QueryDataItem
 }
 
 // NewPreparedStatementRegistry makes a new empty prepared statement registry.
 func NewPreparedStatementRegistry() *PreparedStatementRegistry {
 	return &PreparedStatementRegistry{
-		statements: make(map[string]base.PreparedStatement),
+		statements:          make(map[string]base.PreparedStatement),
+		querySelectSettings: make(map[string][]*encryptor.QueryDataItem),
 	}
 }
 
@@ -42,10 +44,30 @@ func (r *PreparedStatementRegistry) StatementByID(stmtID string) (base.PreparedS
 	return nil, ErrStatementNotFound
 }
 
+// DeleteStatementByID returns a prepared statement from the registry by its id, if it exists.
+func (r *PreparedStatementRegistry) DeleteStatementByID(stmtID string) bool {
+	if _, ok := r.statements[stmtID]; ok {
+		delete(r.statements, stmtID)
+		return ok
+	}
+	return false
+}
+
 // AddStatement adds a prepared statement to the registry.
 // If an existing statement with the same name exists, it is replaced with the new one.
 func (r *PreparedStatementRegistry) AddStatement(statement base.PreparedStatement) {
 	r.statements[statement.Name()] = statement
+}
+
+// AddQuerySettings query settings to the registry
+func (r *PreparedStatementRegistry) AddQuerySettings(stmtID string, settings []*encryptor.QueryDataItem) {
+	r.querySelectSettings[stmtID] = settings
+}
+
+// QuerySettingsByID query setting by stmtID
+func (r *PreparedStatementRegistry) QuerySettingsByID(stmtID string) ([]*encryptor.QueryDataItem, bool) {
+	settings, ok := r.querySelectSettings[stmtID]
+	return settings, ok
 }
 
 // PreparedStatement is a MySQL PreparedStatement.
@@ -57,12 +79,12 @@ type PreparedStatement struct {
 }
 
 // NewPreparedStatement makes a new prepared statement.
-func NewPreparedStatement(response *PrepareStatementResponse, sqlString string, sqlStatement sqlparser.Statement) *PreparedStatement {
+func NewPreparedStatement(statementID uint32, paramsNum uint16, sqlString string, sqlStatement sqlparser.Statement) *PreparedStatement {
 	return &PreparedStatement{
-		name:         strconv.FormatUint(uint64(response.StatementID), 10),
+		name:         strconv.FormatUint(uint64(statementID), 10),
 		sqlString:    sqlString,
 		sqlStatement: sqlStatement,
-		paramsNum:    int(response.ParamsNum),
+		paramsNum:    int(paramsNum),
 	}
 }
 

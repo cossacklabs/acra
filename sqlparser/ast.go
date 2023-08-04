@@ -1761,12 +1761,21 @@ type ColIdent struct {
 	_            [0]struct{ _ []byte }
 	val, lowered string
 	quote        byte
+	unquote      bool
 }
 
 // NewColIdent makes a new ColIdent.
 func NewColIdent(str string) ColIdent {
 	return ColIdent{
 		val: str,
+	}
+}
+
+// NewColIdentUnquote makes a new ColIdent.
+func NewColIdentUnquote(str string) ColIdent {
+	return ColIdent{
+		val:     str,
+		unquote: true,
 	}
 }
 

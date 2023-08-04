@@ -25,6 +25,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
+	"go.opencensus.io/trace"
+
 	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/decryptor/base"
 	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
@@ -32,9 +36,6 @@ import (
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/sqlparser"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
-	"go.opencensus.io/trace"
 )
 
 const (
@@ -737,7 +738,7 @@ func (handler *Handler) PreparedStatementResponseHandler(ctx context.Context, pa
 		handler.logger.WithError(err).Error("Failed to handle prepared statement response packet: can't find prepared statement")
 		return err
 	}
-	handler.registry.AddStatement(NewPreparedStatement(response, queryObj.Query(), statement))
+	handler.registry.AddStatement(NewPreparedStatement(response.StatementID, response.ParamsNum, queryObj.Query(), statement))
 
 	// proxy output
 	handler.logger.Debugln("Proxy output")

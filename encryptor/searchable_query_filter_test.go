@@ -40,12 +40,12 @@ schemas:
 
 		selectQuery := stmt.(*sqlparser.Select)
 		leftExpr := selectQuery.Where.Expr.(*sqlparser.ComparisonExpr).Left
-		var columnInfo columnInfo
+		var columnInfo ColumnInfo
 		switch val := leftExpr.(type) {
 		case *sqlparser.ColName:
-			columnInfo, err = findColumnInfo(selectQuery.From, val, schemaStore)
+			columnInfo, err = FindColumnInfo(selectQuery.From, val, schemaStore)
 		case *sqlparser.SubstrExpr:
-			columnInfo, err = findColumnInfo(selectQuery.From, val.Name, schemaStore)
+			columnInfo, err = FindColumnInfo(selectQuery.From, val.Name, schemaStore)
 		default:
 			t.Fatal("Unexpected type of expr")
 		}

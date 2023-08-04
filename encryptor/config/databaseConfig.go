@@ -16,6 +16,8 @@
 
 package config
 
+const defaultPreparedStatementsSetArgDelim = "__"
+
 // DatabaseSettings stores different database-specific configuration options
 type DatabaseSettings interface {
 	GetMySQLDatabaseSettings() MySQLDatabaseSettings
@@ -25,6 +27,7 @@ type DatabaseSettings interface {
 // MySQLDatabaseSettings stores MySQL-specific configuration
 type MySQLDatabaseSettings interface {
 	GetCaseSensitiveTableIdentifiers() bool
+	GetPreparedStatementsSetArgDelimiter() string
 }
 
 // PostgreSQLDatabaseSettings stores PostgreSQL-specific configuration
@@ -32,7 +35,8 @@ type PostgreSQLDatabaseSettings interface{}
 
 type mysqlSetting struct {
 	// Should we consider table identifiers to be case-sensitive?
-	CaseSensitiveTableIdentifiers *bool `yaml:"case_sensitive_table_identifiers"`
+	CaseSensitiveTableIdentifiers     *bool   `yaml:"case_sensitive_table_identifiers"`
+	PreparedStatementsSetArgDelimiter *string `yaml:"prepared_statements_set_arg_delimiter"`
 }
 
 // GetCaseSensitiveTableIdentifiers returns true if Acra was configured to preserve
@@ -43,6 +47,14 @@ func (settings *mysqlSetting) GetCaseSensitiveTableIdentifiers() bool {
 	}
 
 	return *settings.CaseSensitiveTableIdentifiers
+}
+
+func (settings *mysqlSetting) GetPreparedStatementsSetArgDelimiter() string {
+	if settings.PreparedStatementsSetArgDelimiter == nil {
+		return defaultPreparedStatementsSetArgDelim
+	}
+
+	return *settings.PreparedStatementsSetArgDelimiter
 }
 
 type postgresqlSetting struct{}

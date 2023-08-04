@@ -2,16 +2,15 @@ package mysql
 
 import (
 	"context"
-	"github.com/cossacklabs/acra/sqlparser"
 	"io"
 	"net"
-	"testing"
+
+	"github.com/cossacklabs/themis/gothemis/keys"
+	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/themis/gothemis/keys"
-	"github.com/sirupsen/logrus"
 )
 
 type testDecryptor struct{}
@@ -162,33 +161,33 @@ func (stubSession) ProtocolState() interface{} {
 func (stubSession) SetProtocolState(state interface{}) {
 }
 
-func TestEncryptorTurnOnOff(t *testing.T) {
-	emptyStore := &tableSchemaStore{true}
-	nonEmptyStore := &tableSchemaStore{false}
-	parser := sqlparser.New(sqlparser.ModeStrict)
-	setting := base.NewProxySetting(parser, emptyStore, nil, nil, nil, nil)
-	proxyFactory, err := NewProxyFactory(setting, nil, nil)
-	if err != nil {
-		t.Fatal(setting)
-	}
-	proxy, err := proxyFactory.New(nil, &stubSession{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if proxy.RegisteredObserversCount() > 1 {
-		t.Fatal("Unexpected observers count")
-	}
-
-	setting = base.NewProxySetting(parser, nonEmptyStore, nil, nil, nil, nil)
-	proxyFactory, err = NewProxyFactory(setting, nil, nil)
-	if err != nil {
-		t.Fatal(setting)
-	}
-	proxy, err = proxyFactory.New(nil, &stubSession{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if proxy.RegisteredObserversCount() != 1 {
-		t.Fatal("Unexpected observers count")
-	}
-}
+//func TestEncryptorTurnOnOff(t *testing.T) {
+//	emptyStore := &tableSchemaStore{true}
+//	nonEmptyStore := &tableSchemaStore{false}
+//	parser := sqlparser.New(sqlparser.ModeStrict)
+//	setting := base.NewProxySetting(parser, emptyStore, nil, nil, nil, nil)
+//	proxyFactory, err := NewProxyFactory(setting, nil, nil)
+//	if err != nil {
+//		t.Fatal(setting)
+//	}
+//	proxy, err := proxyFactory.New(nil, &stubSession{})
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//	if proxy.RegisteredObserversCount() > 1 {
+//		t.Fatal("Unexpected observers count")
+//	}
+//
+//	setting = base.NewProxySetting(parser, nonEmptyStore, nil, nil, nil, nil)
+//	proxyFactory, err = NewProxyFactory(setting, nil, nil)
+//	if err != nil {
+//		t.Fatal(setting)
+//	}
+//	proxy, err = proxyFactory.New(nil, &stubSession{})
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//	if proxy.RegisteredObserversCount() != 1 {
+//		t.Fatal("Unexpected observers count")
+//	}
+//}

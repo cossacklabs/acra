@@ -41,6 +41,16 @@ type QueryDataItem struct {
 	columnAlias string
 }
 
+// NewQueryDataItem create new QueryDataItem
+func NewQueryDataItem(setting config.ColumnEncryptionSetting, tableName, columnName, columnAlias string) *QueryDataItem {
+	return &QueryDataItem{
+		setting:     setting,
+		tableName:   tableName,
+		columnName:  columnName,
+		columnAlias: columnAlias,
+	}
+}
+
 // Setting return associated ColumnEncryptionSetting or nil if not found
 func (q *QueryDataItem) Setting() config.ColumnEncryptionSetting {
 	return q.setting
@@ -375,7 +385,7 @@ func (encryptor *QueryDataEncryptor) OnColumn(ctx context.Context, data []byte) 
 const allColumnsName = "*"
 
 func (encryptor *QueryDataEncryptor) onSelect(ctx context.Context, statement *sqlparser.Select) (bool, error) {
-	columns, err := mapColumnsToAliases(statement, encryptor.schemaStore)
+	columns, err := MapColumnsToAliases(statement, encryptor.schemaStore)
 	if err != nil {
 		logrus.WithError(err).Errorln("Can't extract columns from SELECT statement")
 		return false, err
@@ -510,7 +520,7 @@ func (encryptor *QueryDataEncryptor) onReturning(ctx context.Context, returning 
 			continue
 		}
 
-		columnInfo, err := findColumnInfo(fromTables, colName, encryptor.schemaStore)
+		columnInfo, err := FindColumnInfo(fromTables, colName, encryptor.schemaStore)
 		if err != nil {
 			querySelectSettings = append(querySelectSettings, nil)
 			continue

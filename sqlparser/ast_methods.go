@@ -1938,6 +1938,8 @@ func (node ColIdent) FormatForDialect(dialect dialect.Dialect, buf *TrackedBuffe
 		buf.WriteByte(node.quote)
 		buf.Write([]byte(node.val))
 		buf.WriteByte(node.quote)
+	} else if node.unquote {
+		buf.Write([]byte(node.val))
 	} else {
 		formatIDForDialect(dialect, buf, node.val, node.Lowered())
 	}

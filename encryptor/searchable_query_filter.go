@@ -114,7 +114,7 @@ func filterTableExpressions(statement sqlparser.Statement) (sqlparser.TableExprs
 	}
 }
 
-func getColumnSetting(column *sqlparser.ColName, columnInfo columnInfo, schemaStore config.TableSchemaStore) config.ColumnEncryptionSetting {
+func getColumnSetting(column *sqlparser.ColName, columnInfo ColumnInfo, schemaStore config.TableSchemaStore) config.ColumnEncryptionSetting {
 	schema := schemaStore.GetTableSchema(columnInfo.Table)
 	if schema == nil {
 		return nil
@@ -173,7 +173,7 @@ func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(stmt sqlpa
 			}
 		}
 
-		columnInfo, err := findColumnInfo(tableExpr, lColumn, filter.schemaStore)
+		columnInfo, err := FindColumnInfo(tableExpr, lColumn, filter.schemaStore)
 		if err != nil {
 			return true, nil
 		}
@@ -194,7 +194,7 @@ func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(stmt sqlpa
 		if rColumn, ok := comparisonExpr.Right.(*sqlparser.ColName); ok {
 			// get right columnSetting to check weather it is searchable too
 
-			columnInfo, err := findColumnInfo(tableExpr, rColumn, filter.schemaStore)
+			columnInfo, err := FindColumnInfo(tableExpr, rColumn, filter.schemaStore)
 			if err != nil {
 				return true, nil
 			}
