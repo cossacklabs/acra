@@ -482,11 +482,11 @@ class BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin(test_common.BaseB
 class BaseSearchableTransparentEncryptionBinaryMySQLMixin(test_common.BaseBinaryMySQLTestCase,
                                                           test_common.BaseTestCase):
     def executeSelect2(self, query, parameters):
-        query, parameters = self.compileQuery(query, parameters)
+        query, parameters, _ = self.compileQuery(query, parameters)
         return self.executor2.execute_prepared_statement(query, parameters)
 
     def execute_via_2(self, query, parameters):
-        query, parameters = self.compileQuery(query, parameters)
+        query, parameters, _ = self.compileQuery(query, parameters)
         return self.executor2.execute_prepared_statement_no_result(query, parameters)
 
     def executeBulkInsert(self, query, values):
@@ -498,11 +498,11 @@ class BaseSearchableTransparentEncryptionBinaryMySQLMixin(test_common.BaseBinary
 class BaseSearchableTransparentEncryptionBinaryMariaDBMixin(test_common.BaseBinaryMariaDBTestCase,
                                                             test_common.BaseTestCase):
     def executeSelect2(self, query, parameters):
-        query, parameters = self.compileQuery(query, parameters)
+        query, parameters, _ = self.compileQuery(query, parameters)
         return self.executor2.execute_prepared_statement(query, parameters)
 
     def execute_via_2(self, query, parameters):
-        query, parameters = self.compileQuery(query, parameters)
+        query, parameters, _ = self.compileQuery(query, parameters)
         return self.executor2.execute_prepared_statement_no_result(query, parameters)
 
     def executeBulkInsert(self, query, values):

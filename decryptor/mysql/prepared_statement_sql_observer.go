@@ -100,7 +100,7 @@ func (e *PreparedStatementsQuery) onPrepare(ctx context.Context, prepareQuery *s
 	var preparedStatementName = prepareQuery.PreparedStatementName.ValueForConfig()
 
 	// MySQL allows create statements many time, so just log in case of already registered
-	stmtItem, err := e.proxyHandler.registry.StatementByID(preparedStatementName)
+	_, err := e.proxyHandler.registry.StatementByID(preparedStatementName)
 	if err == nil {
 		logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 			WithError(err).Errorln("PreparedStatement already stored in registry")
@@ -126,13 +126,12 @@ func (e *PreparedStatementsQuery) onPrepare(ctx context.Context, prepareQuery *s
 			// 3. On EXECUTE stmt2 USING @a, @b;
 			//    - read by stmt2 name
 			var preparedStatement = NewPreparedStatementWithName(preparedStatementName, setArgPreparedStatement.QueryText(), setArgPreparedStatement.Query())
-			var preparedStatementItem = NewPreparedStatementItem(preparedStatement, stmtItem.QuerySettings())
-
+			var preparedStatementItem = NewPreparedStatementItem(preparedStatement, setArgStmt.QuerySettings())
 			e.proxyHandler.registry.AddStatement(preparedStatementItem)
+		} else {
+			logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+				Errorln("Error to cast PreparedStatementQuery to sqlparser.Statement")
 		}
-
-		logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
-			Errorln("Error to cast PreparedStatementQuery to sqlparser.Statement")
 		return nil, false, nil
 	}
 
@@ -275,8 +274,7 @@ func (e *PreparedStatementsQuery) handleQueryFromSetArg(ctx context.Context, sql
 
 func (e *PreparedStatementsQuery) onExecute(ctx context.Context, executeQuery *sqlparser.Execute) (base.OnQueryObject, bool, error) {
 	logrus.Debugln("PreparedStatementsQuery.Execute")
-
-	var preparedStatementName = executeQuery.PreparedStatementName.String()
+	var preparedStatementName = executeQuery.PreparedStatementName.ValueForConfig()
 
 	stmtItem, err := e.proxyHandler.registry.StatementByID(preparedStatementName)
 	if err != nil {
