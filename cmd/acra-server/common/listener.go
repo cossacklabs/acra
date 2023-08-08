@@ -30,12 +30,13 @@ import (
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/utils"
 
-	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/network"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
+
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/network"
 )
 
 type closer func()

@@ -22,6 +22,7 @@ from contextlib import closing
 from urllib.parse import urlparse
 
 import asyncpg
+import mariadb
 import mysql.connector
 import psycopg as psycopg3
 import psycopg2
@@ -1184,6 +1185,67 @@ class MysqlExecutor(QueryExecutor):
                 ssl_cert=self.connection_args.ssl_cert,
                 ssl_key=self.connection_args.ssl_key,
                 ssl_disabled=not TEST_WITH_TLS)) as connection:
+            with contextlib.closing(connection.cursor(prepared=True)) as cursor:
+                cursor.execute(query, args)
+                connection.commit()
+
+
+class MariaDBExecutor(QueryExecutor):
+    def _result_to_dict(self, description, data):
+        """convert list of tuples of rows to list of dicts"""
+        columns_name = [i[0] for i in description]
+        result = []
+        for row in data:
+            row_data = {column_name: value
+                        for column_name, value in zip(columns_name, row)}
+            result.append(row_data)
+        return result
+
+    def execute(self, query, args=None):
+        if args is None:
+            args = []
+        with contextlib.closing(mariadb.connect(
+                host=self.connection_args.host, port=self.connection_args.port,
+                user=self.connection_args.user,
+                password=self.connection_args.password,
+                database=self.connection_args.dbname,
+                ssl_ca=self.connection_args.ssl_ca,
+                ssl_cert=self.connection_args.ssl_cert,
+                ssl_key=self.connection_args.ssl_key)) as connection:
+            with contextlib.closing(connection.cursor()) as cursor:
+                cursor.execute(query, args)
+                data = cursor.fetchall()
+                result = self._result_to_dict(cursor.description, data)
+        return result
+
+    def execute_prepared_statement(self, query, args=None):
+        if args is None:
+            args = []
+        with contextlib.closing(mariadb.connect(
+                host=self.connection_args.host, port=self.connection_args.port,
+                user=self.connection_args.user,
+                password=self.connection_args.password,
+                database=self.connection_args.dbname,
+                ssl_ca=self.connection_args.ssl_ca,
+                ssl_cert=self.connection_args.ssl_cert,
+                ssl_key=self.connection_args.ssl_key)) as connection:
+            with contextlib.closing(connection.cursor(prepared=True)) as cursor:
+                cursor.execute(query, args)
+                data = cursor.fetchall()
+                result = self._result_to_dict(cursor.description, data)
+        return result
+
+    def execute_prepared_statement_no_result(self, query, args=None):
+        if args is None:
+            args = []
+        with contextlib.closing(mariadb.connect(
+                host=self.connection_args.host, port=self.connection_args.port,
+                user=self.connection_args.user,
+                password=self.connection_args.password,
+                database=self.connection_args.dbname,
+                ssl_ca=self.connection_args.ssl_ca,
+                ssl_cert=self.connection_args.ssl_cert,
+                ssl_key=self.connection_args.ssl_key)) as connection:
             with contextlib.closing(connection.cursor(prepared=True)) as cursor:
                 cursor.execute(query, args)
                 connection.commit()

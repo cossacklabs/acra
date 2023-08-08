@@ -7,6 +7,16 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net"
+	"path/filepath"
+	"strconv"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgproto3"
+	"github.com/stretchr/testify/assert"
+
 	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/cmd/acra-server/common"
 	"github.com/cossacklabs/acra/crypto"
@@ -22,14 +32,6 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/utils/tests"
 	"github.com/cossacklabs/acra/utils/tests/acra-server"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgproto3"
-	"github.com/stretchr/testify/assert"
-	"net"
-	"path/filepath"
-	"strconv"
-	"testing"
-	"time"
 )
 
 func getProxyFactory(t *testing.T, serverConfig *common.Config, tokenizer common2.Pseudoanonymizer) base.ProxyFactory {
@@ -52,16 +54,9 @@ func getProxyFactory(t *testing.T, serverConfig *common.Config, tokenizer common
 	return serverProxyFactory
 }
 
-func getFreePortForListener(t *testing.T) int {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
-	assert.Nil(t, listener.Close())
-	return listener.Addr().(*net.TCPAddr).Port
-}
-
 func TestSequenceParsePackets(t *testing.T) {
 	const timeout = time.Millisecond * 400
-	freePort := getFreePortForListener(t)
+	freePort := tests.GetFreePortForListener(t)
 	serverConfig := acra_server.NewDefaultAcraServerConfig(t)
 	clientID := []byte("clientID")
 	serverConfig.SetUseClientIDFromCertificate(false)
@@ -384,7 +379,7 @@ func TestSequenceParsePackets(t *testing.T) {
 
 func TestSequenceParsePacketsWithUnnamedPortals(t *testing.T) {
 	const timeout = time.Hour * 200
-	freePort := getFreePortForListener(t)
+	freePort := tests.GetFreePortForListener(t)
 	serverConfig := acra_server.NewDefaultAcraServerConfig(t)
 	clientID := []byte("clientID")
 	serverConfig.SetUseClientIDFromCertificate(false)

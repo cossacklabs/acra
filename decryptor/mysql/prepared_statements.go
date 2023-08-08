@@ -369,6 +369,10 @@ func (p *PreparedStatementFieldTracker) ParamsTrackHandler(ctx context.Context, 
 		// https://dev.mysql.com/doc/internals/en/com-stmt-prepare-response.html
 		if p.columnsNum > 0 {
 			p.proxyHandler.setQueryHandler(p.ColumnsTrackHandler)
+		} else {
+			if p.proxyHandler.protocolState.GetStmtID() == MariaDBDirectStatementID {
+				p.proxyHandler.setQueryHandler(p.proxyHandler.QueryResponseHandler)
+			}
 		}
 
 		if _, err := clientConnection.Write(packet.Dump()); err != nil {
@@ -378,7 +382,7 @@ func (p *PreparedStatementFieldTracker) ParamsTrackHandler(ctx context.Context, 
 		return nil
 	}
 
-	field, err := ParseResultField(packet)
+	field, err := ParseResultField(packet, p.proxyHandler.Capabilities.IsSetMariaDBClientExtendedTypeInfo())
 	if err != nil {
 		p.proxyHandler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't parse result field")
 		return err
@@ -410,6 +414,10 @@ func (p *PreparedStatementFieldTracker) ColumnsTrackHandler(ctx context.Context,
 	if packet.IsEOF() {
 		p.proxyHandler.resetQueryHandler()
 
+		if p.proxyHandler.protocolState.GetStmtID() == MariaDBDirectStatementID {
+			p.proxyHandler.setQueryHandler(p.proxyHandler.QueryResponseHandler)
+		}
+
 		if _, err := clientConnection.Write(packet.Dump()); err != nil {
 			p.proxyHandler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
 				Debugln("Can't proxy output")
@@ -417,7 +425,7 @@ func (p *PreparedStatementFieldTracker) ColumnsTrackHandler(ctx context.Context,
 		return nil
 	}
 
-	field, err := ParseResultField(packet)
+	field, err := ParseResultField(packet, p.proxyHandler.Capabilities.IsSetMariaDBClientExtendedTypeInfo())
 	if err != nil {
 		p.proxyHandler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't parse result field")
 		return err
@@ -425,6 +433,8 @@ func (p *PreparedStatementFieldTracker) ColumnsTrackHandler(ctx context.Context,
 
 	// updating field type according to DataType provided in schemaStore
 	updateFieldEncodedType(field, p.proxyHandler.setting.TableSchemaStore())
+
+	p.proxyHandler.protocolState.AddColumnDescription(field)
 
 	if _, err := clientConnection.Write(field.Dump()); err != nil {
 		p.proxyHandler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
