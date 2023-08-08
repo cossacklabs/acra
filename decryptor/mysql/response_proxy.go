@@ -515,12 +515,13 @@ func (handler *Handler) handleStatementExecute(ctx context.Context, packet *Pack
 		log.Debug("Statement Execute")
 	}
 
-	preparedStmt, err := handler.registry.StatementByID(strconv.FormatUint(uint64(stmtID), 10))
+	stmtItem, err := handler.registry.StatementByID(strconv.FormatUint(uint64(stmtID), 10))
 	if err != nil {
 		log.WithError(err).Error("Can't find prepared statement in registry")
 		return 0, nil
 	}
 
+	preparedStmt := stmtItem.Statement()
 	paramsNumber = preparedStmt.ParamsNum()
 	statement = preparedStmt.Query()
 
