@@ -17,6 +17,7 @@ limitations under the License.
 package encryptor
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"strings"
@@ -29,20 +30,376 @@ import (
 	"github.com/cossacklabs/acra/sqlparser"
 )
 
+// InvalidPlaceholderIndex value that represent invalid index for sql placeholders
+const InvalidPlaceholderIndex = -1
+
 var (
 	errNotFoundtable          = errors.New("not found table for alias")
 	errNotSupported           = errors.New("not supported type of sql node")
 	errTableAlreadyMatched    = errors.New("aliased table name already matched")
 	errAliasedTableNotMatched = errors.New("aliases table not matched")
+	errEmptyTableExprs        = errors.New("empty table exprs")
 )
 
+// ColumnInfo info object that represent column data
 type ColumnInfo struct {
 	Name  string
 	Table string
 	Alias string
 }
 
-var errEmptyTableExprs = errors.New("empty table exprs")
+// ParseQuerySettings parse list of select query settings based on schemaStore
+func ParseQuerySettings(ctx context.Context, statement *sqlparser.Select, schemaStore config.TableSchemaStore) ([]*QueryDataItem, error) {
+	columns, err := MapColumnsToAliases(statement, schemaStore)
+	if err != nil {
+		logrus.WithError(err).Errorln("Can't extract columns from SELECT statement")
+		return nil, err
+	}
+	querySelectSettings := make([]*QueryDataItem, 0, len(columns))
+	for _, data := range columns {
+		if data != nil {
+			if schema := schemaStore.GetTableSchema(data.Table); schema != nil {
+				var setting *QueryDataItem = nil
+				if data.Name == "*" {
+					for _, name := range schema.Columns() {
+						setting = nil
+						if columnSetting := schema.GetColumnEncryptionSettings(name); columnSetting != nil {
+							setting = NewQueryDataItem(columnSetting, data.Table, name, "")
+						}
+						querySelectSettings = append(querySelectSettings, setting)
+					}
+				} else {
+					if columnSetting := schema.GetColumnEncryptionSettings(data.Name); columnSetting != nil {
+						setting = NewQueryDataItem(columnSetting, data.Table, data.Name, data.Alias)
+					}
+					querySelectSettings = append(querySelectSettings, setting)
+				}
+				continue
+			}
+		}
+		querySelectSettings = append(querySelectSettings, nil)
+	}
+	return querySelectSettings, nil
+}
+
+// FilterTableExpressions check if sqlparser.Statement contains TableExprs
+func FilterTableExpressions(statement sqlparser.Statement) (sqlparser.TableExprs, error) {
+	switch query := statement.(type) {
+	case *sqlparser.Select:
+		return query.From, nil
+	case *sqlparser.Update:
+		return query.TableExprs, nil
+	case *sqlparser.Delete:
+		return query.TableExprs, nil
+	case *sqlparser.Insert:
+		// only support INSERT INTO table2 SELECT * FROM test_table WHERE data1='somedata' syntax for INSERTs
+		if selectInInsert, ok := query.Rows.(*sqlparser.Select); ok {
+			return selectInInsert.From, nil
+		}
+		return nil, ErrUnsupportedQueryType
+	default:
+		return nil, ErrUnsupportedQueryType
+	}
+}
+
+// GetColumnSetting get ColumnEncryptionSetting from schemaStore based on tableName and column
+func GetColumnSetting(column *sqlparser.ColName, tableName string, schemaStore config.TableSchemaStore) config.ColumnEncryptionSetting {
+	schema := schemaStore.GetTableSchema(tableName)
+	if schema == nil {
+		return nil
+	}
+	// Also leave out those columns which are not searchable.
+	columnName := column.Name.ValueForConfig()
+	return schema.GetColumnEncryptionSettings(columnName)
+}
+
+// GetWhereStatements parse all Where expressions
+func GetWhereStatements(stmt sqlparser.Statement) ([]*sqlparser.Where, error) {
+	var whereStatements []*sqlparser.Where
+	err := sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
+		switch nodeType := node.(type) {
+		case *sqlparser.Where:
+			whereStatements = append(whereStatements, nodeType)
+		case sqlparser.JoinCondition:
+			whereStatements = append(whereStatements, &sqlparser.Where{
+				Type: "on",
+				Expr: nodeType.On,
+			})
+		}
+		return true, nil
+	}, stmt)
+	return whereStatements, err
+}
+
+// FindColumnInfo get ColumnInfo from TableExprs, ColName  and  TableSchemaStore
+func FindColumnInfo(fromExpr sqlparser.TableExprs, colName *sqlparser.ColName, schemaStore config.TableSchemaStore) (ColumnInfo, error) {
+	var alias = colName.Qualifier.Name.RawValue()
+	var columnName = colName.Name.ValueForConfig()
+
+	if alias == "" {
+		columnTable, err := getMatchedTable(fromExpr, colName, schemaStore)
+		if err != nil {
+			return ColumnInfo{}, err
+		}
+		alias = columnTable
+	}
+
+	info, err := findTableName(alias, columnName, fromExpr)
+	if err != nil {
+		return ColumnInfo{}, err
+	}
+	info.Alias = alias
+
+	return info, nil
+}
+
+// MapColumnsToAliases parse slice of ColumnInfo from sqlparser.Select and config.TableSchemaStore
+func MapColumnsToAliases(selectQuery *sqlparser.Select, tableSchemaStore config.TableSchemaStore) ([]*ColumnInfo, error) {
+	out := make([]*ColumnInfo, 0, len(selectQuery.SelectExprs))
+	var joinTables []string
+	var joinAliases map[string]string
+
+	if joinExp, ok := selectQuery.From[0].(*sqlparser.JoinTableExpr); ok {
+		joinTables = make([]string, 0)
+		joinAliases = make(map[string]string)
+
+		if ok := parseJoinTablesInfo(joinExp, &joinTables, joinAliases); !ok {
+			return nil, errUnsupportedExpression
+		}
+	}
+
+	for _, expr := range selectQuery.SelectExprs {
+		aliased, ok := expr.(*sqlparser.AliasedExpr)
+		if ok {
+			// processing queries like `select (select value from table2) from table1`
+			// subquery should return only one value
+			subQuery, ok := aliased.Expr.(*sqlparser.Subquery)
+			if ok {
+				if subSelect, ok := subQuery.Select.(*sqlparser.Select); ok {
+					if len(subSelect.SelectExprs) != 1 {
+						return nil, errUnsupportedExpression
+					}
+
+					if _, ok := subSelect.SelectExprs[0].(*sqlparser.StarExpr); ok {
+						return nil, errUnsupportedExpression
+					}
+
+					subColumn, err := MapColumnsToAliases(subSelect, tableSchemaStore)
+					if err != nil {
+						return nil, err
+					}
+					out = append(out, subColumn...)
+					continue
+				}
+			}
+
+			colName, ok := aliased.Expr.(*sqlparser.ColName)
+			if ok {
+				info, err := FindColumnInfo(selectQuery.From, colName, tableSchemaStore)
+				if err == nil {
+					out = append(out, &info)
+					continue
+				}
+			}
+		}
+		starExpr, ok := expr.(*sqlparser.StarExpr)
+		if ok {
+			if len(joinTables) > 0 {
+				if !starExpr.TableName.Name.IsEmpty() {
+					joinTable, ok := joinAliases[starExpr.TableName.Name.ValueForConfig()]
+					if !ok {
+						return nil, errUnsupportedExpression
+					}
+					out = append(out, &ColumnInfo{Table: joinTable, Name: allColumnsName, Alias: allColumnsName})
+					continue
+				}
+
+				for i := len(joinTables) - 1; i >= 0; i-- {
+					out = append(out, &ColumnInfo{Table: joinTables[i], Name: allColumnsName, Alias: allColumnsName})
+				}
+				continue
+			}
+
+			tableName, err := getFirstTableWithoutAlias(selectQuery.From)
+			if err == nil {
+				out = append(out, &ColumnInfo{Table: tableName, Name: allColumnsName, Alias: allColumnsName})
+			} else {
+				if len(selectQuery.From) == 1 {
+					tableNameStr, err := getTableNameWithoutAliases(selectQuery.From[0])
+					if err != nil {
+						return nil, err
+					}
+					out = append(out, &ColumnInfo{Table: tableNameStr, Name: allColumnsName, Alias: allColumnsName})
+					continue
+				}
+				tableNameStr, err := findTableName(starExpr.TableName.Name.RawValue(), starExpr.TableName.Name.RawValue(), selectQuery.From)
+				if err != nil {
+					return nil, err
+				}
+				out = append(out, &ColumnInfo{Table: tableNameStr.Table, Name: allColumnsName, Alias: allColumnsName})
+			}
+			continue
+		}
+		out = append(out, nil)
+	}
+	return out, nil
+}
+
+// ParsePlaceholderIndex parse placeholder index if SQLVal is PgPlaceholder/ValArg otherwise return error and InvalidPlaceholderIndex
+func ParsePlaceholderIndex(placeholder *sqlparser.SQLVal) (int, error) {
+	updateMapByPlaceholderPart := func(part string) (int, error) {
+		text := string(placeholder.Val)
+		index, err := strconv.Atoi(strings.TrimPrefix(text, part))
+		if err != nil {
+			logrus.WithField("placeholder", text).WithError(err).Warning("Cannot parse placeholder")
+			return InvalidPlaceholderIndex, err
+		}
+		// Placeholders use 1-based indexing and "values" (Go slice) are 0-based.
+		index--
+		return index, nil
+	}
+
+	switch placeholder.Type {
+	case sqlparser.PgPlaceholder:
+		// PostgreSQL placeholders look like "$1". Parse the number out of them.
+		return updateMapByPlaceholderPart("$")
+	case sqlparser.ValArg:
+		// MySQL placeholders look like ":v1". Parse the number out of them.
+		return updateMapByPlaceholderPart(":v")
+	}
+	return InvalidPlaceholderIndex, ErrInvalidPlaceholder
+}
+
+// ParseSearchQueryPlaceholdersSettings parse encryption settings of statement with placeholders
+func ParseSearchQueryPlaceholdersSettings(statement sqlparser.Statement, schemaStore config.TableSchemaStore) map[int]config.ColumnEncryptionSetting {
+	tableExps, err := filterTableExpressions(statement)
+	if err != nil {
+		logrus.Debugln("Unsupported search query")
+		return nil
+	}
+
+	// Walk through WHERE clauses of a SELECT statements...
+	whereExprs, err := GetWhereStatements(statement)
+	if err != nil {
+		logrus.WithError(err).Debugln("Failed to extract WHERE clauses")
+		return nil
+	}
+
+	placeHolderSettings := make(map[int]config.ColumnEncryptionSetting)
+	for _, whereExpr := range whereExprs {
+		err = sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
+			comparisonExpr, ok := node.(*sqlparser.ComparisonExpr)
+			if !ok {
+				return true, nil
+			}
+
+			var colName *sqlparser.ColName
+
+			switch expr := comparisonExpr.Left.(type) {
+			case *sqlparser.ColName:
+				colName = expr
+			case *sqlparser.SubstrExpr:
+				colName = expr.Name
+			}
+
+			columnInfo, err := FindColumnInfo(tableExps, colName, schemaStore)
+			if err != nil {
+				return true, nil
+			}
+
+			lColumnSetting := GetColumnSetting(colName, columnInfo.Table, schemaStore)
+			if lColumnSetting == nil {
+				return true, nil
+			}
+
+			if !lColumnSetting.IsSearchable() && !lColumnSetting.IsConsistentTokenization() {
+				return true, nil
+			}
+
+			if sqlVal, ok := comparisonExpr.Right.(*sqlparser.SQLVal); ok && isSupportedSQLVal(sqlVal) {
+				if comparisonExpr.Operator == sqlparser.EqualStr || comparisonExpr.Operator == sqlparser.NotEqualStr || comparisonExpr.Operator == sqlparser.NullSafeEqualStr {
+
+					placeholderIndex, err := ParsePlaceholderIndex(sqlVal)
+					if err == ErrInvalidPlaceholder {
+						return true, nil
+					} else if err != nil {
+						return false, err
+					}
+					placeHolderSettings[placeholderIndex] = lColumnSetting
+				}
+			}
+
+			return true, nil
+		}, whereExpr)
+	}
+
+	return placeHolderSettings
+}
+
+const queryDataItemKey = "query_data_items"
+
+// SaveQueryDataItemsToClientSession save slice of QueryDataItem into ClientSession
+func SaveQueryDataItemsToClientSession(session base.ClientSession, items []*QueryDataItem) {
+	session.SetData(queryDataItemKey, items)
+}
+
+// DeleteQueryDataItemsFromClientSession delete items from ClientSession
+func DeleteQueryDataItemsFromClientSession(session base.ClientSession) {
+	session.DeleteData(queryDataItemKey)
+}
+
+// QueryDataItemsFromClientSession return QueryDataItems from ClientSession if saved otherwise nil
+func QueryDataItemsFromClientSession(session base.ClientSession) []*QueryDataItem {
+	data, ok := session.GetData(queryDataItemKey)
+	if !ok {
+		return nil
+	}
+	items, ok := data.([]*QueryDataItem)
+	if ok {
+		return items
+	}
+	return nil
+}
+
+var bindPlaceholdersPool = sync.Pool{New: func() interface{} {
+	return make(map[int]config.ColumnEncryptionSetting, 32)
+}}
+
+const placeholdersSettingKey = "bind_encryption_settings"
+
+// PlaceholderSettingsFromClientSession return stored in client session ColumnEncryptionSettings related to placeholders
+// or create new and save in session
+func PlaceholderSettingsFromClientSession(session base.ClientSession) map[int]config.ColumnEncryptionSetting {
+	data, ok := session.GetData(placeholdersSettingKey)
+	if !ok {
+		//logger := logging.GetLoggerFromContext(session.Context())
+		value := bindPlaceholdersPool.Get().(map[int]config.ColumnEncryptionSetting)
+		//logger.WithField("session", session).WithField("value", value).Debugln("Create placeholders")
+		session.SetData(placeholdersSettingKey, value)
+		return value
+	}
+	items, ok := data.(map[int]config.ColumnEncryptionSetting)
+	if ok {
+		return items
+	}
+	return nil
+}
+
+// DeletePlaceholderSettingsFromClientSession delete items from ClientSession
+func DeletePlaceholderSettingsFromClientSession(session base.ClientSession) {
+	data := PlaceholderSettingsFromClientSession(session)
+	if data == nil {
+		logrus.Warningln("Invalid type of PlaceholderSettings")
+		session.DeleteData(placeholdersSettingKey)
+		// do nothing because it's invalid
+		return
+	}
+	for key := range data {
+		delete(data, key)
+	}
+	bindPlaceholdersPool.Put(data)
+	session.DeleteData(placeholdersSettingKey)
+}
 
 // parseJoinTablesInfo recursively read and save sql join structure info, aliases map is used to save association between tables and its aliases,
 // tables slice is used to collect certain order of tables (saved in reverse order of declaration).
@@ -179,28 +536,6 @@ func getFirstTableWithoutAlias(fromExpr sqlparser.TableExprs) (string, error) {
 		return "", errNotFoundtable
 	}
 	return name, nil
-}
-
-// FindColumnInfo get ColumnInfo from TableExprs, ColName  and  TableSchemaStore
-func FindColumnInfo(fromExpr sqlparser.TableExprs, colName *sqlparser.ColName, schemaStore config.TableSchemaStore) (ColumnInfo, error) {
-	var alias = colName.Qualifier.Name.RawValue()
-	var columnName = colName.Name.ValueForConfig()
-
-	if alias == "" {
-		columnTable, err := getMatchedTable(fromExpr, colName, schemaStore)
-		if err != nil {
-			return ColumnInfo{}, err
-		}
-		alias = columnTable
-	}
-
-	info, err := findTableName(alias, columnName, fromExpr)
-	if err != nil {
-		return ColumnInfo{}, err
-	}
-	info.Alias = alias
-
-	return info, nil
 }
 
 func getMatchedTable(fromExpr sqlparser.TableExprs, colName *sqlparser.ColName, tableSchemaStore config.TableSchemaStore) (string, error) {
@@ -396,255 +731,4 @@ func findTableName(alias, columnName string, expr sqlparser.SQLNode) (ColumnInfo
 		return ColumnInfo{}, errNotFoundtable
 	}
 	return ColumnInfo{}, errNotFoundtable
-}
-
-// MapColumnsToAliases parse slice of ColumnInfo from sqlparser.Select and config.TableSchemaStore
-func MapColumnsToAliases(selectQuery *sqlparser.Select, tableSchemaStore config.TableSchemaStore) ([]*ColumnInfo, error) {
-	out := make([]*ColumnInfo, 0, len(selectQuery.SelectExprs))
-	var joinTables []string
-	var joinAliases map[string]string
-
-	if joinExp, ok := selectQuery.From[0].(*sqlparser.JoinTableExpr); ok {
-		joinTables = make([]string, 0)
-		joinAliases = make(map[string]string)
-
-		if ok := parseJoinTablesInfo(joinExp, &joinTables, joinAliases); !ok {
-			return nil, errUnsupportedExpression
-		}
-	}
-
-	for _, expr := range selectQuery.SelectExprs {
-		aliased, ok := expr.(*sqlparser.AliasedExpr)
-		if ok {
-			// processing queries like `select (select value from table2) from table1`
-			// subquery should return only one value
-			subQuery, ok := aliased.Expr.(*sqlparser.Subquery)
-			if ok {
-				if subSelect, ok := subQuery.Select.(*sqlparser.Select); ok {
-					if len(subSelect.SelectExprs) != 1 {
-						return nil, errUnsupportedExpression
-					}
-
-					if _, ok := subSelect.SelectExprs[0].(*sqlparser.StarExpr); ok {
-						return nil, errUnsupportedExpression
-					}
-
-					subColumn, err := MapColumnsToAliases(subSelect, tableSchemaStore)
-					if err != nil {
-						return nil, err
-					}
-					out = append(out, subColumn...)
-					continue
-				}
-			}
-
-			colName, ok := aliased.Expr.(*sqlparser.ColName)
-			if ok {
-				info, err := FindColumnInfo(selectQuery.From, colName, tableSchemaStore)
-				if err == nil {
-					out = append(out, &info)
-					continue
-				}
-			}
-		}
-		starExpr, ok := expr.(*sqlparser.StarExpr)
-		if ok {
-			if len(joinTables) > 0 {
-				if !starExpr.TableName.Name.IsEmpty() {
-					joinTable, ok := joinAliases[starExpr.TableName.Name.ValueForConfig()]
-					if !ok {
-						return nil, errUnsupportedExpression
-					}
-					out = append(out, &ColumnInfo{Table: joinTable, Name: allColumnsName, Alias: allColumnsName})
-					continue
-				}
-
-				for i := len(joinTables) - 1; i >= 0; i-- {
-					out = append(out, &ColumnInfo{Table: joinTables[i], Name: allColumnsName, Alias: allColumnsName})
-				}
-				continue
-			}
-
-			tableName, err := getFirstTableWithoutAlias(selectQuery.From)
-			if err == nil {
-				out = append(out, &ColumnInfo{Table: tableName, Name: allColumnsName, Alias: allColumnsName})
-			} else {
-				if len(selectQuery.From) == 1 {
-					tableNameStr, err := getTableNameWithoutAliases(selectQuery.From[0])
-					if err != nil {
-						return nil, err
-					}
-					out = append(out, &ColumnInfo{Table: tableNameStr, Name: allColumnsName, Alias: allColumnsName})
-					continue
-				}
-				tableNameStr, err := findTableName(starExpr.TableName.Name.RawValue(), starExpr.TableName.Name.RawValue(), selectQuery.From)
-				if err != nil {
-					return nil, err
-				}
-				out = append(out, &ColumnInfo{Table: tableNameStr.Table, Name: allColumnsName, Alias: allColumnsName})
-			}
-			continue
-		}
-		out = append(out, nil)
-	}
-	return out, nil
-}
-
-// InvalidPlaceholderIndex value that represent invalid index for sql placeholders
-const InvalidPlaceholderIndex = -1
-
-// ParsePlaceholderIndex parse placeholder index if SQLVal is PgPlaceholder/ValArg otherwise return error and InvalidPlaceholderIndex
-func ParsePlaceholderIndex(placeholder *sqlparser.SQLVal) (int, error) {
-	updateMapByPlaceholderPart := func(part string) (int, error) {
-		text := string(placeholder.Val)
-		index, err := strconv.Atoi(strings.TrimPrefix(text, part))
-		if err != nil {
-			logrus.WithField("placeholder", text).WithError(err).Warning("Cannot parse placeholder")
-			return InvalidPlaceholderIndex, err
-		}
-		// Placeholders use 1-based indexing and "values" (Go slice) are 0-based.
-		index--
-		return index, nil
-	}
-
-	switch placeholder.Type {
-	case sqlparser.PgPlaceholder:
-		// PostgreSQL placeholders look like "$1". Parse the number out of them.
-		return updateMapByPlaceholderPart("$")
-	case sqlparser.ValArg:
-		// MySQL placeholders look like ":v1". Parse the number out of them.
-		return updateMapByPlaceholderPart(":v")
-	}
-	return InvalidPlaceholderIndex, ErrInvalidPlaceholder
-}
-
-// ParseSearchQueryPlaceholdersSettings parse encryption settings of statement with placeholders
-func ParseSearchQueryPlaceholdersSettings(statement sqlparser.Statement, schemaStore config.TableSchemaStore) map[int]config.ColumnEncryptionSetting {
-	tableExps, err := filterTableExpressions(statement)
-	if err != nil {
-		logrus.Debugln("Unsupported search query")
-		return nil
-	}
-
-	// Walk through WHERE clauses of a SELECT statements...
-	whereExprs, err := getWhereStatements(statement)
-	if err != nil {
-		logrus.WithError(err).Debugln("Failed to extract WHERE clauses")
-		return nil
-	}
-
-	placeHolderSettings := make(map[int]config.ColumnEncryptionSetting)
-	for _, whereExpr := range whereExprs {
-		err = sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
-			comparisonExpr, ok := node.(*sqlparser.ComparisonExpr)
-			if !ok {
-				return true, nil
-			}
-
-			var colName *sqlparser.ColName
-
-			switch expr := comparisonExpr.Left.(type) {
-			case *sqlparser.ColName:
-				colName = expr
-			case *sqlparser.SubstrExpr:
-				colName = expr.Name
-			}
-
-			columnInfo, err := FindColumnInfo(tableExps, colName, schemaStore)
-			if err != nil {
-				return true, nil
-			}
-
-			lColumnSetting := getColumnSetting(colName, columnInfo, schemaStore)
-			if lColumnSetting == nil {
-				return true, nil
-			}
-
-			if !lColumnSetting.IsSearchable() && !lColumnSetting.IsConsistentTokenization() {
-				return true, nil
-			}
-
-			if sqlVal, ok := comparisonExpr.Right.(*sqlparser.SQLVal); ok && isSupportedSQLVal(sqlVal) {
-				if comparisonExpr.Operator == sqlparser.EqualStr || comparisonExpr.Operator == sqlparser.NotEqualStr || comparisonExpr.Operator == sqlparser.NullSafeEqualStr {
-
-					placeholderIndex, err := ParsePlaceholderIndex(sqlVal)
-					if err == ErrInvalidPlaceholder {
-						return true, nil
-					} else if err != nil {
-						return false, err
-					}
-					placeHolderSettings[placeholderIndex] = lColumnSetting
-				}
-			}
-
-			return true, nil
-		}, whereExpr)
-	}
-
-	return placeHolderSettings
-}
-
-const queryDataItemKey = "query_data_items"
-
-// SaveQueryDataItemsToClientSession save slice of QueryDataItem into ClientSession
-func SaveQueryDataItemsToClientSession(session base.ClientSession, items []*QueryDataItem) {
-	session.SetData(queryDataItemKey, items)
-}
-
-// DeleteQueryDataItemsFromClientSession delete items from ClientSession
-func DeleteQueryDataItemsFromClientSession(session base.ClientSession) {
-	session.DeleteData(queryDataItemKey)
-}
-
-// QueryDataItemsFromClientSession return QueryDataItems from ClientSession if saved otherwise nil
-func QueryDataItemsFromClientSession(session base.ClientSession) []*QueryDataItem {
-	data, ok := session.GetData(queryDataItemKey)
-	if !ok {
-		return nil
-	}
-	items, ok := data.([]*QueryDataItem)
-	if ok {
-		return items
-	}
-	return nil
-}
-
-var bindPlaceholdersPool = sync.Pool{New: func() interface{} {
-	return make(map[int]config.ColumnEncryptionSetting, 32)
-}}
-
-const placeholdersSettingKey = "bind_encryption_settings"
-
-// PlaceholderSettingsFromClientSession return stored in client session ColumnEncryptionSettings related to placeholders
-// or create new and save in session
-func PlaceholderSettingsFromClientSession(session base.ClientSession) map[int]config.ColumnEncryptionSetting {
-	data, ok := session.GetData(placeholdersSettingKey)
-	if !ok {
-		//logger := logging.GetLoggerFromContext(session.Context())
-		value := bindPlaceholdersPool.Get().(map[int]config.ColumnEncryptionSetting)
-		//logger.WithField("session", session).WithField("value", value).Debugln("Create placeholders")
-		session.SetData(placeholdersSettingKey, value)
-		return value
-	}
-	items, ok := data.(map[int]config.ColumnEncryptionSetting)
-	if ok {
-		return items
-	}
-	return nil
-}
-
-// DeletePlaceholderSettingsFromClientSession delete items from ClientSession
-func DeletePlaceholderSettingsFromClientSession(session base.ClientSession) {
-	data := PlaceholderSettingsFromClientSession(session)
-	if data == nil {
-		logrus.Warningln("Invalid type of PlaceholderSettings")
-		session.DeleteData(placeholdersSettingKey)
-		// do nothing because it's invalid
-		return
-	}
-	for key := range data {
-		delete(data, key)
-	}
-	bindPlaceholdersPool.Put(data)
-	session.DeleteData(placeholdersSettingKey)
 }

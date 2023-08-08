@@ -53,9 +53,9 @@ schemas:
 			t.Fatalf("Can't find column info: %s", err.Error())
 		}
 
-		schemaTable := getColumnSetting(&sqlparser.ColName{
+		schemaTable := GetColumnSetting(&sqlparser.ColName{
 			Name: sqlparser.NewColIdent("default_client_id"),
-		}, columnInfo, schemaStore)
+		}, columnInfo.Table, schemaStore)
 
 		if schemaTable == nil {
 			t.Fatalf("Expect not nil schemaTable, matched with config")
@@ -92,7 +92,7 @@ schemas:
 			t.Fatal(err)
 		}
 
-		whereStatements, err := getWhereStatements(statement)
+		whereStatements, err := GetWhereStatements(statement)
 		if err != nil {
 			t.Fatalf("expected no error on parsing valid WHERE clause query - %s", err.Error())
 		}

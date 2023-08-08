@@ -404,11 +404,12 @@ func (handler *Handler) handleStatementExecute(ctx context.Context, packet *Pack
 	log := handler.logger.WithField("proxy", "client").WithField("statement", stmtID)
 	log.Debug("Statement Execute")
 
-	statement, err := handler.registry.StatementByID(strconv.FormatUint(uint64(stmtID), 10))
+	stmtItem, err := handler.registry.StatementByID(strconv.FormatUint(uint64(stmtID), 10))
 	if err != nil {
 		log.WithError(err).Error("Can't find prepared statement in registry")
 		return nil
 	}
+	statement := stmtItem.Statement()
 
 	// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_stmt_execute.html
 	// we expect list of parameters if the paramsNum > 0
@@ -738,7 +739,9 @@ func (handler *Handler) PreparedStatementResponseHandler(ctx context.Context, pa
 		handler.logger.WithError(err).Error("Failed to handle prepared statement response packet: can't find prepared statement")
 		return err
 	}
-	handler.registry.AddStatement(NewPreparedStatement(response.StatementID, response.ParamsNum, queryObj.Query(), statement))
+
+	preparedStmt := NewPreparedStatement(response.StatementID, response.ParamsNum, queryObj.Query(), statement)
+	handler.registry.AddStatement(NewPreparedStatementItem(preparedStmt, nil))
 
 	// proxy output
 	handler.logger.Debugln("Proxy output")

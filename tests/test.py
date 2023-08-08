@@ -4793,7 +4793,7 @@ class TestEncryptorSettingReset(SeparateMetadataMixin, AcraCatchLogsMixin, BaseT
 
 
 class TestSQLPreparedStatements(AcraCatchLogsMixin):
-    ENCRYPTOR_CONFIG = base.get_encryptor_config('./encryptor_configs/ee_prepared_statements_sql.yaml')
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/ee_prepared_statements_sql.yaml')
 
     prepared_sql_statements_table_data_types = {
         'id': 'int',

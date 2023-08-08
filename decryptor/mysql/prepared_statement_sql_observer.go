@@ -18,12 +18,8 @@ import (
 	"github.com/cossacklabs/acra/sqlparser"
 )
 
-// ErrStatementAlreadyInRegistry represent an error that prepared statement already exist in session registry
-var (
-	ErrStatementNotPresentInRegistry = errors.New("prepared statement not present in registry")
-	// ErrUnsupportedQueryType represent error related unsupported Query type
-	ErrUnsupportedQueryType = errors.New("unsupported Query type")
-)
+// ErrStatementNotPresentInRegistry represent an error that prepared statement already exist in session registry
+var ErrStatementNotPresentInRegistry = errors.New("prepared statement not present in registry")
 
 // PreparedStatementsQuery QueryDataEncryptor process PostgreSQL SQL PreparedStatement
 type PreparedStatementsQuery struct {
@@ -61,17 +57,15 @@ func (e *PreparedStatementsQuery) ID() string {
 // OnColumn return new encryption setting context if info exist, otherwise column data and passed context will be returned
 func (e *PreparedStatementsQuery) OnColumn(ctx context.Context, data []byte) (context.Context, []byte, error) {
 	columnInfo, ok := base.ColumnInfoFromContext(ctx)
-	if ok {
+	if ok && e.querySelectSettings != nil {
 		// return context with encryption setting
 		if columnInfo.Index() < len(e.querySelectSettings) {
 			selectSetting := e.querySelectSettings[columnInfo.Index()]
 			if selectSetting != nil {
-
 				logging.GetLoggerFromContext(ctx).WithField("column_index", columnInfo.Index()).WithField("column", selectSetting.ColumnName()).Debugln("Set encryption setting")
 				return encryptor.NewContextWithEncryptionSetting(ctx, selectSetting.Setting()), data, nil
 			}
 		}
-
 	}
 	return ctx, data, nil
 }
@@ -103,14 +97,13 @@ func (e *PreparedStatementsQuery) OnQuery(ctx context.Context, query base.OnQuer
 
 func (e *PreparedStatementsQuery) onPrepare(ctx context.Context, prepareQuery *sqlparser.Prepare) (base.OnQueryObject, bool, error) {
 	logrus.Debugln("PreparedStatementsQuery.Prepare")
-
-	var preparedStatementName = prepareQuery.PreparedStatementName.String()
+	var preparedStatementName = prepareQuery.PreparedStatementName.ValueForConfig()
 
 	// MySQL allows create statements many time, so just log in case of already registered
-	if _, err := e.proxyHandler.registry.StatementByID(preparedStatementName); err == nil {
+	stmtItem, err := e.proxyHandler.registry.StatementByID(preparedStatementName)
+	if err == nil {
 		logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 			WithError(err).Errorln("PreparedStatement already stored in registry")
-		return nil, false, nil
 	}
 
 	stmt, ok := prepareQuery.PreparedStatementQuery.(sqlparser.Statement)
@@ -123,8 +116,7 @@ func (e *PreparedStatementsQuery) onPrepare(ctx context.Context, prepareQuery *s
 					WithError(err).Errorln("SetArg PreparedStatement not in registry")
 				return nil, false, err
 			}
-
-			querySettings, _ := e.proxyHandler.registry.QuerySettingsByID(ident.String())
+			setArgPreparedStatement := setArgStmt.Statement()
 
 			// add new PreparedStatement using different name
 			// 1. SET @s = 'SELECT SQRT(POW(?,2) + POW(?,2)) AS hypotenuse';
@@ -133,10 +125,10 @@ func (e *PreparedStatementsQuery) onPrepare(ctx context.Context, prepareQuery *s
 			//    - reset with name stmt2 to use in execute statement
 			// 3. On EXECUTE stmt2 USING @a, @b;
 			//    - read by stmt2 name
-			var preparedStatement = NewPreparedStatement(0, 0, setArgStmt.QueryText(), setArgStmt.Query())
-			preparedStatement.name = preparedStatementName
-			e.proxyHandler.registry.AddStatement(preparedStatement)
-			e.proxyHandler.registry.AddQuerySettings(preparedStatementName, querySettings)
+			var preparedStatement = NewPreparedStatementWithName(preparedStatementName, setArgPreparedStatement.QueryText(), setArgPreparedStatement.Query())
+			var preparedStatementItem = NewPreparedStatementItem(preparedStatement, stmtItem.QuerySettings())
+
+			e.proxyHandler.registry.AddStatement(preparedStatementItem)
 		}
 
 		logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
@@ -144,7 +136,7 @@ func (e *PreparedStatementsQuery) onPrepare(ctx context.Context, prepareQuery *s
 		return nil, false, nil
 	}
 
-	changedObject, changed, err := e.onQuery(ctx, preparedStatementName, stmt)
+	changedObject, changed, err := e.onQuery(ctx, preparedStatementName, base.NewOnQueryObjectFromStatement(stmt, e.parser))
 	if err != nil {
 		return nil, false, err
 	}
@@ -155,7 +147,6 @@ func (e *PreparedStatementsQuery) onPrepare(ctx context.Context, prepareQuery *s
 		}
 
 		changedStatement, _ := changedObject.Statement()
-
 		changedPreparedQuery, ok := changedStatement.(sqlparser.PreparedQuery)
 		if !ok {
 			logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
@@ -180,70 +171,16 @@ func (e *PreparedStatementsQuery) onSet(ctx context.Context, setQuery *sqlparser
 			logrus.Debugln("Set Arg is not SQLVal statement")
 			continue
 		}
+		argName := arg.Name.ValueForConfig()
 
-		// Prepared statement could be supply the text of the statement as a user variable:
-		// SET @s = 'SELECT SQRT(POW(?,2) + POW(?,2)) AS hypotenuse';
-		// PREPARE stmt2 FROM @s;
-		// https://dev.mysql.com/doc/refman/8.0/en/sql-prepared-statements.html
-		//TODO: potentially we can get it from sqlparser directly
-		prepareQuery, err := sqlparser.NewPreparedQueryFromString(string(sqlVal.Val))
-		if err == nil && prepareQuery != nil {
-			var stmt = prepareQuery.(sqlparser.Statement)
-
+		ok, err := e.handleQueryFromSetArg(ctx, sqlVal, argName)
+		if ok {
 			logrus.Debugln("New PreparedStatement from Set Arg")
-			changedObject, changed, err := e.onQuery(ctx, arg.Name.String(), stmt)
-			if err != nil {
-				return nil, false, err
-			}
-
-			if changed {
-				if err := e.updateChangedQuery(changedObject); err != nil {
-					return nil, false, err
-				}
-
-				sqlVal.Val = []byte(changedObject.Query())
-				changedRes = changed
-			}
+			changedRes = true
 			continue
 		}
 
-		delim := e.schemaStore.GetDatabaseSettings().GetMySQLDatabaseSettings().
-			GetPreparedStatementsSetArgDelimiter()
-		splits := strings.Split(arg.Name.String(), delim)
-		if len(splits) == 1 {
-			continue
-		}
-
-		tableName := strings.TrimPrefix(splits[0], "@")
-		columnName := splits[1]
-
-		schema := e.schemaStore.GetTableSchema(tableName)
-		if schema == nil {
-			logrus.Debugf("Hasn't schema for table in SET query %s", tableName)
-			return nil, false, nil
-		}
-
-		columnSetting := schema.GetColumnEncryptionSettings(columnName)
-		if columnSetting == nil {
-			logrus.Debugf("No column encryption setting %s", columnName)
-			return nil, false, nil
-		}
-
-		accessContext := base.AccessContextFromContext(ctx)
-		clientID := columnSetting.ClientID()
-		if len(clientID) > 0 {
-			logrus.WithField("client_id", string(clientID)).Debugln("Encrypt with specific ClientID for column")
-		} else {
-			logrus.WithField("client_id", string(accessContext.GetClientID())).Debugln("Encrypt with ClientID from connection")
-			clientID = accessContext.GetClientID()
-		}
-
-		rawData, err := e.coder.Decode(sqlVal, columnSetting)
-		if err != nil {
-			return nil, false, nil
-		}
-
-		encryptedData, err := e.encryptor.EncryptWithClientID(clientID, rawData, columnSetting)
+		encryptedData, err := e.handleColumnFromSetArg(ctx, sqlVal, argName)
 		if err != nil {
 			return nil, false, err
 		}
@@ -261,23 +198,95 @@ func (e *PreparedStatementsQuery) onSet(ctx context.Context, setQuery *sqlparser
 	return base.NewOnQueryObjectFromStatement(setQuery, e.parser), changedRes, nil
 }
 
+func (e *PreparedStatementsQuery) handleColumnFromSetArg(ctx context.Context, sqlVal *sqlparser.SQLVal, argName string) ([]byte, error) {
+	// MySQL set arg query format:
+	// SET @a = 3;
+	// Acra expect arguments in the following format: {table_from_encryptor_config}{delimiter}{column_from_encryptor_config}, e.g
+	// users__name - where `__` is the default delimiter could be overwritten
+	var delim = e.schemaStore.GetDatabaseSettings().GetMySQLDatabaseSettings().GetPreparedStatementsSetArgDelimiter()
+
+	splits := strings.Split(argName, delim)
+	if len(splits) == 1 {
+		return nil, nil
+	}
+
+	var columnName = splits[1]
+	var tableName = strings.TrimPrefix(splits[0], "@")
+
+	schema := e.schemaStore.GetTableSchema(tableName)
+	if schema == nil {
+		logrus.Debugf("Hasn't schema for table in SET query %s", tableName)
+		return nil, nil
+	}
+
+	columnSetting := schema.GetColumnEncryptionSettings(columnName)
+	if columnSetting == nil {
+		logrus.Debugf("No column encryption setting %s", columnName)
+		return nil, nil
+	}
+
+	accessContext := base.AccessContextFromContext(ctx)
+	clientID := columnSetting.ClientID()
+	if len(clientID) > 0 {
+		logrus.WithField("client_id", string(clientID)).Debugln("Encrypt with specific ClientID for column")
+	} else {
+		logrus.WithField("client_id", string(accessContext.GetClientID())).Debugln("Encrypt with ClientID from connection")
+		clientID = accessContext.GetClientID()
+	}
+
+	rawData, err := e.coder.Decode(sqlVal, columnSetting)
+	if err != nil {
+		return nil, err
+	}
+
+	encryptedData, err := e.encryptor.EncryptWithClientID(clientID, rawData, columnSetting)
+	if err != nil {
+		return nil, err
+	}
+	return encryptedData, nil
+}
+
+func (e *PreparedStatementsQuery) handleQueryFromSetArg(ctx context.Context, sqlVal *sqlparser.SQLVal, argName string) (bool, error) {
+	// Prepared statement could be supply the text of the statement as a user variable:
+	// SET @s = 'SELECT SQRT(POW(?,2) + POW(?,2)) AS hypotenuse';
+	// PREPARE stmt2 FROM @s;
+	// https://dev.mysql.com/doc/refman/8.0/en/sql-prepared-statements.html
+	//TODO: potentially we can get it from sqlparser directly
+	prepareQuery, err := sqlparser.NewPreparedQueryFromString(string(sqlVal.Val))
+	if err != nil || prepareQuery == nil {
+		return false, nil
+	}
+
+	queryObj := base.NewOnQueryObjectFromStatement(prepareQuery.(sqlparser.Statement), e.parser)
+	changedObject, changed, err := e.onQuery(ctx, argName, queryObj)
+	if err != nil {
+		return false, err
+	}
+
+	if changed {
+		if err := e.updateChangedQuery(changedObject); err != nil {
+			return false, err
+		}
+
+		sqlVal.Val = []byte(changedObject.Query())
+	}
+	return changed, nil
+}
+
 func (e *PreparedStatementsQuery) onExecute(ctx context.Context, executeQuery *sqlparser.Execute) (base.OnQueryObject, bool, error) {
 	logrus.Debugln("PreparedStatementsQuery.Execute")
 
 	var preparedStatementName = executeQuery.PreparedStatementName.String()
 
-	_, err := e.proxyHandler.registry.StatementByID(preparedStatementName)
+	stmtItem, err := e.proxyHandler.registry.StatementByID(preparedStatementName)
 	if err != nil {
 		logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 			WithError(err).Errorln("PreparedStatement not present in registry")
 		return nil, false, ErrStatementNotPresentInRegistry
 	}
 
-	querySetting, ok := e.proxyHandler.registry.QuerySettingsByID(preparedStatementName)
-	if ok {
-		logrus.Debugln("Set query settings from registry")
-		e.querySelectSettings = querySetting
-	}
+	logrus.Debugln("Set query settings from registry")
+	e.querySelectSettings = stmtItem.QuerySettings()
 
 	return base.NewOnQueryObjectFromStatement(executeQuery, e.parser), true, nil
 }
@@ -293,34 +302,37 @@ func (e *PreparedStatementsQuery) onDeallocate(ctx context.Context, deallocateQu
 		return nil, false, ErrStatementNotPresentInRegistry
 	}
 
+	e.querySelectSettings = nil
 	e.proxyHandler.registry.DeleteStatementByID(preparedStatementName)
 	return nil, false, nil
 }
 
-func (e *PreparedStatementsQuery) onQuery(ctx context.Context, preparedStatementName string, stmt sqlparser.Statement) (base.OnQueryObject, bool, error) {
-	var query = sqlparser.String(stmt)
-	var preparedStatement = NewPreparedStatement(0, 0, query, stmt)
+func (e *PreparedStatementsQuery) onQuery(ctx context.Context, preparedStatementName string, queryObj base.OnQueryObject) (base.OnQueryObject, bool, error) {
+	stmt, err := queryObj.Statement()
+	if err != nil {
+		return nil, false, err
+	}
 
-	preparedStatement.name = preparedStatementName
-	e.proxyHandler.registry.AddStatement(preparedStatement)
+	var query = queryObj.Query()
+	var preparedStatement = NewPreparedStatementWithName(preparedStatementName, query, stmt)
 
-	queryObj := base.NewOnQueryObjectFromQuery(query, e.parser)
 	changedObject, changed, err := e.proxyHandler.queryObserverManager.OnQuery(ctx, queryObj)
 	if err != nil {
 		logrus.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptQueryData).Errorln("Error occurred in OnQuery handler")
 		return nil, false, err
 	}
 
+	var querySetting []*encryptor.QueryDataItem
 	switch query := stmt.(type) {
 	case *sqlparser.Select:
-		querySetting, err := e.parseQuerySettings(ctx, query)
+		querySetting, err = encryptor.ParseQuerySettings(ctx, query, e.schemaStore)
 		if err != nil {
 			logrus.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptQueryData).Errorln("Failed to parse querySettings for select in Prepare")
 			return nil, false, err
 		}
-		e.proxyHandler.registry.AddQuerySettings(preparedStatementName, querySetting)
 	}
 
+	e.proxyHandler.registry.AddStatement(NewPreparedStatementItem(preparedStatement, querySetting))
 	return changedObject, changed, nil
 }
 
@@ -329,80 +341,6 @@ func (e *PreparedStatementsQuery) OnBind(ctx context.Context, statement sqlparse
 	logrus.Debugln("PreparedStatementsQuery.OnBind")
 	return values, false, nil
 }
-
-func filterTableExpressions(statement sqlparser.Statement) (sqlparser.TableExprs, error) {
-	switch query := statement.(type) {
-	case *sqlparser.Select:
-		return query.From, nil
-	case *sqlparser.Update:
-		return query.TableExprs, nil
-	case *sqlparser.Delete:
-		return query.TableExprs, nil
-	case *sqlparser.Insert:
-		// only support INSERT INTO table2 SELECT * FROM test_table WHERE data1='somedata' syntax for INSERTs
-		if selectInInsert, ok := query.Rows.(*sqlparser.Select); ok {
-			return selectInInsert.From, nil
-		}
-		return nil, ErrUnsupportedQueryType
-	default:
-		return nil, ErrUnsupportedQueryType
-	}
-}
-
-func getColumnSetting(column *sqlparser.ColName, tableName string, schemaStore config.TableSchemaStore) config.ColumnEncryptionSetting {
-	schema := schemaStore.GetTableSchema(tableName)
-	if schema == nil {
-		return nil
-	}
-	// Also leave out those columns which are not searchable.
-	columnName := column.Name.ValueForConfig()
-	return schema.GetColumnEncryptionSettings(columnName)
-}
-
-func getWhereStatements(stmt sqlparser.Statement) ([]*sqlparser.Where, error) {
-	var whereStatements []*sqlparser.Where
-	err := sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
-		switch nodeType := node.(type) {
-		case *sqlparser.Where:
-			whereStatements = append(whereStatements, nodeType)
-		case sqlparser.JoinCondition:
-			whereStatements = append(whereStatements, &sqlparser.Where{
-				Type: "on",
-				Expr: nodeType.On,
-			})
-		}
-		return true, nil
-	}, stmt)
-	return whereStatements, err
-}
-
-func (e *PreparedStatementsQuery) filterSearchableComparisons(statement sqlparser.Statement) []SearchableExprItem {
-	tableExps, err := filterTableExpressions(statement)
-	if err != nil {
-		logrus.Debugln("Unsupported search query")
-		return nil
-	}
-
-	// Walk through WHERE clauses of a SELECT statements...
-	whereExprs, err := getWhereStatements(statement)
-	if err != nil {
-		logrus.WithError(err).Debugln("Failed to extract WHERE clauses")
-		return nil
-	}
-
-	var searchableExprs []SearchableExprItem
-	for _, whereExpr := range whereExprs {
-		comparisonExprs, err := e.filterColumnEqualComparisonExprs(whereExpr, tableExps)
-		if err != nil {
-			logrus.WithError(err).Debugln("Failed to extract comparison expressions")
-			return nil
-		}
-		searchableExprs = append(searchableExprs, comparisonExprs...)
-	}
-
-	return searchableExprs
-}
-
 func (e *PreparedStatementsQuery) updateChangedQuery(changedObject base.OnQueryObject) error {
 	changedStatement, err := changedObject.Statement()
 	if err != nil {
@@ -432,15 +370,36 @@ func (e *PreparedStatementsQuery) updateChangedQuery(changedObject base.OnQueryO
 	return nil
 }
 
-// SearchableExprItem represent the filtered value found by SearchableQueryFilter
-type SearchableExprItem struct {
-	Expr    *sqlparser.ComparisonExpr
-	Setting config.ColumnEncryptionSetting
+func (e *PreparedStatementsQuery) filterSearchableComparisons(statement sqlparser.Statement) []encryptor.SearchableExprItem {
+	tableExps, err := encryptor.FilterTableExpressions(statement)
+	if err != nil {
+		logrus.Debugln("Unsupported search query")
+		return nil
+	}
+
+	// Walk through WHERE clauses of a SELECT statements...
+	whereExprs, err := encryptor.GetWhereStatements(statement)
+	if err != nil {
+		logrus.WithError(err).Debugln("Failed to extract WHERE clauses")
+		return nil
+	}
+
+	var searchableExprs []encryptor.SearchableExprItem
+	for _, whereExpr := range whereExprs {
+		comparisonExprs, err := e.filterColumnEqualComparisonExprs(whereExpr, tableExps)
+		if err != nil {
+			logrus.WithError(err).Debugln("Failed to extract comparison expressions")
+			return nil
+		}
+		searchableExprs = append(searchableExprs, comparisonExprs...)
+	}
+
+	return searchableExprs
 }
 
 // filterColumnEqualComparisonExprs return only <ColName> = <VALUE> or <ColName> != <VALUE> or <ColName> <=> <VALUE> expressions
-func (e *PreparedStatementsQuery) filterColumnEqualComparisonExprs(stmt sqlparser.SQLNode, tableExpr sqlparser.TableExprs) ([]SearchableExprItem, error) {
-	var exprs []SearchableExprItem
+func (e *PreparedStatementsQuery) filterColumnEqualComparisonExprs(stmt sqlparser.SQLNode, tableExpr sqlparser.TableExprs) ([]encryptor.SearchableExprItem, error) {
+	var exprs []encryptor.SearchableExprItem
 
 	err := sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
 		comparisonExpr, ok := node.(*sqlparser.ComparisonExpr)
@@ -467,7 +426,7 @@ func (e *PreparedStatementsQuery) filterColumnEqualComparisonExprs(stmt sqlparse
 			return true, nil
 		}
 
-		lColumnSetting := getColumnSetting(lColumn.Name, columnInfo.Table, e.schemaStore)
+		lColumnSetting := encryptor.GetColumnSetting(lColumn.Name, columnInfo.Table, e.schemaStore)
 		if lColumnSetting == nil {
 			return true, nil
 		}
@@ -476,44 +435,11 @@ func (e *PreparedStatementsQuery) filterColumnEqualComparisonExprs(stmt sqlparse
 			return true, nil
 		}
 
-		exprs = append(exprs, SearchableExprItem{
+		exprs = append(exprs, encryptor.SearchableExprItem{
 			Expr:    comparisonExpr,
 			Setting: lColumnSetting,
 		})
 		return true, nil
 	}, stmt)
 	return exprs, err
-}
-
-func (e *PreparedStatementsQuery) parseQuerySettings(ctx context.Context, statement *sqlparser.Select) ([]*encryptor.QueryDataItem, error) {
-	columns, err := encryptor.MapColumnsToAliases(statement, e.schemaStore)
-	if err != nil {
-		logrus.WithError(err).Errorln("Can't extract columns from SELECT statement")
-		return nil, err
-	}
-	querySelectSettings := make([]*encryptor.QueryDataItem, 0, len(columns))
-	for _, data := range columns {
-		if data != nil {
-			if schema := e.schemaStore.GetTableSchema(data.Table); schema != nil {
-				var setting *encryptor.QueryDataItem = nil
-				if data.Name == "*" {
-					for _, name := range schema.Columns() {
-						setting = nil
-						if columnSetting := schema.GetColumnEncryptionSettings(name); columnSetting != nil {
-							setting = encryptor.NewQueryDataItem(columnSetting, data.Table, name, "")
-						}
-						querySelectSettings = append(querySelectSettings, setting)
-					}
-				} else {
-					if columnSetting := schema.GetColumnEncryptionSettings(data.Name); columnSetting != nil {
-						setting = encryptor.NewQueryDataItem(columnSetting, data.Table, data.Name, data.Alias)
-					}
-					querySelectSettings = append(querySelectSettings, setting)
-				}
-				continue
-			}
-		}
-		querySelectSettings = append(querySelectSettings, nil)
-	}
-	return querySelectSettings, nil
 }

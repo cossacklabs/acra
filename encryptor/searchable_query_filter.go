@@ -66,7 +66,7 @@ func (filter *SearchableQueryFilter) FilterSearchableComparisons(statement sqlpa
 	}
 
 	// Walk through WHERE clauses of a SELECT statements...
-	whereExprs, err := getWhereStatements(statement)
+	whereExprs, err := GetWhereStatements(statement)
 	if err != nil {
 		logrus.WithError(err).Debugln("Failed to extract WHERE clauses")
 		return nil
@@ -114,33 +114,6 @@ func filterTableExpressions(statement sqlparser.Statement) (sqlparser.TableExprs
 	}
 }
 
-func getColumnSetting(column *sqlparser.ColName, columnInfo ColumnInfo, schemaStore config.TableSchemaStore) config.ColumnEncryptionSetting {
-	schema := schemaStore.GetTableSchema(columnInfo.Table)
-	if schema == nil {
-		return nil
-	}
-	// Also leave out those columns which are not searchable.
-	columnName := column.Name.ValueForConfig()
-	return schema.GetColumnEncryptionSettings(columnName)
-}
-
-func getWhereStatements(stmt sqlparser.Statement) ([]*sqlparser.Where, error) {
-	var whereStatements []*sqlparser.Where
-	err := sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
-		switch nodeType := node.(type) {
-		case *sqlparser.Where:
-			whereStatements = append(whereStatements, nodeType)
-		case sqlparser.JoinCondition:
-			whereStatements = append(whereStatements, &sqlparser.Where{
-				Type: "on",
-				Expr: nodeType.On,
-			})
-		}
-		return true, nil
-	}, stmt)
-	return whereStatements, err
-}
-
 func isSupportedSQLVal(val *sqlparser.SQLVal) bool {
 	switch val.Type {
 	case sqlparser.PgEscapeString, sqlparser.HexVal, sqlparser.StrVal, sqlparser.PgPlaceholder, sqlparser.ValArg, sqlparser.IntVal:
@@ -178,7 +151,7 @@ func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(stmt sqlpa
 			return true, nil
 		}
 
-		lColumnSetting := getColumnSetting(lColumn, columnInfo, filter.schemaStore)
+		lColumnSetting := GetColumnSetting(lColumn, columnInfo.Table, filter.schemaStore)
 		if lColumnSetting == nil {
 			return true, nil
 		}
@@ -199,7 +172,7 @@ func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(stmt sqlpa
 				return true, nil
 			}
 
-			rColumnSetting := getColumnSetting(rColumn, columnInfo, filter.schemaStore)
+			rColumnSetting := GetColumnSetting(rColumn, columnInfo.Table, filter.schemaStore)
 			if rColumnSetting != nil {
 				if rColumnSetting.IsSearchable() {
 					exprs = append(exprs, SearchableExprItem{

@@ -22,26 +22,53 @@ import (
 // ErrStatementNotFound Err returned by prepared statement registry.
 var ErrStatementNotFound = errors.New("no prepared statement with given statement-id")
 
+// PreparedStatementItem represent an item to store in PreparedStatementRegistry
+type PreparedStatementItem struct {
+	stmt                base.PreparedStatement
+	querySelectSettings []*encryptor.QueryDataItem
+}
+
+// NewPreparedStatementItem create a new PreparedStatementItem
+func NewPreparedStatementItem(stmt base.PreparedStatement, querySelectSettings []*encryptor.QueryDataItem) PreparedStatementItem {
+	return PreparedStatementItem{
+		stmt:                stmt,
+		querySelectSettings: querySelectSettings,
+	}
+}
+
+// Name return PreparedStatementItem name
+func (r *PreparedStatementItem) Name() string {
+	return r.stmt.Name()
+}
+
+// Statement return PreparedStatementItem statememt
+func (r *PreparedStatementItem) Statement() base.PreparedStatement {
+	return r.stmt
+}
+
+// QuerySettings return PreparedStatementItem querySettings
+func (r *PreparedStatementItem) QuerySettings() []*encryptor.QueryDataItem {
+	return r.querySelectSettings
+}
+
 // PreparedStatementRegistry is a MySQL PreparedStatementRegistry.
 type PreparedStatementRegistry struct {
-	statements          map[string]base.PreparedStatement
-	querySelectSettings map[string][]*encryptor.QueryDataItem
+	statements map[string]PreparedStatementItem
 }
 
 // NewPreparedStatementRegistry makes a new empty prepared statement registry.
 func NewPreparedStatementRegistry() *PreparedStatementRegistry {
 	return &PreparedStatementRegistry{
-		statements:          make(map[string]base.PreparedStatement),
-		querySelectSettings: make(map[string][]*encryptor.QueryDataItem),
+		statements: make(map[string]PreparedStatementItem),
 	}
 }
 
 // StatementByID returns a prepared statement from the registry by its id, if it exists.
-func (r *PreparedStatementRegistry) StatementByID(stmtID string) (base.PreparedStatement, error) {
+func (r *PreparedStatementRegistry) StatementByID(stmtID string) (PreparedStatementItem, error) {
 	if s, ok := r.statements[stmtID]; ok {
 		return s, nil
 	}
-	return nil, ErrStatementNotFound
+	return PreparedStatementItem{}, ErrStatementNotFound
 }
 
 // DeleteStatementByID returns a prepared statement from the registry by its id, if it exists.
@@ -55,19 +82,8 @@ func (r *PreparedStatementRegistry) DeleteStatementByID(stmtID string) bool {
 
 // AddStatement adds a prepared statement to the registry.
 // If an existing statement with the same name exists, it is replaced with the new one.
-func (r *PreparedStatementRegistry) AddStatement(statement base.PreparedStatement) {
+func (r *PreparedStatementRegistry) AddStatement(statement PreparedStatementItem) {
 	r.statements[statement.Name()] = statement
-}
-
-// AddQuerySettings query settings to the registry
-func (r *PreparedStatementRegistry) AddQuerySettings(stmtID string, settings []*encryptor.QueryDataItem) {
-	r.querySelectSettings[stmtID] = settings
-}
-
-// QuerySettingsByID query setting by stmtID
-func (r *PreparedStatementRegistry) QuerySettingsByID(stmtID string) ([]*encryptor.QueryDataItem, bool) {
-	settings, ok := r.querySelectSettings[stmtID]
-	return settings, ok
 }
 
 // PreparedStatement is a MySQL PreparedStatement.
@@ -85,6 +101,15 @@ func NewPreparedStatement(statementID uint32, paramsNum uint16, sqlString string
 		sqlString:    sqlString,
 		sqlStatement: sqlStatement,
 		paramsNum:    int(paramsNum),
+	}
+}
+
+// NewPreparedStatementWithName makes a new prepared statement with name and zero paramsNum
+func NewPreparedStatementWithName(name string, sqlString string, sqlStatement sqlparser.Statement) *PreparedStatement {
+	return &PreparedStatement{
+		name:         name,
+		sqlString:    sqlString,
+		sqlStatement: sqlStatement,
 	}
 }
 

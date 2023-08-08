@@ -385,45 +385,11 @@ func (encryptor *QueryDataEncryptor) OnColumn(ctx context.Context, data []byte) 
 const allColumnsName = "*"
 
 func (encryptor *QueryDataEncryptor) onSelect(ctx context.Context, statement *sqlparser.Select) (bool, error) {
-	columns, err := MapColumnsToAliases(statement, encryptor.schemaStore)
+	querySelectSettings, err := ParseQuerySettings(ctx, statement, encryptor.schemaStore)
 	if err != nil {
-		logrus.WithError(err).Errorln("Can't extract columns from SELECT statement")
 		return false, err
 	}
-	querySelectSettings := make([]*QueryDataItem, 0, len(columns))
-	for _, data := range columns {
-		if data != nil {
-			if schema := encryptor.schemaStore.GetTableSchema(data.Table); schema != nil {
-				var setting *QueryDataItem = nil
-				if data.Name == allColumnsName {
-					for _, name := range schema.Columns() {
-						setting = nil
-						if columnSetting := schema.GetColumnEncryptionSettings(name); columnSetting != nil {
-							setting = &QueryDataItem{
-								setting:     columnSetting,
-								tableName:   data.Table,
-								columnName:  name,
-								columnAlias: "",
-							}
-						}
-						querySelectSettings = append(querySelectSettings, setting)
-					}
-				} else {
-					if columnSetting := schema.GetColumnEncryptionSettings(data.Name); columnSetting != nil {
-						setting = &QueryDataItem{
-							setting:     columnSetting,
-							tableName:   data.Table,
-							columnName:  data.Name,
-							columnAlias: data.Alias,
-						}
-					}
-					querySelectSettings = append(querySelectSettings, setting)
-				}
-				continue
-			}
-		}
-		querySelectSettings = append(querySelectSettings, nil)
-	}
+
 	clientSession := base.ClientSessionFromContext(ctx)
 	SaveQueryDataItemsToClientSession(clientSession, querySelectSettings)
 
