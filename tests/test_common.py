@@ -782,7 +782,7 @@ class BaseBinaryMySQLTestCase(MysqlExecutorMixin, BaseTestCase):
         compile_kwargs = {"literal_binds": literal_binds}
         query = str(query.compile(compile_kwargs=compile_kwargs))
         values = []
-        values_order = []
+        columns_order = []
         # parse all parameters like `:id` in the query
         pattern_string = r'(:\w+)'
         res = re.findall(pattern_string, query, re.IGNORECASE | re.DOTALL)
@@ -797,9 +797,9 @@ class BaseBinaryMySQLTestCase(MysqlExecutorMixin, BaseTestCase):
                         key = key.rstrip(index_suffix)
                         param_counter += 1
                 values.append(parameters[key])
-                values_order.append(key)
+                columns_order.append(key)
                 query = query.replace(placeholder, '?')
-        return query, tuple(values), values_order
+        return query, tuple(values), columns_order
 
 
 class BasePoisonRecordTest(AcraCatchLogsMixin, AcraTranslatorMixin, BaseTestCase):

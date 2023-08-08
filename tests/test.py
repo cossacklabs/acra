@@ -5218,12 +5218,12 @@ class BaseTestMySQLPreparedStatementsFromSQL(AcraCatchLogsMixin):
         search_term = context['searchable']
 
         # Insert searchable data and some additional different rows
-        _, values_order = self.prepare_from_arg(prepared_name='insert_data', engine=self.engine2,
+        _, columns_order = self.prepare_from_arg(prepared_name='insert_data', engine=self.engine2,
                                                 query=self.test_prepared_sql_statements_table.insert(),
                                                 data_types=self.prepared_sql_statements_table_data_types)
 
         args = []
-        for key in values_order:
+        for key in columns_order:
             arg = 'test_prepared_sql_statements__{}'.format(key)
             args.append(arg)
             self.set_arg(arg_name=arg, engine=self.engine2, value=context[key])
@@ -5314,12 +5314,12 @@ class BaseTestMySQLPreparedStatementsFromSQL(AcraCatchLogsMixin):
         search_term = context['searchable']
 
         # Insert searchable data and some additional different rows
-        _, values_order = self.prepare(prepared_name='insert_data', engine=self.engine2,
+        _, columns_order = self.prepare(prepared_name='insert_data', engine=self.engine2,
                                        query=self.test_prepared_sql_statements_table.insert(),
                                        data_types=self.prepared_sql_statements_table_data_types)
 
         args = []
-        for key in values_order:
+        for key in columns_order:
             arg = 'test_prepared_sql_statements__{}'.format(key)
             args.append(arg)
             self.set_arg(arg_name=arg, engine=self.engine2, value=context[key])
@@ -5410,12 +5410,12 @@ class BaseTestMySQLPreparedStatementsFromSQL(AcraCatchLogsMixin):
         search_term = context['searchable']
 
         # Insert searchable data and some additional different rows
-        _, values_order = self.prepare(prepared_name='insert_data', engine=self.engine2,
+        _, columns_order = self.prepare(prepared_name='insert_data', engine=self.engine2,
                                        query=self.test_prepared_sql_statements_table.insert(),
                                        data_types=self.prepared_sql_statements_table_data_types)
 
         args = []
-        for key in values_order:
+        for key in columns_order:
             arg = 'test_prepared_sql_statements__{}'.format(key)
             args.append(arg)
             self.set_arg(arg_name=arg, engine=self.engine2, value=context[key])

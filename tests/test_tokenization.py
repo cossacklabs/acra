@@ -124,23 +124,23 @@ class BaseTokenizationWithBinaryBindMySQL(BaseTokenization, test_common.BaseBina
         return prepare_query_sql
 
     def compile_prepare(self, prepared_name, query, data_types={}, literal_binds=True):
-        query, _, values_order = self.compileQuery(query, parameters=data_types, literal_binds=literal_binds)
+        query, _, columns_order = self.compileQuery(query, parameters=data_types, literal_binds=literal_binds)
 
         prepare_query_sql = "prepare {} from '{}'".format(prepared_name, query)
-        return prepare_query_sql, values_order
+        return prepare_query_sql, columns_order
 
     def prepare(self, prepared_name, query, engine, data_types={}, literal_binds=True):
-        prepare_query_sql, values_order = self.compile_prepare(prepared_name, query, data_types, literal_binds)
-        return engine.execute(sa.text(prepare_query_sql).execution_options(autocommit=True)), values_order
+        prepare_query_sql, columns_order = self.compile_prepare(prepared_name, query, data_types, literal_binds)
+        return engine.execute(sa.text(prepare_query_sql).execution_options(autocommit=True)), columns_order
 
     def prepare_from_arg(self, prepared_name, query, engine, data_types={}, literal_binds=True):
-        query, _, values_order = self.compileQuery(query, parameters=data_types, literal_binds=literal_binds)
+        query, _, columns_order = self.compileQuery(query, parameters=data_types, literal_binds=literal_binds)
 
         prepared_arg_name = '{}_arg_query'.format(prepared_name)
         self.set_arg(arg_name=prepared_arg_name, engine=engine, value=query)
 
         prepare_query_sql = "prepare {} from @{}".format(prepared_name, prepared_arg_name)
-        return engine.execute(sa.text(prepare_query_sql).execution_options(autocommit=True)), values_order
+        return engine.execute(sa.text(prepare_query_sql).execution_options(autocommit=True)), columns_order
 
     def set_arg(self, arg_name, value, engine):
         data_str = ''

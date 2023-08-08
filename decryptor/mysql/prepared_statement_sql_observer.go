@@ -185,7 +185,7 @@ func (e *PreparedStatementsQuery) onSet(ctx context.Context, setQuery *sqlparser
 			return nil, false, err
 		}
 
-		if !bytes.Equal(encryptedData, sqlVal.Val) {
+		if encryptedData != nil && !bytes.Equal(encryptedData, sqlVal.Val) {
 			output := make([]byte, hex.EncodedLen(len(encryptedData)))
 			hex.Encode(output, encryptedData)
 
