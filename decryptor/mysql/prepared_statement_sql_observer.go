@@ -21,7 +21,7 @@ import (
 // ErrStatementNotPresentInRegistry represent an error that prepared statement already exist in session registry
 var ErrStatementNotPresentInRegistry = errors.New("prepared statement not present in registry")
 
-// PreparedStatementsQuery QueryDataEncryptor process PostgreSQL SQL PreparedStatement
+// PreparedStatementsQuery process MySQL SQL PreparedStatement
 type PreparedStatementsQuery struct {
 	proxyHandler        *Handler
 	parser              *sqlparser.Parser
@@ -31,7 +31,7 @@ type PreparedStatementsQuery struct {
 	querySelectSettings []*encryptor.QueryDataItem
 }
 
-// NewMySQLPreparedStatementsQuery create new QueryDataEncryptor to handle SQL PreparedStatement in the following format
+// NewMySQLPreparedStatementsQuery create new PreparedStatementsQuery to handle SQL PreparedStatement in the following format
 // https://dev.mysql.com/doc/refman/8.0/en/sql-prepared-statements.html
 func NewMySQLPreparedStatementsQuery(proxyHandler *Handler, parser *sqlparser.Parser, schemaStore config.TableSchemaStore) *PreparedStatementsQuery {
 	return &PreparedStatementsQuery{
@@ -181,6 +181,8 @@ func (e *PreparedStatementsQuery) onSet(ctx context.Context, setQuery *sqlparser
 
 		encryptedData, err := e.handleColumnFromSetArg(ctx, sqlVal, argName)
 		if err != nil {
+			logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+				WithError(err).Errorln("Failed to handle column from Set arg")
 			return nil, false, err
 		}
 
@@ -205,7 +207,8 @@ func (e *PreparedStatementsQuery) handleColumnFromSetArg(ctx context.Context, sq
 	var delim = e.schemaStore.GetDatabaseSettings().GetMySQLDatabaseSettings().GetPreparedStatementsSetArgDelimiter()
 
 	splits := strings.Split(argName, delim)
-	if len(splits) == 1 {
+	if len(splits) != 2 {
+		logrus.WithField("argument", argName).Debugln("unexpected Set arg name for processing")
 		return nil, nil
 	}
 
@@ -356,12 +359,15 @@ func (e *PreparedStatementsQuery) updateChangedQuery(changedObject base.OnQueryO
 			continue
 		}
 
-		item.Expr.Right = &sqlparser.SubstrExpr{
-			Name: &sqlparser.ColName{
-				Name: sqlparser.NewColIdentUnquote("?"),
-			},
-			From: sqlparser.NewIntVal([]byte{'1'}),
-			To:   sqlparser.NewIntVal(hashSize),
+		if rVal, ok := item.Expr.Right.(*sqlparser.SQLVal); ok && bytes.HasPrefix(rVal.Val, []byte(":v")) {
+			logrus.Debugln("OnPrepare: replace placeholder with substr for search")
+			item.Expr.Right = &sqlparser.SubstrExpr{
+				Name: &sqlparser.ColName{
+					Name: sqlparser.NewColIdentUnquote("?"),
+				},
+				From: sqlparser.NewIntVal([]byte{'1'}),
+				To:   sqlparser.NewIntVal(hashSize),
+			}
 		}
 	}
 

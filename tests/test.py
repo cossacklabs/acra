@@ -5335,8 +5335,8 @@ class BaseTestMySQLPreparedStatementsFromSQL(AcraCatchLogsMixin):
 
         # Insert searchable data and some additional different rows
         _, columns_order = self.prepare(prepared_name='insert_data', engine=self.engine2,
-                                       query=self.test_prepared_sql_statements_table.insert(),
-                                       data_types=self.prepared_sql_statements_table_data_types)
+                                        query=self.test_prepared_sql_statements_table.insert(),
+                                        data_types=self.prepared_sql_statements_table_data_types)
 
         args = []
         for key in columns_order:
@@ -5381,6 +5381,13 @@ class BaseTestMySQLPreparedStatementsFromSQL(AcraCatchLogsMixin):
         self.assertEqual(rows[0]['token_i64'], context['token_i64'])
         # other data should be encrypted
         self.assertNotEqual(bytes(rows[0]['specified_client_id']), context['specified_client_id'])
+
+        # check prepare with replace on search hash, e.g:
+        # prepare name from 'select * from table where search = \'value\''
+        self.prepare_with_literal_binds(prepared_name='select_data_by_field_value', engine=self.engine2, query=query)
+
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field_value', engine=self.engine2, args=[])
+        self.assertEqual(len(rows), 1)
 
         # read raw data via engine1 to check data is encrypted
         query = sa.select(self.test_prepared_sql_statements_table).where(

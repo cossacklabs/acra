@@ -339,6 +339,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             # restart on every breakpoint stop to pull updated parameters and reset keys from memory cache
             base.dump_yaml_config(args, '/tmp/config.yml')
             return base.ProcessStub()
+
         process = base.fork(lambda: subprocess.Popen([self.get_acraserver_bin_path()] + cli_args,
                                                      **popen_kwargs))
         try:

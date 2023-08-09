@@ -133,6 +133,12 @@ class BaseTokenizationWithBinaryBindMySQL(BaseTokenization, test_common.BaseBina
         prepare_query_sql, columns_order = self.compile_prepare(prepared_name, query, data_types, literal_binds)
         return engine.execute(sa.text(prepare_query_sql).execution_options(autocommit=True)), columns_order
 
+    def prepare_with_literal_binds(self, prepared_name, query, engine):
+        str_query = str(query.compile(compile_kwargs={"literal_binds": True}))
+        str_query = str_query.replace('\'', '\\\'')
+        prepare_query_sql = "prepare {} from '{}'".format(prepared_name, str_query)
+        return engine.execute(sa.text(prepare_query_sql).execution_options(autocommit=True))
+
     def prepare_from_arg(self, prepared_name, query, engine, data_types={}, literal_binds=True):
         query, _, columns_order = self.compileQuery(query, parameters=data_types, literal_binds=literal_binds)
 
@@ -169,7 +175,10 @@ class BaseTokenizationWithBinaryBindMySQL(BaseTokenization, test_common.BaseBina
         using_str = ''
         for x in args:
             using_str += '@{}, '.format(str(x))
-        execute_sql = "execute {} using {}".format(prepared_name, using_str.removesuffix(', '))
+        if len(args) > 0:
+            execute_sql = "execute {} using {}".format(prepared_name, using_str.removesuffix(', '))
+        else:
+            execute_sql = "execute {}".format(prepared_name)
         return engine.execute(sa.text(execute_sql).execution_options(autocommit=True)).fetchall()
 
     def deallocate(self, prepared_name, engine):
