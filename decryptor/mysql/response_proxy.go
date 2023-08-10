@@ -513,13 +513,13 @@ func (handler *Handler) handleStatementExecute(ctx context.Context, packet *Pack
 	} else {
 		log = handler.logger.WithField("proxy", "client").WithField("statement", stmtID)
 		log.Debug("Statement Execute")
-
-		preparedStmt, err := handler.registry.StatementByID(strconv.FormatUint(uint64(stmtID), 10))
+		stmtItem, err := handler.registry.StatementByID(strconv.FormatUint(uint64(stmtID), 10))
 		if err != nil {
 			log.WithError(err).Error("Can't find prepared statement in registry")
 			return 0, nil
 		}
 
+		preparedStmt := stmtItem.Statement()
 		paramsNumber = preparedStmt.ParamsNum()
 		statement = preparedStmt.Query()
 	}
@@ -891,7 +891,9 @@ func (handler *Handler) PreparedStatementResponseHandler(ctx context.Context, pa
 		handler.logger.WithError(err).Error("Failed to handle prepared statement response packet: can't find prepared statement")
 		return err
 	}
-	handler.registry.AddStatement(NewPreparedStatement(response, queryObj.Query(), statement))
+
+	preparedStmt := NewPreparedStatement(response.StatementID, response.ParamsNum, queryObj.Query(), statement)
+	handler.registry.AddStatement(NewPreparedStatementItem(preparedStmt, nil))
 
 	// proxy output
 	handler.logger.Debugln("Proxy output")

@@ -76,6 +76,9 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 		proxy.SubscribeOnAllColumnsDecryption(queryEncryptor)
 	}
 
+	preparedStatementQuery := NewMySQLPreparedStatementsQuery(proxy, proxy.parser, schemaStore)
+
+	proxy.SubscribeOnAllColumnsDecryption(preparedStatementQuery)
 	proxy.SubscribeOnAllColumnsDecryption(NewDataDecoderProcessor())
 
 	// poison record processor should be first
@@ -157,7 +160,11 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 	if err != nil {
 		return nil, err
 	}
+
+	preparedStatementQuery.SetDataEncryptor(queryDataEncryptor)
+	proxy.AddQueryObserver(preparedStatementQuery)
 	proxy.AddQueryObserver(queryEncryptor)
+
 	proxy.SubscribeOnAllColumnsDecryption(queryEncryptor)
 
 	proxy.SubscribeOnAllColumnsDecryption(NewDataEncoderProcessor())

@@ -61,7 +61,7 @@ func (encryptor *PreparedStatementsQuery) OnQuery(ctx context.Context, query bas
 func (encryptor *PreparedStatementsQuery) onPrepare(ctx context.Context, prepareQuery *sqlparser.Prepare) (base.OnQueryObject, bool, error) {
 	logrus.Debugln("PreparedStatementsQuery.Prepare")
 
-	var preparedStatementName = prepareQuery.PreparedStatementName.String()
+	var preparedStatementName = prepareQuery.PreparedStatementName.ValueForConfig()
 	var registry = encryptor.session.PreparedStatementRegistry()
 
 	// PostgreSQL allows create statement only once during the session

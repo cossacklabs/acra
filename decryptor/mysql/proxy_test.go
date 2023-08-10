@@ -2,16 +2,17 @@ package mysql
 
 import (
 	"context"
-	"github.com/cossacklabs/acra/sqlparser"
 	"io"
 	"net"
 	"testing"
 
+	"github.com/cossacklabs/themis/gothemis/keys"
+	"github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/themis/gothemis/keys"
-	"github.com/sirupsen/logrus"
+	"github.com/cossacklabs/acra/sqlparser"
 )
 
 type testDecryptor struct{}
@@ -175,7 +176,7 @@ func TestEncryptorTurnOnOff(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if proxy.RegisteredObserversCount() > 1 {
+	if proxy.RegisteredObserversCount() > 2 {
 		t.Fatal("Unexpected observers count")
 	}
 
@@ -188,7 +189,7 @@ func TestEncryptorTurnOnOff(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if proxy.RegisteredObserversCount() != 1 {
+	if proxy.RegisteredObserversCount() != 2 {
 		t.Fatal("Unexpected observers count")
 	}
 }

@@ -332,10 +332,10 @@ class TestMySQLBinaryFormatTypeAwareDecryptionWithDefaults(TestMySQLTextFormatTy
 
         self.schema_table.create(bind=self.engine_raw, checkfirst=True)
         columns = ('value_str', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32', 'value_empty_str')
-        query, args = self.compileQuery(self.test_table.insert(), data)
+        query, args, _ = self.compileQuery(self.test_table.insert(), data)
         self.executor1.execute_prepared_statement_no_result(query, args)
 
-        query, args = self.compileQuery(
+        query, args, _ = self.compileQuery(
             sa.select([self.test_table])
             .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
         row = self.executor1.execute_prepared_statement(query, args)[0]
@@ -994,10 +994,10 @@ class TestMySQLBinaryTypeAwareDecryptionWithoutDefaults(TestMySQLTextTypeAwareDe
         ######
         columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
                    'value_empty_str')
-        query, args = self.compileQuery(self.test_table.insert(), data)
+        query, args, _ = self.compileQuery(self.test_table.insert(), data)
         self.executor1.execute_prepared_statement_no_result(query, args)
 
-        query, args = self.compileQuery(
+        query, args, _ = self.compileQuery(
             sa.select([self.test_table])
             .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
 
@@ -1229,10 +1229,10 @@ class TestMySQLBinaryTypeAwareDecryptionWithCiphertext(TestMySQLTextTypeAwareDec
         ######
         columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
                    'value_empty_str')
-        query, args = self.compileQuery(self.test_table.insert(), data)
+        query, args, _ = self.compileQuery(self.test_table.insert(), data)
         self.executor1.execute_prepared_statement_no_result(query, args)
 
-        query, args = self.compileQuery(
+        query, args, _ = self.compileQuery(
             sa.select([self.test_table])
             .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
 
@@ -1366,10 +1366,10 @@ class TestMySQLBinaryTypeAwareDecryptionWithError(TestMySQLTextTypeAwareDecrypti
         ######
         columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
                    'value_empty_str')
-        query, args = self.compileQuery(self.test_table.insert(), data)
+        query, args, _ = self.compileQuery(self.test_table.insert(), data)
         self.executor1.execute_prepared_statement_no_result(query, args)
 
-        query, args = self.compileQuery(
+        query, args, _ = self.compileQuery(
             sa.select([self.test_table])
             .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
 

@@ -5145,6 +5145,390 @@ class TestPostgresSQLPreparedStatements(TestSQLPreparedStatements, BaseTokenizat
     pass
 
 
+class BaseTestMySQLPreparedStatementsFromSQL(AcraCatchLogsMixin):
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/ee_prepared_statements_sql.yaml')
+
+    prepared_sql_statements_table_data_types = {
+        'id': 'int',
+        'default_client_id': 'bytea',
+        'number': 'int',
+        'specified_client_id': 'bytea',
+        'raw_data': 'bytea',
+        'searchable': 'bytea',
+        'empty': 'bytea',
+        'nullable': 'text',
+        'masking': 'bytea',
+        'token_bytes': 'bytea',
+        'token_email': 'text',
+        'token_str': 'text',
+        'token_i32': 'int4',
+        'token_i64': 'int8',
+    }
+
+    test_prepared_sql_statements_table = sa.Table(
+        'test_prepared_sql_statements', base.metadata,
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('specified_client_id',
+                  sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+        sa.Column('default_client_id',
+                  sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+
+        sa.Column('number', sa.Integer),
+        sa.Column('raw_data', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+        sa.Column('nullable', sa.Text, nullable=True),
+        sa.Column('searchable', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+        sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('token_i32', sa.Integer(), nullable=False, default=1),
+        sa.Column('token_i64', sa.BigInteger(), nullable=False, default=1),
+        sa.Column('token_str', sa.Text, nullable=False, default=''),
+        sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('token_email', sa.Text, nullable=False, default=''),
+        sa.Column('masking', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+        extend_existing=True,
+    )
+
+    default_client_id_table = sa.Table(
+        'test_tokenization_default_client_id', base.metadata,
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('nullable_column', sa.Text, nullable=True),
+        sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('token_i32', sa.Integer()),
+        sa.Column('token_i64', sa.BigInteger()),
+        sa.Column('token_str', sa.Text),
+        sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('token_email', sa.Text),
+        extend_existing=True,
+    )
+
+    def tearDown(self):
+        self.engine_raw.execute(self.test_prepared_sql_statements_table.delete())
+        base.metadata.remove(self.test_prepared_sql_statements_table)
+
+        self.engine_raw.execute(self.default_client_id_table.delete())
+        base.metadata.remove(self.default_client_id_table)
+
+        super(BaseTestMySQLPreparedStatementsFromSQL, self).tearDown()
+
+    def get_test_prepared_sql_statements_table_context(self):
+        return {
+            'id': base.get_random_id(),
+            'default_client_id': base.get_pregenerated_random_data().encode('ascii'),
+            'number': base.get_random_id(),
+            'specified_client_id': base.get_pregenerated_random_data().encode('ascii'),
+            'raw_data': base.get_pregenerated_random_data().encode('ascii'),
+            'searchable': base.get_pregenerated_random_data().encode('ascii'),
+            'empty': b'',
+            'nullable': None,
+            'masking': base.get_pregenerated_random_data().encode('ascii'),
+            'token_bytes': base.get_pregenerated_random_data().encode('ascii'),
+            'token_email': base.get_pregenerated_random_data(),
+            'token_str': base.get_pregenerated_random_data(),
+            'token_i32': base.random.randint(0, 2 ** 16),
+            'token_i64': base.random.randint(0, 2 ** 32),
+        }
+
+    def get_specified_client_id(self):
+        return base.TLS_CERT_CLIENT_ID_1
+
+    def testSearchableEncryptionWithQueriesFromArg(self):
+        base.metadata.create_all(self.engine_raw, [self.test_prepared_sql_statements_table])
+        self.engine1.execute(self.test_prepared_sql_statements_table.delete())
+
+        context = self.get_test_prepared_sql_statements_table_context()
+        search_term = context['searchable']
+
+        # Insert searchable data and some additional different rows
+        _, columns_order = self.prepare_from_arg(prepared_name='insert_data', engine=self.engine2,
+                                                query=self.test_prepared_sql_statements_table.insert(),
+                                                data_types=self.prepared_sql_statements_table_data_types)
+
+        args = []
+        for key in columns_order:
+            arg = 'test_prepared_sql_statements__{}'.format(key)
+            args.append(arg)
+            self.set_arg(arg_name=arg, engine=self.engine2, value=context[key])
+
+        self.execute_prepared(prepared_name='insert_data', engine=self.engine2, args=args)
+
+        extra_rows_count = 5
+        while extra_rows_count != 0:
+            new_data = base.get_pregenerated_random_data().encode('utf-8')
+            if new_data != search_term:
+                new_id = context['id'] + extra_rows_count
+                self.set_arg(arg_name='test_prepared_sql_statements__searchable', engine=self.engine2, value=new_data)
+                self.set_arg(arg_name='test_prepared_sql_statements__id', engine=self.engine2, value=new_id)
+                self.execute_prepared(prepared_name='insert_data', engine=self.engine2, args=args)
+                extra_rows_count -= 1
+
+        query = sa.select(self.test_prepared_sql_statements_table).where(
+            self.test_prepared_sql_statements_table.c.searchable == search_term)
+
+        self.prepare_from_arg(prepared_name='select_data_by_field', engine=self.engine2, query=query, data_types={
+            'searchable': 'bytea'
+        }, literal_binds=False)
+
+        args = []
+        arg = 'test_prepared_sql_statements__searchable'
+        args.append(arg)
+        self.set_arg(arg_name=arg, engine=self.engine2, value=search_term)
+
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, args=args)
+        self.assertEqual(len(rows), 1)
+        #
+        # should be decrypted
+        self.assertEqual(bytes(rows[0]['default_client_id']), context['default_client_id'])
+        # should be as is
+        self.assertEqual(rows[0]['number'], context['number'])
+        self.assertEqual(bytes(rows[0]['raw_data']), context['raw_data'])
+        # expected data to be detokenized
+        self.assertEqual(rows[0]['token_i32'], context['token_i32'])
+        self.assertEqual(rows[0]['token_i64'], context['token_i64'])
+        # other data should be encrypted
+        self.assertNotEqual(bytes(rows[0]['specified_client_id']), context['specified_client_id'])
+
+        # read raw data via engine1 to check data is encrypted
+        query = sa.select(self.test_prepared_sql_statements_table).where(
+            self.test_prepared_sql_statements_table.c.id == context['id'])
+
+        self.prepare_from_arg(prepared_name='select_data_by_id', engine=self.engine1, query=query, data_types={
+            'id': 'int'
+        }, literal_binds=False)
+
+        args = []
+        arg = 'test_prepared_sql_statements__id'
+        args.append(arg)
+        self.set_arg(arg_name=arg, engine=self.engine1, value=context['id'])
+
+        row = self.execute_prepared_fetch(prepared_name='select_data_by_id', engine=self.engine1, args=args)[0]
+
+        # expected data to tokenized
+        self.assertNotEqual(row['token_i32'], context['token_i32'])
+        self.assertNotEqual(row['token_i64'], context['token_i64'])
+        self.assertNotEqual(row['default_client_id'], context['default_client_id'])
+        # expect data is decrypted
+        self.assertEqual(bytes(row['specified_client_id']), context['specified_client_id'])
+
+        query = sa.delete(self.test_prepared_sql_statements_table).where(
+            self.test_prepared_sql_statements_table.c.searchable == search_term)
+
+        # delete search record with prepared
+        self.prepare_from_arg(prepared_name='delete_data_by_field', engine=self.engine2, query=query, data_types={
+            'searchable': 'bytea'
+        }, literal_binds=False)
+
+        args = []
+        arg = 'test_prepared_sql_statements__searchable'
+        args.append(arg)
+        self.set_arg(arg_name=arg, engine=self.engine2, value=search_term)
+
+        self.execute_prepared(prepared_name='delete_data_by_field', engine=self.engine2, args=args)
+
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, args=args)
+        self.assertEqual(len(rows), 0)
+
+    def testSearchableEncryption(self):
+        base.metadata.create_all(self.engine_raw, [self.test_prepared_sql_statements_table])
+        self.engine1.execute(self.test_prepared_sql_statements_table.delete())
+
+        context = self.get_test_prepared_sql_statements_table_context()
+        search_term = context['searchable']
+
+        # Insert searchable data and some additional different rows
+        _, columns_order = self.prepare(prepared_name='insert_data', engine=self.engine2,
+                                        query=self.test_prepared_sql_statements_table.insert(),
+                                        data_types=self.prepared_sql_statements_table_data_types)
+
+        args = []
+        for key in columns_order:
+            arg = 'test_prepared_sql_statements__{}'.format(key)
+            args.append(arg)
+            self.set_arg(arg_name=arg, engine=self.engine2, value=context[key])
+
+        self.execute_prepared(prepared_name='insert_data', engine=self.engine2, args=args)
+
+        extra_rows_count = 5
+        while extra_rows_count != 0:
+            new_data = base.get_pregenerated_random_data().encode('utf-8')
+            if new_data != search_term:
+                new_id = context['id'] + extra_rows_count
+                self.set_arg(arg_name='test_prepared_sql_statements__searchable', engine=self.engine2, value=new_data)
+                self.set_arg(arg_name='test_prepared_sql_statements__id', engine=self.engine2, value=new_id)
+                self.execute_prepared(prepared_name='insert_data', engine=self.engine2, args=args)
+                extra_rows_count -= 1
+
+        query = sa.select(self.test_prepared_sql_statements_table).where(
+            self.test_prepared_sql_statements_table.c.searchable == search_term)
+
+        self.prepare(prepared_name='select_data_by_field', engine=self.engine2, query=query, data_types={
+            'searchable': 'bytea'
+        }, literal_binds=False)
+
+        args = []
+        arg = 'test_prepared_sql_statements__searchable'
+        args.append(arg)
+        self.set_arg(arg_name=arg, engine=self.engine2, value=search_term)
+
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, args=args)
+        self.assertEqual(len(rows), 1)
+
+        # should be decrypted
+        self.assertEqual(bytes(rows[0]['default_client_id']), context['default_client_id'])
+        # should be as is
+        self.assertEqual(rows[0]['number'], context['number'])
+        self.assertEqual(bytes(rows[0]['raw_data']), context['raw_data'])
+        # expected data to be detokenized
+        self.assertEqual(rows[0]['token_i32'], context['token_i32'])
+        self.assertEqual(rows[0]['token_i64'], context['token_i64'])
+        # other data should be encrypted
+        self.assertNotEqual(bytes(rows[0]['specified_client_id']), context['specified_client_id'])
+
+        # check prepare with replace on search hash, e.g:
+        # prepare name from 'select * from table where search = \'value\''
+        self.prepare_with_literal_binds(prepared_name='select_data_by_field_value', engine=self.engine2, query=query)
+
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field_value', engine=self.engine2, args=[])
+        self.assertEqual(len(rows), 1)
+
+        # read raw data via engine1 to check data is encrypted
+        query = sa.select(self.test_prepared_sql_statements_table).where(
+            self.test_prepared_sql_statements_table.c.id == context['id'])
+
+        self.prepare(prepared_name='select_data_by_id', engine=self.engine1, query=query, data_types={
+            'id': 'int'
+        }, literal_binds=False)
+
+        args = []
+        arg = 'test_prepared_sql_statements__id'
+        args.append(arg)
+        self.set_arg(arg_name=arg, engine=self.engine1, value=context['id'])
+
+        row = self.execute_prepared_fetch(prepared_name='select_data_by_id', engine=self.engine1, args=args)[0]
+
+        # expected data to tokenized
+        self.assertNotEqual(row['token_i32'], context['token_i32'])
+        self.assertNotEqual(row['token_i64'], context['token_i64'])
+        self.assertNotEqual(row['default_client_id'], context['default_client_id'])
+        # expect data is decrypted
+        self.assertEqual(bytes(row['specified_client_id']), context['specified_client_id'])
+
+        query = sa.delete(self.test_prepared_sql_statements_table).where(
+            self.test_prepared_sql_statements_table.c.searchable == search_term)
+
+        # delete search record with prepared
+        self.prepare(prepared_name='delete_data_by_field', engine=self.engine2, query=query, data_types={
+            'searchable': 'bytea'
+        }, literal_binds=False)
+
+        args = []
+        arg = 'test_prepared_sql_statements__searchable'
+        args.append(arg)
+        self.set_arg(arg_name=arg, engine=self.engine2, value=search_term)
+
+        self.execute_prepared(prepared_name='delete_data_by_field', engine=self.engine2, args=args)
+
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, args=args)
+        self.assertEqual(len(rows), 0)
+
+    def testSearchableEncryptionWithDeallocate(self):
+        base.metadata.create_all(self.engine_raw, [self.test_prepared_sql_statements_table])
+        self.engine1.execute(self.test_prepared_sql_statements_table.delete())
+
+        context = self.get_test_prepared_sql_statements_table_context()
+        search_term = context['searchable']
+
+        # Insert searchable data and some additional different rows
+        _, columns_order = self.prepare(prepared_name='insert_data', engine=self.engine2,
+                                       query=self.test_prepared_sql_statements_table.insert(),
+                                       data_types=self.prepared_sql_statements_table_data_types)
+
+        args = []
+        for key in columns_order:
+            arg = 'test_prepared_sql_statements__{}'.format(key)
+            args.append(arg)
+            self.set_arg(arg_name=arg, engine=self.engine2, value=context[key])
+
+        self.execute_prepared(prepared_name='insert_data', engine=self.engine2, args=args)
+
+        extra_rows_count = 5
+        while extra_rows_count != 0:
+            new_data = base.get_pregenerated_random_data().encode('utf-8')
+            if new_data != search_term:
+                new_id = context['id'] + extra_rows_count
+                self.set_arg(arg_name='test_prepared_sql_statements__searchable', engine=self.engine2, value=new_data)
+                self.set_arg(arg_name='test_prepared_sql_statements__id', engine=self.engine2, value=new_id)
+                self.execute_prepared(prepared_name='insert_data', engine=self.engine2, args=args)
+                extra_rows_count -= 1
+
+        query = sa.select(self.test_prepared_sql_statements_table).where(
+            self.test_prepared_sql_statements_table.c.searchable == search_term)
+
+        self.prepare(prepared_name='select_data_by_field', engine=self.engine2, query=query, data_types={
+            'searchable': 'bytea'
+        }, literal_binds=False)
+
+        args = []
+        arg = 'test_prepared_sql_statements__searchable'
+        args.append(arg)
+        self.set_arg(arg_name=arg, engine=self.engine2, value=search_term)
+
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, args=args)
+        self.assertEqual(len(rows), 1)
+
+        # deallocate prepared statement from DB and delete statement from session registry
+        self.deallocate(prepared_name='select_data_by_field', engine=self.engine2)
+
+        # expect fail on the deallocated prepared statement
+        try:
+            self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, args=args)
+        except Exception:
+            self.assertIn("prepared statement not present in registry", self.read_log(self.acra))
+            pass
+
+        new_token_int = base.random.randint(0, 2 ** 16)
+
+        update_query = sa.update(self.test_prepared_sql_statements_table). \
+            where(self.test_prepared_sql_statements_table.c.searchable == search_term).values(
+            token_i32=new_token_int)
+
+        # update search record with prepared
+        self.prepare(prepared_name='update_data_by_field', engine=self.engine2, query=update_query, data_types={
+            'searchable': 'bytea',
+            'token_i32': 'int'
+        }, literal_binds=False)
+
+        args = []
+        arg = 'test_prepared_sql_statements__token_i32'
+        args.append(arg)
+        self.set_arg(arg_name=arg, engine=self.engine2, value=new_token_int)
+
+        arg = 'test_prepared_sql_statements__searchable'
+        args.append(arg)
+        self.set_arg(arg_name=arg, engine=self.engine2, value=search_term)
+
+        self.execute_prepared(prepared_name='update_data_by_field', engine=self.engine2, args=args)
+
+        self.prepare(prepared_name='select_data_by_field', engine=self.engine2, query=query, data_types={
+            'searchable': 'bytea'
+        }, literal_binds=False)
+
+        args = ['test_prepared_sql_statements__searchable']
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, args=args)
+        self.assertEqual(len(rows), 1)
+
+        # should be decrypted
+        self.assertEqual(bytes(rows[0]['default_client_id']), context['default_client_id'])
+        # should be as is
+        self.assertEqual(rows[0]['number'], context['number'])
+        self.assertEqual(bytes(rows[0]['raw_data']), context['raw_data'])
+        self.assertEqual(rows[0]['token_i32'], new_token_int)
+        # other data should be encrypted
+        self.assertNotEqual(bytes(rows[0]['specified_client_id']), context['specified_client_id'])
+
+
+class TestMySQLPreparedStatementsFromSQL(BaseTestMySQLPreparedStatementsFromSQL, BaseTokenizationWithBinaryBindMySQL):
+    pass
+
+
 if __name__ == '__main__':
     import xmlrunner
 
