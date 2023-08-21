@@ -122,7 +122,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-require github.com/jackc/pgx/v5 v5.2.0
+require github.com/jackc/pgx/v5 v5.4.3
 
 require (
 	github.com/bytedance/sonic v1.9.1 // indirect
