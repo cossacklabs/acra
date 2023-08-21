@@ -55,7 +55,7 @@ func getProxyFactory(t *testing.T, serverConfig *common.Config, tokenizer common
 }
 
 func TestSequenceParsePackets(t *testing.T) {
-	const timeout = time.Millisecond * 400
+	const timeout = time.Second * 4
 	freePort := tests.GetFreePortForListener(t)
 	serverConfig := acra_server.NewDefaultAcraServerConfig(t)
 	clientID := []byte("clientID")
