@@ -1,6 +1,6 @@
 module github.com/cossacklabs/acra
 
-go 1.21
+go 1.21.0
 
 require (
 	contrib.go.opencensus.io/exporter/jaeger v0.2.1
