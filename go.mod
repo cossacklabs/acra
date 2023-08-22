@@ -1,6 +1,6 @@
 module github.com/cossacklabs/acra
 
-go 1.19
+go 1.21.0
 
 require (
 	contrib.go.opencensus.io/exporter/jaeger v0.2.1
@@ -122,7 +122,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-require github.com/jackc/pgx/v5 v5.2.0
+require github.com/jackc/pgx/v5 v5.4.3
 
 require (
 	github.com/bytedance/sonic v1.9.1 // indirect

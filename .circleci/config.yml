@@ -5,7 +5,7 @@ jobs:
       - image: cossacklabs/ci-py-go-themis:0.95.0
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.19
+      GO_VERSIONS: 1.21.0
     steps:
       # prepare
       - checkout
@@ -42,7 +42,7 @@ jobs:
                    '--port 0', '--tls-port 6380' ]
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.19
+      GO_VERSIONS: 1.21.0
       TEST_DB_PORT: "5432"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
@@ -74,12 +74,12 @@ jobs:
           environment:
             - TEST_BUILD_TAGS: "integration,boltdb,redis,vault"
             - TEST_EXTRA_BUILD_FLAGS: "-race"
-            - GO_VERSIONS: 1.19
+            - GO_VERSIONS: 1.21.0
       # run tests with redis + tls using separate redis' container with tls
       - run:
           command: .circleci/check_gotest.sh
           environment:
-            - GO_VERSIONS: 1.19
+            - GO_VERSIONS: 1.21.0
             - TEST_REDIS_HOSTPORT: "localhost:6380"
             - TEST_BUILD_TAGS: "integration,redis,tls"
       # check python wrapper
@@ -105,7 +105,7 @@ jobs:
       TEST_DB_NAME: test
       TEST_DB_PORT: "5432"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.19
+      GO_VERSIONS: 1.21.0
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
       TEST_REDIS: "on"
@@ -126,7 +126,7 @@ jobs:
           command: .circleci/check_gotest.sh
           environment:
             - TEST_BUILD_TAGS: "integration,postgresql"
-            - GO_VERSIONS: 1.19
+            - GO_VERSIONS: 1.21.0
       # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
       - run:
           name: Integration tests (keystore v1)
@@ -162,7 +162,7 @@ jobs:
       TEST_DB_NAME: test
       TEST_DB_PORT: "5432"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.19
+      GO_VERSIONS: 1.21.0
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
       TEST_REDIS: "on"
@@ -180,7 +180,7 @@ jobs:
           command: .circleci/check_gotest.sh
           environment:
             - TEST_BUILD_TAGS: "integration,postgresql"
-            - GO_VERSIONS: 1.19
+            - GO_VERSIONS: 1.21.0
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -225,7 +225,7 @@ jobs:
       TEST_DB_NAME: test
       TEST_DB_PORT: "5432"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.19
+      GO_VERSIONS: 1.21.0
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
       TEST_WITH_VAULT: "on"
@@ -285,7 +285,7 @@ jobs:
       TEST_DB_NAME: test
       TEST_DB_PORT: "5432"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.19
+      GO_VERSIONS: 1.21.0
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
       TEST_WITH_VAULT: "on"
@@ -398,7 +398,7 @@ jobs:
       TEST_DB_NAME: test
       TEST_DB_PORT: "3306"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.19
+      GO_VERSIONS: 1.21.0
       TEST_MYSQL: "true"
       TEST_MARIADB: "true"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
@@ -418,7 +418,7 @@ jobs:
           command: .circleci/check_gotest.sh
           environment:
             - TEST_BUILD_TAGS: "integration,mysql"
-            - GO_VERSIONS: 1.19
+            - GO_VERSIONS: 1.21.0
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -513,7 +513,7 @@ jobs:
       TEST_DB_NAME: test
       TEST_DB_PORT: "3306"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.19
+      GO_VERSIONS: 1.21.0
       TEST_MYSQL: "true"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
@@ -532,7 +532,7 @@ jobs:
           command: .circleci/check_gotest.sh
           environment:
             - TEST_BUILD_TAGS: "integration,mysql"
-            - GO_VERSIONS: 1.19
+            - GO_VERSIONS: 1.21.0
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py

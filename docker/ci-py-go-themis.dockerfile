@@ -26,7 +26,7 @@ WORKDIR /root
 
 # Install MariaDB Connector/C for mariadb python driver
 RUN wget https://r.mariadb.com/downloads/mariadb_repo_setup && \
-    echo "3a562a8861fc6362229314772c33c289d9096bafb0865ba4ea108847b78768d2  mariadb_repo_setup" \
+    echo "935944a2ab2b2a48a47f68711b43ad2d698c97f1c3a7d074b34058060c2ad21b  mariadb_repo_setup" \
         | sha256sum -c - && chmod +x mariadb_repo_setup
 
 # Configure the CS package repository using the mariadb_repo_setup utility:
@@ -48,7 +48,7 @@ RUN chmod +x /image.scripts/*.sh
 
 # Install Go
 
-RUN GO_VERSIONS='1.19' \
+RUN GO_VERSIONS='1.21.0' \
     GO_TARBALL_CLEAN=1 \
     /image.scripts/install_go.sh
 
