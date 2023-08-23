@@ -1,2 +1,2 @@
 -r base.txt
-psycopg2==2.8.6
+psycopg2-binary==2.9.7
