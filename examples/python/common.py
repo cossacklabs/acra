@@ -1,7 +1,4 @@
-import json
 import os
-from base64 import b64decode
-from urllib.request import urlopen
 
 from sqlalchemy import create_engine
 
@@ -11,7 +8,7 @@ def register_common_cli_params(parser):
                         default=get_default('db_name', 'test'),
                         help='Database name')
     parser.add_argument('--db_user', type=str,
-                        default=get_default('db_user','test'),
+                        default=get_default('db_user', 'test'),
                         help='Database user')
     parser.add_argument('--db_password', type=str,
                         default=get_default('db_password', 'test'),
@@ -28,13 +25,13 @@ def register_common_cli_params(parser):
     parser.add_argument('--ssl_mode',
                         default=get_default('ssl_mode', False),
                         help='SSL connection mode')
-    parser.add_argument('--tls_root_cert', 
+    parser.add_argument('--tls_root_cert',
                         default=get_default('tls_root_cert', False),
                         help='Path to root certificate used in TLS connection')
-    parser.add_argument('--tls_key', 
+    parser.add_argument('--tls_key',
                         default=get_default('tls_key', False),
                         help='Path to client TLS key used in TLS connection')
-    parser.add_argument('--tls_cert', 
+    parser.add_argument('--tls_cert',
                         default=get_default('tls_cert', False),
                         help='Path to client TLS certificate used in TLS connection')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
@@ -52,6 +49,11 @@ def get_default(name, value):
     """return value from environment variables with name EXAMPLE_<name>
     or value"""
     return os.environ.get('EXAMPLE_{}'.format(name.upper()), value)
+
+    # EXAMPLE_SSL_MODE: verify-full
+    # EXAMPLE_TLS_ROOT_CERT: /ssl/root.crt
+    # EXAMPLE_TLS_KEY: /ssl/acra-client.key
+    # EXAMPLE_TLS_CERT: /ssl/acra-client.crt
 
 
 def get_engine(db_host, db_port, db_user, db_password, db_name, is_mysql=False, is_postgresql=False, tls_ca=None,

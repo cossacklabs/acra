@@ -25,7 +25,7 @@ test_table = Table(
     'test', MetaData(),
     Column('id', Integer, primary_key=True, nullable=False),
     Column('data_str', Text, nullable=True),
-    Column('masking', LargeBinary, nullable=True),
+    Column('masking', Text, nullable=True),
     Column('token_i32', Integer, nullable=True),
     Column('data_i32', Integer, nullable=True),
     Column('token_i64', BigInteger, nullable=True),
@@ -126,17 +126,17 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     engine = get_engine(
-        db_host=args.host, db_port=args.port, db_user=args.db_user, db_password=args.db_password,
-        db_name=args.db_name, is_mysql=args.mysql, is_postgresql=args.postgresql,
+        db_host='localhost', db_port=9393, db_user=args.db_user, db_password=args.db_password,
+        db_name=args.db_name, is_mysql=args.mysql, is_postgresql=True,
         tls_ca=args.tls_root_cert, tls_key=args.tls_key, tls_crt=args.tls_cert,
         sslmode=args.ssl_mode, verbose=args.verbose)
     connection = engine.connect()
     metadata.create_all(engine)
 
-    if args.print:
-        print_data(connection, args.columns, table_map[args.db_table])
-    elif args.data:
-        write_data(args.data, connection, table_map[args.db_table])
-    else:
-        print('Use --print or --data options')
-        exit(1)
+    # if args.print:
+    print_data(connection, args.columns, table_map[args.db_table])
+    # elif args.data:
+    #     write_data(args.data, connection, table_map[args.db_table])
+    # else:
+    #     print('Use --print or --data options')
+    #     exit(1)
