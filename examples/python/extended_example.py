@@ -25,7 +25,7 @@ test_table = Table(
     'test', MetaData(),
     Column('id', Integer, primary_key=True, nullable=False),
     Column('data_str', Text, nullable=True),
-    Column('masking', LargeBinary, nullable=True),
+    Column('masking', Text, nullable=True),
     Column('token_i32', Integer, nullable=True),
     Column('data_i32', Integer, nullable=True),
     Column('token_i64', BigInteger, nullable=True),
