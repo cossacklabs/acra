@@ -1,4 +1,4 @@
-FROM debian:bullseye
+FROM debian:bookworm
 
 SHELL ["/bin/bash", "-c"]
 
@@ -30,14 +30,16 @@ RUN wget https://r.mariadb.com/downloads/mariadb_repo_setup && \
         | sha256sum -c - && chmod +x mariadb_repo_setup
 
 # Configure the CS package repository using the mariadb_repo_setup utility:
-RUN sudo /root/mariadb_repo_setup --mariadb-server-version="mariadb-10.6"
+RUN sudo /root/mariadb_repo_setup --mariadb-server-version="mariadb-11.2"
 
-RUN apt install libmariadb3 libmariadb-dev
+RUN apt -y install libmariadb3 libmariadb-dev
 
 # Install libthemis
-RUN set -o pipefail && \
-    curl -sSL https://pkgs.cossacklabs.com/scripts/libthemis_install.sh | \
-        bash -s -- --yes
+RUN cd /root \
+    && git clone --depth 1 -b stable https://github.com/cossacklabs/themis
+RUN cd /root/themis \
+    && make \
+    && make install
 
 # Include helpful scripts
 RUN mkdir /image.scripts
@@ -84,9 +86,10 @@ RUN cp /image.scripts/go.mod . && go mod download && rm go.mod go.sum
 COPY tests/requirements.txt /home/user/python_tests_requirements.txt
 COPY wrappers/python/acrawriter/test-requirements.txt /home/user/python_acrawriter_tests_requirements.txt
 
-RUN pip3 install --user -r /home/user/python_tests_requirements.txt && \
+
+RUN pip3 install --break-system-packages --user -r /home/user/python_tests_requirements.txt && \
     # run as separate command due to same dependency 'sqlalchemy' to avoid duplicated requirement and error \
-    pip3 install --user -r $HOME/python_acrawriter_tests_requirements.txt && \
+    pip3 install --break-system-packages --user -r $HOME/python_acrawriter_tests_requirements.txt && \
     # install from sources because pip install git+https://... not support recursive submodules \
     git clone https://github.com/Lagovas/mysql-connector-python && \
     cd mysql-connector-python && \
