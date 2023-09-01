@@ -100,7 +100,7 @@ RUN pip3 install -r /home/user/python_tests_requirements.txt && \
     # install from sources because pip install git+https://... not support recursive submodules \
     git clone https://github.com/Lagovas/mysql-connector-python && \
     cd mysql-connector-python && \
-    python3 setup.py clean build_py && \
-    sudo python3 setup.py install_lib && \
+    /home/user/venv/bin/python3 setup.py clean build_py && \
+    sudo  /home/user/venv/bin/python3 setup.py install_lib && \
     cd - && \
     sudo rm -rf mysql-connector-python
