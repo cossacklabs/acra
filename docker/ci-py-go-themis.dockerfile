@@ -89,8 +89,8 @@ RUN cp /image.scripts/go.mod . && go mod download && rm go.mod go.sum
 COPY tests/requirements.txt /home/user/python_tests_requirements.txt
 COPY wrappers/python/acrawriter/test-requirements.txt /home/user/python_acrawriter_tests_requirements.txt
 
+# setup virtualenv
 RUN python3 -m venv ./venv
-
 ENV VIRTUAL_ENV /home/user/venv
 ENV PATH /home/user/venv/bin:$PATH
 
