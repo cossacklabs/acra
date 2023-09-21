@@ -1,5 +1,5 @@
 # 0.96.0 - 2023-09-20
-- Deprecate acra-backup;
+- Deprecate acra-backup in favour of [acra-keys](https://docs.cossacklabs.com/acra/configuring-maintaining/general-configuration/acra-keys/).
 
 # 0.96.0 - 2023-07-26
 - Improve unicode support;
