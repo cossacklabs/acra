@@ -49,6 +49,7 @@ const (
 var DefaultConfigPath = utils.GetConfigPathByName(ServiceName)
 
 func main() {
+	log.Warn("acra-backup tool is DEPRECATED since 0.96.0 and will be removed in 0.97.0. Use acra-keys instead.")
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
 	outputDir := flag.String("keys_private_dir", keystore.DefaultKeyDirShort, "Folder with private keys")
 	outputPublicKey := flag.String("keys_public_dir", "", "Folder with public keys. Leave empty if keys stored in same folder as keys_private_dir")
