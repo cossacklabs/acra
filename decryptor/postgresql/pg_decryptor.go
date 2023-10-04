@@ -1026,7 +1026,7 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 			format = int(boundFormat)
 		}
 		var encryptionSetting config.ColumnEncryptionSetting = nil
-		if encryptionSettings != nil && i <= len(encryptionSettings) && encryptionSettings[i] != nil {
+		if encryptionSettings != nil && i < len(encryptionSettings) && encryptionSettings[i] != nil {
 			encryptionSetting = encryptionSettings[i].Setting()
 		}
 		logger.WithField("data_length", len(column.GetData())).WithField("column_index", i).Debugln("Process columns data")

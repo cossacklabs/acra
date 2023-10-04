@@ -11,11 +11,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/cmd/acra-server/common"
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
-	"github.com/sirupsen/logrus"
 )
 
 func TestDataRowLastEmptyColumn(t *testing.T) {
@@ -178,6 +180,64 @@ func TestPreparedStatementRegistering(t *testing.T) {
 	// check that same statement was passed as onbind query
 	if queryObserver.bind != sqlparser.String(parseQueryStatement) {
 		t.Fatalf("'%s' != '%s'\n", parseQuery, statement.QueryText())
+	}
+}
+
+func TestCorrectColumnToSettingMapping(t *testing.T) {
+	logger := logrus.NewEntry(logrus.New())
+	parser := sqlparser.New(sqlparser.ModeDefault)
+	ctx := context.Background()
+
+	// two responses one by one
+	dbBuffer := bytes.NewBuffer([]byte{})
+	dbPacketHandler, err := NewDbSidePacketHandler(dbBuffer, nil, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// expected more columns than encryptorQuerySettings
+	dbPacketHandler.descriptionBuf = bytes.NewBuffer(
+		// some packet dump with columns
+		[]byte{0, 14, 0, 0, 0, 3, 114, 97, 119, 0, 0, 0, 10, 105, 110, 99, 108, 117, 100, 101, 65, 108, 108, 0, 0, 0,
+			43, 108, 105, 113, 117, 105, 98, 97, 115, 101, 47, 46, 47, 118, 95, 49, 95, 48, 95, 48, 47, 112, 111, 115,
+			116, 103, 114, 101, 115, 47, 115, 113, 108, 47, 116, 97, 98, 108, 101, 115, 46, 115, 113, 108, 0, 0, 0, 26,
+			50, 48, 50, 51, 45, 49, 48, 45, 48, 51, 32, 49, 52, 58, 49, 56, 58, 50, 56, 46, 53, 56, 52, 55, 57, 50, 0,
+			0, 0, 1, 49, 0, 0, 0, 8, 69, 88, 69, 67, 85, 84, 69, 68, 0, 0, 0, 34, 56, 58, 55, 56, 49, 51, 98, 100, 48,
+			57, 57, 50, 53, 101, 56, 48, 50, 99, 52, 51, 49, 48, 54, 101, 101, 100, 54, 57, 53, 53, 54, 97, 98, 100, 0,
+			0, 0, 3, 115, 113, 108, 0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 5, 52, 46, 51, 46, 53, 255, 255, 255, 255,
+			255, 255, 255, 255, 0, 0, 0, 10, 54, 51, 51, 53, 53, 48, 56, 52, 55, 56},
+	)
+	dbPacketHandler.descriptionLengthBuf = []byte{0, 0, 0, 110}
+
+	connectionSession, err := common.NewClientSession(ctx, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx = base.SetClientSessionToContext(ctx, connectionSession)
+
+	proxySetting := base.NewProxySetting(parser, nil, nil, nil, acracensor.NewAcraCensor(), nil)
+	proxy, err := NewPgProxy(connectionSession, parser, proxySetting)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	settingExtractor, err := NewEncryptionSettingExtractor(ctx, &config.MapTableSchemaStore{}, parser)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	proxy.settingExtractor = settingExtractor
+	proxy.protocolState.pendingQueryPackets.Add(queryPacket{
+		preparedStatement: &PgPreparedStatement{
+			text: "SELECT * FROM public.databasechangelog ORDER BY DATEEXECUTED ASC, ORDEREXECUTED ASC",
+		},
+		executePacket: &ExecutePacket{},
+		bindPacket:    &BindPacket{},
+	})
+
+	err = proxy.handleQueryDataPacket(ctx, dbPacketHandler, logger)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
