@@ -10,12 +10,13 @@ NUM_PINGS="${NUM_PINGS:-15}"
 DELAY="${DELAY:-1}"
 
 for try in $(seq $NUM_PINGS); do
-    mysqladmin ping \
+    mariadb-admin ping \
         --host="$TEST_DB_HOST" \
         --port="$TEST_DB_PORT" \
         --user="$TEST_DB_USER" \
         --password="$TEST_DB_USER_PASSWORD" \
         --protocol=TCP \
+        --ssl=False \
         && exit 0 || sleep $DELAY
 done
 
