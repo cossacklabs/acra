@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"time"
@@ -90,10 +91,14 @@ func ParseCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *VaultCLIOp
 
 	var tlsConfig *tls.Config
 	if options.EnableTLS {
-		var err error
-		tlsConfig, err = network.NewTLSConfigByName(flags, "vault", options.Address, network.ClientNameConstructorFunc())
+		vaultURL, err := url.ParseRequestURI(options.Address)
 		if err != nil {
-			log.WithError(err).Fatalf("Failed to create Vault TLS config")
+			log.WithError(err).WithField("address", options.Address).Fatalln("Invalid Vault address provided")
+		}
+
+		tlsConfig, err = network.NewTLSConfigByName(flags, "vault", vaultURL.Host, network.ClientNameConstructorFunc())
+		if err != nil {
+			log.WithError(err).Fatalln("Failed to create Vault TLS config")
 		}
 	}
 	options.tlsConfig = tlsConfig
