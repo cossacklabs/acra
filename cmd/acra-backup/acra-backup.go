@@ -27,6 +27,7 @@ import (
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 
 	log "github.com/sirupsen/logrus"
@@ -56,7 +57,10 @@ func main() {
 	action := flag.String("action", "", fmt.Sprintf("%s|%s values are accepted", actionImport, actionExport))
 	file := flag.String("file", "", fmt.Sprintf("path to file which will be used for %s|%s action", actionImport, actionExport))
 
+	network.RegisterTLSBaseArgs(flag.CommandLine)
+	cmd.RegisterRedisKeystoreParameters()
 	keyloader.RegisterKeyStoreStrategyParameters()
+
 	err := cmd.Parse(DefaultConfigPath, ServiceName)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
