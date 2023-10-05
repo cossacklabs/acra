@@ -93,7 +93,7 @@ func ParseCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *VaultCLIOp
 		var err error
 		tlsConfig, err = network.NewTLSConfigByName(flags, "vault", options.Address, network.ClientNameConstructorFunc())
 		if err != nil {
-
+			log.WithError(err).Fatalf("Failed to create Vault TLS config")
 		}
 	}
 	options.tlsConfig = tlsConfig
