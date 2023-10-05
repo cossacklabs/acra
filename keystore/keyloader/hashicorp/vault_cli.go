@@ -10,10 +10,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cossacklabs/acra/network"
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/hashicorp/vault/api"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/network"
 )
 
 // ErrEmptyConnectionURL error displaying empty Hashicorp Vault connection URL
@@ -26,15 +27,10 @@ const (
 
 // VaultCLIOptions keep command-line options related to HashiCorp Vault ACRA_MASTER_KEY loading.
 type VaultCLIOptions struct {
-	Address      string
-	SecretsPath  string
-	CAPath       string
-	ClientCert   string
-	ClientKey    string
-	SNI          string
-	CertVerifier network.CertVerifier
-	Auth         tls.ClientAuthType
-	EnableTLS    bool
+	Address     string
+	SecretsPath string
+	EnableTLS   bool
+	tlsConfig   *tls.Config
 }
 
 // RegisterCLIParametersWithFlagSet look up for vault_connection_api_string, if none exists, vault_connection_api_string and vault_secrets_path
@@ -65,9 +61,6 @@ func ParseCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *VaultCLIOp
 	if f := flags.Lookup(prefix + "vault_secrets_path"); f != nil {
 		options.SecretsPath = f.Value.String()
 	}
-	if f := flags.Lookup(prefix + "vault_tls_ca_path"); f != nil {
-		options.CAPath = f.Value.String()
-	}
 	if f := flags.Lookup(prefix + "vault_tls_transport_enable"); f != nil {
 		val, err := strconv.ParseBool(f.Value.String())
 		if err != nil {
@@ -77,48 +70,38 @@ func ParseCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *VaultCLIOp
 	}
 
 	namerFunc := network.ClientNameConstructorFunc()
-	if f := flags.Lookup(namerFunc("vault", "ca", "")); f != nil {
-		newCAPathFlagValue := f.Value.String()
-		if options.CAPath != "" && newCAPathFlagValue != "" {
-			log.Errorf("Flags `%s` (deprecated) and `%s` cant be provided simultaneously", "vault_tls_ca_path", f.Name)
+	// for backward compatibility check if both  --vault_tls_ca_path and --vault_tls_client_ca not passed
+	if oldFlag := flags.Lookup(prefix + "vault_tls_ca_path"); oldFlag != nil && oldFlag.Value.String() != "" {
+		var newCAPathFlagValue string
+		var newFlag *flag.Flag
+		if newFlag = flags.Lookup(namerFunc("vault", "ca", "")); newFlag != nil {
+			newCAPathFlagValue = newFlag.Value.String()
+		}
+
+		if oldFlag.Value.String() != "" && newCAPathFlagValue != "" {
+			log.Errorf("Flags `%s` (deprecated) and `%s` cant be provided simultaneously", "vault_tls_ca_path", oldFlag.Name)
 			os.Exit(1)
 		}
 
-		if newCAPathFlagValue != "" {
-			options.CAPath = f.Value.String()
+		// if the value was passed by old flag inject as new one
+		if oldFlagValue := oldFlag.Value; oldFlagValue.String() != "" && newCAPathFlagValue == "" {
+			newFlag.Value = oldFlagValue
 		}
 	}
-	if f := flags.Lookup(namerFunc("vault", "sni", "")); f != nil {
-		options.SNI = f.Value.String()
-	}
-	if f := flags.Lookup(namerFunc("vault", "cert", "")); f != nil {
-		options.ClientCert = f.Value.String()
-	}
-	if f := flags.Lookup(namerFunc("vault", "key", "")); f != nil {
-		options.ClientKey = f.Value.String()
-	}
-	if f := flags.Lookup(namerFunc("vault", "auth", "")); f != nil {
-		v, err := strconv.ParseInt(f.Value.String(), 10, 64)
+
+	var tlsConfig *tls.Config
+	if options.EnableTLS {
+		vaultURL, err := url.ParseRequestURI(options.Address)
 		if err != nil {
-			log.WithField("value", f.Value.String).Fatalf("Can't cast %s to integer value", f.Name)
+			log.WithError(err).WithField("address", options.Address).Fatalln("Invalid Vault address provided")
 		}
-		options.Auth = tls.ClientAuthType(v)
-	}
 
-	var err error
-	ocspConfig, err := network.NewOCSPConfigByName(flags, "vault", namerFunc)
-	if err != nil {
-		log.WithError(err).Fatalf("Can't parse Vault OCSPConfig")
+		tlsConfig, err = network.NewTLSConfigByName(flags, "vault", vaultURL.Host, network.ClientNameConstructorFunc())
+		if err != nil {
+			log.WithError(err).Fatalln("Failed to create Vault TLS config")
+		}
 	}
-	crlConfig, err := network.NewCRLConfigByName(flags, "vault", namerFunc)
-	if err != nil {
-		log.WithError(err).Fatalf("Can't parse Vault CRLConfig")
-	}
-	options.CertVerifier, err = network.NewCertVerifierFromConfigs(ocspConfig, crlConfig)
-	if err != nil {
-		log.WithError(err).Fatalf("Can't parse Vault CertVerifier")
-	}
-
+	options.tlsConfig = tlsConfig
 	return &options
 }
 
@@ -129,21 +112,9 @@ func (options *VaultCLIOptions) VaultHTTPClient() (*http.Client, error) {
 		Transport: transport,
 	}
 
-	vaultURL, err := url.ParseRequestURI(options.Address)
-	if err != nil {
-		log.WithError(err).WithField("address", options.Address).Errorln("Invalid Vault address provided")
-		return nil, err
-	}
-
 	if options.EnableTLS {
-		serverName := network.SNIOrHostname(options.SNI, vaultURL.Host)
-		tlsConfig, err := network.NewTLSConfig(serverName, options.CAPath, options.ClientKey, options.ClientCert, options.Auth, options.CertVerifier)
-		if err != nil {
-			return nil, err
-		}
-
 		transport.TLSHandshakeTimeout = 10 * time.Second
-		transport.TLSClientConfig = tlsConfig
+		transport.TLSClientConfig = options.tlsConfig
 	}
 	return client, nil
 }
