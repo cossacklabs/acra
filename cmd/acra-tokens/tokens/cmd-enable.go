@@ -21,9 +21,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cossacklabs/acra/cmd"
-	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/network"
+	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
 )
 
 // EnableSubcommand is the "acra-tokens enable" subcommand.
@@ -51,6 +53,7 @@ func (s *EnableSubcommand) RegisterFlags() {
 	s.flagSet = flag.NewFlagSet(CmdTokenEnable, flag.ContinueOnError)
 	s.storage.Register(s.flagSet)
 	s.limits.Register(s.flagSet)
+	network.RegisterTLSBaseArgs(s.flagSet)
 	cmd.RegisterRedisTokenStoreParametersWithPrefix(s.flagSet, "", "")
 	s.flagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": enable back once disabled tokens, allowing their use\n", CmdTokenEnable)

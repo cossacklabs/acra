@@ -21,9 +21,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cossacklabs/acra/cmd"
-	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/network"
+	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
 )
 
 // DisableSubcommand is the "acra-tokens disable" subcommand.
@@ -51,6 +53,7 @@ func (s *DisableSubcommand) RegisterFlags() {
 	s.flagSet = flag.NewFlagSet(CmdTokenDisable, flag.ContinueOnError)
 	s.storage.Register(s.flagSet)
 	s.limits.Register(s.flagSet)
+	network.RegisterTLSBaseArgs(s.flagSet)
 	cmd.RegisterRedisTokenStoreParametersWithPrefix(s.flagSet, "", "")
 	s.flagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": disable tokens, preventing their use\n", CmdTokenDisable)

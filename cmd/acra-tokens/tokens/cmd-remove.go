@@ -22,9 +22,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cossacklabs/acra/cmd"
-	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/network"
+	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
 )
 
 // RemoveSubcommand is the "acra-tokens remove" subcommand.
@@ -61,6 +63,7 @@ func (s *RemoveSubcommand) RegisterFlags() {
 	s.flagSet = flag.NewFlagSet(CmdTokenRemove, flag.ContinueOnError)
 	s.storage.Register(s.flagSet)
 	s.limits.Register(s.flagSet)
+	network.RegisterTLSBaseArgs(s.flagSet)
 	s.flagSet.BoolVar(&s.dryRun, "dry_run", false, "do not actually remove tokens, only output status")
 	s.flagSet.BoolVar(&s.removeAll, "all", false, "remove all requested tokens within specified date range, regardless of their state (enabled and disabled)")
 	s.flagSet.BoolVar(&s.removeAll, "only_disabled", false, "remove only disabled tokens within specified date range")

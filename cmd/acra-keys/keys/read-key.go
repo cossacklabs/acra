@@ -27,6 +27,7 @@ import (
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 )
 
@@ -81,6 +82,7 @@ func (p *ReadKeySubcommand) GetFlagSet() *flag.FlagSet {
 func (p *ReadKeySubcommand) RegisterFlags() {
 	p.FlagSet = flag.NewFlagSet(CmdReadKey, flag.ContinueOnError)
 	p.CommonKeyStoreParameters.Register(p.FlagSet)
+	network.RegisterTLSBaseArgs(p.FlagSet)
 	p.FlagSet.BoolVar(&p.public, "public", false, "read public key of the keypair")
 	p.FlagSet.BoolVar(&p.private, "private", false, "read private key of the keypair")
 	p.FlagSet.Usage = func() {

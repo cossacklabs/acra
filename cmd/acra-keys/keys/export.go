@@ -31,6 +31,7 @@ import (
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 )
 
@@ -120,6 +121,7 @@ func (p *ExportKeysSubcommand) RegisterFlags() {
 	p.FlagSet = flag.NewFlagSet(CmdExportKeys, flag.ContinueOnError)
 	p.CommonKeyStoreParameters.Register(p.FlagSet)
 	p.CommonExportImportParameters.Register(p.FlagSet, "output")
+	network.RegisterTLSBaseArgs(p.FlagSet)
 	p.FlagSet.BoolVar(&p.exportAll, "all", false, "export all keys")
 	p.FlagSet.BoolVar(&p.exportPrivate, "private_keys", false, "export private key data (symmetric and private asymmetric keys)")
 	p.FlagSet.Usage = func() {

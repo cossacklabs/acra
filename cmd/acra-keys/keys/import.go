@@ -13,6 +13,7 @@ import (
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 )
 
@@ -53,6 +54,7 @@ func (p *ImportKeysSubcommand) RegisterFlags() {
 	p.CommonKeyStoreParameters.Register(p.FlagSet)
 	p.CommonExportImportParameters.Register(p.FlagSet, "input")
 	p.CommonKeyListingParameters.Register(p.FlagSet)
+	network.RegisterTLSBaseArgs(p.FlagSet)
 	p.FlagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": import keys into the keystore\n", CmdImportKeys)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] --key_bundle_file <file> --key_bundle_secret <file>\n", os.Args[0], CmdImportKeys)

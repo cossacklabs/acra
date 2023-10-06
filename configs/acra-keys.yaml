@@ -83,6 +83,45 @@ redis_tls_ocsp_client_url:
 # List rotated keys
 rotated-keys: false
 
+# Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert
+tls_auth: 4
+
+# Path to root certificate which will be used with system root certificates to validate peer's certificate
+tls_ca: 
+
+# Path to certificate
+tls_cert: 
+
+# How many CRLs to cache in memory (use 0 to disable caching)
+tls_crl_cache_size: 16
+
+# How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: 300 s)
+tls_crl_cache_time: 0
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using CRL
+tls_crl_check_only_leaf_certificate: false
+
+# How to treat CRL URL described in certificate itself: <use|trust|prefer|ignore>
+tls_crl_from_cert: prefer
+
+# URL of the Certificate Revocation List (CRL) to use
+tls_crl_url: 
+
+# Path to private key that will be used for TLS connections
+tls_key: 
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using OCSP
+tls_ocsp_check_only_leaf_certificate: false
+
+# How to treat OCSP server described in certificate itself: <use|trust|prefer|ignore>
+tls_ocsp_from_cert: prefer
+
+# How to treat certificates unknown to OCSP: <denyUnknown|allowUnknown|requireGood>
+tls_ocsp_required: denyUnknown
+
+# OCSP service URL
+tls_ocsp_url: 
+
 # Connection string (http://x.x.x.x:yyyy) for loading ACRA_MASTER_KEY from HashiCorp Vault
 vault_connection_api_string: 
 
@@ -439,9 +478,6 @@ print_json: false
 
 # Generate symmetric key for searchable encryption HMAC
 search_hmac_symmetric_key: false
-
-# Path to TLS certificate to use as client_id identifier
-tls_cert: 
 
 # Decide which field of TLS certificate to use as ClientID (distinguished_name|serial_number). Default is distinguished_name.
 tls_identifier_extractor_type: distinguished_name
