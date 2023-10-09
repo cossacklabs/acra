@@ -47,6 +47,7 @@ var (
 	ErrMissingKeyPart              = errors.New("key part not specified")
 	ErrExtraKeyPart                = errors.New("both key parts specified")
 	ErrMissingTLSCertPath          = errors.New("TLS certificate path not specified")
+	ErrDuplicatedTLSCertPathFlags  = errors.New("passed --tls_cert (deprecated since 0.96.0) and --tls_client_id_cert simultaneously")
 	ErrClientIDWithTLSCertProvided = errors.New("client ID and TLS certificate path are both provided")
 )
 

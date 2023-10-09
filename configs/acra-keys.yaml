@@ -479,6 +479,9 @@ print_json: false
 # Generate symmetric key for searchable encryption HMAC
 search_hmac_symmetric_key: false
 
+# Path to TLS certificate to use as client_id identifier.
+tls_client_id_cert: 
+
 # Decide which field of TLS certificate to use as ClientID (distinguished_name|serial_number). Default is distinguished_name.
 tls_identifier_extractor_type: distinguished_name
 
