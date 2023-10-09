@@ -27,6 +27,7 @@ import (
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/network"
 )
 
 // ListKeysParams ara parameters of "acra-keys list" subcommand.
@@ -78,6 +79,7 @@ func (p *ListKeySubcommand) RegisterFlags() {
 	p.FlagSet = flag.NewFlagSet(CmdListKeys, flag.ContinueOnError)
 	p.CommonKeyStoreParameters.Register(p.FlagSet)
 	p.CommonKeyListingParameters.Register(p.FlagSet)
+	network.RegisterTLSBaseArgs(p.FlagSet)
 	p.FlagSet.BoolVar(&p.rotatedKeys, "rotated-keys", false, "List rotated keys")
 	p.FlagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": list available keys in the keystore\n", CmdListKeys)

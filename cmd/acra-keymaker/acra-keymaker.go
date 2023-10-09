@@ -68,7 +68,8 @@ func main() {
 	keystoreVersion := flag.String("keystore", "", "set keystore format: v1 (current), v2 (new)")
 	kmsKeyPolicy := flag.String("kms_key_policy", kms.KeyPolicyCreate, fmt.Sprintf("KMS usage key policy: <%s>", strings.Join(kms.SupportedPolicies, "|")))
 
-	tlsClientCert := flag.String("tls_cert", "", "Path to TLS certificate to use as client_id identifier")
+	tlsClientCertOld := flag.String("tls_cert", "", "Path to TLS certificate to use as client_id identifier. Deprecated since 0.96.0 use --tls_client_id_cert")
+	tlsClientCertNew := flag.String("tls_client_id_cert", "", "Path to TLS certificate to use as client_id identifier.")
 	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
 
 	cmd.RegisterRedisKeystoreParameters()
@@ -82,12 +83,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	if len(*clientID) != 0 && *tlsClientCert != "" {
+	if *tlsClientCertOld != "" && *tlsClientCertNew != "" {
+		log.Errorln("You cant specify --tls_cert (deprecated since 0.96.0) and --tls_client_id_cert simultaneously")
+		os.Exit(1)
+	}
+
+	tlsClientCert := *tlsClientCertNew
+	if tlsClientCert == "" && *tlsClientCertOld != "" {
+		tlsClientCert = *tlsClientCertOld
+	}
+
+	if len(*clientID) != 0 && tlsClientCert != "" {
 		log.Errorln("You can either specify identifier for keys via specific clientID by --client_id parameter or via TLS certificate by --tls_cert parameter.")
 		os.Exit(1)
 	}
 
-	if len(*clientID) == 0 && *tlsClientCert != "" {
+	if len(*clientID) == 0 && tlsClientCert != "" {
 		idConverter, err := network.NewDefaultHexIdentifierConverter()
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize identifier converter")
@@ -103,7 +114,7 @@ func main() {
 			log.WithError(err).Errorln("Can't initialize clientID extractor")
 			os.Exit(1)
 		}
-		pemCertificateFile, err := ioutil.ReadFile(*tlsClientCert)
+		pemCertificateFile, err := os.ReadFile(tlsClientCert)
 		if err != nil {
 			log.WithError(err).Errorln("Can't read TLS certificate")
 			os.Exit(1)

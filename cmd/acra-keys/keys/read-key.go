@@ -27,6 +27,7 @@ import (
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 )
 
@@ -46,6 +47,7 @@ var (
 	ErrMissingKeyPart              = errors.New("key part not specified")
 	ErrExtraKeyPart                = errors.New("both key parts specified")
 	ErrMissingTLSCertPath          = errors.New("TLS certificate path not specified")
+	ErrDuplicatedTLSCertPathFlags  = errors.New("passed --tls_cert (deprecated since 0.96.0) and --tls_client_id_cert simultaneously")
 	ErrClientIDWithTLSCertProvided = errors.New("client ID and TLS certificate path are both provided")
 )
 
@@ -81,6 +83,7 @@ func (p *ReadKeySubcommand) GetFlagSet() *flag.FlagSet {
 func (p *ReadKeySubcommand) RegisterFlags() {
 	p.FlagSet = flag.NewFlagSet(CmdReadKey, flag.ContinueOnError)
 	p.CommonKeyStoreParameters.Register(p.FlagSet)
+	network.RegisterTLSBaseArgs(p.FlagSet)
 	p.FlagSet.BoolVar(&p.public, "public", false, "read public key of the keypair")
 	p.FlagSet.BoolVar(&p.private, "private", false, "read private key of the keypair")
 	p.FlagSet.Usage = func() {

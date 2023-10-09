@@ -74,7 +74,7 @@ func ParseCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *VaultCLIOp
 	if oldFlag := flags.Lookup(prefix + "vault_tls_ca_path"); oldFlag != nil && oldFlag.Value.String() != "" {
 		var newCAPathFlagValue string
 		var newFlag *flag.Flag
-		if newFlag = flags.Lookup(namerFunc("vault", "ca", "")); newFlag != nil {
+		if newFlag = flags.Lookup(prefix + namerFunc("vault", "ca", "")); newFlag != nil {
 			newCAPathFlagValue = newFlag.Value.String()
 		}
 
@@ -96,7 +96,7 @@ func ParseCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *VaultCLIOp
 			log.WithError(err).WithField("address", options.Address).Fatalln("Invalid Vault address provided")
 		}
 
-		tlsConfig, err = network.NewTLSConfigByName(flags, "vault", vaultURL.Host, network.ClientNameConstructorFunc())
+		tlsConfig, err = network.NewTLSConfigByName(flags, prefix+"vault", vaultURL.Host, network.ClientNameConstructorFunc())
 		if err != nil {
 			log.WithError(err).Fatalln("Failed to create Vault TLS config")
 		}

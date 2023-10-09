@@ -26,6 +26,7 @@ import (
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/network"
 )
 
 // SupportedDestroyKeyKinds is a list of keys supported by `destroy-key` subcommand.
@@ -65,6 +66,7 @@ func (p *DestroyKeySubcommand) GetFlagSet() *flag.FlagSet {
 func (p *DestroyKeySubcommand) RegisterFlags() {
 	p.FlagSet = flag.NewFlagSet(CmdReadKey, flag.ContinueOnError)
 	p.CommonKeyStoreParameters.Register(p.FlagSet)
+	network.RegisterTLSBaseArgs(p.FlagSet)
 	p.FlagSet.IntVar(&p.index, "index", 1, "Index of key to destroy (1 - represents current key, 2..n - rotated key)")
 	p.FlagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": destroy key material\n", CmdDestroyKey)

@@ -40,6 +40,7 @@ import (
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/acra/utils"
 
@@ -64,6 +65,7 @@ func main() {
 	dataLength := flag.Int("data_length", poison.UseDefaultDataLength, fmt.Sprintf("Length of random data for data block in acrastruct. -1 is random in range 1..%v", poison.DefaultDataLength))
 	recordType := flag.String("type", RecordTypeAcraStruct, fmt.Sprintf("Type of poison record: \"%s\" | \"%s\"\n", RecordTypeAcraStruct, RecordTypeAcraBlock))
 
+	network.RegisterTLSBaseArgs(flag.CommandLine)
 	keyloader.RegisterKeyStoreStrategyParameters()
 	logging.SetLogLevel(logging.LogDiscard)
 

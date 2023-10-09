@@ -104,8 +104,11 @@ redis_tls_ocsp_client_required: denyUnknown
 # OCSP service URL
 redis_tls_ocsp_client_url: 
 
-# Path to TLS certificate to use as client_id identifier
+# Path to TLS certificate to use as client_id identifier. Deprecated since 0.96.0 use --tls_client_id_cert
 tls_cert: 
+
+# Path to TLS certificate to use as client_id identifier.
+tls_client_id_cert: 
 
 # Decide which field of TLS certificate to use as ClientID (distinguished_name|serial_number). Default is distinguished_name.
 tls_identifier_extractor_type: distinguished_name
