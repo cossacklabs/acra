@@ -1862,9 +1862,8 @@ class TestMariaDBBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase
 
     def executePreparedStatement(self, query, args=None):
         # MariaDB used socket auth by default and in case of localhost trying to connect to unix socket
-        db_host = '127.0.0.1' if base.DB_HOST == 'localhost' else base.DB_HOST
         return MariaDBExecutor(
-            ConnectionArgs(host=db_host, port=self.ACRASERVER_PORT,
+            ConnectionArgs(host='127.0.0.1', port=self.ACRASERVER_PORT,
                            user=DB_USER, password=DB_USER_PASSWORD,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                            ssl_key=TEST_TLS_CLIENT_KEY,
