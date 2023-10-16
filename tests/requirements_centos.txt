@@ -6,7 +6,7 @@ mariadb==1.0.11
 asyncpg==0.26.0
 psycopg==3.0.18
 redis==4.3.6
-requests==2.27.1
+requests==2.31.0
 cryptography==40.0.2
 # ===================================================
 
