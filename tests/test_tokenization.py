@@ -120,7 +120,7 @@ class BaseTokenizationWithBinaryBindMySQL(BaseTokenization, test_common.BaseBina
                     else:
                         values_str += '\'\\x{}\', '.format(x.hex())
 
-            prepare_query_sql = "execute {} ({})".format(prepared_name, values_str.removesuffix(', '))
+            prepare_query_sql = "execute {} ({})".format(prepared_name, base.remove_suffix(values_str, ', '))
         return prepare_query_sql
 
     def compile_prepare(self, prepared_name, query, data_types={}, literal_binds=True):
@@ -168,7 +168,7 @@ class BaseTokenizationWithBinaryBindMySQL(BaseTokenization, test_common.BaseBina
         using_str = ''
         for x in args:
             using_str += '@{}, '.format(str(x))
-        execute_sql = "execute {} using {}".format(prepared_name, using_str.removesuffix(', '))
+        execute_sql = "execute {} using {}".format(prepared_name, base.remove_suffix(using_str, ', '))
         return engine.execute(sa.text(execute_sql).execution_options(autocommit=True))
 
     def execute_prepared_fetch(self, prepared_name, engine, args=[]):
@@ -176,7 +176,7 @@ class BaseTokenizationWithBinaryBindMySQL(BaseTokenization, test_common.BaseBina
         for x in args:
             using_str += '@{}, '.format(str(x))
         if len(args) > 0:
-            execute_sql = "execute {} using {}".format(prepared_name, using_str.removesuffix(', '))
+            execute_sql = "execute {} using {}".format(prepared_name, base.remove_suffix(using_str, ', '))
         else:
             execute_sql = "execute {}".format(prepared_name)
         return engine.execute(sa.text(execute_sql).execution_options(autocommit=True)).fetchall()
@@ -234,7 +234,7 @@ class BaseTokenizationWithBinaryPostgreSQL(BaseTokenization, test_common.BaseBin
                     else:
                         values_str += '\'\\x{}\', '.format(x.hex())
 
-            prepare_query_sql = "execute {} ({})".format(prepared_name, values_str.removesuffix(', '))
+            prepare_query_sql = "execute {} ({})".format(prepared_name, base.remove_suffix(values_str, ', '))
         return prepare_query_sql
 
     def compile_prepare(self, prepared_name, query, data_types={}, literal_binds=True):
