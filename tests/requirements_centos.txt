@@ -5,7 +5,7 @@ grpcio-tools==1.48.2
 mariadb==1.0.11
 asyncpg==0.26.0
 psycopg==3.0.18
-redis==4.3.6
+redis==4.4.4
 requests==2.27.1
 cryptography==40.0.2
 # ===================================================
@@ -26,7 +26,7 @@ hvac==0.10.11
 googleapis-common-protos==1.53.0
 prometheus_client==0.10.1
 unittest-xml-reporting==3.0.4
-redis==4.3.6
+redis==4.4.4
 hiredis==2.0.0
 # don't upgrade until stop supporting Centos 7 with python3.6
 # this version is last supported for python3.6
