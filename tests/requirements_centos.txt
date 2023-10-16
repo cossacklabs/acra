@@ -7,7 +7,7 @@ asyncpg==0.26.0
 psycopg==3.0.18
 redis==4.3.6
 requests==2.27.1
-cryptography==40.0.2
+cryptography==41.0.4
 # ===================================================
 
 pythemis
