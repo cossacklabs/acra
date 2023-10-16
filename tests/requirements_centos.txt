@@ -1,6 +1,7 @@
 # specifically downgraded versions for centos distros
 # ===================================================
 grpcio==1.48.2
+grpcio-tools==1.48.2
 mariadb==1.0.11
 asyncpg==0.26.0
 psycopg==3.0.18
@@ -22,7 +23,6 @@ semver==2.13.0
 pyyaml==6.0.1
 hvac==0.10.11
 # https://grpc.io/docs/quickstart/python.html
-grpcio-tools==1.57.0
 googleapis-common-protos==1.53.0
 prometheus_client==0.10.1
 unittest-xml-reporting==3.0.4
