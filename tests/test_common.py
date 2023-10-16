@@ -42,16 +42,16 @@ class ExecutorMixin:
     RAW_EXECUTOR = True
     FORMAT = ''
 
-    def get_db_host(self):
-        return base.DB_HOST
+    def get_acra_host(self):
+        return 'localhost'
 
     def setUp(self):
         super().setUp()
         acra_port = self.ACRASERVER_PORT
         self.executor1 = self.executor_with_ssl(
-            base.TEST_TLS_CLIENT_KEY, base.TEST_TLS_CLIENT_CERT, acra_port, self.get_db_host())
+            base.TEST_TLS_CLIENT_KEY, base.TEST_TLS_CLIENT_CERT, acra_port, self.get_acra_host())
         self.executor2 = self.executor_with_ssl(
-            base.TEST_TLS_CLIENT_2_KEY, base.TEST_TLS_CLIENT_2_CERT, acra_port, self.get_db_host())
+            base.TEST_TLS_CLIENT_2_KEY, base.TEST_TLS_CLIENT_2_CERT, acra_port, self.get_acra_host())
         self.raw_executor = self.executor_with_ssl(
             base.TEST_TLS_CLIENT_KEY, base.TEST_TLS_CLIENT_CERT, base.DB_PORT, base.DB_HOST)
 
@@ -90,11 +90,8 @@ class MariaDBExecutorMixin(ExecutorMixin):
             self.skipTest("running tests only with TLS")
 
     # MariaDB used socket auth by default and in case of localhost trying to connect to unix socket
-    def get_db_host(self):
-        if base.DB_HOST == 'localhost':
-            return '127.0.0.1'
-        else:
-            return base.DB_HOST
+    def get_acra_host(self):
+        return '127.0.0.1'
 
     executor_cls = base.MariaDBExecutor
 

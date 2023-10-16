@@ -1,0 +1,34 @@
+# specifically downgraded versions for centos distros
+# ===================================================
+grpcio==1.48.2
+grpcio-tools==1.48.2
+mariadb==1.0.11
+asyncpg==0.26.0
+psycopg==3.0.18
+redis==4.3.6
+requests==2.27.1
+cryptography==40.0.2
+# ===================================================
+
+pythemis
+psycopg2==2.9.7
+# only this supported on centos 7 due to problems with version of libpq
+# psycopg[binary]==3.0.18
+SQLAlchemy==1.4.15
+PyMySQL==1.0.2
+ddt==1.4.2
+semver==2.13.0
+# driver with binary prepared statements support
+#mysql-connector-python==8.0.11
+pyyaml==6.0.1
+hvac==0.10.11
+# https://grpc.io/docs/quickstart/python.html
+googleapis-common-protos==1.53.0
+prometheus_client==0.10.1
+unittest-xml-reporting==3.0.4
+redis==4.3.6
+hiredis==2.0.0
+# don't upgrade until stop supporting Centos 7 with python3.6
+# this version is last supported for python3.6
+boto3==1.23.10
+python-consul==1.1.0
