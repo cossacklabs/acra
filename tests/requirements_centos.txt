@@ -4,7 +4,7 @@ grpcio==1.48.2
 grpcio-tools==1.48.2
 mariadb==1.0.11
 asyncpg==0.26.0
-psycopg==3.0.18
+psycopg[binary]==3.0.18
 redis==4.3.6
 requests==2.27.1
 cryptography==40.0.2
@@ -12,8 +12,6 @@ cryptography==40.0.2
 
 pythemis
 psycopg2==2.9.7
-# only this supported on centos 7 due to problems with version of libpq
-# psycopg[binary]==3.0.18
 SQLAlchemy==1.4.15
 PyMySQL==1.0.2
 ddt==1.4.2
