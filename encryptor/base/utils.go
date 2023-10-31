@@ -14,11 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package encryptor
+package base
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,9 +28,22 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/encryptor/config"
+	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
+	"github.com/cossacklabs/acra/utils"
 )
+
+const allColumnsName = "*"
+
+// ErrInconsistentPlaceholder is returned when a placeholder refers to multiple different columns.
+var ErrInconsistentPlaceholder = errors.New("inconsistent placeholder usage")
+
+// ErrInvalidPlaceholder is returned when Acra cannot parse SQL placeholder expression.
+var ErrInvalidPlaceholder = errors.New("invalid placeholder value")
+
+// ErrUpdateLeaveDataUnchanged show that data wasn't changed in UpdateExpressionValue with updateFunc
+var ErrUpdateLeaveDataUnchanged = errors.New("updateFunc didn't change data")
 
 // InvalidPlaceholderIndex value that represent invalid index for sql placeholders
 const InvalidPlaceholderIndex = -1
@@ -164,7 +179,7 @@ func MapColumnsToAliases(selectQuery *sqlparser.Select, tableSchemaStore config.
 		joinAliases = make(map[string]string)
 
 		if ok := parseJoinTablesInfo(joinExp, &joinTables, joinAliases); !ok {
-			return nil, errUnsupportedExpression
+			return nil, ErrUnsupportedExpression
 		}
 	}
 
@@ -177,11 +192,11 @@ func MapColumnsToAliases(selectQuery *sqlparser.Select, tableSchemaStore config.
 			if ok {
 				if subSelect, ok := subQuery.Select.(*sqlparser.Select); ok {
 					if len(subSelect.SelectExprs) != 1 {
-						return nil, errUnsupportedExpression
+						return nil, ErrUnsupportedExpression
 					}
 
 					if _, ok := subSelect.SelectExprs[0].(*sqlparser.StarExpr); ok {
-						return nil, errUnsupportedExpression
+						return nil, ErrUnsupportedExpression
 					}
 
 					subColumn, err := MapColumnsToAliases(subSelect, tableSchemaStore)
@@ -208,7 +223,7 @@ func MapColumnsToAliases(selectQuery *sqlparser.Select, tableSchemaStore config.
 				if !starExpr.TableName.Name.IsEmpty() {
 					joinTable, ok := joinAliases[starExpr.TableName.Name.ValueForConfig()]
 					if !ok {
-						return nil, errUnsupportedExpression
+						return nil, ErrUnsupportedExpression
 					}
 					out = append(out, &ColumnInfo{Table: joinTable, Name: allColumnsName, Alias: allColumnsName})
 					continue
@@ -569,7 +584,7 @@ func getMatchedTable(fromExpr sqlparser.TableExprs, colName *sqlparser.ColName, 
 
 		tableName, ok := aliased.Expr.(sqlparser.TableName)
 		if !ok {
-			return "", errUnsupportedExpression
+			return "", ErrUnsupportedExpression
 		}
 
 		tableSchema := tableSchemaStore.GetTableSchema(tableName.Name.ValueForConfig())
@@ -585,7 +600,7 @@ func getMatchedTable(fromExpr sqlparser.TableExprs, colName *sqlparser.ColName, 
 
 			tName, ok := getTableName(aliased)
 			if !ok {
-				return "", errUnsupportedExpression
+				return "", ErrUnsupportedExpression
 			}
 
 			if alisedName != "" {
@@ -731,4 +746,84 @@ func findTableName(alias, columnName string, expr sqlparser.SQLNode) (ColumnInfo
 		return ColumnInfo{}, errNotFoundtable
 	}
 	return ColumnInfo{}, errNotFoundtable
+}
+
+// UpdateUnaryExpressionValue updates supported unary expression
+// By now, supported are only `_binary` charsets, that are parsed as unary expr.
+func UpdateUnaryExpressionValue(ctx context.Context, expr *sqlparser.UnaryExpr, coder DBDataCoder, setting config.ColumnEncryptionSetting, updateFunc func(context.Context, []byte) ([]byte, error)) error {
+	switch unaryVal := expr.Expr.(type) {
+	case *sqlparser.SQLVal:
+		switch strings.TrimSpace(expr.Operator) {
+		case "_binary":
+			return UpdateExpressionValue(ctx, unaryVal, coder, setting, updateFunc)
+		}
+	}
+	return nil
+}
+
+// UpdateExpressionValue decode value from DB related string to binary format, call updateFunc, encode to DB string format and replace value in expression with new
+func UpdateExpressionValue(ctx context.Context, expr sqlparser.Expr, coder DBDataCoder, setting config.ColumnEncryptionSetting, updateFunc func(context.Context, []byte) ([]byte, error)) error {
+	switch val := expr.(type) {
+	case *sqlparser.UnaryExpr:
+		return UpdateUnaryExpressionValue(ctx, expr.(*sqlparser.UnaryExpr), coder, setting, updateFunc)
+	// Update Parenthese expression like  `('AAAA')` just by processing inner
+	// expression 'AAAA'.
+	case *sqlparser.ParenExpr:
+		return UpdateExpressionValue(ctx, expr.(*sqlparser.ParenExpr).Expr, coder, setting, updateFunc)
+	case *sqlparser.SQLVal:
+		switch val.Type {
+		case sqlparser.StrVal, sqlparser.HexVal, sqlparser.PgEscapeString, sqlparser.IntVal, sqlparser.HexNum:
+			rawData, err := coder.Decode(val, setting)
+			if err != nil {
+				if err == utils.ErrDecodeOctalString || err == ErrUnsupportedExpression {
+					logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeSQLValue).
+						WithError(err).
+						Warningln("Can't decode data with unsupported coding format or unsupported expression")
+					return ErrUpdateLeaveDataUnchanged
+				}
+				return err
+			}
+
+			newData, err := updateFunc(ctx, rawData)
+			if err != nil {
+				return err
+			}
+			if len(newData) == len(rawData) && bytes.Equal(newData, rawData) {
+				return ErrUpdateLeaveDataUnchanged
+			}
+			coded, err := coder.Encode(expr, newData, setting)
+			if err != nil {
+				return err
+			}
+			val.Val = coded
+		}
+	}
+	return nil
+}
+
+// GetTablesWithAliases collect all tables from all update TableExprs which may be as subquery/table/join/etc
+// collect only table names and ignore aliases for subqueries
+func GetTablesWithAliases(tables sqlparser.TableExprs) []*AliasedTableName {
+	var outputTables []*AliasedTableName
+	for _, tableExpr := range tables {
+		switch statement := tableExpr.(type) {
+		case *sqlparser.AliasedTableExpr:
+			aliasedStatement := statement.Expr.(sqlparser.SimpleTableExpr)
+			switch simpleTableStatement := aliasedStatement.(type) {
+			case sqlparser.TableName:
+				outputTables = append(outputTables, &AliasedTableName{TableName: simpleTableStatement, As: statement.As})
+			case *sqlparser.Subquery:
+				// unsupported
+			default:
+				logrus.Debugf("Unsupported SimpleTableExpr type %s", reflect.TypeOf(simpleTableStatement))
+			}
+		case *sqlparser.ParenTableExpr:
+			outputTables = append(outputTables, GetTablesWithAliases(statement.Exprs)...)
+		case *sqlparser.JoinTableExpr:
+			outputTables = append(outputTables, GetTablesWithAliases(sqlparser.TableExprs{statement.LeftExpr, statement.RightExpr})...)
+		default:
+			logrus.Debugf("Unsupported TableExpr type %s", reflect.TypeOf(tableExpr))
+		}
+	}
+	return outputTables
 }

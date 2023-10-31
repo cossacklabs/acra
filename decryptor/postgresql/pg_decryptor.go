@@ -27,8 +27,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/encryptor/config"
+	encryptor "github.com/cossacklabs/acra/encryptor/base"
+	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/encryptor/postgresql"
 
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
@@ -132,13 +133,13 @@ const (
 
 // EncryptionSettingExtractor uses QueryDataEncryptor to extract ColumnEncryptionSetting for every column in the result
 type EncryptionSettingExtractor struct {
-	encryptor *encryptor.QueryDataEncryptor
+	encryptor *postgresql.QueryDataEncryptor
 	ctx       context.Context
 }
 
 // NewEncryptionSettingExtractor returns new initialized EncryptionSettingExtractor
 func NewEncryptionSettingExtractor(ctx context.Context, schema config.TableSchemaStore, parser *sqlparser.Parser) (EncryptionSettingExtractor, error) {
-	queryEncryptor, err := encryptor.NewPostgresqlQueryEncryptor(schema, parser, nil)
+	queryEncryptor, err := postgresql.NewQueryEncryptor(schema, parser, nil)
 	if err != nil {
 		return EncryptionSettingExtractor{}, err
 	}

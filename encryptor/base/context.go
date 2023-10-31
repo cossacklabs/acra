@@ -1,9 +1,9 @@
-package encryptor
+package base
 
 import (
 	"context"
 
-	"github.com/cossacklabs/acra/encryptor/config"
+	"github.com/cossacklabs/acra/encryptor/base/config"
 )
 
 type settingKey struct{}

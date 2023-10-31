@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/consul/api"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/cossacklabs/acra/encryptor"
+	encryptor "github.com/cossacklabs/acra/encryptor/base"
 )
 
 // StorageCreator implement config_loader.EncryptorConfigStorage via Hashicorp Consul Backend

@@ -7,7 +7,8 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/decryptor/base"
-	queryEncryptor "github.com/cossacklabs/acra/encryptor"
+	queryEncryptor "github.com/cossacklabs/acra/encryptor/base"
+	"github.com/cossacklabs/acra/encryptor/postgresql"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
 )
@@ -29,7 +30,7 @@ type PreparedStatementsQuery struct {
 // NewPostgresqlPreparedStatementsQuery create new QueryDataEncryptor to handle SQL PreparedStatement in the following format
 // `prepare {prepare_statement_name} (params...) as the sql-query` and `execute  (values...) {prepare_statement_name}`
 func NewPostgresqlPreparedStatementsQuery(session base.ClientSession, parser *sqlparser.Parser, queryObserver base.QueryObserver) *PreparedStatementsQuery {
-	return &PreparedStatementsQuery{parser: parser, session: session, queryObserver: queryObserver, coder: &queryEncryptor.PostgresqlDBDataCoder{}}
+	return &PreparedStatementsQuery{parser: parser, session: session, queryObserver: queryObserver, coder: &postgresql.PostgresqlDBDataCoder{}}
 }
 
 // ID returns name of this QueryObserver.

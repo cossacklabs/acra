@@ -16,8 +16,9 @@ package postgresql
 import (
 	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/encryptor/config"
+	encryptor "github.com/cossacklabs/acra/encryptor/base"
+	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/encryptor/postgresql"
 	"github.com/cossacklabs/acra/hmac"
 	hashDecryptor "github.com/cossacklabs/acra/hmac/decryptor"
 	"github.com/cossacklabs/acra/keystore"
@@ -155,7 +156,7 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 
 	// register query processors/encryptors only if have some
 	queryDataEncryptor := encryptor.NewChainDataEncryptor(chainEncryptors...)
-	queryEncryptor, err := encryptor.NewPostgresqlQueryEncryptor(factory.setting.TableSchemaStore(), sqlParser, queryDataEncryptor)
+	queryEncryptor, err := postgresql.NewQueryEncryptor(factory.setting.TableSchemaStore(), sqlParser, queryDataEncryptor)
 	if err != nil {
 		return nil, err
 	}

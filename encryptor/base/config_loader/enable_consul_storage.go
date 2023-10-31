@@ -3,7 +3,7 @@
 
 package config_loader
 
-import "github.com/cossacklabs/acra/encryptor/config_loader/consul"
+import "github.com/cossacklabs/acra/encryptor/base/config_loader/consul"
 
 func init() {
 	RegisterEncryptorConfigStorageCreator(EncryptoConfigStorageTypeConsul, consul.StorageCreator{})

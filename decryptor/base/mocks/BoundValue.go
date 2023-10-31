@@ -4,7 +4,7 @@ package mocks
 
 import (
 	base "github.com/cossacklabs/acra/decryptor/base"
-	config "github.com/cossacklabs/acra/encryptor/config"
+	config "github.com/cossacklabs/acra/encryptor/base/config"
 
 	mock "github.com/stretchr/testify/mock"
 )

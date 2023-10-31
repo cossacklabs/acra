@@ -19,9 +19,10 @@ package base
 import (
 	"context"
 
+	pg_query "github.com/pganalyze/pg_query_go/v4"
 	"github.com/sirupsen/logrus"
 
-	"github.com/cossacklabs/acra/encryptor/config"
+	"github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
 )
@@ -29,14 +30,24 @@ import (
 // OnQueryObject interface for result of OnQuery call
 type OnQueryObject interface {
 	Statement() (sqlparser.Statement, error)
+	// PgStatement temporal method not to break the interface
+	PgStatement() (*pg_query.ParseResult, error)
 	Query() string
 }
 
 // onQueryObject store result of QueryObserver.OnQuery call to reuse statements/queries between calls and do not parse/encode queries/statements
 type onQueryObject struct {
-	statement sqlparser.Statement
-	parser    *sqlparser.Parser
-	query     string
+	statement   sqlparser.Statement
+	pgStatement *pg_query.ParseResult
+	parser      *sqlparser.Parser
+	query       string
+}
+
+func (obj *onQueryObject) PgStatement() (*pg_query.ParseResult, error) {
+	if obj.pgStatement != nil {
+		return obj.pgStatement, nil
+	}
+	return pg_query.Parse(obj.query)
 }
 
 // Statement return stored statement or parse query

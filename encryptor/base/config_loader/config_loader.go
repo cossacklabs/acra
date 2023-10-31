@@ -6,8 +6,9 @@ import (
 	"flag"
 	"sync"
 
-	"github.com/cossacklabs/acra/encryptor"
 	log "github.com/sirupsen/logrus"
+
+	encryptor "github.com/cossacklabs/acra/encryptor/base"
 )
 
 // represent all possible encryptor config loader types

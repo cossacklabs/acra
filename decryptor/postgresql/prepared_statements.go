@@ -23,9 +23,9 @@ import (
 	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/encryptor/config"
-	"github.com/cossacklabs/acra/encryptor/config/common"
+	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/encryptor/base/config/common"
+	"github.com/cossacklabs/acra/encryptor/postgresql"
 	tokens "github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
@@ -271,7 +271,7 @@ func (p *pgBoundValue) setTokenizedData(newData []byte, setting config.ColumnEnc
 		if utils.IsPrintablePostgresqlString(newData) {
 			p.data = newData
 		} else {
-			p.data = encryptor.PgEncodeToHexString(newData)
+			p.data = postgresql.PgEncodeToHexString(newData)
 		}
 		return nil
 	case base.BinaryFormat:
@@ -306,7 +306,7 @@ func (p *pgBoundValue) setEncryptedData(newData []byte, setting config.ColumnEnc
 		if utils.IsPrintablePostgresqlString(newData) {
 			p.data = newData
 		} else {
-			p.data = encryptor.PgEncodeToHexString(newData)
+			p.data = postgresql.PgEncodeToHexString(newData)
 		}
 		return nil
 	case base.BinaryFormat:

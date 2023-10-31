@@ -11,8 +11,9 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/encryptor/config"
+	encryptor "github.com/cossacklabs/acra/encryptor/base"
+	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/encryptor/mysql"
 	"github.com/cossacklabs/acra/hmac"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
@@ -39,7 +40,7 @@ func NewMySQLPreparedStatementsQuery(proxyHandler *Handler, parser *sqlparser.Pa
 		parser,
 		nil,
 		schemaStore,
-		&encryptor.MysqlDBDataCoder{},
+		&mysql.MysqlDBDataCoder{},
 		nil,
 	}
 }

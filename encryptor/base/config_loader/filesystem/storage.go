@@ -3,9 +3,10 @@ package filesystem
 import (
 	"flag"
 
-	"github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/keystore/filesystem"
 	log "github.com/sirupsen/logrus"
+
+	encryptor "github.com/cossacklabs/acra/encryptor/base"
+	"github.com/cossacklabs/acra/keystore/filesystem"
 )
 
 // StorageCreator implement config_loader.EncryptorConfigStorage via filesystem

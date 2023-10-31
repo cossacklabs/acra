@@ -11,8 +11,8 @@ import (
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
-	"github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/encryptor/config"
+	encryptor "github.com/cossacklabs/acra/encryptor/base"
+	"github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/logging"
 	tokens "github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/sqlparser"

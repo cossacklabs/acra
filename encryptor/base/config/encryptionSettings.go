@@ -23,7 +23,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
-	"github.com/cossacklabs/acra/encryptor/config/common"
+	"github.com/cossacklabs/acra/encryptor/base/config/common"
 	maskingCommon "github.com/cossacklabs/acra/masking/common"
 	tokenizationCommon "github.com/cossacklabs/acra/pseudonymization/common"
 )

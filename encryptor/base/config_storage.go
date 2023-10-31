@@ -1,4 +1,4 @@
-package encryptor
+package base
 
 import "github.com/cossacklabs/acra/keystore/filesystem"
 

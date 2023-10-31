@@ -17,7 +17,7 @@ limitations under the License.
 package config
 
 import (
-	common2 "github.com/cossacklabs/acra/encryptor/config/common"
+	common2 "github.com/cossacklabs/acra/encryptor/base/config/common"
 	"github.com/cossacklabs/acra/pseudonymization/common"
 )
 

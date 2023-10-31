@@ -4,8 +4,9 @@ import (
 	"context"
 	"sync"
 
-	"github.com/cossacklabs/acra/encryptor/config/common"
 	"github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/encryptor/base/config/common"
 )
 
 // DataTypeFormat represent common interface about DB type

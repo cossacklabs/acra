@@ -23,8 +23,10 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/decryptor/base"
-	queryEncryptor "github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/encryptor/config"
+	queryEncryptor "github.com/cossacklabs/acra/encryptor/base"
+	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/encryptor/mysql"
+	"github.com/cossacklabs/acra/encryptor/postgresql"
 	"github.com/cossacklabs/acra/hmac"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/sqlparser"
@@ -50,13 +52,13 @@ type HashQuery struct {
 // NewPostgresqlHashQuery return HashQuery with coder for postgresql
 func NewPostgresqlHashQuery(keystore HashDecryptStore, schemaStore config.TableSchemaStore, processor base.ExtendedDataProcessor) *HashQuery {
 	searchableQueryFilter := queryEncryptor.NewSearchableQueryFilter(schemaStore, queryEncryptor.QueryFilterModeSearchableEncryption)
-	return &HashQuery{keystore: keystore, coder: &queryEncryptor.PostgresqlDBDataCoder{}, searchableQueryFilter: searchableQueryFilter, decryptor: processor, schemaStore: schemaStore}
+	return &HashQuery{keystore: keystore, coder: &postgresql.PostgresqlDBDataCoder{}, searchableQueryFilter: searchableQueryFilter, decryptor: processor, schemaStore: schemaStore}
 }
 
 // NewMysqlHashQuery return HashQuery with coder for mysql
 func NewMysqlHashQuery(keystore HashDecryptStore, schemaStore config.TableSchemaStore, processor base.ExtendedDataProcessor) *HashQuery {
 	searchableQueryFilter := queryEncryptor.NewSearchableQueryFilter(schemaStore, queryEncryptor.QueryFilterModeSearchableEncryption)
-	return &HashQuery{keystore: keystore, coder: &queryEncryptor.MysqlDBDataCoder{}, searchableQueryFilter: searchableQueryFilter, decryptor: processor, schemaStore: schemaStore}
+	return &HashQuery{keystore: keystore, coder: &mysql.MysqlDBDataCoder{}, searchableQueryFilter: searchableQueryFilter, decryptor: processor, schemaStore: schemaStore}
 }
 
 // ID returns name of this QueryObserver.
@@ -123,7 +125,7 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObjec
 		// to escape from this ambiguity added explicit casting search hash to bytes;
 		// the result expression will look like `convert(substr(searchable_column, ...), binary) = 0xFFFFF`
 		// but previously we had `substr(searchable_column, ...) = X'some_value'`
-		if _, ok := encryptor.coder.(*queryEncryptor.MysqlDBDataCoder); ok {
+		if _, ok := encryptor.coder.(*mysql.MysqlDBDataCoder); ok {
 			if rVal, ok := item.Expr.Right.(*sqlparser.SQLVal); ok && rVal.Type != sqlparser.ValArg {
 				item.Expr.Left = &sqlparser.ConvertExpr{
 					Expr: item.Expr.Left,

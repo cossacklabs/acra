@@ -6,8 +6,10 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/decryptor/base"
-	queryEncryptor "github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/encryptor/config"
+	queryEncryptor "github.com/cossacklabs/acra/encryptor/base"
+	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/encryptor/mysql"
+	base2 "github.com/cossacklabs/acra/encryptor/postgresql"
 	"github.com/cossacklabs/acra/sqlparser"
 )
 
@@ -24,7 +26,7 @@ func NewPostgresqlTokenizeQuery(schemaStore config.TableSchemaStore, tokenEncryp
 	return &TokenizeQuery{
 		searchableQueryFilter: queryEncryptor.NewSearchableQueryFilter(schemaStore, queryEncryptor.QueryFilterModeConsistentTokenization),
 		tokenEncryptor:        tokenEncryptor,
-		coder:                 &queryEncryptor.PostgresqlDBDataCoder{},
+		coder:                 &base2.PostgresqlDBDataCoder{},
 		schemaStore:           schemaStore,
 	}
 }
@@ -34,7 +36,7 @@ func NewMySQLTokenizeQuery(schemaStore config.TableSchemaStore, tokenEncryptor *
 	return &TokenizeQuery{
 		searchableQueryFilter: queryEncryptor.NewSearchableQueryFilter(schemaStore, queryEncryptor.QueryFilterModeConsistentTokenization),
 		tokenEncryptor:        tokenEncryptor,
-		coder:                 &queryEncryptor.MysqlDBDataCoder{},
+		coder:                 &mysql.MysqlDBDataCoder{},
 		schemaStore:           schemaStore,
 	}
 }

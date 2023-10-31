@@ -1,6 +1,6 @@
 package config_loader
 
-import "github.com/cossacklabs/acra/encryptor/config_loader/filesystem"
+import "github.com/cossacklabs/acra/encryptor/base/config_loader/filesystem"
 
 func init() {
 	RegisterEncryptorConfigStorageCreator(EncryptoConfigStorageTypeFilesystem, &filesystem.StorageCreator{})

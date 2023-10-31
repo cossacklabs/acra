@@ -1,16 +1,15 @@
-package encryptor
+package base
 
 import (
 	"testing"
 
-	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
-
 	"github.com/stretchr/testify/mock"
 
 	"github.com/cossacklabs/acra/decryptor/base/mocks"
-	"github.com/cossacklabs/acra/encryptor/config"
+	"github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/sqlparser/dialect"
+	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
 	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
 )
 

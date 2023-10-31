@@ -21,10 +21,10 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/network"
 
 	acracensor "github.com/cossacklabs/acra/acra-censor"
-	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/sqlparser"
 )

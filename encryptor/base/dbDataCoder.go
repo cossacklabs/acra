@@ -14,8 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/*
-Package encryptor contains code related with parsing DBMS specific queries with raw data that should be encrypted,
-with encryption logic and loading schema description and encryption settings
-*/
-package encryptor
+package base
+
+import (
+	"errors"
+
+	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/sqlparser"
+)
+
+// errUnsupportedExpression unsupported type of literal to binary encode/decode
+var ErrUnsupportedExpression = errors.New("unsupported expression")
+
+// DBDataCoder encode/decode binary data to correct string form for specific db
+type DBDataCoder interface {
+	Decode(sqlparser.Expr, config.ColumnEncryptionSetting) ([]byte, error)
+	Encode(sqlparser.Expr, []byte, config.ColumnEncryptionSetting) ([]byte, error)
+}

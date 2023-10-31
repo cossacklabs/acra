@@ -231,6 +231,7 @@ type TokenizeRequest struct {
 
 	ClientId []byte `protobuf:"bytes,1,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
 	// Types that are assignable to Value:
+	//
 	//	*TokenizeRequest_StrValue
 	//	*TokenizeRequest_EmailValue
 	//	*TokenizeRequest_Int32Value
@@ -360,6 +361,7 @@ type TokenizeResponse struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Response:
+	//
 	//	*TokenizeResponse_StrToken
 	//	*TokenizeResponse_EmailToken
 	//	*TokenizeResponse_Int32Token

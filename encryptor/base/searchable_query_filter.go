@@ -14,14 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package encryptor
+package base
 
 import (
 	"errors"
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/cossacklabs/acra/encryptor/config"
+	"github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/sqlparser"
 )
 
