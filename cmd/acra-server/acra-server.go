@@ -173,12 +173,20 @@ func realMain() error {
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 	debug := flag.Bool("d", false, "Log everything to stderr")
 
-	err := cmd.Parse(DefaultConfigPath, ServiceName)
-	if err != nil {
+	if err := flag.CommandLine.Parse(os.Args[1:]); err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse args")
 		return err
 	}
+
+	serviceConfig, err := cmd.ParseConfig(cmd.ConfigPath(DefaultConfigPath), ServiceName)
+	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
+			Errorln("Can't parse config")
+		return err
+	}
+
+	paramsExtractor := cmd.NewServiceParamsExtractor(flag.CommandLine, serviceConfig)
 
 	if os.Getenv(GracefulRestartEnv) == "true" {
 		// if process is forked, here we are blocked on reading signal from parent process (via pipe). When signal is read,
@@ -242,8 +250,8 @@ func realMain() error {
 	}
 	serverConfig.SetDBConnectionSettings(*dbHost, *dbPort)
 
-	if config_loader.IsEncryptorConfigLoaderCLIConfigured() {
-		if err := serverConfig.LoadMapTableSchemaConfig(*encryptorConfigStorageType, *useMysql); err != nil {
+	if config_loader.IsEncryptorConfigLoaderCLIConfigured(paramsExtractor) {
+		if err := serverConfig.LoadMapTableSchemaConfig(paramsExtractor, *encryptorConfigStorageType, *useMysql); err != nil {
 			log.WithError(err).Errorln("Can't load encryptor config")
 			return err
 		}
@@ -274,9 +282,9 @@ func realMain() error {
 	log.Infof("Initialising keystore...")
 	var keyStore keystore.ServerKeyStore
 	if filesystemV2.IsKeyDirectory(*keysDir) {
-		keyStore, err = openKeyStoreV2(*keysDir, *keysCacheSize)
+		keyStore, err = openKeyStoreV2(*keysDir, *keysCacheSize, paramsExtractor)
 	} else {
-		keyStore, err = openKeyStoreV1(*keysDir, *keysCacheSize)
+		keyStore, err = openKeyStoreV1(*keysDir, *keysCacheSize, paramsExtractor)
 	}
 	if err != nil {
 		log.WithError(err).Errorln("Can't open keyStore")
@@ -337,14 +345,14 @@ func realMain() error {
 		os.Exit(1)
 	}
 
-	appSideTLSConfig, err := network.NewTLSConfigByName(flag.CommandLine, "", "", network.ClientNameConstructorFunc())
+	appSideTLSConfig, err := network.NewTLSConfigByName(paramsExtractor, "", "", network.ClientNameConstructorFunc())
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 			Errorln("Configuration error: can't create application TLS config")
 		os.Exit(1)
 	}
 
-	dbTLSConfig, err := network.NewTLSConfigByName(flag.CommandLine, "", *dbHost, network.DatabaseNameConstructorFunc())
+	dbTLSConfig, err := network.NewTLSConfigByName(paramsExtractor, "", *dbHost, network.DatabaseNameConstructorFunc())
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 			Errorln("Configuration error: can't create database TLS config")
@@ -495,7 +503,7 @@ func realMain() error {
 		// if redisTLSConfig = nil then will not be used TLS for Redis
 		var redisTLSConfig *tls.Config
 		if redis.TLSEnable {
-			redisTLSConfig, err = network.NewTLSConfigByName(flag.CommandLine, "redis", redis.HostPort, network.ClientNameConstructorFunc())
+			redisTLSConfig, err = network.NewTLSConfigByName(paramsExtractor, "redis", redis.HostPort, network.ClientNameConstructorFunc())
 			if err != nil {
 				log.WithError(err).Errorln("Can't initialize tls config for redis client")
 				return err
@@ -823,10 +831,10 @@ func waitReadPipe(timeoutDuration time.Duration) error {
 	return nil
 }
 
-func openKeyStoreV1(output string, cacheSize int) (keystore.ServerKeyStore, error) {
+func openKeyStoreV1(output string, cacheSize int, extractor *cmd.ServiceParamsExtractor) (keystore.ServerKeyStore, error) {
 	var keyStoreEncryptor keystore.KeyEncryptor
 
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(flag.CommandLine, "")
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		return nil, err
@@ -841,7 +849,7 @@ func openKeyStoreV1(output string, cacheSize int) (keystore.ServerKeyStore, erro
 	cmd.ValidateRedisCLIOptions(redis)
 
 	if redis.KeysConfigured() {
-		redisOptions, err := redis.KeysOptions(flag.CommandLine)
+		redisOptions, err := redis.KeysOptions(extractor)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 				Errorln("Can't get Redis options")
@@ -863,12 +871,12 @@ func openKeyStoreV1(output string, cacheSize int) (keystore.ServerKeyStore, erro
 	return keyStoreV1, nil
 }
 
-func openKeyStoreV2(keyDirPath string, cacheSize int) (keystore.ServerKeyStore, error) {
+func openKeyStoreV2(keyDirPath string, cacheSize int, extractor *cmd.ServiceParamsExtractor) (keystore.ServerKeyStore, error) {
 	if cacheSize != keystore.WithoutCache {
 		return nil, keystore.ErrCacheIsNotSupportedV2
 	}
 
-	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(flag.CommandLine, "")
+	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")
 		return nil, err
@@ -880,7 +888,7 @@ func openKeyStoreV2(keyDirPath string, cacheSize int) (keystore.ServerKeyStore, 
 	cmd.ValidateRedisCLIOptions(redis)
 
 	if redis.KeysConfigured() {
-		redisOptions, err := redis.KeysOptions(flag.CommandLine)
+		redisOptions, err := redis.KeysOptions(extractor)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize Redis options")
 			os.Exit(1)

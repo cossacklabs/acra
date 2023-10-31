@@ -6,14 +6,13 @@ import (
 	"flag"
 	"net/http"
 	"net/url"
-	"os"
-	"strconv"
 	"time"
 
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/hashicorp/vault/api"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/network"
 )
 
@@ -52,42 +51,32 @@ func RegisterCLIParametersWithFlagSet(flags *flag.FlagSet, prefix, description s
 }
 
 // ParseCLIParametersFromFlags VaultCLIOptions from provided FlagSet
-func ParseCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *VaultCLIOptions {
-	options := VaultCLIOptions{}
-
-	if f := flags.Lookup(prefix + vaultConnectionStringFlag); f != nil {
-		options.Address = f.Value.String()
-	}
-	if f := flags.Lookup(prefix + "vault_secrets_path"); f != nil {
-		options.SecretsPath = f.Value.String()
-	}
-	if f := flags.Lookup(prefix + "vault_tls_transport_enable"); f != nil {
-		val, err := strconv.ParseBool(f.Value.String())
-		if err != nil {
-			log.WithField("value", f.Value.String()).Fatalf("Can't cast %s to bool value", f.Name)
-		}
-		options.EnableTLS = val
+func ParseCLIParametersFromFlags(extractor *cmd.ServiceParamsExtractor, prefix string) *VaultCLIOptions {
+	options := VaultCLIOptions{
+		Address:     extractor.GetString(prefix+vaultConnectionStringFlag, ""),
+		SecretsPath: extractor.GetString(prefix+"vault_secrets_path", ""),
+		EnableTLS:   extractor.GetBool(prefix+"vault_tls_transport_enable", ""),
 	}
 
-	namerFunc := network.ClientNameConstructorFunc()
+	//namerFunc := network.ClientNameConstructorFunc()
 	// for backward compatibility check if both  --vault_tls_ca_path and --vault_tls_client_ca not passed
-	if oldFlag := flags.Lookup(prefix + "vault_tls_ca_path"); oldFlag != nil && oldFlag.Value.String() != "" {
-		var newCAPathFlagValue string
-		var newFlag *flag.Flag
-		if newFlag = flags.Lookup(prefix + namerFunc("vault", "ca", "")); newFlag != nil {
-			newCAPathFlagValue = newFlag.Value.String()
-		}
-
-		if oldFlag.Value.String() != "" && newCAPathFlagValue != "" {
-			log.Errorf("Flags `%s` (deprecated) and `%s` cant be provided simultaneously", "vault_tls_ca_path", oldFlag.Name)
-			os.Exit(1)
-		}
-
-		// if the value was passed by old flag inject as new one
-		if oldFlagValue := oldFlag.Value; oldFlagValue.String() != "" && newCAPathFlagValue == "" {
-			newFlag.Value = oldFlagValue
-		}
-	}
+	//if oldFlag := flags.Lookup(prefix + "vault_tls_ca_path"); oldFlag != nil && oldFlag.Value.String() != "" {
+	//	var newCAPathFlagValue string
+	//	var newFlag *flag.Flag
+	//	if newFlag = flags.Lookup(prefix + namerFunc("vault", "ca", "")); newFlag != nil {
+	//		newCAPathFlagValue = newFlag.Value.String()
+	//	}
+	//
+	//	if oldFlag.Value.String() != "" && newCAPathFlagValue != "" {
+	//		log.Errorf("Flags `%s` (deprecated) and `%s` cant be provided simultaneously", "vault_tls_ca_path", oldFlag.Name)
+	//		os.Exit(1)
+	//	}
+	//
+	//	// if the value was passed by old flag inject as new one
+	//	if oldFlagValue := oldFlag.Value; oldFlagValue.String() != "" && newCAPathFlagValue == "" {
+	//		newFlag.Value = oldFlagValue
+	//	}
+	//}
 
 	var tlsConfig *tls.Config
 	if options.EnableTLS {
@@ -96,7 +85,7 @@ func ParseCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *VaultCLIOp
 			log.WithError(err).WithField("address", options.Address).Fatalln("Invalid Vault address provided")
 		}
 
-		tlsConfig, err = network.NewTLSConfigByName(flags, prefix+"vault", vaultURL.Host, network.ClientNameConstructorFunc())
+		tlsConfig, err = network.NewTLSConfigByName(extractor, prefix+"vault", vaultURL.Host, network.ClientNameConstructorFunc())
 		if err != nil {
 			log.WithError(err).Fatalln("Failed to create Vault TLS config")
 		}
@@ -120,8 +109,8 @@ func (options *VaultCLIOptions) VaultHTTPClient() (*http.Client, error) {
 }
 
 // NewMasterKeyLoader create MasterKeyLoader from VaultCLIOptions
-func NewMasterKeyLoader(flags *flag.FlagSet, prefix string) (*VaultLoader, error) {
-	vaultOptions := ParseCLIParametersFromFlags(flags, prefix)
+func NewMasterKeyLoader(extractor *cmd.ServiceParamsExtractor, prefix string) (*VaultLoader, error) {
+	vaultOptions := ParseCLIParametersFromFlags(extractor, prefix)
 	if vaultOptions.Address == "" {
 		return nil, ErrEmptyConnectionURL
 	}

@@ -24,7 +24,6 @@ import (
 	flag_ "flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"os"
@@ -61,6 +60,184 @@ func init() {
 	flag_.CommandLine.Usage = func() {
 		PrintFlags(flag_.CommandLine)
 	}
+}
+
+type ServiceParamsExtractor struct {
+	configData map[string]interface{}
+	flags      *flag_.FlagSet
+}
+
+func NewServiceParamsExtractor(flags *flag_.FlagSet, config map[string]interface{}) *ServiceParamsExtractor {
+	return &ServiceParamsExtractor{
+		configData: config,
+		flags:      flags,
+	}
+}
+
+func (e *ServiceParamsExtractor) GetString(param, generalParam string) string {
+	if isFlagSet(param, e.flags) {
+		if f := e.flags.Lookup(param); f != nil {
+			if value := f.Value.String(); value != "" {
+				return value
+			}
+		}
+	}
+
+	if rawValue, ok := e.configData[param]; ok {
+		value, ok := rawValue.(string)
+		if ok {
+			return value
+		}
+	}
+
+	if generalParam != "" {
+		if isFlagSet(generalParam, e.flags) {
+			if f := e.flags.Lookup(generalParam); f != nil {
+				if value := f.Value.String(); value != "" {
+					return value
+				}
+			}
+		}
+
+		if rawValue, ok := e.configData[generalParam]; ok {
+			value, ok := rawValue.(string)
+			if ok {
+				return value
+			}
+		}
+	}
+
+	return getCLIStringDefault(param, e.flags)
+}
+
+func (e *ServiceParamsExtractor) GetBool(param, generalParam string) bool {
+	if isFlagSet(param, e.flags) {
+		if f := e.flags.Lookup(param); f != nil {
+			v, err := strconv.ParseBool(f.Value.String())
+			if err != nil {
+				log.WithField("value", f.Value.String).Fatalf("Can't cast %s to boolean value", param)
+			}
+			return v
+		}
+	}
+
+	if rawValue, ok := e.configData[param]; ok {
+		value, ok := rawValue.(bool)
+		if ok {
+			return value
+		}
+	}
+
+	if generalParam != "" {
+		if isFlagSet(generalParam, e.flags) {
+			if f := e.flags.Lookup(generalParam); f != nil {
+				v, err := strconv.ParseBool(f.Value.String())
+				if err != nil {
+					log.WithField("value", f.Value.String).Fatalf("Can't cast %s to boolean value", param)
+				}
+				return v
+			}
+		}
+
+		if rawValue, ok := e.configData[generalParam]; ok {
+			value, ok := rawValue.(bool)
+			if ok {
+				return value
+			}
+		}
+	}
+
+	return getCLIBoolDefault(param, e.flags)
+}
+
+func (e *ServiceParamsExtractor) GetInt(param, generalParam string) int {
+	if isFlagSet(param, e.flags) {
+		if f := e.flags.Lookup(param); f != nil {
+			v, err := strconv.ParseInt(f.Value.String(), 10, 64)
+			if err != nil {
+				log.WithField("value", f.Value.String).Fatalf("Can't cast %s to integer value", param)
+			}
+			return int(v)
+		}
+	}
+
+	if rawValue, ok := e.configData[param]; ok {
+		value, ok := rawValue.(int)
+		if ok {
+			return value
+		}
+	}
+
+	if generalParam != "" {
+		if isFlagSet(generalParam, e.flags) {
+			if f := e.flags.Lookup(generalParam); f != nil {
+				v, err := strconv.ParseInt(f.Value.String(), 10, 64)
+				if err != nil {
+					log.WithField("value", f.Value.String).Fatalf("Can't cast %s to integer value", param)
+				}
+				return int(v)
+			}
+		}
+
+		if rawValue, ok := e.configData[generalParam]; ok {
+			value, ok := rawValue.(int)
+			if ok {
+				return value
+			}
+		}
+	}
+
+	return getCLIIntDefault(param, e.flags)
+}
+
+// IsFlagSet returns true if flag explicitly set via CLI arguments
+// Don't move it to the cmd package due to import cycle
+func isFlagSet(name string, flagset *flag_.FlagSet) bool {
+	set := false
+	flagset.Visit(func(f *flag_.Flag) {
+		if f.Name == name {
+			set = true
+		}
+	})
+	return set
+}
+
+func getCLIBoolDefault(name string, flagset *flag_.FlagSet) bool {
+	var res bool
+	flagset.VisitAll(func(f *flag_.Flag) {
+		if f.Name == name {
+			boolVal, err := strconv.ParseBool(f.Value.String())
+			if err == nil {
+				res = boolVal
+				return
+			}
+		}
+	})
+
+	return res
+}
+
+func getCLIStringDefault(name string, flagset *flag_.FlagSet) string {
+	var res string
+	flagset.VisitAll(func(f *flag_.Flag) {
+		if f.Name == name {
+			res = f.Value.String()
+		}
+	})
+	return res
+}
+
+func getCLIIntDefault(name string, flagset *flag_.FlagSet) int {
+	var res int
+	flagset.VisitAll(func(f *flag_.Flag) {
+		if f.Name == name {
+			v, err := strconv.ParseInt(f.Value.String(), 10, 64)
+			if err == nil {
+				res = int(v)
+			}
+		}
+	})
+	return res
 }
 
 // SignalCallback callback function
@@ -352,6 +529,36 @@ func Parse(configPath, serviceName string) error {
 	return err
 }
 
+func ParseConfig(configPath, serviceName string) (map[string]interface{}, error) {
+	result := make(map[string]interface{})
+	if configPath == "" {
+		return result, nil
+	}
+
+	configPath, err := filepath.Abs(configPath)
+	if err != nil {
+		return nil, err
+	}
+	exists, err := utils.FileExists(configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if exists {
+		data, err := os.ReadFile(configPath)
+		if err != nil {
+			return nil, err
+		}
+
+		err = yaml.Unmarshal(data, &result)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return result, nil
+}
+
 // ParseFlagsWithConfig parses flag settings from YAML config file and command line.
 func ParseFlagsWithConfig(flags *flag_.FlagSet, arguments []string, configPath, serviceName string) error {
 	/*load from yaml config and cli. if dumpconfig option pass than generate config and exit*/
@@ -377,7 +584,7 @@ func ParseFlagsWithConfig(flags *flag_.FlagSet, arguments []string, configPath, 
 			return err
 		}
 		if exists {
-			data, err := ioutil.ReadFile(configPath)
+			data, err := os.ReadFile(configPath)
 			if err != nil {
 				return err
 			}

@@ -22,13 +22,14 @@ import (
 	"crypto/x509"
 	"errors"
 	"flag"
-	"github.com/cossacklabs/acra/logging"
-	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc/credentials"
 	"io/ioutil"
 	"net"
-	"strconv"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc/credentials"
+
+	"github.com/cossacklabs/acra/logging"
 )
 
 // allowedCipherSuits that set in default tls clientConfig
@@ -125,51 +126,39 @@ func RegisterTLSArgsForService(flags *flag.FlagSet, isClient bool, name string, 
 	RegisterCertVerifierArgsForService(flags, name, namerFunc)
 }
 
+type ParamsExtractor interface {
+	GetString(param, generalParam string) string
+	GetBool(param, generalParam string) bool
+	GetInt(param, generalParam string) int
+}
+
 // NewTLSConfigByName returns config related to flags registered via RegisterTLSArgsForService. `host` will be used as
 // ServerName in tls.Config for connection as client to verify server's certificate.
 // If <name>_tls_sni flag specified, then will be used SNI value.
-func NewTLSConfigByName(flags *flag.FlagSet, name, host string, namerFunc CLIParamNameConstructorFunc) (*tls.Config, error) {
-	var ca, cert, key, sni string
-	var auth tls.ClientAuthType
-	if f := flags.Lookup(namerFunc(name, "ca", "")); f != nil {
-		ca = f.Value.String()
-		if ca == "" {
-			ca = tlsCA
-		}
+func NewTLSConfigByName(extractor ParamsExtractor, name, host string, namerFunc CLIParamNameConstructorFunc) (*tls.Config, error) {
+	var (
+		ca   = extractor.GetString(namerFunc(name, "ca", ""), "tls_ca")
+		sni  = extractor.GetString(namerFunc(name, "sni", ""), "")
+		cert = extractor.GetString(namerFunc(name, "cert", ""), "tls_cert")
+		key  = extractor.GetString(namerFunc(name, "key", ""), "tls_key")
+	)
+
+	v := extractor.GetInt(namerFunc(name, "auth", ""), "")
+	if v == tlsAuthNotSet {
+		v = tlsAuthType
 	}
-	if f := flags.Lookup(namerFunc(name, "sni", "")); f != nil {
-		sni = f.Value.String()
-	}
-	if f := flags.Lookup(namerFunc(name, "cert", "")); f != nil {
-		cert = f.Value.String()
-		if cert == "" {
-			cert = tlsCert
-		}
-	}
-	if f := flags.Lookup(namerFunc(name, "key", "")); f != nil {
-		key = f.Value.String()
-		if key == "" {
-			key = tlsKey
-		}
-	}
-	if f := flags.Lookup(namerFunc(name, "auth", "")); f != nil {
-		v, err := strconv.ParseInt(f.Value.String(), 10, 64)
-		if err != nil {
-			log.WithField("value", f.Value.String).Fatalf("Can't cast %s to integer value", namerFunc(name, "auth", ""))
-		}
-		if v == tlsAuthNotSet {
-			v = int64(tlsAuthType)
-		}
-		auth = tls.ClientAuthType(v)
-	}
-	ocspConfig, err := NewOCSPConfigByName(flags, name, namerFunc)
+	auth := tls.ClientAuthType(v)
+
+	ocspConfig, err := NewOCSPConfigByName(extractor, name, namerFunc)
 	if err != nil {
 		return nil, err
 	}
-	crlConfig, err := NewCRLConfigByName(flags, name, namerFunc)
+
+	crlConfig, err := NewCRLConfigByName(extractor, name, namerFunc)
 	if err != nil {
 		return nil, err
 	}
+
 	verifier, err := NewCertVerifierFromConfigs(ocspConfig, crlConfig)
 	if err != nil {
 		return nil, err

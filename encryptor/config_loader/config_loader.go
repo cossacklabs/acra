@@ -6,8 +6,10 @@ import (
 	"flag"
 	"sync"
 
-	"github.com/cossacklabs/acra/encryptor"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/encryptor"
 )
 
 // represent all possible encryptor config loader types
@@ -30,9 +32,9 @@ var (
 
 // EncryptorConfigStorageCreator describe interface for creating EncryptorConfigStorage
 type EncryptorConfigStorageCreator interface {
-	NewStorage(flags *flag.FlagSet, prefix string) (encryptor.ConfigStorage, error)
+	NewStorage(extractor *cmd.ServiceParamsExtractor, prefix string) (encryptor.ConfigStorage, error)
 	RegisterCLIParameters(flags *flag.FlagSet, prefix, description string)
-	IsStorageConfigured(flags *flag.FlagSet, prefix string) bool
+	IsStorageConfigured(extractor *cmd.ServiceParamsExtractor, prefix string) bool
 }
 
 var configStorageCreators = map[string]EncryptorConfigStorageCreator{}
@@ -46,14 +48,14 @@ func RegisterEncryptorConfigStorageCreator(name string, creator EncryptorConfigS
 }
 
 // GetEncryptorConfigStorage returns initialized filesystem.Storage interface depending on incoming storage type
-func GetEncryptorConfigStorage(storageType string, flags *flag.FlagSet, prefix string) (encryptor.ConfigStorage, error) {
+func GetEncryptorConfigStorage(storageType string, extractor *cmd.ServiceParamsExtractor, prefix string) (encryptor.ConfigStorage, error) {
 	creator, ok := configStorageCreators[storageType]
 	if !ok {
 		log.WithField("storage-type", storageType).Warnf("encryptor.ConfigStorage not found")
 		return nil, ErrEncryptorConfigStorageNotFound
 	}
 
-	return creator.NewStorage(flags, prefix)
+	return creator.NewStorage(extractor, prefix)
 }
 
 // ConfigLoader load encryptor config using encryptor.ConfigStorage
@@ -62,8 +64,8 @@ type ConfigLoader struct {
 }
 
 // NewConfigLoader create new ConfigLoader
-func NewConfigLoader(storageType string, flags *flag.FlagSet, prefix string) (*ConfigLoader, error) {
-	configStorage, err := GetEncryptorConfigStorage(storageType, flags, prefix)
+func NewConfigLoader(storageType string, extractor *cmd.ServiceParamsExtractor, prefix string) (*ConfigLoader, error) {
+	configStorage, err := GetEncryptorConfigStorage(storageType, extractor, prefix)
 	if err != nil {
 		return nil, err
 	}
@@ -96,9 +98,9 @@ func RegisterEncryptorConfigLoaderCLIWithFlags(flag *flag.FlagSet, prefix, descr
 }
 
 // IsEncryptorConfigLoaderCLIConfiguredWithFlags check weather CLI ConfigStorage flags of FlagSet were configured
-func IsEncryptorConfigLoaderCLIConfiguredWithFlags(flag *flag.FlagSet, prefix string) bool {
+func IsEncryptorConfigLoaderCLIConfiguredWithFlags(extractor *cmd.ServiceParamsExtractor, prefix string) bool {
 	for _, v := range configStorageCreators {
-		if ok := v.IsStorageConfigured(flag, prefix); ok {
+		if ok := v.IsStorageConfigured(extractor, prefix); ok {
 			return true
 		}
 	}
@@ -112,6 +114,6 @@ func RegisterEncryptorConfigLoaderParameters() {
 }
 
 // IsEncryptorConfigLoaderCLIConfigured check weather CLI ConfigStorage flags were configured
-func IsEncryptorConfigLoaderCLIConfigured() bool {
-	return IsEncryptorConfigLoaderCLIConfiguredWithFlags(flag.CommandLine, "")
+func IsEncryptorConfigLoaderCLIConfigured(extractor *cmd.ServiceParamsExtractor) bool {
+	return IsEncryptorConfigLoaderCLIConfiguredWithFlags(extractor, "")
 }

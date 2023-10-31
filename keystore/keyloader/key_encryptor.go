@@ -5,10 +5,12 @@ import (
 	"flag"
 	"sync"
 
+	log "github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/kms/base"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
-	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -22,8 +24,8 @@ var keyEncryptorFabrics = map[string]KeyEncryptorFabric{}
 // KeyEncryptorFabric represent Fabric interface for constructing keystore.KeyEncryptor for v1 keystore and crypto.KeyStoreSuite for v2
 type KeyEncryptorFabric interface {
 	RegisterCLIParameters(flags *flag.FlagSet, prefix, description string)
-	NewKeyEncryptor(flag *flag.FlagSet, prefix string) (keystore.KeyEncryptor, error)
-	NewKeyEncryptorSuite(flag *flag.FlagSet, prefix string) (*crypto.KeyStoreSuite, error)
+	NewKeyEncryptor(extractor *cmd.ServiceParamsExtractor, prefix string) (keystore.KeyEncryptor, error)
+	NewKeyEncryptorSuite(extractor *cmd.ServiceParamsExtractor, prefix string) (*crypto.KeyStoreSuite, error)
 	GetKeyMapper() base.KeyMapper
 }
 
@@ -42,8 +44,8 @@ type MasterKeyLoader interface {
 }
 
 // CreateKeyEncryptor returns initialized keystore.KeyEncryptor interface depending on incoming keystoreStrategy
-func CreateKeyEncryptor(flags *flag.FlagSet, prefix string) (keystore.KeyEncryptor, error) {
-	cliOptions := ParseCLIOptionsFromFlags(flags, prefix)
+func CreateKeyEncryptor(extractor *cmd.ServiceParamsExtractor, prefix string) (keystore.KeyEncryptor, error) {
+	cliOptions := ParseCLIOptionsFromFlags(extractor, prefix)
 
 	keyEncryptorFabric, ok := keyEncryptorFabrics[cliOptions.KeystoreEncryptorType]
 	if !ok {
@@ -52,12 +54,12 @@ func CreateKeyEncryptor(flags *flag.FlagSet, prefix string) (keystore.KeyEncrypt
 		return nil, ErrKeyEncryptorFabricNotFound
 	}
 
-	return keyEncryptorFabric.NewKeyEncryptor(flags, prefix)
+	return keyEncryptorFabric.NewKeyEncryptor(extractor, prefix)
 }
 
 // CreateKeyEncryptorSuite returns initialized crypto.KeyStoreSuite interface depending on incoming keystoreStrategy
-func CreateKeyEncryptorSuite(flags *flag.FlagSet, prefix string) (*crypto.KeyStoreSuite, error) {
-	cliOptions := ParseCLIOptionsFromFlags(flags, prefix)
+func CreateKeyEncryptorSuite(extractor *cmd.ServiceParamsExtractor, prefix string) (*crypto.KeyStoreSuite, error) {
+	cliOptions := ParseCLIOptionsFromFlags(extractor, prefix)
 
 	keyEncryptorFabric, ok := keyEncryptorFabrics[cliOptions.KeystoreEncryptorType]
 	if !ok {
@@ -65,7 +67,7 @@ func CreateKeyEncryptorSuite(flags *flag.FlagSet, prefix string) (*crypto.KeySto
 			Warnf("KeyEncryptorFabric not found")
 		return nil, ErrKeyEncryptorFabricNotFound
 	}
-	return keyEncryptorFabric.NewKeyEncryptorSuite(flags, prefix)
+	return keyEncryptorFabric.NewKeyEncryptorSuite(extractor, prefix)
 }
 
 // RegisterKeyStoreStrategyParameters register flags for all fabrics with CommandLine flags

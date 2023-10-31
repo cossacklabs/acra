@@ -22,14 +22,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"flag"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ocsp"
 	"io/ioutil"
 	"net/http"
 	url_ "net/url"
-	"strconv"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ocsp"
 )
 
 // Errors returned by OCSP verifier
@@ -127,37 +126,13 @@ const (
 )
 
 // NewOCSPConfigByName return initialized OCSPConfig config using flags registered with RegisterCertVerifierArgsForService
-func NewOCSPConfigByName(flags *flag.FlagSet, name string, namerFunc CLIParamNameConstructorFunc) (*OCSPConfig, error) {
-	var url, required, fromCert string
-	var checkOnlyLeafCert bool
-
-	url = tlsOcspURL
-	if isFlagSet(namerFunc(name, "url", "ocsp"), flags) {
-		f := flags.Lookup(namerFunc(name, "url", "ocsp"))
-		url = f.Value.String()
-	}
-
-	required = tlsOcspRequired
-	if isFlagSet(namerFunc(name, "required", "ocsp"), flags) {
-		f := flags.Lookup(namerFunc(name, "required", "ocsp"))
-		required = f.Value.String()
-	}
-
-	fromCert = tlsOcspFromCert
-	if isFlagSet(namerFunc(name, "from_cert", "ocsp"), flags) {
-		f := flags.Lookup(namerFunc(name, "from_cert", "ocsp"))
-		fromCert = f.Value.String()
-	}
-
-	checkOnlyLeafCert = tlsOcspCheckOnlyLeafCertificate
-	if isFlagSet(namerFunc(name, "check_only_leaf_certificate", "ocsp"), flags) {
-		f := flags.Lookup(namerFunc(name, "check_only_leaf_certificate", "ocsp"))
-		v, err := strconv.ParseBool(f.Value.String())
-		if err != nil {
-			log.WithField("value", f.Value.String).Fatalf("Can't cast %s to boolean value", namerFunc(name, "check_only_leaf_certificate", "ocsp"))
-		}
-		checkOnlyLeafCert = v
-	}
+func NewOCSPConfigByName(extractor ParamsExtractor, name string, namerFunc CLIParamNameConstructorFunc) (*OCSPConfig, error) {
+	var (
+		url               = extractor.GetString(namerFunc(name, "url", "ocsp"), "tls_ocsp_url")
+		required          = extractor.GetString(namerFunc(name, "required", "ocsp"), "tls_ocsp_required")
+		fromCert          = extractor.GetString(namerFunc(name, "from_cert", "ocsp"), "tls_ocsp_from_cert")
+		checkOnlyLeafCert = extractor.GetBool(namerFunc(name, "check_only_leaf_certificate", "ocsp"), "tls_ocsp_check_only_leaf_certificate")
+	)
 
 	return NewOCSPConfig(url, required, fromCert, checkOnlyLeafCert)
 }

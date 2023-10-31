@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cossacklabs/acra/keystore/kms/base"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/keystore/kms/base"
 )
 
 // ErrUnknownKMSType error displaying unknown KMS type provided by flags
@@ -50,21 +52,16 @@ func RegisterCLIParametersWithFlags(flags *flag.FlagSet, prefix string, descript
 }
 
 // ParseCLIParameters parse CLIOptions from CommandLine flags
-func ParseCLIParameters() *CLIOptions {
-	return ParseCLIParametersFromFlags(flag.CommandLine, "")
+func ParseCLIParameters(extractor *cmd.ServiceParamsExtractor) *CLIOptions {
+	return ParseCLIParametersFromFlags(extractor, "")
 }
 
 // ParseCLIParametersFromFlags parse CLIOptions from provided FlagSet
-func ParseCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *CLIOptions {
-	options := CLIOptions{}
-
-	if f := flags.Lookup(prefix + "kms_type"); f != nil {
-		options.KMSType = f.Value.String()
+func ParseCLIParametersFromFlags(extractor *cmd.ServiceParamsExtractor, prefix string) *CLIOptions {
+	return &CLIOptions{
+		KMSType:         extractor.GetString(prefix+"kms_type", ""),
+		CredentialsPath: extractor.GetString(prefix+"kms_credentials_path", ""),
 	}
-	if f := flags.Lookup(prefix + "kms_credentials_path"); f != nil {
-		options.CredentialsPath = f.Value.String()
-	}
-	return &options
 }
 
 // NewKeyManager create kms.KeyManager from kms.CLIOptions

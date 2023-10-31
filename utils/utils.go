@@ -20,17 +20,18 @@ package utils
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/cossacklabs/themis/gothemis/keys"
 	"io"
 	"io/ioutil"
+	"os"
+	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 	"unsafe"
 
+	"github.com/cossacklabs/themis/gothemis/keys"
+
 	log "github.com/sirupsen/logrus"
-	"os"
-	"path/filepath"
-	"runtime"
 )
 
 // WriteFull writes data to io.Writer.
@@ -204,7 +205,7 @@ func Min(x, y int) int {
 
 // GetConfigPathByName returns filepath to config file named "name" from default configs folder
 func GetConfigPathByName(name string) string {
-	return fmt.Sprintf("configs/%s.yaml", name)
+	return fmt.Sprintf("configxs/%s.yaml", name)
 }
 
 // DefaultWaitGroupTimeoutDuration specifies how long should we wait

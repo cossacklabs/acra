@@ -20,13 +20,15 @@ import (
 	"crypto/tls"
 	"errors"
 	"flag"
-	"github.com/cossacklabs/acra/network"
 	"os"
 	"strconv"
 
-	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/network"
+
 	goRedis "github.com/go-redis/redis/v7"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/logging"
 )
 
 // RedisOptions keep command-line options related to Redis database configuration.
@@ -188,11 +190,11 @@ func (redis *RedisOptions) TokensConfigured() bool {
 }
 
 // KeysOptions returns Redis connection configuration for key storage.
-func (redis *RedisOptions) KeysOptions(flags *flag.FlagSet) (*goRedis.Options, error) {
+func (redis *RedisOptions) KeysOptions(extractor *ServiceParamsExtractor) (*goRedis.Options, error) {
 	var tlsConfig *tls.Config
 	var err error
 	if redis.TLSEnable {
-		tlsConfig, err = network.NewTLSConfigByName(flags, "redis", redis.HostPort, network.ClientNameConstructorFunc())
+		tlsConfig, err = network.NewTLSConfigByName(extractor, "redis", redis.HostPort, network.ClientNameConstructorFunc())
 		if err != nil {
 			return nil, err
 		}

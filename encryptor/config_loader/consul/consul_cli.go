@@ -4,11 +4,12 @@ import (
 	"flag"
 	"net/http"
 	"net/url"
-	"strconv"
 
-	"github.com/cossacklabs/acra/network"
 	"github.com/hashicorp/go-cleanhttp"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/network"
 )
 
 const defaultConsulConfiPath = "acra/encryptor_config"
@@ -43,30 +44,16 @@ func RegisterCLIParametersWithFlagSet(flags *flag.FlagSet, prefix, description s
 }
 
 // ParseCLIParametersFromFlags CLIOptions from provided FlagSet
-func ParseCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *CLIOptions {
-	options := CLIOptions{}
-
-	if f := flags.Lookup(prefix + "consul_connection_api_string"); f != nil {
-		options.Address = f.Value.String()
+func ParseCLIParametersFromFlags(extractor *cmd.ServiceParamsExtractor, prefix string) *CLIOptions {
+	return &CLIOptions{
+		Address:             extractor.GetString(prefix+"consul_connection_api_string", ""),
+		EncryptorConfigPath: extractor.GetString(prefix+"consul_kv_config_path", prefix),
+		EnableTLS:           extractor.GetBool(prefix+"consul_tls_enable", ""),
 	}
-
-	if f := flags.Lookup(prefix + "consul_kv_config_path"); f != nil {
-		options.EncryptorConfigPath = f.Value.String()
-	}
-
-	if f := flags.Lookup(prefix + "consul_tls_enable"); f != nil {
-		val, err := strconv.ParseBool(f.Value.String())
-		if err != nil {
-			log.WithField("value", f.Value.String()).Fatalf("Can't cast %s to bool value", prefix+"consul_tls_enable")
-		}
-		options.EnableTLS = val
-	}
-
-	return &options
 }
 
 // ConsulHTTPClient returns api.Config connection configuration
-func (consul *CLIOptions) ConsulHTTPClient(flags *flag.FlagSet) (*http.Client, error) {
+func (consul *CLIOptions) ConsulHTTPClient(extractor *cmd.ServiceParamsExtractor) (*http.Client, error) {
 	transport := cleanhttp.DefaultPooledTransport()
 	client := &http.Client{
 		Transport: transport,
@@ -79,7 +66,7 @@ func (consul *CLIOptions) ConsulHTTPClient(flags *flag.FlagSet) (*http.Client, e
 	}
 
 	if consul.EnableTLS {
-		tlsConfig, err := network.NewTLSConfigByName(flags, "consul", consulURL.Host, network.ClientNameConstructorFunc())
+		tlsConfig, err := network.NewTLSConfigByName(extractor, "consul", consulURL.Host, network.ClientNameConstructorFunc())
 		if err != nil {
 			return nil, err
 		}
