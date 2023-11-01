@@ -350,16 +350,7 @@ func ParseFlags(flags *flag_.FlagSet, arguments []string) error {
 	return err
 }
 
-// Parse parses flag settings from YAML config file and command line.
-func Parse(configPath, serviceName string) error {
-	err := ParseFlagsWithConfig(flag_.CommandLine, os.Args[1:], configPath, serviceName)
-	if err == ErrDumpRequested {
-		DumpConfig(configPath, serviceName, true)
-		os.Exit(0)
-	}
-	return err
-}
-
+// ParseConfig parse service config by configPath if exists
 func ParseConfig(configPath, serviceName string) (map[string]interface{}, error) {
 	result := make(map[string]interface{})
 	if configPath == "" {
@@ -390,75 +381,6 @@ func ParseConfig(configPath, serviceName string) (map[string]interface{}, error)
 	}
 
 	return result, nil
-}
-
-// ParseFlagsWithConfig parses flag settings from YAML config file and command line.
-func ParseFlagsWithConfig(flags *flag_.FlagSet, arguments []string, configPath, serviceName string) error {
-	/*load from yaml config and cli. if dumpconfig option pass than generate config and exit*/
-	log.Debugf("Parsing config from path %v", configPath)
-	// first parse using bultin flag
-	err := flags.Parse(arguments)
-	if err != nil {
-		return err
-	}
-
-	configPath = ConfigPath(configPath)
-	var yamlConfig map[string]interface{}
-	var extraArgs []string
-	// parse yaml and add params that wasn't passed from cli
-	if configPath != "" {
-
-		configPath, err := filepath.Abs(configPath)
-		if err != nil {
-			return err
-		}
-		exists, err := utils.FileExists(configPath)
-		if err != nil {
-			return err
-		}
-		if exists {
-			data, err := os.ReadFile(configPath)
-			if err != nil {
-				return err
-			}
-			err = yaml.Unmarshal(data, &yamlConfig)
-			if err != nil {
-				return err
-			}
-			setArgs := make(map[string]bool)
-			flags.Visit(func(flag *flag_.Flag) {
-				setArgs[flag.Name] = true
-			})
-			// generate args list for flag.Parse as it was from cli args
-			flags.VisitAll(func(flag *flag_.Flag) {
-				// generate only args that wasn't set from cli
-				if _, alreadySet := setArgs[flag.Name]; !alreadySet {
-					if value, yamlOk := yamlConfig[flag.Name]; yamlOk {
-						if value != nil {
-							extraArgs = append(extraArgs, fmt.Sprintf("--%v=%v", flag.Name, value))
-						}
-					}
-				}
-			})
-		}
-	}
-	// Set global options from config that wasn't set by CLI, if there are any.
-	if len(extraArgs) != 0 {
-		err = flags.Parse(extraArgs)
-		if err != nil {
-			return err
-		}
-		// Parse the command-line options again so that flag.Args() returns
-		// whatever was left on the actual command-line, not the config values.
-		flags.Parse(arguments)
-	}
-	if *dumpconfig {
-		return ErrDumpRequested
-	}
-	if err = checkVersion(yamlConfig); err != nil {
-		return err
-	}
-	return nil
 }
 
 // Argon2Params describes params for Argon2 hashing

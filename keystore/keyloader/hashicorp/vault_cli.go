@@ -6,6 +6,7 @@ import (
 	"flag"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/hashicorp/go-cleanhttp"
@@ -58,25 +59,25 @@ func ParseCLIParametersFromFlags(extractor *args.ServiceExtractor, prefix string
 		EnableTLS:   extractor.GetBool(prefix+"vault_tls_transport_enable", ""),
 	}
 
-	//namerFunc := network.ClientNameConstructorFunc()
-	// for backward compatibility check if both  --vault_tls_ca_path and --vault_tls_client_ca not passed
-	//if oldFlag := flags.Lookup(prefix + "vault_tls_ca_path"); oldFlag != nil && oldFlag.Value.String() != "" {
-	//	var newCAPathFlagValue string
-	//	var newFlag *flag.Flag
-	//	if newFlag = flags.Lookup(prefix + namerFunc("vault", "ca", "")); newFlag != nil {
-	//		newCAPathFlagValue = newFlag.Value.String()
-	//	}
-	//
-	//	if oldFlag.Value.String() != "" && newCAPathFlagValue != "" {
-	//		log.Errorf("Flags `%s` (deprecated) and `%s` cant be provided simultaneously", "vault_tls_ca_path", oldFlag.Name)
-	//		os.Exit(1)
-	//	}
-	//
-	//	// if the value was passed by old flag inject as new one
-	//	if oldFlagValue := oldFlag.Value; oldFlagValue.String() != "" && newCAPathFlagValue == "" {
-	//		newFlag.Value = oldFlagValue
-	//	}
-	//}
+	namerFunc := network.ClientNameConstructorFunc()
+	//for backward compatibility check if both  --vault_tls_ca_path and --vault_tls_client_ca not passed
+	if oldFlag := extractor.GetString(prefix+"vault_tls_ca_path", ""); oldFlag != "" {
+		var newCAPathFlagValue string
+		var newFlag string
+		if newFlag = extractor.GetString(prefix+namerFunc("vault", "ca", ""), ""); newFlag != "" {
+			newCAPathFlagValue = newFlag
+		}
+
+		if oldFlag != "" && newCAPathFlagValue != "" {
+			log.Errorf("Flags `%s` (deprecated) and `%s` cant be provided simultaneously", "vault_tls_ca_path", oldFlag)
+			os.Exit(1)
+		}
+
+		// if the value was passed by old flag inject as new one
+		if oldFlag != "" && newCAPathFlagValue == "" {
+			newFlag = oldFlag
+		}
+	}
 
 	var tlsConfig *tls.Config
 	if options.EnableTLS {
