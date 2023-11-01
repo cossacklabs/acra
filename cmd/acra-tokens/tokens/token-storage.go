@@ -20,14 +20,16 @@ import (
 	"crypto/tls"
 	"errors"
 	"flag"
-	"github.com/cossacklabs/acra/network"
 	"os"
+
+	"github.com/cossacklabs/acra/network"
+
+	log "github.com/sirupsen/logrus"
+	bolt "go.etcd.io/bbolt"
 
 	"github.com/cossacklabs/acra/cmd"
 	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
 	tokenStorage "github.com/cossacklabs/acra/pseudonymization/storage"
-	log "github.com/sirupsen/logrus"
-	bolt "go.etcd.io/bbolt"
 )
 
 // CommonTokenStorageParameters is a mix-in of command line parameters for token storage construction.
@@ -54,8 +56,8 @@ func (p *CommonTokenStorageParameters) BoltDBConfigured() bool {
 }
 
 // Validate token storage parameter set.
-func (p *CommonTokenStorageParameters) Validate(flagSet *flag.FlagSet) error {
-	redisOptions := cmd.ParseRedisCLIParametersFromFlags(flagSet, "")
+func (p *CommonTokenStorageParameters) Validate(extractor *cmd.ServiceParamsExtractor) error {
+	redisOptions := cmd.ParseRedisCLIParametersFromFlags(extractor, "")
 
 	if p.BoltDBConfigured() && redisOptions.TokensConfigured() {
 		log.Warn("Both --redis_host_port and --token_db cannot be used simultaneously")
@@ -69,7 +71,7 @@ func (p *CommonTokenStorageParameters) Validate(flagSet *flag.FlagSet) error {
 }
 
 // Open a token storage based on the command-line configuration.
-func (p *CommonTokenStorageParameters) Open(flagSet *flag.FlagSet) (tokenCommon.TokenStorage, error) {
+func (p *CommonTokenStorageParameters) Open(extractor *cmd.ServiceParamsExtractor) (tokenCommon.TokenStorage, error) {
 	if p.BoltDBConfigured() {
 		db, err := bolt.Open(p.boltDB, boltDBOpenMode, nil)
 		if err != nil {
@@ -78,12 +80,12 @@ func (p *CommonTokenStorageParameters) Open(flagSet *flag.FlagSet) (tokenCommon.
 		}
 		return tokenStorage.NewBoltDBTokenStorage(db), nil
 	}
-	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(flagSet, ""); redisOptions.KeysConfigured() {
+	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(extractor, ""); redisOptions.KeysConfigured() {
 		var redisTLSConfig *tls.Config
 		var err error
 
 		if redisOptions.TLSEnable {
-			redisTLSConfig, err = network.NewTLSConfigByName(flagSet, "redis", redisOptions.HostPort, network.ClientNameConstructorFunc())
+			redisTLSConfig, err = network.NewTLSConfigByName(extractor, "redis", redisOptions.HostPort, network.ClientNameConstructorFunc())
 			if err != nil {
 				log.WithError(err).Errorln("Can't initialize tls config for redis client")
 				return nil, err

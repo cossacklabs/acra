@@ -34,6 +34,8 @@ import (
 	"syscall"
 	"time"
 
+	bolt "go.etcd.io/bbolt"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/cmd/acra-translator/common"
 	_ "github.com/cossacklabs/acra/cmd/acra-translator/docs"
@@ -53,7 +55,6 @@ import (
 	common2 "github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/pseudonymization/storage"
 	"github.com/cossacklabs/acra/utils"
-	bolt "go.etcd.io/bbolt"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -142,12 +143,25 @@ func realMain() error {
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 	debug := flag.Bool("d", false, "Log everything to stderr")
 
-	err := cmd.Parse(DefaultConfigPath, ServiceName)
-	if err != nil {
+	if err := cmd.ParseFlags(flag.CommandLine, os.Args[1:]); err != nil {
+		if err == cmd.ErrDumpRequested {
+			cmd.DumpConfig(DefaultConfigPath, ServiceName, true)
+			os.Exit(0)
+		}
+
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse args")
-		return err
+		os.Exit(1)
 	}
+
+	serviceConfig, err := cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
+			Errorln("Can't parse config")
+		os.Exit(1)
+	}
+
+	paramsExtractor := cmd.NewServiceParamsExtractor(flag.CommandLine, serviceConfig)
 
 	if os.Getenv(GracefulRestartEnv) == "true" {
 		// if process is forked, here we are blocked on reading signal from parent process (via pipe). When signal is read,
@@ -199,10 +213,10 @@ func realMain() error {
 	log.Infof("Initialising keystore...")
 	var keyStore keystore.ServerKeyStore
 	var transportKeystore keystore.TranslationKeyStore
-	if filesystem2.IsKeyDirectory(*keysDir) {
-		keyStore, transportKeystore, err = openKeyStoreV2(*keysDir, *keysCacheSize)
+	if filesystem2.IsKeyDirectory(*keysDir, paramsExtractor) {
+		keyStore, transportKeystore, err = openKeyStoreV2(*keysDir, *keysCacheSize, paramsExtractor)
 	} else {
-		keyStore, transportKeystore, err = openKeyStoreV1(*keysDir, *keysCacheSize)
+		keyStore, transportKeystore, err = openKeyStoreV1(*keysDir, *keysCacheSize, paramsExtractor)
 	}
 	if err != nil {
 		log.WithError(err).Errorln("Can't open keyStore")
@@ -325,7 +339,7 @@ func realMain() error {
 		return err
 	}
 	var tokenStorage common2.TokenStorage
-	redis := cmd.ParseRedisCLIParameters()
+	redis := cmd.ParseRedisCLIParameters(paramsExtractor)
 	if *boltTokenbDB != "" {
 		log.Infoln("Initialize bolt db storage for tokens")
 		db, err := bolt.Open(*boltTokenbDB, 0600, nil)
@@ -650,17 +664,17 @@ func waitReadPipe(timeoutDuration time.Duration) error {
 	return nil
 }
 
-func openKeyStoreV1(keysDir string, cacheSize int) (keystore.ServerKeyStore, keystore.TranslationKeyStore, error) {
+func openKeyStoreV1(keysDir string, cacheSize int, extractor *cmd.ServiceParamsExtractor) (keystore.ServerKeyStore, keystore.TranslationKeyStore, error) {
 	var keyStoreEncryptor keystore.KeyEncryptor
 
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(flag.CommandLine, "")
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		os.Exit(1)
 	}
 
 	var keyStorage filesystem.Storage = &filesystem.DummyStorage{}
-	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
+	if redis := cmd.ParseRedisCLIParameters(extractor); redis.KeysConfigured() {
 		keyStorage, err = filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize Redis client")
@@ -693,19 +707,19 @@ func openKeyStoreV1(keysDir string, cacheSize int) (keystore.ServerKeyStore, key
 	return keyStoreV1, transportKeyStoreV1, nil
 }
 
-func openKeyStoreV2(keysDir string, cacheSize int) (keystore.ServerKeyStore, keystore.TranslationKeyStore, error) {
+func openKeyStoreV2(keysDir string, cacheSize int, extractor *cmd.ServiceParamsExtractor) (keystore.ServerKeyStore, keystore.TranslationKeyStore, error) {
 	if cacheSize != keystore.WithoutCache {
 		return nil, nil, keystore.ErrCacheIsNotSupportedV2
 	}
 
-	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(flag.CommandLine, "")
+	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")
 		os.Exit(1)
 	}
 	var backend filesystemBackendV2CE.Backend
-	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
-		redisOptions, err := redis.KeysOptions(flag.CommandLine)
+	if redis := cmd.ParseRedisCLIParameters(extractor); redis.KeysConfigured() {
+		redisOptions, err := redis.KeysOptions(extractor)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize Redis options")
 			os.Exit(1)

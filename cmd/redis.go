@@ -57,8 +57,8 @@ func RegisterRedisKeystoreParameters() {
 }
 
 // ParseRedisCLIParameters parse RedisOptions from CommandLine flags
-func ParseRedisCLIParameters() *RedisOptions {
-	return ParseRedisCLIParametersFromFlags(flag.CommandLine, "")
+func ParseRedisCLIParameters(extractor *ServiceParamsExtractor) *RedisOptions {
+	return ParseRedisCLIParametersFromFlags(extractor, "")
 }
 
 // RegisterRedisTokenStoreParameters registers Redis TokenStore parameters with given CommandLine flags and empty prefix
@@ -115,47 +115,14 @@ func checkBothKeyAndToken(flags *flag.FlagSet, prefix string) {
 }
 
 // ParseRedisCLIParametersFromFlags parse CLI args from FlagSet
-func ParseRedisCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *RedisOptions {
-	redisOptions := RedisOptions{}
-
-	if f := flags.Lookup(prefix + "redis_host_port"); f != nil {
-		redisOptions.HostPort = f.Value.String()
+func ParseRedisCLIParametersFromFlags(extractor *ServiceParamsExtractor, prefix string) *RedisOptions {
+	return &RedisOptions{
+		HostPort:  extractor.GetString(prefix+"redis_host_port", ""),
+		Password:  extractor.GetString(prefix+"redis_password", ""),
+		DBTokens:  extractor.GetInt(prefix+"redis_db_tokens", ""),
+		TLSEnable: extractor.GetBool(prefix+"redis_tls_enable", ""),
+		DBKeys:    extractor.GetInt(prefix+"redis_db_keys", ""),
 	}
-	if f := flags.Lookup(prefix + "redis_password"); f != nil {
-		redisOptions.Password = f.Value.String()
-	}
-	if f := flags.Lookup(prefix + "redis_db_tokens"); f != nil {
-		getter, ok := f.Value.(flag.Getter)
-		if !ok {
-			log.Fatal("Can't cast flag's Value to Getter")
-		}
-		val, ok := getter.Get().(int)
-		if !ok {
-			log.WithField("value", getter.Get()).Fatalf("Can't cast %s to integer value", prefix+"redis_db_tokens")
-		}
-		redisOptions.DBTokens = val
-	}
-
-	if f := flags.Lookup(prefix + "redis_tls_enable"); f != nil {
-		v, err := strconv.ParseBool(f.Value.String())
-		if err != nil {
-			log.WithField("value", f.Value.String).Fatalf("Can't cast %s to boolean value", prefix+"redis_tls_enable")
-		}
-		redisOptions.TLSEnable = v
-	}
-	if f := flags.Lookup(prefix + "redis_db_keys"); f != nil {
-		getter, ok := f.Value.(flag.Getter)
-		if !ok {
-			log.Fatal("Can't cast flag's Value to Getter")
-		}
-		val, ok := getter.Get().(int)
-		if !ok {
-			log.WithField("value", getter.Get()).Fatalf("Can't cast %s to integer value", prefix+"redis_db_keys")
-		}
-		redisOptions.DBKeys = val
-	}
-
-	return &redisOptions
 }
 
 // ValidateRedisCLIOptions validate Redis CLI options.

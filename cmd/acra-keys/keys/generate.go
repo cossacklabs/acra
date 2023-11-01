@@ -59,7 +59,8 @@ var (
 
 // GenerateKeySubcommand is the "acra-keys generate" subcommand.
 type GenerateKeySubcommand struct {
-	flagSet *flag.FlagSet
+	flagSet   *flag.FlagSet
+	extractor *cmd.ServiceParamsExtractor
 
 	CommonExtractClientIDParameters
 	CommonKeyStoreParameters
@@ -75,6 +76,11 @@ type GenerateKeySubcommand struct {
 	auditLog        bool
 	searchHMAC      bool
 	poisonRecord    bool
+}
+
+// GetParamsExtractor return service params extractor
+func (g *GenerateKeySubcommand) GetExtractor() *cmd.ServiceParamsExtractor {
+	return g.extractor
 }
 
 // GenerateAuditLog get auditLog flag
@@ -163,10 +169,17 @@ func (g *GenerateKeySubcommand) RegisterFlags() {
 
 // Parse command-line parameters of the subcommand.
 func (g *GenerateKeySubcommand) Parse(arguments []string) error {
-	err := cmd.ParseFlagsWithConfig(g.flagSet, arguments, DefaultConfigPath, ServiceName)
+	err := cmd.ParseFlags(g.flagSet, arguments)
 	if err != nil {
 		return err
 	}
+
+	serviceConfig, err := cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		return err
+	}
+
+	g.extractor = cmd.NewServiceParamsExtractor(g.flagSet, serviceConfig)
 	err = ValidateClientID(g)
 	if err != nil {
 		return err

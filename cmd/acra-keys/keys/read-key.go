@@ -60,7 +60,8 @@ type ReadKeyParams interface {
 // ReadKeySubcommand is the "acra-keys read" subcommand.
 type ReadKeySubcommand struct {
 	CommonKeyStoreParameters
-	FlagSet *flag.FlagSet
+	FlagSet   *flag.FlagSet
+	extractor *cmd.ServiceParamsExtractor
 
 	public, private bool
 
@@ -69,7 +70,12 @@ type ReadKeySubcommand struct {
 	outWriter   io.Writer
 }
 
-// Name returns the same of this subcommand.
+// GetExtractor returns ServiceParamsExtractor extractor
+func (p *ReadKeySubcommand) GetExtractor() *cmd.ServiceParamsExtractor {
+	return p.extractor
+}
+
+// Name returns the name of this subcommand.
 func (p *ReadKeySubcommand) Name() string {
 	return CmdReadKey
 }
@@ -96,10 +102,17 @@ func (p *ReadKeySubcommand) RegisterFlags() {
 
 // Parse command-line parameters of the subcommand.
 func (p *ReadKeySubcommand) Parse(arguments []string) error {
-	err := cmd.ParseFlagsWithConfig(p.FlagSet, arguments, DefaultConfigPath, ServiceName)
+	err := cmd.ParseFlags(p.FlagSet, arguments)
 	if err != nil {
 		return err
 	}
+
+	serviceConfig, err := cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		return err
+	}
+	p.extractor = cmd.NewServiceParamsExtractor(p.FlagSet, serviceConfig)
+
 	args := p.FlagSet.Args()
 	if len(args) < 1 {
 		log.Errorf("\"%s\" command requires key kind", CmdReadKey)

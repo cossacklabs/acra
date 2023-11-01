@@ -98,12 +98,17 @@ type ExportKeysParams interface {
 type ExportKeysSubcommand struct {
 	CommonKeyStoreParameters
 	CommonExportImportParameters
-	FlagSet  *flag.FlagSet
-	exporter keystore.Exporter
+	FlagSet   *flag.FlagSet
+	extractor *cmd.ServiceParamsExtractor
+	exporter  keystore.Exporter
 
 	exportIDs     []keystore.ExportID
 	exportAll     bool
 	exportPrivate bool
+}
+
+func (p *ExportKeysSubcommand) GetExtractor() *cmd.ServiceParamsExtractor {
+	return p.extractor
 }
 
 // Name returns the same of this subcommand.
@@ -134,10 +139,17 @@ func (p *ExportKeysSubcommand) RegisterFlags() {
 
 // Parse command-line parameters of the subcommand.
 func (p *ExportKeysSubcommand) Parse(arguments []string) error {
-	err := cmd.ParseFlagsWithConfig(p.FlagSet, arguments, DefaultConfigPath, ServiceName)
+	err := cmd.ParseFlags(p.FlagSet, arguments)
 	if err != nil {
 		return err
 	}
+
+	serviceConfig, err := cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		return err
+	}
+
+	p.extractor = cmd.NewServiceParamsExtractor(p.FlagSet, serviceConfig)
 	err = p.CommonExportImportParameters.validate()
 	if err != nil {
 		return err
@@ -248,7 +260,7 @@ func (p *ExportKeysSubcommand) Execute() {
 		}
 
 		var storge filesystem.Storage
-		if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
+		if redis := cmd.ParseRedisCLIParameters(p.GetExtractor()); redis.KeysConfigured() {
 			storge, err = filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
 			if err != nil {
 				log.WithError(err).Errorln("Can't initialize redis storage")
@@ -258,7 +270,7 @@ func (p *ExportKeysSubcommand) Execute() {
 			storge = &filesystem.DummyStorage{}
 		}
 
-		keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(p.FlagSet, "")
+		keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(p.GetExtractor(), "")
 		if err != nil {
 			log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 			os.Exit(1)

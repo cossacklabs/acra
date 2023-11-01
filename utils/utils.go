@@ -205,7 +205,7 @@ func Min(x, y int) int {
 
 // GetConfigPathByName returns filepath to config file named "name" from default configs folder
 func GetConfigPathByName(name string) string {
-	return fmt.Sprintf("configxs/%s.yaml", name)
+	return fmt.Sprintf("configs/%s.yaml", name)
 }
 
 // DefaultWaitGroupTimeoutDuration specifies how long should we wait

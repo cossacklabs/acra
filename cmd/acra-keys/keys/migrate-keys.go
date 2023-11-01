@@ -20,8 +20,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/cossacklabs/acra/logging"
 	"os"
+
+	"github.com/cossacklabs/acra/logging"
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
@@ -48,6 +49,7 @@ type MigrateKeysParams interface {
 // MigrateKeysSubcommand is the "acra-keys migrate" subcommand.
 type MigrateKeysSubcommand struct {
 	flagSet    *flag.FlagSet
+	extractor  *cmd.ServiceParamsExtractor
 	src, dst   CommonKeyStoreParameters
 	srcVersion string
 	dstVersion string
@@ -75,6 +77,10 @@ func (m *MigrateKeysSubcommand) SrcKeyStoreVersion() string {
 // SrcKeyStoreParams returns parameters of the source keystore.
 func (m *MigrateKeysSubcommand) SrcKeyStoreParams() KeyStoreParameters {
 	return &m.src
+}
+
+func (m *MigrateKeysSubcommand) GetExtractor() *cmd.ServiceParamsExtractor {
+	return m.extractor
 }
 
 // DstKeyStoreVersion returns destination keystore version.
@@ -134,10 +140,19 @@ func (m *MigrateKeysSubcommand) RegisterFlags() {
 
 // Parse command-line parameters of the subcommand.
 func (m *MigrateKeysSubcommand) Parse(arguments []string) error {
-	err := cmd.ParseFlagsWithConfig(m.flagSet, arguments, DefaultConfigPath, ServiceName)
+	err := cmd.ParseFlags(m.flagSet, arguments)
 	if err != nil {
 		return err
 	}
+
+	serviceConfig, err := cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
+			Errorln("Can't parse config")
+		os.Exit(1)
+	}
+
+	m.extractor = cmd.NewServiceParamsExtractor(flag.CommandLine, serviceConfig)
 
 	if m.srcVersion == "" {
 		log.Warning("Missing required argument: --src_keystore={v1|v2}")
@@ -238,7 +253,7 @@ func MigrateV1toV2(srcV1 filesystem.KeyExport, dstV2 keystoreV2.KeyFileImportV1)
 func (m *MigrateKeysSubcommand) openKeyStoreV1(params KeyStoreParameters) (*filesystem.KeyStore, error) {
 	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(SrcMasterKeyVarName))
 
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(m.flagSet, "src_")
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(m.GetExtractor(), "src_")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		return nil, err
@@ -255,7 +270,7 @@ func (m *MigrateKeysSubcommand) openKeyStoreV1(params KeyStoreParameters) (*file
 		keyStore.KeyDirectory(keyDir)
 	}
 
-	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetFlagSet(), ""); redisOptions.KeysConfigured() {
+	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetExtractor(), ""); redisOptions.KeysConfigured() {
 		keyStorage, err := filesystem.NewRedisStorage(redisOptions.HostPort, redisOptions.Password, redisOptions.DBKeys, nil)
 		if err != nil {
 			log.WithError(err).Errorln("Failed to initialise Redis storage")
@@ -275,13 +290,13 @@ func (m *MigrateKeysSubcommand) openKeyStoreV1(params KeyStoreParameters) (*file
 func (m *MigrateKeysSubcommand) openKeyStoreV2(params KeyStoreParameters) (*keystoreV2.ServerKeyStore, error) {
 	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(DstMasterKeyVarName))
 
-	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(m.flagSet, "dst_")
+	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(m.extractor, "dst_")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")
 		return nil, err
 	}
 	keyDirPath := params.KeyDir()
-	if filesystemV2.IsKeyDirectory(keyDirPath) && !m.ForceWrite() {
+	if filesystemV2.IsKeyDirectory(keyDirPath, m.extractor) && !m.ForceWrite() {
 		log.WithField("path", keyDirPath).Error("Key directory already exists")
 		log.Info("Run with --force to import into existing directory")
 		return nil, errors.New("destination exists")
@@ -290,8 +305,8 @@ func (m *MigrateKeysSubcommand) openKeyStoreV2(params KeyStoreParameters) (*keys
 	var backend filesystemBackendV2.Backend
 	if m.DryRun() {
 		backend = filesystemBackendV2.NewInMemory()
-	} else if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetFlagSet(), ""); redisOptions.KeysConfigured() {
-		redisKeyOptions, err := redisOptions.KeysOptions(params.GetFlagSet())
+	} else if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetExtractor(), ""); redisOptions.KeysConfigured() {
+		redisKeyOptions, err := redisOptions.KeysOptions(params.GetExtractor())
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 				Errorln("Can't get Redis options")

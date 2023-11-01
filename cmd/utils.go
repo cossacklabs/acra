@@ -107,7 +107,7 @@ func (e *ServiceParamsExtractor) GetString(param, generalParam string) string {
 		}
 	}
 
-	return getCLIStringDefault(param, e.flags)
+	return getCLIDefault[string](param, e.flags)
 }
 
 func (e *ServiceParamsExtractor) GetBool(param, generalParam string) bool {
@@ -147,7 +147,7 @@ func (e *ServiceParamsExtractor) GetBool(param, generalParam string) bool {
 		}
 	}
 
-	return getCLIBoolDefault(param, e.flags)
+	return getCLIDefault[bool](param, e.flags)
 }
 
 func (e *ServiceParamsExtractor) GetInt(param, generalParam string) int {
@@ -187,7 +187,7 @@ func (e *ServiceParamsExtractor) GetInt(param, generalParam string) int {
 		}
 	}
 
-	return getCLIIntDefault(param, e.flags)
+	return getCLIDefault[int](param, e.flags)
 }
 
 // IsFlagSet returns true if flag explicitly set via CLI arguments
@@ -202,42 +202,32 @@ func isFlagSet(name string, flagset *flag_.FlagSet) bool {
 	return set
 }
 
-func getCLIBoolDefault(name string, flagset *flag_.FlagSet) bool {
-	var res bool
-	flagset.VisitAll(func(f *flag_.Flag) {
-		if f.Name == name {
-			boolVal, err := strconv.ParseBool(f.Value.String())
-			if err == nil {
-				res = boolVal
-				return
-			}
-		}
-	})
-
-	return res
-}
-
-func getCLIStringDefault(name string, flagset *flag_.FlagSet) string {
-	var res string
-	flagset.VisitAll(func(f *flag_.Flag) {
-		if f.Name == name {
-			res = f.Value.String()
-		}
-	})
-	return res
-}
-
-func getCLIIntDefault(name string, flagset *flag_.FlagSet) int {
-	var res int
+func getCLIDefault[T any](name string, flagset *flag_.FlagSet) T {
+	var res interface{}
 	flagset.VisitAll(func(f *flag_.Flag) {
 		if f.Name == name {
 			v, err := strconv.ParseInt(f.Value.String(), 10, 64)
 			if err == nil {
 				res = int(v)
+				return
 			}
+
+			boolVal, err := strconv.ParseBool(f.Value.String())
+			if err == nil {
+				res = boolVal
+				return
+			}
+
+			res = f.Value.String()
 		}
 	})
-	return res
+
+	val, ok := res.(T)
+	if !ok {
+		var temp T
+		return temp
+	}
+	return val
 }
 
 // SignalCallback callback function
@@ -519,6 +509,15 @@ func checkVersion(config map[string]interface{}) error {
 	return nil
 }
 
+// ParseFlags parses CommandLine flags and dump config if requested.
+func ParseFlags(flags *flag_.FlagSet, arguments []string) error {
+	err := flags.Parse(arguments)
+	if *dumpconfig {
+		return ErrDumpRequested
+	}
+	return err
+}
+
 // Parse parses flag settings from YAML config file and command line.
 func Parse(configPath, serviceName string) error {
 	err := ParseFlagsWithConfig(flag_.CommandLine, os.Args[1:], configPath, serviceName)
@@ -535,11 +534,13 @@ func ParseConfig(configPath, serviceName string) (map[string]interface{}, error)
 		return result, nil
 	}
 
-	configPath, err := filepath.Abs(configPath)
+	configPath = ConfigPath(configPath)
+	configAbsPath, err := filepath.Abs(configPath)
 	if err != nil {
 		return nil, err
 	}
-	exists, err := utils.FileExists(configPath)
+
+	exists, err := utils.FileExists(configAbsPath)
 	if err != nil {
 		return nil, err
 	}

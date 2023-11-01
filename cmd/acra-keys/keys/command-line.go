@@ -102,7 +102,7 @@ func ParseParameters(subcommands []Subcommand) Subcommand {
 }
 
 func parseParameters(subcommands []Subcommand) (Subcommand, error) {
-	err := cmd.ParseFlagsWithConfig(flag.CommandLine, os.Args[1:], DefaultConfigPath, ServiceName)
+	err := cmd.ParseFlags(flag.CommandLine, os.Args[1:])
 	// If there is "--dump_config" on the command line,
 	// dump configuration for all subcommand and immediately exit.
 	if err == cmd.ErrDumpRequested {

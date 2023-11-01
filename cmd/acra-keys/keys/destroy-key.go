@@ -78,7 +78,7 @@ func (p *DestroyKeySubcommand) RegisterFlags() {
 
 // Parse command-line parameters of the subcommand.
 func (p *DestroyKeySubcommand) Parse(arguments []string) error {
-	err := cmd.ParseFlagsWithConfig(p.FlagSet, arguments, DefaultConfigPath, ServiceName)
+	err := cmd.ParseFlags(p.FlagSet, arguments)
 	if err != nil {
 		return err
 	}

@@ -173,13 +173,18 @@ func realMain() error {
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 	debug := flag.Bool("d", false, "Log everything to stderr")
 
-	if err := flag.CommandLine.Parse(os.Args[1:]); err != nil {
+	if err := cmd.ParseFlags(flag.CommandLine, os.Args[1:]); err != nil {
+		if err == cmd.ErrDumpRequested {
+			cmd.DumpConfig(DefaultConfigPath, ServiceName, true)
+			os.Exit(0)
+		}
+
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse args")
 		return err
 	}
 
-	serviceConfig, err := cmd.ParseConfig(cmd.ConfigPath(DefaultConfigPath), ServiceName)
+	serviceConfig, err := cmd.ParseConfig(DefaultConfigPath, ServiceName)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse config")
@@ -281,7 +286,7 @@ func realMain() error {
 
 	log.Infof("Initialising keystore...")
 	var keyStore keystore.ServerKeyStore
-	if filesystemV2.IsKeyDirectory(*keysDir) {
+	if filesystemV2.IsKeyDirectory(*keysDir, paramsExtractor) {
 		keyStore, err = openKeyStoreV2(*keysDir, *keysCacheSize, paramsExtractor)
 	} else {
 		keyStore, err = openKeyStoreV1(*keysDir, *keysCacheSize, paramsExtractor)
@@ -487,7 +492,7 @@ func realMain() error {
 	}
 
 	var tokenStorage pseudonymizationCommon.TokenStorage
-	redis := cmd.ParseRedisCLIParametersFromFlags(flag.CommandLine, "")
+	redis := cmd.ParseRedisCLIParametersFromFlags(paramsExtractor, "")
 	if *boltTokebDB != "" {
 		log.Infoln("Initialize bolt db storage for tokens")
 		db, err := bolt.Open(*boltTokebDB, 0600, nil)
@@ -845,7 +850,7 @@ func openKeyStoreV1(output string, cacheSize int, extractor *cmd.ServiceParamsEx
 	keyStore.CacheSize(cacheSize)
 	keyStore.Encryptor(keyStoreEncryptor)
 
-	redis := cmd.ParseRedisCLIParameters()
+	redis := cmd.ParseRedisCLIParameters(extractor)
 	cmd.ValidateRedisCLIOptions(redis)
 
 	if redis.KeysConfigured() {
@@ -884,7 +889,7 @@ func openKeyStoreV2(keyDirPath string, cacheSize int, extractor *cmd.ServicePara
 
 	var backend filesystemBackendV2.Backend
 
-	redis := cmd.ParseRedisCLIParameters()
+	redis := cmd.ParseRedisCLIParameters(extractor)
 	cmd.ValidateRedisCLIOptions(redis)
 
 	if redis.KeysConfigured() {

@@ -76,12 +76,25 @@ func main() {
 	keyloader.RegisterKeyStoreStrategyParameters()
 	logging.SetLogLevel(logging.LogVerbose)
 
-	err := cmd.Parse(DefaultConfigPath, ServiceName)
-	if err != nil {
+	if err := cmd.ParseFlags(flag.CommandLine, os.Args[1:]); err != nil {
+		if err == cmd.ErrDumpRequested {
+			cmd.DumpConfig(DefaultConfigPath, ServiceName, true)
+			os.Exit(0)
+		}
+
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse args")
 		os.Exit(1)
 	}
+
+	serviceConfig, err := cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
+			Errorln("Can't parse config")
+		os.Exit(1)
+	}
+
+	paramsExtractor := cmd.NewServiceParamsExtractor(flag.CommandLine, serviceConfig)
 
 	if *tlsClientCertOld != "" && *tlsClientCertNew != "" {
 		log.Errorln("You cant specify --tls_cert (deprecated since 0.96.0) and --tls_client_id_cert simultaneously")
@@ -161,8 +174,8 @@ func main() {
 			os.Exit(1)
 		}
 
-		if keystoreOptions := keyloader.ParseCLIOptions(); keystoreOptions.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSMasterKey {
-			keyManager, err := kms.NewKeyManager(kms.ParseCLIParameters())
+		if keystoreOptions := keyloader.ParseCLIOptions(paramsExtractor); keystoreOptions.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSMasterKey {
+			keyManager, err := kms.NewKeyManager(kms.ParseCLIParameters(paramsExtractor))
 			if err != nil {
 				log.WithError(err).WithField("path", *masterKey).Errorln("Failed to initializer kms KeyManager")
 				os.Exit(1)
@@ -192,18 +205,18 @@ func main() {
 	var store keystore.KeyMaking
 	// If the keystore already exists, detect its version automatically and allow to not specify it.
 	if *keystoreVersion == "" {
-		if filesystemV2.IsKeyDirectory(*outputDir) {
+		if filesystemV2.IsKeyDirectory(*outputDir, paramsExtractor) {
 			*keystoreVersion = "v2"
-		} else if filesystem.IsKeyDirectory(*outputDir) {
+		} else if filesystem.IsKeyDirectory(*outputDir, paramsExtractor) {
 			*keystoreVersion = "v1"
 		}
 	}
 
 	switch *keystoreVersion {
 	case "v1":
-		store = openKeyStoreV1(*outputDir, *outputPublicKey)
+		store = openKeyStoreV1(*outputDir, *outputPublicKey, paramsExtractor)
 	case "v2":
-		store = openKeyStoreV2(*outputDir)
+		store = openKeyStoreV2(*outputDir, paramsExtractor)
 	case "":
 		log.Errorf("Keystore version is required: --keystore={v1|v2}")
 		os.Exit(1)
@@ -290,10 +303,10 @@ func main() {
 	}
 }
 
-func openKeyStoreV1(output, outputPublic string) keystore.KeyMaking {
+func openKeyStoreV1(output, outputPublic string, extractor *cmd.ServiceParamsExtractor) keystore.KeyMaking {
 	var keyStoreEncryptor keystore.KeyEncryptor
 
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(flag.CommandLine, "")
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		os.Exit(1)
@@ -307,12 +320,12 @@ func openKeyStoreV1(output, outputPublic string) keystore.KeyMaking {
 	}
 	keyStoreBuilder.Encryptor(keyStoreEncryptor)
 
-	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
+	if redis := cmd.ParseRedisCLIParameters(extractor); redis.KeysConfigured() {
 		// if redisTLS = nil then will not be used TLS for Redis
 		var redisTLS *tls.Config
 		var err error
 		if redis.TLSEnable {
-			redisTLS, err = network.NewTLSConfigByName(flag.CommandLine, "redis", redis.HostPort, network.ClientNameConstructorFunc())
+			redisTLS, err = network.NewTLSConfigByName(extractor, "redis", redis.HostPort, network.ClientNameConstructorFunc())
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 					Errorln("Can't initialize TLS config for Redis client")
@@ -333,22 +346,22 @@ func openKeyStoreV1(output, outputPublic string) keystore.KeyMaking {
 		os.Exit(1)
 	}
 
-	if keyLoaderParams := keyloader.ParseCLIOptions(); keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
-		keyManager, _ := kms.NewKeyManager(kms.ParseCLIParameters())
+	if keyLoaderParams := keyloader.ParseCLIOptions(extractor); keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
+		keyManager, _ := kms.NewKeyManager(kms.ParseCLIParameters(extractor))
 		return base.NewKeyMakingWrapper(keyStore, keyManager, kms.NewKMSPerClientKeyMapper())
 	}
 	return keyStore
 }
 
-func openKeyStoreV2(keyDirPath string) keystore.KeyMaking {
-	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(flag.CommandLine, "")
+func openKeyStoreV2(keyDirPath string, extractor *cmd.ServiceParamsExtractor) keystore.KeyMaking {
+	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")
 		os.Exit(1)
 	}
 	var backend filesystemBackendV2.Backend
-	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
-		redisOptions, err := redis.KeysOptions(flag.CommandLine)
+	if redis := cmd.ParseRedisCLIParameters(extractor); redis.KeysConfigured() {
+		redisOptions, err := redis.KeysOptions(extractor)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize Redis options")
 			os.Exit(1)

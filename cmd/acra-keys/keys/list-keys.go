@@ -61,7 +61,12 @@ func (p *CommonKeyListingParameters) Register(flags *flag.FlagSet) {
 type ListKeySubcommand struct {
 	CommonKeyStoreParameters
 	CommonKeyListingParameters
-	FlagSet *flag.FlagSet
+	FlagSet   *flag.FlagSet
+	extractor *cmd.ServiceParamsExtractor
+}
+
+func (p *ListKeySubcommand) GetExtractor() *cmd.ServiceParamsExtractor {
+	return p.extractor
 }
 
 // Name returns the same of this subcommand.
@@ -91,7 +96,17 @@ func (p *ListKeySubcommand) RegisterFlags() {
 
 // Parse command-line parameters of the subcommand.
 func (p *ListKeySubcommand) Parse(arguments []string) error {
-	return cmd.ParseFlagsWithConfig(p.FlagSet, arguments, DefaultConfigPath, ServiceName)
+	if err := cmd.ParseFlags(p.FlagSet, arguments); err != nil {
+		return err
+	}
+
+	serviceConfig, err := cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		return err
+	}
+
+	p.extractor = cmd.NewServiceParamsExtractor(p.FlagSet, serviceConfig)
+	return nil
 }
 
 // Execute this subcommand.

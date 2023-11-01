@@ -177,12 +177,25 @@ func main() {
 	keyloader.RegisterKeyStoreStrategyParameters()
 	logging.SetLogLevel(logging.LogVerbose)
 
-	err := cmd.Parse(defaultConfigPath, serviceName)
-	if err != nil {
+	if err := cmd.ParseFlags(flag.CommandLine, os.Args[1:]); err != nil {
+		if err == cmd.ErrDumpRequested {
+			cmd.DumpConfig(defaultConfigPath, serviceName, true)
+			os.Exit(0)
+		}
+
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse args")
 		os.Exit(1)
 	}
+
+	serviceConfig, err := cmd.ParseConfig(defaultConfigPath, serviceName)
+	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
+			Errorln("Can't parse config")
+		os.Exit(1)
+	}
+
+	paramsExtractor := cmd.NewServiceParamsExtractor(flag.CommandLine, serviceConfig)
 
 	twoDrivers := *useMysql && *usePostgresql
 	noDrivers := !(*useMysql || *usePostgresql)
@@ -221,10 +234,10 @@ func main() {
 	}
 
 	var keystorage keystore.DecryptionKeyStore
-	if filesystemV2.IsKeyDirectory(*keysDir) {
-		keystorage = openKeyStoreV2(*keysDir)
+	if filesystemV2.IsKeyDirectory(*keysDir, paramsExtractor) {
+		keystorage = openKeyStoreV2(*keysDir, paramsExtractor)
 	} else {
-		keystorage = openKeyStoreV1(*keysDir)
+		keystorage = openKeyStoreV1(*keysDir, paramsExtractor)
 	}
 
 	var dbTLSConfig *tls.Config
@@ -235,7 +248,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		dbTLSConfig, err = network.NewTLSConfigByName(flag.CommandLine, "", host, network.DatabaseNameConstructorFunc())
+		dbTLSConfig, err = network.NewTLSConfigByName(paramsExtractor, "", host, network.DatabaseNameConstructorFunc())
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: can't create database TLS config")
@@ -336,9 +349,9 @@ func main() {
 	}
 }
 
-func openKeyStoreV1(keysDir string) keystore.DecryptionKeyStore {
+func openKeyStoreV1(keysDir string, extractor *cmd.ServiceParamsExtractor) keystore.DecryptionKeyStore {
 	var keyStoreEncryptor keystore.KeyEncryptor
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(flag.CommandLine, "")
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		os.Exit(1)
@@ -352,8 +365,8 @@ func openKeyStoreV1(keysDir string) keystore.DecryptionKeyStore {
 	return keystorage
 }
 
-func openKeyStoreV2(keyDirPath string) keystore.DecryptionKeyStore {
-	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(flag.CommandLine, "")
+func openKeyStoreV2(keyDirPath string, extractor *cmd.ServiceParamsExtractor) keystore.DecryptionKeyStore {
+	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")
 		os.Exit(1)

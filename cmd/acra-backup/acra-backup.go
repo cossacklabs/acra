@@ -61,19 +61,33 @@ func main() {
 	cmd.RegisterRedisKeystoreParameters()
 	keyloader.RegisterKeyStoreStrategyParameters()
 
-	err := cmd.Parse(DefaultConfigPath, ServiceName)
-	if err != nil {
+	if err := cmd.ParseFlags(flag.CommandLine, os.Args[1:]); err != nil {
+		if err == cmd.ErrDumpRequested {
+			cmd.DumpConfig(DefaultConfigPath, ServiceName, true)
+			os.Exit(0)
+		}
+
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse args")
 		os.Exit(1)
 	}
+
+	serviceConfig, err := cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
+			Errorln("Can't parse config")
+		os.Exit(1)
+	}
+
+	paramsExtractor := cmd.NewServiceParamsExtractor(flag.CommandLine, serviceConfig)
+
 	formatter := logging.CreateFormatter(*loggingFormat)
 	formatter.SetServiceName(ServiceName)
 	log.SetOutput(os.Stderr)
 
 	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
 	var storage filesystem.Storage
-	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
+	if redis := cmd.ParseRedisCLIParameters(paramsExtractor); redis.KeysConfigured() {
 		storage, err = filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize redis storage")
@@ -83,7 +97,7 @@ func main() {
 		storage = &filesystem.DummyStorage{}
 	}
 
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(flag.CommandLine, "")
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(paramsExtractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		os.Exit(1)

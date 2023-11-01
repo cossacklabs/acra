@@ -68,18 +68,31 @@ func main() {
 	cmd.RegisterRedisKeystoreParameters()
 	keyloader.RegisterKeyStoreStrategyParameters()
 
-	err := cmd.Parse(DefaultConfigPath, ServiceName)
-	if err != nil {
+	if err := cmd.ParseFlags(flag.CommandLine, os.Args[1:]); err != nil {
+		if err == cmd.ErrDumpRequested {
+			cmd.DumpConfig(DefaultConfigPath, ServiceName, true)
+			os.Exit(0)
+		}
+
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse args")
 		os.Exit(1)
 	}
 
+	serviceConfig, err := cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
+			Errorln("Can't parse config")
+		os.Exit(1)
+	}
+
+	paramsExtractor := cmd.NewServiceParamsExtractor(flag.CommandLine, serviceConfig)
+
 	var keystorage keystore.ServerKeyStore
-	if filesystemV2.IsKeyDirectory(*keysDir) {
-		keystorage = openKeyStoreV2(*keysDir)
+	if filesystemV2.IsKeyDirectory(*keysDir, paramsExtractor) {
+		keystorage = openKeyStoreV2(*keysDir, paramsExtractor)
 	} else {
-		keystorage = openKeyStoreV1(*keysDir)
+		keystorage = openKeyStoreV1(*keysDir, paramsExtractor)
 	}
 	if err := crypto.InitRegistry(keystorage); err != nil {
 		log.WithError(err).Errorln("Can't initialize crypto registry")
@@ -105,7 +118,7 @@ func main() {
 				os.Exit(1)
 			}
 
-			dbTLSConfig, err = network.NewTLSConfigByName(flag.CommandLine, "", host, network.DatabaseNameConstructorFunc())
+			dbTLSConfig, err = network.NewTLSConfigByName(paramsExtractor, "", host, network.DatabaseNameConstructorFunc())
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 					Errorln("Configuration error: can't create database TLS config")
@@ -170,8 +183,8 @@ func main() {
 	}
 }
 
-func openKeyStoreV1(dirPath string) keystore.ServerKeyStore {
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(flag.CommandLine, "")
+func openKeyStoreV1(dirPath string, extractor *cmd.ServiceParamsExtractor) keystore.ServerKeyStore {
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		os.Exit(1)
@@ -180,8 +193,8 @@ func openKeyStoreV1(dirPath string) keystore.ServerKeyStore {
 	keyStore := filesystem.NewCustomFilesystemKeyStore()
 	keyStore.KeyDirectory(dirPath)
 	keyStore.Encryptor(keyStoreEncryptor)
-	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
-		redisOptions, err := redis.KeysOptions(flag.CommandLine)
+	if redis := cmd.ParseRedisCLIParameters(extractor); redis.KeysConfigured() {
+		redisOptions, err := redis.KeysOptions(extractor)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 				Errorln("Can't get Redis options")
@@ -203,15 +216,15 @@ func openKeyStoreV1(dirPath string) keystore.ServerKeyStore {
 	return keyStoreV1
 }
 
-func openKeyStoreV2(keyDirPath string) keystore.ServerKeyStore {
-	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(flag.CommandLine, "")
+func openKeyStoreV2(keyDirPath string, extractor *cmd.ServiceParamsExtractor) keystore.ServerKeyStore {
+	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")
 		os.Exit(1)
 	}
 	var backend filesystemBackendV2.Backend
-	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
-		redisOptions, err := redis.KeysOptions(flag.CommandLine)
+	if redis := cmd.ParseRedisCLIParameters(extractor); redis.KeysConfigured() {
+		redisOptions, err := redis.KeysOptions(extractor)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 				Errorln("Can't get Redis options")

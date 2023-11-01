@@ -69,18 +69,31 @@ func main() {
 	keyloader.RegisterKeyStoreStrategyParameters()
 	logging.SetLogLevel(logging.LogDiscard)
 
-	err := cmd.Parse(defaultConfigPath, serviceName)
-	if err != nil {
+	if err := cmd.ParseFlags(flag.CommandLine, os.Args[1:]); err != nil {
+		if err == cmd.ErrDumpRequested {
+			cmd.DumpConfig(defaultConfigPath, serviceName, true)
+			os.Exit(0)
+		}
+
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
-			Errorln("can't parse args")
+			Errorln("Can't parse args")
 		os.Exit(1)
 	}
 
+	serviceConfig, err := cmd.ParseConfig(defaultConfigPath, serviceName)
+	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
+			Errorln("Can't parse config")
+		os.Exit(1)
+	}
+
+	paramsExtractor := cmd.NewServiceParamsExtractor(flag.CommandLine, serviceConfig)
+
 	var store keystore.PoisonKeyStorageAndGenerator
-	if filesystemV2.IsKeyDirectory(*keysDir) {
-		store = openKeyStoreV2(*keysDir)
+	if filesystemV2.IsKeyDirectory(*keysDir, paramsExtractor) {
+		store = openKeyStoreV2(*keysDir, paramsExtractor)
 	} else {
-		store = openKeyStoreV1(*keysDir)
+		store = openKeyStoreV1(*keysDir, paramsExtractor)
 	}
 	var poisonRecord []byte
 	switch *recordType {
@@ -99,10 +112,10 @@ func main() {
 	fmt.Println(base64.StdEncoding.EncodeToString(poisonRecord))
 }
 
-func openKeyStoreV1(output string) keystore.PoisonKeyStorageAndGenerator {
+func openKeyStoreV1(output string, extractor *cmd.ServiceParamsExtractor) keystore.PoisonKeyStorageAndGenerator {
 	var keyStoreEncryptor keystore.KeyEncryptor
 
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(flag.CommandLine, "")
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		os.Exit(1)
@@ -111,8 +124,8 @@ func openKeyStoreV1(output string) keystore.PoisonKeyStorageAndGenerator {
 	keyStoreBuilder := filesystem.NewCustomFilesystemKeyStore()
 	keyStoreBuilder.KeyDirectory(output)
 	keyStoreBuilder.Encryptor(keyStoreEncryptor)
-	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
-		redisOptions, err := redis.KeysOptions(flag.CommandLine)
+	if redis := cmd.ParseRedisCLIParameters(extractor); redis.KeysConfigured() {
+		redisOptions, err := redis.KeysOptions(extractor)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 				Errorln("Can't get Redis options")
@@ -132,22 +145,22 @@ func openKeyStoreV1(output string) keystore.PoisonKeyStorageAndGenerator {
 		os.Exit(1)
 	}
 
-	if keyLoaderParams := keyloader.ParseCLIOptions(); keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
-		keyManager, _ := kms.NewKeyManager(kms.ParseCLIParameters())
+	if keyLoaderParams := keyloader.ParseCLIOptions(extractor); keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
+		keyManager, _ := kms.NewKeyManager(kms.ParseCLIParameters(extractor))
 		return base.NewKeyMakingWrapper(keyStoreV1, keyManager, kms.NewKMSPerClientKeyMapper())
 	}
 	return keyStoreV1
 }
 
-func openKeyStoreV2(keyDirPath string) keystore.PoisonKeyStorageAndGenerator {
-	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(flag.CommandLine, "")
+func openKeyStoreV2(keyDirPath string, extractor *cmd.ServiceParamsExtractor) keystore.PoisonKeyStorageAndGenerator {
+	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")
 		os.Exit(1)
 	}
 	var backend filesystemBackendV2.Backend
-	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
-		redisOptions, err := redis.KeysOptions(flag.CommandLine)
+	if redis := cmd.ParseRedisCLIParameters(extractor); redis.KeysConfigured() {
+		redisOptions, err := redis.KeysOptions(extractor)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize Redis options")
 			os.Exit(1)

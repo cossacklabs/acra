@@ -41,6 +41,7 @@ var (
 // KeyStoreParameters are parameters for DefaultKeyStoreFactory.
 type KeyStoreParameters interface {
 	GetFlagSet() *flag.FlagSet
+	GetExtractor() *cmd.ServiceParamsExtractor
 
 	KeyDir() string
 	KeyDirPublic() string
@@ -52,6 +53,11 @@ type CommonKeyStoreParameters struct {
 
 	keyDir       string
 	keyDirPublic string
+}
+
+func (p *CommonKeyStoreParameters) GetExtractor() *cmd.ServiceParamsExtractor {
+	//TODO implement me
+	panic("implement me")
 }
 
 // KeyDir returns path to key directory.
@@ -124,7 +130,7 @@ func OpenKeyStoreForImport(params KeyStoreParameters) (api.MutableKeyStore, erro
 }
 
 func openKeyStoreV1(params KeyStoreParameters) (*filesystem.KeyStore, error) {
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(params.GetFlagSet(), "")
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(params.GetExtractor(), "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		return nil, err
@@ -141,8 +147,8 @@ func openKeyStoreV1(params KeyStoreParameters) (*filesystem.KeyStore, error) {
 		keyStore.KeyDirectory(keyDir)
 	}
 
-	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetFlagSet(), ""); redisOptions.KeysConfigured() {
-		redisClientOptions, err := redisOptions.KeysOptions(params.GetFlagSet())
+	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetExtractor(), ""); redisOptions.KeysConfigured() {
+		redisClientOptions, err := redisOptions.KeysOptions(params.GetExtractor())
 		if err != nil {
 			log.WithError(err).Errorln("Failed to get Redis options")
 			return nil, err
@@ -164,7 +170,7 @@ func openKeyStoreV1(params KeyStoreParameters) (*filesystem.KeyStore, error) {
 }
 
 func openKeyStoreV2(params KeyStoreParameters) (*keystoreV2.ServerKeyStore, error) {
-	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(params.GetFlagSet(), "")
+	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(params.GetExtractor(), "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")
 		return nil, err
@@ -172,8 +178,8 @@ func openKeyStoreV2(params KeyStoreParameters) (*keystoreV2.ServerKeyStore, erro
 
 	var backend filesystemBackendV2.Backend
 
-	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetFlagSet(), ""); redisOptions.KeysConfigured() {
-		redisKeyOptions, err := redisOptions.KeysOptions(params.GetFlagSet())
+	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetExtractor(), ""); redisOptions.KeysConfigured() {
+		redisKeyOptions, err := redisOptions.KeysOptions(params.GetExtractor())
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 				Errorln("Can't get Redis options")
@@ -206,8 +212,8 @@ func openKeyStoreV2(params KeyStoreParameters) (*keystoreV2.ServerKeyStore, erro
 
 // IsKeyStoreV2 checks if the directory contains a keystore version 2 from KeyStoreParameters
 func IsKeyStoreV2(params KeyStoreParameters) bool {
-	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetFlagSet(), ""); redisOptions.KeysConfigured() {
-		redisClientOptions, err := redisOptions.KeysOptions(params.GetFlagSet())
+	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetExtractor(), ""); redisOptions.KeysConfigured() {
+		redisClientOptions, err := redisOptions.KeysOptions(params.GetExtractor())
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 				Errorln("Can't get Redis options")
@@ -232,8 +238,8 @@ func IsKeyStoreV2(params KeyStoreParameters) bool {
 // IsKeyStoreV1 checks if the directory contains a keystore version 1 from KeyStoreParameters
 func IsKeyStoreV1(params KeyStoreParameters) bool {
 	var fsStorage filesystem.Storage = &filesystem.DummyStorage{}
-	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetFlagSet(), ""); redisOptions.KeysConfigured() {
-		redisClientOptions, err := redisOptions.KeysOptions(params.GetFlagSet())
+	if redisOptions := cmd.ParseRedisCLIParametersFromFlags(params.GetExtractor(), ""); redisOptions.KeysConfigured() {
+		redisClientOptions, err := redisOptions.KeysOptions(params.GetExtractor())
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 				Errorln("Can't get Redis options")
