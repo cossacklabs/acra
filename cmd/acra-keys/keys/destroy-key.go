@@ -25,6 +25,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/network"
 )
@@ -45,11 +46,17 @@ type DestroyKeyParams interface {
 // DestroyKeySubcommand is the "acra-keys destroy" subcommand.
 type DestroyKeySubcommand struct {
 	CommonKeyStoreParameters
-	FlagSet *flag.FlagSet
+	FlagSet   *flag.FlagSet
+	extractor *args.ServiceExtractor
 
 	index          int
 	destroyKeyKind string
 	contextID      []byte
+}
+
+// GetExtractor ServiceParamsExtractor.
+func (p *DestroyKeySubcommand) GetExtractor() *args.ServiceExtractor {
+	return p.extractor
 }
 
 // Name returns the same of this subcommand.
@@ -82,6 +89,14 @@ func (p *DestroyKeySubcommand) Parse(arguments []string) error {
 	if err != nil {
 		return err
 	}
+
+	serviceConfig, err := cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		return err
+	}
+
+	p.extractor = args.NewServiceExtractor(p.FlagSet, serviceConfig)
+
 	args := p.FlagSet.Args()
 	if len(args) < 1 {
 		log.Errorf("\"%s\" command requires key kind", CmdDestroyKey)

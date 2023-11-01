@@ -5,7 +5,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	baseKMS "github.com/cossacklabs/acra/keystore/kms/base"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
@@ -19,7 +19,7 @@ type MasterKeyEncryptorFabric struct{}
 type PerClientKeyEncryptorFabric struct{}
 
 // NewKeyEncryptor fabric of keystore.KeyEncryptor for `kms_encrypted_master_key` strategy
-func (k MasterKeyEncryptorFabric) NewKeyEncryptor(extractor *cmd.ServiceParamsExtractor, prefix string) (keystore.KeyEncryptor, error) {
+func (k MasterKeyEncryptorFabric) NewKeyEncryptor(extractor *args.ServiceExtractor, prefix string) (keystore.KeyEncryptor, error) {
 	kmsOptions := ParseCLIParametersFromFlags(extractor, prefix)
 
 	keyManager, err := NewKeyManager(kmsOptions)
@@ -44,7 +44,7 @@ func (k MasterKeyEncryptorFabric) GetKeyMapper() baseKMS.KeyMapper {
 }
 
 // NewKeyEncryptorSuite fabric of crypto.KeyStoreSuite for `kms_encrypted_master_key` strategy
-func (k MasterKeyEncryptorFabric) NewKeyEncryptorSuite(extractor *cmd.ServiceParamsExtractor, prefix string) (*crypto.KeyStoreSuite, error) {
+func (k MasterKeyEncryptorFabric) NewKeyEncryptorSuite(extractor *args.ServiceExtractor, prefix string) (*crypto.KeyStoreSuite, error) {
 	kmsOptions := ParseCLIParametersFromFlags(extractor, prefix)
 
 	keyManager, err := NewKeyManager(kmsOptions)
@@ -69,7 +69,7 @@ func (k MasterKeyEncryptorFabric) RegisterCLIParameters(flags *flag.FlagSet, pre
 }
 
 // NewKeyEncryptor fabric of keystore.KeyEncryptor for `kms_per_client` strategy
-func (k PerClientKeyEncryptorFabric) NewKeyEncryptor(extractor *cmd.ServiceParamsExtractor, prefix string) (keystore.KeyEncryptor, error) {
+func (k PerClientKeyEncryptorFabric) NewKeyEncryptor(extractor *args.ServiceExtractor, prefix string) (keystore.KeyEncryptor, error) {
 	kmsOptions := ParseCLIParametersFromFlags(extractor, prefix)
 
 	keyManager, err := NewKeyManager(kmsOptions)
@@ -82,7 +82,7 @@ func (k PerClientKeyEncryptorFabric) NewKeyEncryptor(extractor *cmd.ServiceParam
 }
 
 // NewKeyEncryptorSuite fabric of crypto.KeyStoreSuite for `kms_per_client` strategy
-func (k PerClientKeyEncryptorFabric) NewKeyEncryptorSuite(extractor *cmd.ServiceParamsExtractor, prefix string) (*crypto.KeyStoreSuite, error) {
+func (k PerClientKeyEncryptorFabric) NewKeyEncryptorSuite(extractor *args.ServiceExtractor, prefix string) (*crypto.KeyStoreSuite, error) {
 	kmsOptions := ParseCLIParametersFromFlags(extractor, prefix)
 
 	keyManager, err := NewKeyManager(kmsOptions)

@@ -23,6 +23,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/network"
 
 	goRedis "github.com/go-redis/redis/v7"
@@ -57,7 +58,7 @@ func RegisterRedisKeystoreParameters() {
 }
 
 // ParseRedisCLIParameters parse RedisOptions from CommandLine flags
-func ParseRedisCLIParameters(extractor *ServiceParamsExtractor) *RedisOptions {
+func ParseRedisCLIParameters(extractor *args.ServiceExtractor) *RedisOptions {
 	return ParseRedisCLIParametersFromFlags(extractor, "")
 }
 
@@ -115,7 +116,7 @@ func checkBothKeyAndToken(flags *flag.FlagSet, prefix string) {
 }
 
 // ParseRedisCLIParametersFromFlags parse CLI args from FlagSet
-func ParseRedisCLIParametersFromFlags(extractor *ServiceParamsExtractor, prefix string) *RedisOptions {
+func ParseRedisCLIParametersFromFlags(extractor *args.ServiceExtractor, prefix string) *RedisOptions {
 	return &RedisOptions{
 		HostPort:  extractor.GetString(prefix+"redis_host_port", ""),
 		Password:  extractor.GetString(prefix+"redis_password", ""),
@@ -157,7 +158,7 @@ func (redis *RedisOptions) TokensConfigured() bool {
 }
 
 // KeysOptions returns Redis connection configuration for key storage.
-func (redis *RedisOptions) KeysOptions(extractor *ServiceParamsExtractor) (*goRedis.Options, error) {
+func (redis *RedisOptions) KeysOptions(extractor *args.ServiceExtractor) (*goRedis.Options, error) {
 	var tlsConfig *tls.Config
 	var err error
 	if redis.TLSEnable {

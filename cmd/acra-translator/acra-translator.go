@@ -41,6 +41,7 @@ import (
 	_ "github.com/cossacklabs/acra/cmd/acra-translator/docs"
 	"github.com/cossacklabs/acra/cmd/acra-translator/grpc_api"
 	"github.com/cossacklabs/acra/cmd/acra-translator/server"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
@@ -161,7 +162,7 @@ func realMain() error {
 		os.Exit(1)
 	}
 
-	paramsExtractor := cmd.NewServiceParamsExtractor(flag.CommandLine, serviceConfig)
+	paramsExtractor := args.NewServiceExtractor(flag.CommandLine, serviceConfig)
 
 	if os.Getenv(GracefulRestartEnv) == "true" {
 		// if process is forked, here we are blocked on reading signal from parent process (via pipe). When signal is read,
@@ -664,7 +665,7 @@ func waitReadPipe(timeoutDuration time.Duration) error {
 	return nil
 }
 
-func openKeyStoreV1(keysDir string, cacheSize int, extractor *cmd.ServiceParamsExtractor) (keystore.ServerKeyStore, keystore.TranslationKeyStore, error) {
+func openKeyStoreV1(keysDir string, cacheSize int, extractor *args.ServiceExtractor) (keystore.ServerKeyStore, keystore.TranslationKeyStore, error) {
 	var keyStoreEncryptor keystore.KeyEncryptor
 
 	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(extractor, "")
@@ -707,7 +708,7 @@ func openKeyStoreV1(keysDir string, cacheSize int, extractor *cmd.ServiceParamsE
 	return keyStoreV1, transportKeyStoreV1, nil
 }
 
-func openKeyStoreV2(keysDir string, cacheSize int, extractor *cmd.ServiceParamsExtractor) (keystore.ServerKeyStore, keystore.TranslationKeyStore, error) {
+func openKeyStoreV2(keysDir string, cacheSize int, extractor *args.ServiceExtractor) (keystore.ServerKeyStore, keystore.TranslationKeyStore, error) {
 	if cacheSize != keystore.WithoutCache {
 		return nil, nil, keystore.ErrCacheIsNotSupportedV2
 	}

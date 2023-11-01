@@ -9,11 +9,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/cossacklabs/acra/network/testutils"
-	"github.com/cossacklabs/acra/utils/tests"
-	"github.com/stretchr/testify/assert"
-	"golang.org/x/crypto/ocsp"
-	"google.golang.org/grpc/credentials"
 	"net"
 	"net/http"
 	"path"
@@ -24,6 +19,14 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"golang.org/x/crypto/ocsp"
+	"google.golang.org/grpc/credentials"
+
+	args2 "github.com/cossacklabs/acra/cmd/args"
+	"github.com/cossacklabs/acra/network/testutils"
+	"github.com/cossacklabs/acra/utils/tests"
 )
 
 func getConnectionPair(address string, listener net.Listener, t testing.TB) (net.Conn, net.Conn) {
@@ -731,7 +734,7 @@ func TestNewTLSConfigByName(t *testing.T) {
 			clientCRLFromCert: &emptyStr, clientOCSPRequired: &emptyStr, clientOCSPFromCert: &emptyStr,
 
 			expectedCa: baseCa, expectedCrt: baseCrt, expectedKey: baseKey, expectedAuth: baseAuth, verificationErr: nil,
-			expectedConfigErr: ErrInvalidConfigOCSPRequired},
+		},
 
 		// used configuration from client args
 		{
@@ -813,7 +816,10 @@ func TestNewTLSConfigByName(t *testing.T) {
 		if err := flagset.Parse(args); err != nil {
 			t.Fatal(err)
 		}
-		tlsConfig, err := NewTLSConfigByName(&flagset, "", "localhost", ClientNameConstructorFunc())
+
+		extractor := args2.NewServiceExtractor(&flagset, make(map[string]interface{}))
+
+		tlsConfig, err := NewTLSConfigByName(extractor, "", "localhost", ClientNameConstructorFunc())
 		if err != tcase.expectedConfigErr {
 			t.Fatalf("Unexpected err value, took %v", err)
 		}

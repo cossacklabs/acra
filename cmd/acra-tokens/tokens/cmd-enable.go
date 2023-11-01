@@ -24,6 +24,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/network"
 	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
 )
@@ -31,7 +32,7 @@ import (
 // EnableSubcommand is the "acra-tokens enable" subcommand.
 type EnableSubcommand struct {
 	flagSet   *flag.FlagSet
-	extractor *cmd.ServiceParamsExtractor
+	extractor *args.ServiceExtractor
 	storage   CommonTokenStorageParameters
 	limits    CommonDateParameters
 }
@@ -75,7 +76,7 @@ func (s *EnableSubcommand) Parse(arguments []string) error {
 	if err != nil {
 		return err
 	}
-	s.extractor = cmd.NewServiceParamsExtractor(s.flagSet, serviceConfig)
+	s.extractor = args.NewServiceExtractor(s.flagSet, serviceConfig)
 
 	err = s.storage.Validate(s.extractor)
 	if err != nil {

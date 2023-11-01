@@ -17,10 +17,12 @@
 package filesystem
 
 import (
+	"flag"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api/tests"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
@@ -64,8 +66,9 @@ func testFilesystemKeyStore(t *testing.T) api.MutableKeyStore {
 
 func TestKeyStoreOpeningDir(t *testing.T) {
 	rootPath := filepath.Join(t.TempDir(), "root")
+	extractor := args.NewServiceExtractor(flag.CommandLine, map[string]interface{}{})
 
-	if IsKeyDirectory(rootPath) {
+	if IsKeyDirectory(rootPath, extractor) {
 		t.Errorf("missing directory cannot be IsKeyDirectory()")
 	}
 
@@ -74,7 +77,7 @@ func TestKeyStoreOpeningDir(t *testing.T) {
 		t.Errorf("opened non-existent keystore: %v", err)
 	}
 
-	if IsKeyDirectory(rootPath) {
+	if IsKeyDirectory(rootPath, extractor) {
 		t.Errorf("OpenDirectory() should not create key directory")
 	}
 
@@ -91,7 +94,7 @@ func TestKeyStoreOpeningDir(t *testing.T) {
 		t.Errorf("root key directory is not directory")
 	}
 
-	if !IsKeyDirectory(rootPath) {
+	if !IsKeyDirectory(rootPath, extractor) {
 		t.Errorf("OpenDirectoryRW() must create key directory")
 	}
 

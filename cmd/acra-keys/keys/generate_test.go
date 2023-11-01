@@ -26,10 +26,12 @@ import (
 	"os"
 	"testing"
 
+	log "github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
-	log "github.com/sirupsen/logrus"
 )
 
 func TestRotateSymmetricKey(t *testing.T) {
@@ -56,6 +58,8 @@ func TestRotateSymmetricKey(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+
 	clientID := []byte("client")
 	generateCmd := &GenerateKeySubcommand{
 		CommonKeyStoreParameters: CommonKeyStoreParameters{
@@ -63,6 +67,7 @@ func TestRotateSymmetricKey(t *testing.T) {
 		},
 		clientID:   string(clientID),
 		flagSet:    flagSet,
+		extractor:  extractor,
 		acraBlocks: true,
 	}
 
@@ -84,7 +89,7 @@ func TestRotateSymmetricKey(t *testing.T) {
 
 	generateCmd.Execute()
 
-	newSymKey, err := ioutil.ReadFile(keyPath)
+	newSymKey, err := os.ReadFile(keyPath)
 	if err != nil {
 		t.Fatal("no new symmetric sym key found")
 	}

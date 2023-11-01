@@ -8,7 +8,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore/kms/base"
 )
 
@@ -52,12 +52,12 @@ func RegisterCLIParametersWithFlags(flags *flag.FlagSet, prefix string, descript
 }
 
 // ParseCLIParameters parse CLIOptions from CommandLine flags
-func ParseCLIParameters(extractor *cmd.ServiceParamsExtractor) *CLIOptions {
+func ParseCLIParameters(extractor *args.ServiceExtractor) *CLIOptions {
 	return ParseCLIParametersFromFlags(extractor, "")
 }
 
 // ParseCLIParametersFromFlags parse CLIOptions from provided FlagSet
-func ParseCLIParametersFromFlags(extractor *cmd.ServiceParamsExtractor, prefix string) *CLIOptions {
+func ParseCLIParametersFromFlags(extractor *args.ServiceExtractor, prefix string) *CLIOptions {
 	return &CLIOptions{
 		KMSType:         extractor.GetString(prefix+"kms_type", ""),
 		CredentialsPath: extractor.GetString(prefix+"kms_credentials_path", ""),

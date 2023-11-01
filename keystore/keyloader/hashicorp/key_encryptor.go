@@ -5,7 +5,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	baseKMS "github.com/cossacklabs/acra/keystore/kms/base"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
@@ -16,7 +16,7 @@ import (
 type KeyEncryptorFabric struct{}
 
 // NewKeyEncryptor fabric of keystore.KeyEncryptor for for `vault_master_key` strategy
-func (k KeyEncryptorFabric) NewKeyEncryptor(extractor *cmd.ServiceParamsExtractor, prefix string) (keystore.KeyEncryptor, error) {
+func (k KeyEncryptorFabric) NewKeyEncryptor(extractor *args.ServiceExtractor, prefix string) (keystore.KeyEncryptor, error) {
 	loader, err := NewMasterKeyLoader(extractor, prefix)
 	if err != nil {
 		return nil, err
@@ -30,7 +30,7 @@ func (k KeyEncryptorFabric) NewKeyEncryptor(extractor *cmd.ServiceParamsExtracto
 }
 
 // NewKeyEncryptorSuite fabric of crypto.KeyStoreSuite for `vault_master_key` strategy
-func (k KeyEncryptorFabric) NewKeyEncryptorSuite(extractor *cmd.ServiceParamsExtractor, prefix string) (*crypto.KeyStoreSuite, error) {
+func (k KeyEncryptorFabric) NewKeyEncryptorSuite(extractor *args.ServiceExtractor, prefix string) (*crypto.KeyStoreSuite, error) {
 	loader, err := NewMasterKeyLoader(extractor, prefix)
 	if err != nil {
 		return nil, err

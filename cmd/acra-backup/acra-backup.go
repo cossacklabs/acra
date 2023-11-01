@@ -23,6 +23,7 @@ import (
 	"os"
 
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
@@ -79,7 +80,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	paramsExtractor := cmd.NewServiceParamsExtractor(flag.CommandLine, serviceConfig)
+	extractor := args.NewServiceExtractor(flag.CommandLine, serviceConfig)
 
 	formatter := logging.CreateFormatter(*loggingFormat)
 	formatter.SetServiceName(ServiceName)
@@ -87,7 +88,7 @@ func main() {
 
 	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
 	var storage filesystem.Storage
-	if redis := cmd.ParseRedisCLIParameters(paramsExtractor); redis.KeysConfigured() {
+	if redis := cmd.ParseRedisCLIParameters(extractor); redis.KeysConfigured() {
 		storage, err = filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize redis storage")
@@ -97,7 +98,7 @@ func main() {
 		storage = &filesystem.DummyStorage{}
 	}
 
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(paramsExtractor, "")
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		os.Exit(1)

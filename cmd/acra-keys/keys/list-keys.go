@@ -26,6 +26,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/network"
 )
@@ -62,10 +63,11 @@ type ListKeySubcommand struct {
 	CommonKeyStoreParameters
 	CommonKeyListingParameters
 	FlagSet   *flag.FlagSet
-	extractor *cmd.ServiceParamsExtractor
+	extractor *args.ServiceExtractor
 }
 
-func (p *ListKeySubcommand) GetExtractor() *cmd.ServiceParamsExtractor {
+// GetExtractor return ServiceParamsExtractor
+func (p *ListKeySubcommand) GetExtractor() *args.ServiceExtractor {
 	return p.extractor
 }
 
@@ -105,7 +107,7 @@ func (p *ListKeySubcommand) Parse(arguments []string) error {
 		return err
 	}
 
-	p.extractor = cmd.NewServiceParamsExtractor(p.FlagSet, serviceConfig)
+	p.extractor = args.NewServiceExtractor(p.FlagSet, serviceConfig)
 	return nil
 }
 

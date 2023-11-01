@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
@@ -31,9 +32,11 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(flagSet, "")
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(extractor, "")
 	if err != nil {
 		t.Fatal("Can't init keystore KeyEncryptor")
 	}
@@ -68,6 +71,7 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 				ContextID: clientID,
 			}},
 			FlagSet:       flagSet,
+			extractor:     extractor,
 			exportPrivate: true,
 		}
 
@@ -103,8 +107,9 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 				exportKeysFile: filepath.Join(exportDirName, keysFile),
 				exportDataFile: filepath.Join(exportDirName, dataFile),
 			},
-			FlagSet:  flagSet,
-			importer: importBackuper,
+			FlagSet:   flagSet,
+			extractor: extractor,
+			importer:  importBackuper,
 		}
 
 		ImportKeysCommand(importCMD)
@@ -144,6 +149,7 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 				ContextID: clientID,
 			}},
 			FlagSet:       flagSet,
+			extractor:     extractor,
 			exportPrivate: true,
 		}
 
@@ -179,8 +185,9 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 				exportKeysFile: filepath.Join(exportDirName, keysFile),
 				exportDataFile: filepath.Join(exportDirName, dataFile),
 			},
-			FlagSet:  flagSet,
-			importer: importBackuper,
+			FlagSet:   flagSet,
+			extractor: extractor,
+			importer:  importBackuper,
 		}
 
 		ImportKeysCommand(importCMD)
@@ -216,6 +223,7 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 				exportDataFile: filepath.Join(exportDirName, dataFile),
 			},
 			FlagSet:   flagSet,
+			extractor: extractor,
 			exportAll: true,
 		}
 
@@ -260,8 +268,9 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 				exportKeysFile: filepath.Join(exportDirName, keysFile),
 				exportDataFile: filepath.Join(exportDirName, dataFile),
 			},
-			FlagSet:  flagSet,
-			importer: importBackuper,
+			FlagSet:   flagSet,
+			extractor: extractor,
+			importer:  importBackuper,
 		}
 
 		ImportKeysCommand(importCMD)
@@ -307,6 +316,7 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 				exportDataFile: filepath.Join(exportDirName, dataFile),
 			},
 			FlagSet:       flagSet,
+			extractor:     extractor,
 			exportPrivate: true,
 		}
 		err := exportCMD.Parse([]string{
@@ -359,8 +369,9 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 				exportKeysFile: filepath.Join(exportDirName, keysFile),
 				exportDataFile: filepath.Join(exportDirName, dataFile),
 			},
-			FlagSet:  flagSet,
-			importer: importBackuper,
+			FlagSet:   flagSet,
+			extractor: extractor,
+			importer:  importBackuper,
 		}
 
 		ImportKeysCommand(importCMD)
@@ -398,9 +409,11 @@ func TestExport_Import_CMD_FS_V1_Invalid_Cases(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(flagSet, "")
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(extractor, "")
 	if err != nil {
 		t.Fatal("Can't init keystore KeyEncryptor")
 	}
@@ -430,6 +443,7 @@ func TestExport_Import_CMD_FS_V1_Invalid_Cases(t *testing.T) {
 				ContextID: clientID,
 			}},
 			FlagSet:       flagSet,
+			extractor:     extractor,
 			exportPrivate: true,
 		}
 
@@ -501,7 +515,8 @@ func TestExport_Import_CMD_FS_V1_Invalid_Cases(t *testing.T) {
 				KeyKind:   keystore.KeyStoragePublic,
 				ContextID: clientID,
 			}},
-			FlagSet: flagSet,
+			FlagSet:   flagSet,
+			extractor: extractor,
 		}
 
 		store, err := openKeyStoreV1(exportCMD)
@@ -552,7 +567,8 @@ func TestExport_Import_CMD_FS_V1_Invalid_Cases(t *testing.T) {
 				exportKeysFile: filepath.Join(exportDirName, keysFile),
 				exportDataFile: filepath.Join(exportDirName, dataFile),
 			},
-			FlagSet: flagSet,
+			FlagSet:   flagSet,
+			extractor: extractor,
 		}
 
 		store, err := openKeyStoreV1(exportCMD)
@@ -603,7 +619,8 @@ func TestExport_Import_CMD_FS_V1_Invalid_Cases(t *testing.T) {
 				exportKeysFile: filepath.Join(exportDirName, keysFile),
 				exportDataFile: filepath.Join(exportDirName, dataFile),
 			},
-			FlagSet: flagSet,
+			FlagSet:   flagSet,
+			extractor: extractor,
 		}
 
 		store, err := openKeyStoreV1(exportCMD)
@@ -664,6 +681,8 @@ func TestExport_Import_CMD_FS_V2(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+
 	t.Run("export/import keys by keyID and path (storage/symmetric)", func(t *testing.T) {
 
 		exportDirName := t.TempDir()
@@ -685,6 +704,7 @@ func TestExport_Import_CMD_FS_V2(t *testing.T) {
 				exportDataFile: filepath.Join(exportDirName, dataFile),
 			},
 			FlagSet:       flagSet,
+			extractor:     extractor,
 			exportPrivate: true,
 		}
 
@@ -733,7 +753,8 @@ func TestExport_Import_CMD_FS_V2(t *testing.T) {
 				exportKeysFile: filepath.Join(exportDirName, keysFile),
 				exportDataFile: filepath.Join(exportDirName, dataFile),
 			},
-			FlagSet: flagSet,
+			FlagSet:   flagSet,
+			extractor: extractor,
 		}
 
 		importKeyStore, err := openKeyStoreV2(importCMD)
@@ -783,7 +804,8 @@ func TestExport_Import_CMD_FS_V2(t *testing.T) {
 				KeyKind:   keystore.KeyStoragePublic,
 				ContextID: clientID,
 			}},
-			FlagSet: flagSet,
+			FlagSet:   flagSet,
+			extractor: extractor,
 		}
 
 		store, err := openKeyStoreV2(exportCMD)

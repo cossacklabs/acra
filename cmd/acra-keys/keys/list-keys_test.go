@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
@@ -132,6 +133,8 @@ func TestListRotatedKeysV1(t *testing.T) {
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
+	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+
 	dirName := t.TempDir()
 	if err := os.Chmod(dirName, 0700); err != nil {
 		t.Fatal(err)
@@ -144,7 +147,8 @@ func TestListRotatedKeysV1(t *testing.T) {
 		CommonKeyListingParameters: CommonKeyListingParameters{
 			rotatedKeys: true,
 		},
-		FlagSet: flagSet,
+		FlagSet:   flagSet,
+		extractor: extractor,
 	}
 
 	store, err := openKeyStoreV1(listCMD)
@@ -254,6 +258,7 @@ func TestListRotatedKeysJSON(t *testing.T) {
 	}
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
+	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
 
 	dirName := t.TempDir()
 	if err := os.Chmod(dirName, 0700); err != nil {
@@ -268,7 +273,8 @@ func TestListRotatedKeysJSON(t *testing.T) {
 			rotatedKeys: true,
 			useJSON:     true,
 		},
-		FlagSet: flagSet,
+		FlagSet:   flagSet,
+		extractor: extractor,
 	}
 
 	store, err := openKeyStoreV1(listCMD)
@@ -353,6 +359,7 @@ func TestListRotatedKeysV2(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
 	listCMD := &ListKeySubcommand{
@@ -362,7 +369,8 @@ func TestListRotatedKeysV2(t *testing.T) {
 		CommonKeyListingParameters: CommonKeyListingParameters{
 			rotatedKeys: true,
 		},
-		FlagSet: flagSet,
+		FlagSet:   flagSet,
+		extractor: extractor,
 	}
 
 	store, err := openKeyStoreV2(listCMD)

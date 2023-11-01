@@ -26,6 +26,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
@@ -60,7 +61,7 @@ var (
 // GenerateKeySubcommand is the "acra-keys generate" subcommand.
 type GenerateKeySubcommand struct {
 	flagSet   *flag.FlagSet
-	extractor *cmd.ServiceParamsExtractor
+	extractor *args.ServiceExtractor
 
 	CommonExtractClientIDParameters
 	CommonKeyStoreParameters
@@ -79,7 +80,7 @@ type GenerateKeySubcommand struct {
 }
 
 // GetParamsExtractor return service params extractor
-func (g *GenerateKeySubcommand) GetExtractor() *cmd.ServiceParamsExtractor {
+func (g *GenerateKeySubcommand) GetExtractor() *args.ServiceExtractor {
 	return g.extractor
 }
 
@@ -179,7 +180,7 @@ func (g *GenerateKeySubcommand) Parse(arguments []string) error {
 		return err
 	}
 
-	g.extractor = cmd.NewServiceParamsExtractor(g.flagSet, serviceConfig)
+	g.extractor = args.NewServiceExtractor(g.flagSet, serviceConfig)
 	err = ValidateClientID(g)
 	if err != nil {
 		return err

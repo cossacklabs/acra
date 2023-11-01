@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/go-cleanhttp"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/network"
 )
 
@@ -44,7 +44,7 @@ func RegisterCLIParametersWithFlagSet(flags *flag.FlagSet, prefix, description s
 }
 
 // ParseCLIParametersFromFlags CLIOptions from provided FlagSet
-func ParseCLIParametersFromFlags(extractor *cmd.ServiceParamsExtractor, prefix string) *CLIOptions {
+func ParseCLIParametersFromFlags(extractor *args.ServiceExtractor, prefix string) *CLIOptions {
 	return &CLIOptions{
 		Address:             extractor.GetString(prefix+"consul_connection_api_string", ""),
 		EncryptorConfigPath: extractor.GetString(prefix+"consul_kv_config_path", prefix),
@@ -53,7 +53,7 @@ func ParseCLIParametersFromFlags(extractor *cmd.ServiceParamsExtractor, prefix s
 }
 
 // ConsulHTTPClient returns api.Config connection configuration
-func (consul *CLIOptions) ConsulHTTPClient(extractor *cmd.ServiceParamsExtractor) (*http.Client, error) {
+func (consul *CLIOptions) ConsulHTTPClient(extractor *args.ServiceExtractor) (*http.Client, error) {
 	transport := cleanhttp.DefaultPooledTransport()
 	client := &http.Client{
 		Transport: transport,

@@ -21,6 +21,7 @@ import (
 	"flag"
 
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
@@ -41,7 +42,7 @@ var (
 // KeyStoreParameters are parameters for DefaultKeyStoreFactory.
 type KeyStoreParameters interface {
 	GetFlagSet() *flag.FlagSet
-	GetExtractor() *cmd.ServiceParamsExtractor
+	GetExtractor() *args.ServiceExtractor
 
 	KeyDir() string
 	KeyDirPublic() string
@@ -55,7 +56,8 @@ type CommonKeyStoreParameters struct {
 	keyDirPublic string
 }
 
-func (p *CommonKeyStoreParameters) GetExtractor() *cmd.ServiceParamsExtractor {
+// GetExtractor ServiceParamsExtractor.
+func (p *CommonKeyStoreParameters) GetExtractor() *args.ServiceExtractor {
 	//TODO implement me
 	panic("implement me")
 }

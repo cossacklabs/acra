@@ -5,7 +5,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 )
@@ -14,7 +14,7 @@ import (
 type StorageCreator struct{}
 
 // NewStorage create new filesystem encryptor.ConfigStorage
-func (s StorageCreator) NewStorage(extractor *cmd.ServiceParamsExtractor, prefix string) (encryptor.ConfigStorage, error) {
+func (s StorageCreator) NewStorage(extractor *args.ServiceExtractor, prefix string) (encryptor.ConfigStorage, error) {
 	cliOptions := ParseCLIParametersFromFlags(extractor, prefix)
 
 	log.Infof("Load encryptor configuration from %s ...", cliOptions.EncryptorConfigFile)
@@ -24,7 +24,7 @@ func (s StorageCreator) NewStorage(extractor *cmd.ServiceParamsExtractor, prefix
 }
 
 // IsStorageConfigured check weather CLI flag for filesystem using was provided
-func (s StorageCreator) IsStorageConfigured(extractor *cmd.ServiceParamsExtractor, prefix string) bool {
+func (s StorageCreator) IsStorageConfigured(extractor *args.ServiceExtractor, prefix string) bool {
 	if cliOptions := ParseCLIParametersFromFlags(extractor, prefix); cliOptions.EncryptorConfigFile != "" {
 		return true
 	}

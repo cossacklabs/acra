@@ -33,6 +33,7 @@ import (
 	"strings"
 
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
@@ -94,7 +95,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	paramsExtractor := cmd.NewServiceParamsExtractor(flag.CommandLine, serviceConfig)
+	paramsExtractor := args.NewServiceExtractor(flag.CommandLine, serviceConfig)
 
 	if *tlsClientCertOld != "" && *tlsClientCertNew != "" {
 		log.Errorln("You cant specify --tls_cert (deprecated since 0.96.0) and --tls_client_id_cert simultaneously")
@@ -303,7 +304,7 @@ func main() {
 	}
 }
 
-func openKeyStoreV1(output, outputPublic string, extractor *cmd.ServiceParamsExtractor) keystore.KeyMaking {
+func openKeyStoreV1(output, outputPublic string, extractor *args.ServiceExtractor) keystore.KeyMaking {
 	var keyStoreEncryptor keystore.KeyEncryptor
 
 	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(extractor, "")
@@ -353,7 +354,7 @@ func openKeyStoreV1(output, outputPublic string, extractor *cmd.ServiceParamsExt
 	return keyStore
 }
 
-func openKeyStoreV2(keyDirPath string, extractor *cmd.ServiceParamsExtractor) keystore.KeyMaking {
+func openKeyStoreV2(keyDirPath string, extractor *args.ServiceExtractor) keystore.KeyMaking {
 	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")

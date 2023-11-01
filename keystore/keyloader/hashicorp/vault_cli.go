@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/vault/api"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/network"
 )
 
@@ -51,7 +51,7 @@ func RegisterCLIParametersWithFlagSet(flags *flag.FlagSet, prefix, description s
 }
 
 // ParseCLIParametersFromFlags VaultCLIOptions from provided FlagSet
-func ParseCLIParametersFromFlags(extractor *cmd.ServiceParamsExtractor, prefix string) *VaultCLIOptions {
+func ParseCLIParametersFromFlags(extractor *args.ServiceExtractor, prefix string) *VaultCLIOptions {
 	options := VaultCLIOptions{
 		Address:     extractor.GetString(prefix+vaultConnectionStringFlag, ""),
 		SecretsPath: extractor.GetString(prefix+"vault_secrets_path", ""),
@@ -109,7 +109,7 @@ func (options *VaultCLIOptions) VaultHTTPClient() (*http.Client, error) {
 }
 
 // NewMasterKeyLoader create MasterKeyLoader from VaultCLIOptions
-func NewMasterKeyLoader(extractor *cmd.ServiceParamsExtractor, prefix string) (*VaultLoader, error) {
+func NewMasterKeyLoader(extractor *args.ServiceExtractor, prefix string) (*VaultLoader, error) {
 	vaultOptions := ParseCLIParametersFromFlags(extractor, prefix)
 	if vaultOptions.Address == "" {
 		return nil, ErrEmptyConnectionURL

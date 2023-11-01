@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/consul/api"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/encryptor"
 )
 
@@ -22,7 +22,7 @@ import (
 type StorageCreator struct{}
 
 // IsStorageConfigured check weather CLI flag for Consul using was provided
-func (s StorageCreator) IsStorageConfigured(extractor *cmd.ServiceParamsExtractor, prefix string) bool {
+func (s StorageCreator) IsStorageConfigured(extractor *args.ServiceExtractor, prefix string) bool {
 	if cliOptions := ParseCLIParametersFromFlags(extractor, prefix); cliOptions.Address != "" {
 		return true
 	}
@@ -35,7 +35,7 @@ func (s StorageCreator) RegisterCLIParameters(flags *flag.FlagSet, prefix, descr
 }
 
 // NewStorage create config_loader.EncryptorConfigStorage from FlagSet
-func (s StorageCreator) NewStorage(extractor *cmd.ServiceParamsExtractor, prefix string) (encryptor.ConfigStorage, error) {
+func (s StorageCreator) NewStorage(extractor *args.ServiceExtractor, prefix string) (encryptor.ConfigStorage, error) {
 	cliOptions := ParseCLIParametersFromFlags(extractor, prefix)
 
 	httpClient, err := cliOptions.ConsulHTTPClient(extractor)

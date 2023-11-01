@@ -30,6 +30,8 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/golang/groupcache/lru"
+
+	"github.com/cossacklabs/acra/cmd/args"
 )
 
 // Errors returned by CRL verifier
@@ -128,7 +130,7 @@ func (e CRLError) Unwrap() error {
 }
 
 // NewCRLConfigByName return initialized CRLConfig config using flags registered with RegisterCertVerifierArgsForService
-func NewCRLConfigByName(extractor ParamsExtractor, name string, namerFunc CLIParamNameConstructorFunc) (*CRLConfig, error) {
+func NewCRLConfigByName(extractor *args.ServiceExtractor, name string, namerFunc CLIParamNameConstructorFunc) (*CRLConfig, error) {
 	var (
 		crlURL                      = extractor.GetString(namerFunc(name, "url", "crl"), "tls_crl_url")
 		crlFromCert                 = extractor.GetString(namerFunc(name, "from_cert", "crl"), "tls_crl_from_cert")

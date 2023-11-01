@@ -22,6 +22,7 @@ import (
 	"flag"
 	"os"
 
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/network"
 
 	log "github.com/sirupsen/logrus"
@@ -56,7 +57,7 @@ func (p *CommonTokenStorageParameters) BoltDBConfigured() bool {
 }
 
 // Validate token storage parameter set.
-func (p *CommonTokenStorageParameters) Validate(extractor *cmd.ServiceParamsExtractor) error {
+func (p *CommonTokenStorageParameters) Validate(extractor *args.ServiceExtractor) error {
 	redisOptions := cmd.ParseRedisCLIParametersFromFlags(extractor, "")
 
 	if p.BoltDBConfigured() && redisOptions.TokensConfigured() {
@@ -71,7 +72,7 @@ func (p *CommonTokenStorageParameters) Validate(extractor *cmd.ServiceParamsExtr
 }
 
 // Open a token storage based on the command-line configuration.
-func (p *CommonTokenStorageParameters) Open(extractor *cmd.ServiceParamsExtractor) (tokenCommon.TokenStorage, error) {
+func (p *CommonTokenStorageParameters) Open(extractor *args.ServiceExtractor) (tokenCommon.TokenStorage, error) {
 	if p.BoltDBConfigured() {
 		db, err := bolt.Open(p.boltDB, boltDBOpenMode, nil)
 		if err != nil {

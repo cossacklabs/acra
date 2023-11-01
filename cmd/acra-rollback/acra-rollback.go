@@ -40,6 +40,7 @@ import (
 
 	"github.com/cossacklabs/acra/acrastruct"
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
@@ -195,7 +196,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	paramsExtractor := cmd.NewServiceParamsExtractor(flag.CommandLine, serviceConfig)
+	paramsExtractor := args.NewServiceExtractor(flag.CommandLine, serviceConfig)
 
 	twoDrivers := *useMysql && *usePostgresql
 	noDrivers := !(*useMysql || *usePostgresql)
@@ -349,7 +350,7 @@ func main() {
 	}
 }
 
-func openKeyStoreV1(keysDir string, extractor *cmd.ServiceParamsExtractor) keystore.DecryptionKeyStore {
+func openKeyStoreV1(keysDir string, extractor *args.ServiceExtractor) keystore.DecryptionKeyStore {
 	var keyStoreEncryptor keystore.KeyEncryptor
 	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(extractor, "")
 	if err != nil {
@@ -365,7 +366,7 @@ func openKeyStoreV1(keysDir string, extractor *cmd.ServiceParamsExtractor) keyst
 	return keystorage
 }
 
-func openKeyStoreV2(keyDirPath string, extractor *cmd.ServiceParamsExtractor) keystore.DecryptionKeyStore {
+func openKeyStoreV2(keyDirPath string, extractor *args.ServiceExtractor) keystore.DecryptionKeyStore {
 	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")

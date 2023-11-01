@@ -31,6 +31,7 @@ import (
 	"os"
 
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
@@ -87,7 +88,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	paramsExtractor := cmd.NewServiceParamsExtractor(flag.CommandLine, serviceConfig)
+	paramsExtractor := args.NewServiceExtractor(flag.CommandLine, serviceConfig)
 
 	var store keystore.PoisonKeyStorageAndGenerator
 	if filesystemV2.IsKeyDirectory(*keysDir, paramsExtractor) {
@@ -112,7 +113,7 @@ func main() {
 	fmt.Println(base64.StdEncoding.EncodeToString(poisonRecord))
 }
 
-func openKeyStoreV1(output string, extractor *cmd.ServiceParamsExtractor) keystore.PoisonKeyStorageAndGenerator {
+func openKeyStoreV1(output string, extractor *args.ServiceExtractor) keystore.PoisonKeyStorageAndGenerator {
 	var keyStoreEncryptor keystore.KeyEncryptor
 
 	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(extractor, "")
@@ -152,7 +153,7 @@ func openKeyStoreV1(output string, extractor *cmd.ServiceParamsExtractor) keysto
 	return keyStoreV1
 }
 
-func openKeyStoreV2(keyDirPath string, extractor *cmd.ServiceParamsExtractor) keystore.PoisonKeyStorageAndGenerator {
+func openKeyStoreV2(keyDirPath string, extractor *args.ServiceExtractor) keystore.PoisonKeyStorageAndGenerator {
 	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")

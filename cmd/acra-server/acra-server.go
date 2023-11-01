@@ -51,6 +51,7 @@ import (
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/cmd/acra-server/common"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/mysql"
@@ -191,7 +192,7 @@ func realMain() error {
 		return err
 	}
 
-	paramsExtractor := cmd.NewServiceParamsExtractor(flag.CommandLine, serviceConfig)
+	argsExtractor := args.NewServiceExtractor(flag.CommandLine, serviceConfig)
 
 	if os.Getenv(GracefulRestartEnv) == "true" {
 		// if process is forked, here we are blocked on reading signal from parent process (via pipe). When signal is read,
@@ -255,8 +256,8 @@ func realMain() error {
 	}
 	serverConfig.SetDBConnectionSettings(*dbHost, *dbPort)
 
-	if config_loader.IsEncryptorConfigLoaderCLIConfigured(paramsExtractor) {
-		if err := serverConfig.LoadMapTableSchemaConfig(paramsExtractor, *encryptorConfigStorageType, *useMysql); err != nil {
+	if config_loader.IsEncryptorConfigLoaderCLIConfigured(argsExtractor) {
+		if err := serverConfig.LoadMapTableSchemaConfig(argsExtractor, *encryptorConfigStorageType, *useMysql); err != nil {
 			log.WithError(err).Errorln("Can't load encryptor config")
 			return err
 		}
@@ -286,10 +287,10 @@ func realMain() error {
 
 	log.Infof("Initialising keystore...")
 	var keyStore keystore.ServerKeyStore
-	if filesystemV2.IsKeyDirectory(*keysDir, paramsExtractor) {
-		keyStore, err = openKeyStoreV2(*keysDir, *keysCacheSize, paramsExtractor)
+	if filesystemV2.IsKeyDirectory(*keysDir, argsExtractor) {
+		keyStore, err = openKeyStoreV2(*keysDir, *keysCacheSize, argsExtractor)
 	} else {
-		keyStore, err = openKeyStoreV1(*keysDir, *keysCacheSize, paramsExtractor)
+		keyStore, err = openKeyStoreV1(*keysDir, *keysCacheSize, argsExtractor)
 	}
 	if err != nil {
 		log.WithError(err).Errorln("Can't open keyStore")
@@ -350,14 +351,14 @@ func realMain() error {
 		os.Exit(1)
 	}
 
-	appSideTLSConfig, err := network.NewTLSConfigByName(paramsExtractor, "", "", network.ClientNameConstructorFunc())
+	appSideTLSConfig, err := network.NewTLSConfigByName(argsExtractor, "", "", network.ClientNameConstructorFunc())
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 			Errorln("Configuration error: can't create application TLS config")
 		os.Exit(1)
 	}
 
-	dbTLSConfig, err := network.NewTLSConfigByName(paramsExtractor, "", *dbHost, network.DatabaseNameConstructorFunc())
+	dbTLSConfig, err := network.NewTLSConfigByName(argsExtractor, "", *dbHost, network.DatabaseNameConstructorFunc())
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 			Errorln("Configuration error: can't create database TLS config")
@@ -492,7 +493,7 @@ func realMain() error {
 	}
 
 	var tokenStorage pseudonymizationCommon.TokenStorage
-	redis := cmd.ParseRedisCLIParametersFromFlags(paramsExtractor, "")
+	redis := cmd.ParseRedisCLIParametersFromFlags(argsExtractor, "")
 	if *boltTokebDB != "" {
 		log.Infoln("Initialize bolt db storage for tokens")
 		db, err := bolt.Open(*boltTokebDB, 0600, nil)
@@ -508,7 +509,7 @@ func realMain() error {
 		// if redisTLSConfig = nil then will not be used TLS for Redis
 		var redisTLSConfig *tls.Config
 		if redis.TLSEnable {
-			redisTLSConfig, err = network.NewTLSConfigByName(paramsExtractor, "redis", redis.HostPort, network.ClientNameConstructorFunc())
+			redisTLSConfig, err = network.NewTLSConfigByName(argsExtractor, "redis", redis.HostPort, network.ClientNameConstructorFunc())
 			if err != nil {
 				log.WithError(err).Errorln("Can't initialize tls config for redis client")
 				return err
@@ -836,7 +837,7 @@ func waitReadPipe(timeoutDuration time.Duration) error {
 	return nil
 }
 
-func openKeyStoreV1(output string, cacheSize int, extractor *cmd.ServiceParamsExtractor) (keystore.ServerKeyStore, error) {
+func openKeyStoreV1(output string, cacheSize int, extractor *args.ServiceExtractor) (keystore.ServerKeyStore, error) {
 	var keyStoreEncryptor keystore.KeyEncryptor
 
 	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(extractor, "")
@@ -876,7 +877,7 @@ func openKeyStoreV1(output string, cacheSize int, extractor *cmd.ServiceParamsEx
 	return keyStoreV1, nil
 }
 
-func openKeyStoreV2(keyDirPath string, cacheSize int, extractor *cmd.ServiceParamsExtractor) (keystore.ServerKeyStore, error) {
+func openKeyStoreV2(keyDirPath string, cacheSize int, extractor *args.ServiceExtractor) (keystore.ServerKeyStore, error) {
 	if cacheSize != keystore.WithoutCache {
 		return nil, keystore.ErrCacheIsNotSupportedV2
 	}

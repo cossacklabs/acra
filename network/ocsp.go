@@ -29,6 +29,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ocsp"
+
+	"github.com/cossacklabs/acra/cmd/args"
 )
 
 // Errors returned by OCSP verifier
@@ -126,7 +128,7 @@ const (
 )
 
 // NewOCSPConfigByName return initialized OCSPConfig config using flags registered with RegisterCertVerifierArgsForService
-func NewOCSPConfigByName(extractor ParamsExtractor, name string, namerFunc CLIParamNameConstructorFunc) (*OCSPConfig, error) {
+func NewOCSPConfigByName(extractor *args.ServiceExtractor, name string, namerFunc CLIParamNameConstructorFunc) (*OCSPConfig, error) {
 	var (
 		url               = extractor.GetString(namerFunc(name, "url", "ocsp"), "tls_ocsp_url")
 		required          = extractor.GetString(namerFunc(name, "required", "ocsp"), "tls_ocsp_required")

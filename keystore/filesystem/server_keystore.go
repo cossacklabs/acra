@@ -41,6 +41,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	fs "github.com/cossacklabs/acra/keystore/filesystem/internal"
 	"github.com/cossacklabs/acra/keystore/lru"
@@ -172,7 +173,7 @@ func (b *KeyStoreBuilder) Build() (*KeyStore, error) {
 // That is, positive return value does not mean that the directory contains *a valid* keystore.
 // However, false value means that the directory is definitely not a valid keystore.
 // In particular, false is returned if the directory does not exists or cannot be opened.
-func IsKeyDirectory(keyDirectory string, extractor *cmd.ServiceParamsExtractor) bool {
+func IsKeyDirectory(keyDirectory string, extractor *args.ServiceExtractor) bool {
 	storage, err := openKeyStorage(extractor)
 	if err != nil {
 		log.WithError(err).Debug("Failed to open key storage for version check")
@@ -199,7 +200,7 @@ func IsKeyDirectory(keyDirectory string, extractor *cmd.ServiceParamsExtractor) 
 	return true
 }
 
-func openKeyStorage(extractor *cmd.ServiceParamsExtractor) (Storage, error) {
+func openKeyStorage(extractor *args.ServiceExtractor) (Storage, error) {
 	redis := cmd.ParseRedisCLIParametersFromFlags(extractor, "")
 	if redis.KeysConfigured() {
 		return NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)

@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/logging"
 
 	"github.com/cossacklabs/acra/cmd"
@@ -49,7 +50,7 @@ type MigrateKeysParams interface {
 // MigrateKeysSubcommand is the "acra-keys migrate" subcommand.
 type MigrateKeysSubcommand struct {
 	flagSet    *flag.FlagSet
-	extractor  *cmd.ServiceParamsExtractor
+	extractor  *args.ServiceExtractor
 	src, dst   CommonKeyStoreParameters
 	srcVersion string
 	dstVersion string
@@ -79,7 +80,8 @@ func (m *MigrateKeysSubcommand) SrcKeyStoreParams() KeyStoreParameters {
 	return &m.src
 }
 
-func (m *MigrateKeysSubcommand) GetExtractor() *cmd.ServiceParamsExtractor {
+// GetExtractor return ServiceParamsExtractor
+func (m *MigrateKeysSubcommand) GetExtractor() *args.ServiceExtractor {
 	return m.extractor
 }
 
@@ -152,7 +154,7 @@ func (m *MigrateKeysSubcommand) Parse(arguments []string) error {
 		os.Exit(1)
 	}
 
-	m.extractor = cmd.NewServiceParamsExtractor(flag.CommandLine, serviceConfig)
+	m.extractor = args.NewServiceExtractor(flag.CommandLine, serviceConfig)
 
 	if m.srcVersion == "" {
 		log.Warning("Missing required argument: --src_keystore={v1|v2}")

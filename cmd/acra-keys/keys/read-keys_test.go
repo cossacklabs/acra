@@ -23,6 +23,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
@@ -52,6 +53,8 @@ func TestReadCMD_FS_V2(t *testing.T) {
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
+	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+
 	t.Run("read storage-public key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			CommonKeyStoreParameters: CommonKeyStoreParameters{
@@ -61,6 +64,7 @@ func TestReadCMD_FS_V2(t *testing.T) {
 			readKeyKind: keystore.KeyStoragePublic,
 			FlagSet:     flagSet,
 			outWriter:   io.Discard,
+			extractor:   extractor,
 		}
 
 		store, err := openKeyStoreV2(readCmd)
@@ -85,6 +89,7 @@ func TestReadCMD_FS_V2(t *testing.T) {
 			readKeyKind: keystore.KeySymmetric,
 			FlagSet:     flagSet,
 			outWriter:   io.Discard,
+			extractor:   extractor,
 		}
 
 		store, err := openKeyStoreV2(readCmd)
@@ -120,6 +125,8 @@ func TestReadCMD_FS_V1(t *testing.T) {
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
+	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+
 	dirName := t.TempDir()
 	if err := os.Chmod(dirName, 0700); err != nil {
 		t.Fatal(err)
@@ -134,6 +141,7 @@ func TestReadCMD_FS_V1(t *testing.T) {
 			readKeyKind: keystore.KeyStoragePublic,
 			FlagSet:     flagSet,
 			outWriter:   io.Discard,
+			extractor:   extractor,
 		}
 
 		store, err := openKeyStoreV1(readCmd)
@@ -158,6 +166,7 @@ func TestReadCMD_FS_V1(t *testing.T) {
 			readKeyKind: keystore.KeySymmetric,
 			FlagSet:     flagSet,
 			outWriter:   io.Discard,
+			extractor:   extractor,
 		}
 
 		store, err := openKeyStoreV1(readCmd)

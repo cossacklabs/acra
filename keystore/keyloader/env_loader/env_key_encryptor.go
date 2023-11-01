@@ -5,7 +5,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	baseKMS "github.com/cossacklabs/acra/keystore/kms/base"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
@@ -25,7 +25,7 @@ func NewEnvKeyEncryptorFabric(envName string) EnvKeyEncryptorFabric {
 }
 
 // NewKeyEncryptor fabric of keystore.KeyEncryptor for `env_master_key` strategy
-func (k EnvKeyEncryptorFabric) NewKeyEncryptor(extractor *cmd.ServiceParamsExtractor, prefix string) (keystore.KeyEncryptor, error) {
+func (k EnvKeyEncryptorFabric) NewKeyEncryptor(extractor *args.ServiceExtractor, prefix string) (keystore.KeyEncryptor, error) {
 	loader := NewEnvLoader(k.envName)
 
 	key, err := loader.LoadMasterKey()
@@ -36,7 +36,7 @@ func (k EnvKeyEncryptorFabric) NewKeyEncryptor(extractor *cmd.ServiceParamsExtra
 }
 
 // NewKeyEncryptorSuite fabric of crypto.KeyStoreSuite for `env_master_key` strategy
-func (k EnvKeyEncryptorFabric) NewKeyEncryptorSuite(extractor *cmd.ServiceParamsExtractor, prefix string) (*crypto.KeyStoreSuite, error) {
+func (k EnvKeyEncryptorFabric) NewKeyEncryptorSuite(extractor *args.ServiceExtractor, prefix string) (*crypto.KeyStoreSuite, error) {
 	loader := NewEnvLoader(k.envName)
 
 	encryption, signature, err := loader.LoadMasterKeys()

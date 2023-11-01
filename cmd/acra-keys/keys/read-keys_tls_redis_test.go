@@ -126,12 +126,15 @@ func TestReadCMD_TLSRedis_V2(t *testing.T) {
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
+	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+
 	t.Run("read storage-public key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			contextID:   clientID,
 			readKeyKind: keystore.KeyStoragePublic,
 			FlagSet:     flagSet,
 			outWriter:   io.Discard,
+			extractor:   extractor,
 		}
 
 		store, err := openKeyStoreV2(readCmd)
@@ -153,6 +156,7 @@ func TestReadCMD_TLSRedis_V2(t *testing.T) {
 			contextID:   clientID,
 			readKeyKind: keystore.KeySymmetric,
 			outWriter:   io.Discard,
+			extractor:   extractor,
 		}
 
 		store, err := openKeyStoreV2(readCmd)
@@ -208,6 +212,8 @@ func TestReadCMD_TLSRedis_V1(t *testing.T) {
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
+	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+
 	dirName := t.TempDir()
 
 	t.Run("read storage-public key", func(t *testing.T) {
@@ -219,6 +225,7 @@ func TestReadCMD_TLSRedis_V1(t *testing.T) {
 			contextID:   clientID,
 			readKeyKind: keystore.KeyStoragePublic,
 			outWriter:   io.Discard,
+			extractor:   extractor,
 		}
 
 		store, err := openKeyStoreV1(readCmd)
@@ -243,6 +250,7 @@ func TestReadCMD_TLSRedis_V1(t *testing.T) {
 			contextID:   clientID,
 			readKeyKind: keystore.KeySymmetric,
 			outWriter:   io.Discard,
+			extractor:   extractor,
 		}
 
 		store, err := openKeyStoreV1(readCmd)

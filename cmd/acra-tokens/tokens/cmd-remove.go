@@ -25,6 +25,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/network"
 	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
 )
@@ -32,7 +33,7 @@ import (
 // RemoveSubcommand is the "acra-tokens remove" subcommand.
 type RemoveSubcommand struct {
 	flagSet   *flag.FlagSet
-	extractor *cmd.ServiceParamsExtractor
+	extractor *args.ServiceExtractor
 	storage   CommonTokenStorageParameters
 	limits    CommonDateParameters
 
@@ -87,7 +88,7 @@ func (s *RemoveSubcommand) Parse(arguments []string) error {
 	if err != nil {
 		return err
 	}
-	s.extractor = cmd.NewServiceParamsExtractor(s.flagSet, serviceConfig)
+	s.extractor = args.NewServiceExtractor(s.flagSet, serviceConfig)
 
 	err = s.storage.Validate(s.extractor)
 	if err != nil {

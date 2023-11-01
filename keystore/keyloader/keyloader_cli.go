@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 )
 
 // represent all possible keystore strategies
@@ -41,12 +41,12 @@ func RegisterCLIParametersWithFlagSet(flags *flag.FlagSet, prefix, description s
 }
 
 // ParseCLIOptions parse registered flag.CommandLine CLIOptions
-func ParseCLIOptions(extractor *cmd.ServiceParamsExtractor) *CLIOptions {
+func ParseCLIOptions(extractor *args.ServiceExtractor) *CLIOptions {
 	return ParseCLIOptionsFromFlags(extractor, "")
 }
 
 // ParseCLIOptionsFromFlags parse registered CLIOptions
-func ParseCLIOptionsFromFlags(extractor *cmd.ServiceParamsExtractor, prefix string) *CLIOptions {
+func ParseCLIOptionsFromFlags(extractor *args.ServiceExtractor, prefix string) *CLIOptions {
 	return &CLIOptions{
 		KeystoreEncryptorType: extractor.GetString(prefix+"keystore_encryption_type", ""),
 	}

@@ -29,6 +29,7 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
@@ -86,7 +87,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	paramsExtractor := cmd.NewServiceParamsExtractor(flag.CommandLine, serviceConfig)
+	paramsExtractor := args.NewServiceExtractor(flag.CommandLine, serviceConfig)
 
 	var keystorage keystore.ServerKeyStore
 	if filesystemV2.IsKeyDirectory(*keysDir, paramsExtractor) {
@@ -183,7 +184,7 @@ func main() {
 	}
 }
 
-func openKeyStoreV1(dirPath string, extractor *cmd.ServiceParamsExtractor) keystore.ServerKeyStore {
+func openKeyStoreV1(dirPath string, extractor *args.ServiceExtractor) keystore.ServerKeyStore {
 	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
@@ -216,7 +217,7 @@ func openKeyStoreV1(dirPath string, extractor *cmd.ServiceParamsExtractor) keyst
 	return keyStoreV1
 }
 
-func openKeyStoreV2(keyDirPath string, extractor *cmd.ServiceParamsExtractor) keystore.ServerKeyStore {
+func openKeyStoreV2(keyDirPath string, extractor *args.ServiceExtractor) keystore.ServerKeyStore {
 	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")

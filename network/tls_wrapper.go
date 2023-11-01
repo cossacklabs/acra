@@ -29,6 +29,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/logging"
 )
 
@@ -126,16 +127,10 @@ func RegisterTLSArgsForService(flags *flag.FlagSet, isClient bool, name string, 
 	RegisterCertVerifierArgsForService(flags, name, namerFunc)
 }
 
-type ParamsExtractor interface {
-	GetString(param, generalParam string) string
-	GetBool(param, generalParam string) bool
-	GetInt(param, generalParam string) int
-}
-
 // NewTLSConfigByName returns config related to flags registered via RegisterTLSArgsForService. `host` will be used as
 // ServerName in tls.Config for connection as client to verify server's certificate.
 // If <name>_tls_sni flag specified, then will be used SNI value.
-func NewTLSConfigByName(extractor ParamsExtractor, name, host string, namerFunc CLIParamNameConstructorFunc) (*tls.Config, error) {
+func NewTLSConfigByName(extractor *args.ServiceExtractor, name, host string, namerFunc CLIParamNameConstructorFunc) (*tls.Config, error) {
 	var (
 		ca   = extractor.GetString(namerFunc(name, "ca", ""), "tls_ca")
 		sni  = extractor.GetString(namerFunc(name, "sni", ""), "")

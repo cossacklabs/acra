@@ -26,6 +26,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
@@ -99,7 +100,7 @@ type ExportKeysSubcommand struct {
 	CommonKeyStoreParameters
 	CommonExportImportParameters
 	FlagSet   *flag.FlagSet
-	extractor *cmd.ServiceParamsExtractor
+	extractor *args.ServiceExtractor
 	exporter  keystore.Exporter
 
 	exportIDs     []keystore.ExportID
@@ -107,7 +108,8 @@ type ExportKeysSubcommand struct {
 	exportPrivate bool
 }
 
-func (p *ExportKeysSubcommand) GetExtractor() *cmd.ServiceParamsExtractor {
+// GetExtractor return ServiceParamsExtractor
+func (p *ExportKeysSubcommand) GetExtractor() *args.ServiceExtractor {
 	return p.extractor
 }
 
@@ -149,7 +151,7 @@ func (p *ExportKeysSubcommand) Parse(arguments []string) error {
 		return err
 	}
 
-	p.extractor = cmd.NewServiceParamsExtractor(p.FlagSet, serviceConfig)
+	p.extractor = args.NewServiceExtractor(p.FlagSet, serviceConfig)
 	err = p.CommonExportImportParameters.validate()
 	if err != nil {
 		return err

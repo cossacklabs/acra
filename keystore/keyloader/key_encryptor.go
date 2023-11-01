@@ -7,7 +7,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/kms/base"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
@@ -24,8 +24,8 @@ var keyEncryptorFabrics = map[string]KeyEncryptorFabric{}
 // KeyEncryptorFabric represent Fabric interface for constructing keystore.KeyEncryptor for v1 keystore and crypto.KeyStoreSuite for v2
 type KeyEncryptorFabric interface {
 	RegisterCLIParameters(flags *flag.FlagSet, prefix, description string)
-	NewKeyEncryptor(extractor *cmd.ServiceParamsExtractor, prefix string) (keystore.KeyEncryptor, error)
-	NewKeyEncryptorSuite(extractor *cmd.ServiceParamsExtractor, prefix string) (*crypto.KeyStoreSuite, error)
+	NewKeyEncryptor(extractor *args.ServiceExtractor, prefix string) (keystore.KeyEncryptor, error)
+	NewKeyEncryptorSuite(extractor *args.ServiceExtractor, prefix string) (*crypto.KeyStoreSuite, error)
 	GetKeyMapper() base.KeyMapper
 }
 
@@ -44,7 +44,7 @@ type MasterKeyLoader interface {
 }
 
 // CreateKeyEncryptor returns initialized keystore.KeyEncryptor interface depending on incoming keystoreStrategy
-func CreateKeyEncryptor(extractor *cmd.ServiceParamsExtractor, prefix string) (keystore.KeyEncryptor, error) {
+func CreateKeyEncryptor(extractor *args.ServiceExtractor, prefix string) (keystore.KeyEncryptor, error) {
 	cliOptions := ParseCLIOptionsFromFlags(extractor, prefix)
 
 	keyEncryptorFabric, ok := keyEncryptorFabrics[cliOptions.KeystoreEncryptorType]
@@ -58,7 +58,7 @@ func CreateKeyEncryptor(extractor *cmd.ServiceParamsExtractor, prefix string) (k
 }
 
 // CreateKeyEncryptorSuite returns initialized crypto.KeyStoreSuite interface depending on incoming keystoreStrategy
-func CreateKeyEncryptorSuite(extractor *cmd.ServiceParamsExtractor, prefix string) (*crypto.KeyStoreSuite, error) {
+func CreateKeyEncryptorSuite(extractor *args.ServiceExtractor, prefix string) (*crypto.KeyStoreSuite, error) {
 	cliOptions := ParseCLIOptionsFromFlags(extractor, prefix)
 
 	keyEncryptorFabric, ok := keyEncryptorFabrics[cliOptions.KeystoreEncryptorType]
