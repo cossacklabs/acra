@@ -220,6 +220,7 @@ func realMain() error {
 	debug := argsExtractor.GetBool("d", "")
 	logToConsole := argsExtractor.GetBool("log_to_console", "")
 	logToFile := argsExtractor.GetString("log_to_file", "")
+	network.SetTLSBaseArgs(argsExtractor)
 
 	if os.Getenv(GracefulRestartEnv) == "true" {
 		// if process is forked, here we are blocked on reading signal from parent process (via pipe). When signal is read,

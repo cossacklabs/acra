@@ -312,17 +312,13 @@ func DumpConfigFromFlagSets(flagSets []*flag_.FlagSet, configPath, serviceName s
 	return nil
 }
 
-func checkVersion(config map[string]interface{}) error {
-	if config == nil {
+func checkVersion(config map[string]string) error {
+	if config == nil || len(config) == 0 {
 		return nil
 	}
-	configVersion, ok := config["version"]
+	versionValue, ok := config["version"]
 	if !ok {
 		return errors.New("config hasn't version key")
-	}
-	versionValue, ok := configVersion.(string)
-	if !ok {
-		return errors.New("value of version is not string")
 	}
 
 	version, err := utils.ParseVersion(versionValue)
@@ -378,6 +374,10 @@ func ParseConfig(configPath, serviceName string) (map[string]string, error) {
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	if err = checkVersion(result); err != nil {
+		return nil, err
 	}
 
 	return result, nil

@@ -98,7 +98,6 @@ func main() {
 	sqlUpdate := argsExtractor.GetString("sql_update", "")
 	connectionString := argsExtractor.GetString("db_connection_string", "")
 	useMysql := argsExtractor.GetBool("mysql_enable", "")
-	_ = argsExtractor.GetBool("postgresql_enable", "")
 	dryRun := argsExtractor.GetBool("dry-run", "")
 	dbTLSEnabled := argsExtractor.GetBool("tls_database_enabled", "")
 

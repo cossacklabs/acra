@@ -97,6 +97,11 @@ func parseParameters(subcommands []Subcommand) (Subcommand, error) {
 	if err != nil {
 		return nil, err
 	}
+	_, err = cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		return nil, err
+	}
+
 	names := make([]string, len(subcommands))
 	for i, command := range subcommands {
 		names[i] = command.Name()

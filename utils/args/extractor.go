@@ -31,7 +31,9 @@ func (e *ServiceExtractor) GetString(param, generalParam string) string {
 	}
 
 	if rawValue, ok := e.configData[param]; ok {
-		return rawValue
+		if rawValue != "" {
+			return rawValue
+		}
 	}
 
 	if generalParam != "" {

@@ -100,7 +100,6 @@ func NewCertVerifier() (CertVerifier, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(ocspConfig)
 
 	crlConfig, err := NewCRLConfig(tlsCrlURL, tlsCrlFromCert, tlsCrlCheckOnlyLeafCertificate, tlsCrlCacheSize, tlsCrlCacheTime)
 	if err != nil {
