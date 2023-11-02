@@ -8,12 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 func TestExport_Import_CMD_FS_V1(t *testing.T) {
@@ -32,7 +32,7 @@ func TestExport_Import_CMD_FS_V1(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+	extractor := args.NewServiceExtractor(flagSet, map[string]string{})
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
@@ -409,7 +409,7 @@ func TestExport_Import_CMD_FS_V1_Invalid_Cases(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+	extractor := args.NewServiceExtractor(flagSet, map[string]string{})
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
@@ -681,7 +681,7 @@ func TestExport_Import_CMD_FS_V2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+	extractor := args.NewServiceExtractor(flagSet, map[string]string{})
 
 	t.Run("export/import keys by keyID and path (storage/symmetric)", func(t *testing.T) {
 

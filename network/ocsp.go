@@ -30,7 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ocsp"
 
-	"github.com/cossacklabs/acra/cmd/args"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // Errors returned by OCSP verifier

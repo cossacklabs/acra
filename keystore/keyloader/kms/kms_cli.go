@@ -8,8 +8,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore/kms/base"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // ErrUnknownKMSType error displaying unknown KMS type provided by flags

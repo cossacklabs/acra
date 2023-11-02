@@ -23,8 +23,8 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/utils/args"
 
 	goRedis "github.com/go-redis/redis/v7"
 	log "github.com/sirupsen/logrus"

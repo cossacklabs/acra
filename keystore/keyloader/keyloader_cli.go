@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cossacklabs/acra/cmd/args"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // represent all possible keystore strategies

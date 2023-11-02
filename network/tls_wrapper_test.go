@@ -24,8 +24,8 @@ import (
 	"golang.org/x/crypto/ocsp"
 	"google.golang.org/grpc/credentials"
 
-	args2 "github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/network/testutils"
+	args2 "github.com/cossacklabs/acra/utils/args"
 	"github.com/cossacklabs/acra/utils/tests"
 )
 
@@ -704,7 +704,6 @@ func TestNewTLSConfigByName(t *testing.T) {
 	baseKey := rootPath + "/tests/ssl/acra-client/acra-client.key"
 	baseAuth := 4
 	invalidAuth := 0
-	emptyStr := ""
 
 	invalidPath := "invalid"
 	getRefForConst := func(val string) *string {
@@ -728,10 +727,6 @@ func TestNewTLSConfigByName(t *testing.T) {
 			baseCa: &baseCa, baseKey: &baseKey, baseCrt: &baseCrt, baseAuth: &baseAuth, baseOCSPUrl: &ocspURL,
 			baseCRLUrl: &crlURL, baseCRLFromCert: getRefForConst(CrlFromCertIgnoreStr),
 			baseOCSPRequired: getRefForConst(OcspRequiredGoodStr), baseOCSPFromCert: getRefForConst(OcspFromCertIgnoreStr),
-
-			clientCa: &emptyStr, clientCrt: &emptyStr, clientKey: &emptyStr, clientAuth: &baseAuth,
-			clientOCSPUrl: &emptyStr, clientCRLUrl: &emptyStr,
-			clientCRLFromCert: &emptyStr, clientOCSPRequired: &emptyStr, clientOCSPFromCert: &emptyStr,
 
 			expectedCa: baseCa, expectedCrt: baseCrt, expectedKey: baseKey, expectedAuth: baseAuth, verificationErr: nil,
 		},
@@ -817,7 +812,7 @@ func TestNewTLSConfigByName(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		extractor := args2.NewServiceExtractor(&flagset, make(map[string]interface{}))
+		extractor := args2.NewServiceExtractor(&flagset, make(map[string]string))
 
 		tlsConfig, err := NewTLSConfigByName(extractor, "", "localhost", ClientNameConstructorFunc())
 		if err != tcase.expectedConfigErr {

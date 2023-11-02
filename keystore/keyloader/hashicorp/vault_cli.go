@@ -13,8 +13,8 @@ import (
 	"github.com/hashicorp/vault/api"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // ErrEmptyConnectionURL error displaying empty Hashicorp Vault connection URL

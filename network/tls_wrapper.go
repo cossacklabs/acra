@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"time"
@@ -29,8 +30,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // allowedCipherSuits that set in default tls clientConfig
@@ -112,6 +113,23 @@ func RegisterTLSBaseArgs(flags *flag.FlagSet) {
 	RegisterCertVerifierArgs(flags)
 }
 
+// SetTLSBaseArgs set global TLS flags from args.ServiceExtractor
+func SetTLSBaseArgs(extractor *args.ServiceExtractor) {
+	tlsCA = extractor.GetString("tls_ca", "")
+	tlsKey = extractor.GetString("tls_key", "")
+	tlsCert = extractor.GetString("tls_cert", "")
+	tlsAuthType = extractor.GetInt("tls_auth", "")
+	tlsOcspURL = extractor.GetString("tls_ocsp_url", "")
+	tlsOcspRequired = extractor.GetString("tls_ocsp_required", "")
+	tlsOcspFromCert = extractor.GetString("tls_ocsp_from_cert", "")
+	tlsOcspCheckOnlyLeafCertificate = extractor.GetBool("tls_ocsp_check_only_leaf_certificate", "")
+	tlsCrlURL = extractor.GetString("tls_crl_url", "")
+	tlsCrlFromCert = extractor.GetString("tls_crl_from_cert", "")
+	tlsCrlCheckOnlyLeafCertificate = extractor.GetBool("tls_crl_check_only_leaf_certificate", "")
+	tlsCrlCacheSize = uint(extractor.GetInt("tls_crl_cache_size", ""))
+	tlsCrlCacheTime = uint(extractor.GetInt("tls_crl_cache_time", ""))
+}
+
 // RegisterTLSArgsForService register CLI args tls_ca|tls_key|tls_cert|tls_auth and flags for certificate verifier
 // which allow to get tls.Config by NewTLSConfigByName function
 func RegisterTLSArgsForService(flags *flag.FlagSet, isClient bool, name string, namerFunc CLIParamNameConstructorFunc) {
@@ -138,6 +156,10 @@ func NewTLSConfigByName(extractor *args.ServiceExtractor, name, host string, nam
 		key  = extractor.GetString(namerFunc(name, "key", ""), "tls_key")
 	)
 
+	fmt.Println(ca)
+	fmt.Println(sni)
+	fmt.Println(cert)
+	fmt.Println(key)
 	v := extractor.GetInt(namerFunc(name, "auth", ""), "")
 	if v == tlsAuthNotSet {
 		v = tlsAuthType

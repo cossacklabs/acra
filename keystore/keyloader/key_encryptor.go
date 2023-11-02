@@ -7,10 +7,10 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/kms/base"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 var (

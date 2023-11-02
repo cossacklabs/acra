@@ -3,7 +3,7 @@ package filesystem
 import (
 	"flag"
 
-	"github.com/cossacklabs/acra/cmd/args"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // CLIOptions keep command-line options related to Consul encryptor config loader.

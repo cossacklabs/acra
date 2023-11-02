@@ -28,10 +28,10 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 func TestRotateSymmetricKey(t *testing.T) {
@@ -58,7 +58,7 @@ func TestRotateSymmetricKey(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+	extractor := args.NewServiceExtractor(flagSet, map[string]string{})
 
 	clientID := []byte("client")
 	generateCmd := &GenerateKeySubcommand{

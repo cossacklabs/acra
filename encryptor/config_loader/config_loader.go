@@ -8,8 +8,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/encryptor"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // represent all possible encryptor config loader types

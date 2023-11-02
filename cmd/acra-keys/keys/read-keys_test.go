@@ -23,11 +23,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 func TestReadCMD_FS_V2(t *testing.T) {
@@ -53,7 +53,7 @@ func TestReadCMD_FS_V2(t *testing.T) {
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
-	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+	extractor := args.NewServiceExtractor(flagSet, map[string]string{})
 
 	t.Run("read storage-public key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
@@ -125,7 +125,7 @@ func TestReadCMD_FS_V1(t *testing.T) {
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
-	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+	extractor := args.NewServiceExtractor(flagSet, map[string]string{})
 
 	dirName := t.TempDir()
 	if err := os.Chmod(dirName, 0700); err != nil {

@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/utils/args"
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"

@@ -22,8 +22,8 @@ import (
 	"flag"
 	"os"
 
-	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/utils/args"
 
 	log "github.com/sirupsen/logrus"
 	bolt "go.etcd.io/bbolt"

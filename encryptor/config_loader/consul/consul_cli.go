@@ -8,8 +8,8 @@ import (
 	"github.com/hashicorp/go-cleanhttp"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 const defaultConsulConfiPath = "acra/encryptor_config"

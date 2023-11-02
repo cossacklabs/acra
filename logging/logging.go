@@ -28,7 +28,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -148,12 +147,6 @@ func GetLoggerFromContextOk(ctx context.Context) (*log.Entry, bool) {
 var logToConsole bool
 var logToFile string
 
-// RegisterCLIArgs register cli args with flag used to configure logging
-func RegisterCLIArgs() {
-	flag.BoolVar(&logToConsole, "log_to_console", true, "Log to stderr if true")
-	flag.StringVar(&logToFile, "log_to_file", "", "Log to file if pass not empty value")
-}
-
 // Set of error values related to enterprise logging
 var (
 	ErrUnexpectedFormat          = errors.New("unexpected log entry format")
@@ -165,7 +158,7 @@ var (
 )
 
 // NewWriter creates writer that outputs logs into stdout and also into file if necessary
-func NewWriter() (io.Writer, func(), error) {
+func NewWriter(logToConsole bool, logToFile string) (io.Writer, func(), error) {
 	var writer []io.Writer
 	if logToConsole {
 		writer = append(writer, os.Stderr)

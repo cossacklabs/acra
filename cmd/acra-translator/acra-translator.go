@@ -41,7 +41,6 @@ import (
 	_ "github.com/cossacklabs/acra/cmd/acra-translator/docs"
 	"github.com/cossacklabs/acra/cmd/acra-translator/grpc_api"
 	"github.com/cossacklabs/acra/cmd/acra-translator/server"
-	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
@@ -56,6 +55,7 @@ import (
 	common2 "github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/pseudonymization/storage"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/utils/args"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -109,40 +109,38 @@ var ErrPipeWrite = errors.New("can't write exit signal to pipe")
 // ErrPipeReadWrongSignal occurs if we read unexpected signal from pipe between parent and forked processes
 var ErrPipeReadWrongSignal = errors.New("wrong signal has been read from pipe")
 
-func realMain() error {
-	config := common.NewConfig()
-	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
-
-	incomingConnectionHTTPString := flag.String("incoming_connection_http_string", "", "Connection string for HTTP transport like http://0.0.0.0:9595")
-	incomingConnectionGRPCString := flag.String("incoming_connection_grpc_string", "", "Default option: connection string for gRPC transport like grpc://0.0.0.0:9696")
-
-	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
-	cacheKeystoreOnStart := flag.Bool("keystore_cache_on_start_enable", true, "Load all keys to cache on start")
-	keysCacheSize := flag.Int("keystore_cache_size", keystore.DefaultCacheSize, fmt.Sprintf("Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache. Default is %d", keystore.DefaultCacheSize))
-
-	detectPoisonRecords := flag.Bool("poison_detect_enable", false, "Turn on poison record detection, if server shutdown is disabled, AcraTranslator logs the poison record detection and returns error")
-	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "On detecting poison record: log about poison record detection, stop and shutdown")
-	scriptOnPoison := flag.String("poison_run_script_file", "", "On detecting poison record: log about poison record detection, execute script, return decrypted data")
-
-	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DefaultAcraTranslatorWaitTimeout, "Time that AcraTranslator will wait (in seconds) on stop signal before closing all connections")
-
-	prometheusAddress := flag.String("incoming_connection_prometheus_metrics_string", "", "URL which will be used to expose Prometheus metrics (use <URL>/metrics address to pull metrics)")
-	boltTokenbDB := flag.String("token_db", "", "Path to BoltDB database file to store tokens")
-
-	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
-	useClientIDFromConnection := flag.Bool("acratranslator_client_id_from_connection_enable", false, "Use clientID from TLS certificates or secure session handshake instead directly passed values in gRPC methods")
-	enableAuditLog := flag.Bool("audit_log_enable", false, "Enable audit log functionality")
+func registerFlags(flagSet *flag.FlagSet) {
+	flagSet.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
+	flagSet.String("incoming_connection_http_string", "", "Connection string for HTTP transport like http://0.0.0.0:9595")
+	flagSet.String("incoming_connection_grpc_string", "", "Default option: connection string for gRPC transport like grpc://0.0.0.0:9696")
+	flagSet.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
+	flagSet.Bool("keystore_cache_on_start_enable", true, "Load all keys to cache on start")
+	flagSet.Int("keystore_cache_size", keystore.DefaultCacheSize, fmt.Sprintf("Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache. Default is %d", keystore.DefaultCacheSize))
+	flagSet.Bool("poison_detect_enable", false, "Turn on poison record detection, if server shutdown is disabled, AcraTranslator logs the poison record detection and returns error")
+	flagSet.Bool("poison_shutdown_enable", false, "On detecting poison record: log about poison record detection, stop and shutdown")
+	flagSet.String("poison_run_script_file", "", "On detecting poison record: log about poison record detection, execute script, return decrypted data")
+	flagSet.Int("incoming_connection_close_timeout", DefaultAcraTranslatorWaitTimeout, "Time that AcraTranslator will wait (in seconds) on stop signal before closing all connections")
+	flagSet.String("incoming_connection_prometheus_metrics_string", "", "URL which will be used to expose Prometheus metrics (use <URL>/metrics address to pull metrics)")
+	flagSet.String("token_db", "", "Path to BoltDB database file to store tokens")
+	flagSet.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
+	flagSet.Bool("acratranslator_client_id_from_connection_enable", false, "Use clientID from TLS certificates or secure session handshake instead directly passed values in gRPC methods")
+	flagSet.Bool("audit_log_enable", false, "Enable audit log functionality")
+	flagSet.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
+	flagSet.Bool("d", false, "Log everything to stderr")
+	flagSet.Bool("log_to_console", true, "Log to stderr if true")
+	flagSet.String("log_to_file", "", "Log to file if pass not empty value")
 
 	cmd.RegisterRedisKeystoreParameters()
 	cmd.RegisterRedisTokenStoreParameters()
 	keyloader.RegisterKeyStoreStrategyParameters()
 	cmd.RegisterTracingCmdParameters()
 	cmd.RegisterJaegerCmdParameters()
-	logging.RegisterCLIArgs()
-	network.RegisterTLSBaseArgs(flag.CommandLine)
+	network.RegisterTLSBaseArgs(flagSet)
+}
 
-	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
-	debug := flag.Bool("d", false, "Log everything to stderr")
+func realMain() error {
+	config := common.NewConfig()
+	registerFlags(flag.CommandLine)
 
 	if err := cmd.ParseFlags(flag.CommandLine, os.Args[1:]); err != nil {
 		if err == cmd.ErrDumpRequested {
@@ -164,11 +162,32 @@ func realMain() error {
 
 	paramsExtractor := args.NewServiceExtractor(flag.CommandLine, serviceConfig)
 
+	loggingFormat := paramsExtractor.GetString("logging_format", "")
+	incomingConnectionHTTPString := paramsExtractor.GetString("incoming_connection_http_string", "")
+	incomingConnectionGRPCString := paramsExtractor.GetString("incoming_connection_grpc_string", "")
+	keysDir := paramsExtractor.GetString("keys_dir", "")
+	cacheKeystoreOnStart := paramsExtractor.GetBool("keystore_cache_on_start_enable", "")
+	keysCacheSize := paramsExtractor.GetInt("keystore_cache_size", "")
+	detectPoisonRecords := paramsExtractor.GetBool("poison_detect_enable", "")
+	stopOnPoison := paramsExtractor.GetBool("poison_shutdown_enable", "")
+	scriptOnPoison := paramsExtractor.GetString("poison_run_script_file", "")
+	closeConnectionTimeout := paramsExtractor.GetInt("incoming_connection_close_timeout", "")
+	prometheusAddress := paramsExtractor.GetString("incoming_connection_prometheus_metrics_string", "")
+	boltTokenbDB := paramsExtractor.GetString("token_db", "")
+	tlsIdentifierExtractorType := paramsExtractor.GetString("tls_identifier_extractor_type", "")
+	useClientIDFromConnection := paramsExtractor.GetBool("acratranslator_client_id_from_connection_enable", "")
+	enableAuditLog := paramsExtractor.GetBool("audit_log_enable", "")
+	logToConsole := paramsExtractor.GetBool("log_to_console", "")
+	logToFile := paramsExtractor.GetString("log_to_file", "")
+	verbose := paramsExtractor.GetBool("v", "")
+	debug := paramsExtractor.GetBool("d", "")
+	network.SetTLSBaseArgs(paramsExtractor)
+
 	if os.Getenv(GracefulRestartEnv) == "true" {
 		// if process is forked, here we are blocked on reading signal from parent process (via pipe). When signal is read,
 		// it means that parent process will not log any messages and now forked process is allowed to start logging. We should
 		// wait a bit longer than parent process while closing connections, since there is minimal time-delta on exiting from parent process
-		err := waitReadPipe(time.Duration(*closeConnectionTimeout+1) * time.Second)
+		err := waitReadPipe(time.Duration(closeConnectionTimeout+1) * time.Second)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantForkProcess).
 				Errorln("Error occurred while reading signal from pipe")
@@ -177,12 +196,12 @@ func realMain() error {
 	}
 
 	// Start customizing logs here (directly after command line arguments parsing)
-	formatter := logging.CreateCryptoFormatter(*loggingFormat)
+	formatter := logging.CreateCryptoFormatter(loggingFormat)
 	// Set formatter early in order to have consistent format for further logs
 	formatter.SetServiceName(ServiceName)
 	log.SetFormatter(formatter)
 
-	writer, logFinalize, err := logging.NewWriter()
+	writer, logFinalize, err := logging.NewWriter(logToConsole, logToFile)
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialise output writer for logging customization")
 		return err
@@ -192,40 +211,40 @@ func realMain() error {
 
 	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
 	log.Infof("Validating service configuration...")
-	if len(*incomingConnectionHTTPString) == 0 && len(*incomingConnectionGRPCString) == 0 {
-		*incomingConnectionGRPCString = network.BuildConnectionString(network.GRPCScheme, cmd.DefaultAcraTranslatorGRPCHost, cmd.DefaultAcraTranslatorGRPCPort, "")
-		log.Infof("No incoming connection string is set: by default gRPC connections are being listen %v", *incomingConnectionGRPCString)
+	if len(incomingConnectionHTTPString) == 0 && len(incomingConnectionGRPCString) == 0 {
+		incomingConnectionGRPCString = network.BuildConnectionString(network.GRPCScheme, cmd.DefaultAcraTranslatorGRPCHost, cmd.DefaultAcraTranslatorGRPCPort, "")
+		log.Infof("No incoming connection string is set: by default gRPC connections are being listen %v", incomingConnectionGRPCString)
 	}
 
 	// now it's stub as default values
-	config.SetDetectPoisonRecords(*detectPoisonRecords)
-	config.SetStopOnPoison(*stopOnPoison)
-	config.SetScriptOnPoison(*scriptOnPoison)
-	config.SetKeysDir(*keysDir)
-	config.SetIncomingConnectionHTTPString(*incomingConnectionHTTPString)
-	config.SetIncomingConnectionGRPCString(*incomingConnectionGRPCString)
+	config.SetDetectPoisonRecords(detectPoisonRecords)
+	config.SetStopOnPoison(stopOnPoison)
+	config.SetScriptOnPoison(scriptOnPoison)
+	config.SetKeysDir(keysDir)
+	config.SetIncomingConnectionHTTPString(incomingConnectionHTTPString)
+	config.SetIncomingConnectionGRPCString(incomingConnectionGRPCString)
 	config.SetConfigPath(DefaultConfigPath)
-	config.SetDebug(*debug)
+	config.SetDebug(debug)
 	config.SetTraceToLog(cmd.IsTraceToLogOn())
-	config.SetUseClientIDFromConnection(*useClientIDFromConnection)
+	config.SetUseClientIDFromConnection(useClientIDFromConnection)
 
 	cmd.SetupTracing(ServiceName)
 
 	log.Infof("Initialising keystore...")
 	var keyStore keystore.ServerKeyStore
 	var transportKeystore keystore.TranslationKeyStore
-	if filesystem2.IsKeyDirectory(*keysDir, paramsExtractor) {
-		keyStore, transportKeystore, err = openKeyStoreV2(*keysDir, *keysCacheSize, paramsExtractor)
+	if filesystem2.IsKeyDirectory(keysDir, paramsExtractor) {
+		keyStore, transportKeystore, err = openKeyStoreV2(keysDir, keysCacheSize, paramsExtractor)
 	} else {
-		keyStore, transportKeystore, err = openKeyStoreV1(*keysDir, *keysCacheSize, paramsExtractor)
+		keyStore, transportKeystore, err = openKeyStoreV1(keysDir, keysCacheSize, paramsExtractor)
 	}
 	if err != nil {
 		log.WithError(err).Errorln("Can't open keyStore")
 		return err
 	}
 
-	if *cacheKeystoreOnStart {
-		if *keysCacheSize == keystore.WithoutCache {
+	if cacheKeystoreOnStart {
+		if keysCacheSize == keystore.WithoutCache {
 			log.Errorln("Can't cache on start with disabled cache")
 			os.Exit(1)
 		}
@@ -247,12 +266,12 @@ func realMain() error {
 		return err
 	}
 
-	if *debug {
+	if debug {
 		log.SetLevel(log.DebugLevel)
 	}
 
 	var auditLogHandler *logging.AuditLogHandler
-	if *enableAuditLog {
+	if enableAuditLog {
 		/*
 			Audit log feature relies on Go's defer functions mechanism for the correct finalization. For this reason,
 			developers shouldn't use logging messages inside defer functions. Otherwise, those messages may be lost
@@ -262,7 +281,7 @@ func realMain() error {
 			log.WithError(err).Errorln("Can't fetch log key from keystore")
 			return err
 		}
-		hooks, err := logging.NewHooks(auditLogKey, *loggingFormat)
+		hooks, err := logging.NewHooks(auditLogKey, loggingFormat)
 		if err != nil {
 			log.WithError(err).Errorln("Can't create hooks")
 			return err
@@ -294,7 +313,7 @@ func realMain() error {
 	// --------- Config  -----------
 	log.Infof("Configuring transport...")
 
-	log.WithField("client_id_from_connection", *useClientIDFromConnection).Infoln("Selecting transport: use TLS transport wrapper")
+	log.WithField("client_id_from_connection", useClientIDFromConnection).Infoln("Selecting transport: use TLS transport wrapper")
 	tlsConfig, err := network.NewTLSConfigFromBaseArgs()
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
@@ -308,9 +327,9 @@ func realMain() error {
 		log.WithError(err).Errorln("Can't initialize identifier converter")
 		os.Exit(1)
 	}
-	identifierExtractor, err := network.NewIdentifierExtractorByType(*tlsIdentifierExtractorType)
+	identifierExtractor, err := network.NewIdentifierExtractorByType(tlsIdentifierExtractorType)
 	if err != nil {
-		log.WithField("type", *tlsIdentifierExtractorType).WithError(err).Errorln("Can't initialize identifier extractor")
+		log.WithField("type", tlsIdentifierExtractorType).WithError(err).Errorln("Can't initialize identifier extractor")
 		os.Exit(1)
 	}
 	clientIDExtractor, err = network.NewTLSClientIDExtractor(identifierExtractor, idConverter)
@@ -321,7 +340,7 @@ func realMain() error {
 	config.SetTLSClientIDExtractor(clientIDExtractor)
 
 	// client's config nil because we don't need to establish tls connection with database or any third side
-	tlsWrapper, err := network.NewTLSAuthenticationConnectionWrapper(*useClientIDFromConnection, nil, tlsConfig, clientIDExtractor)
+	tlsWrapper, err := network.NewTLSAuthenticationConnectionWrapper(useClientIDFromConnection, nil, tlsConfig, clientIDExtractor)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).Errorln("Can't initialize TLS connection wrapper")
 		os.Exit(1)
@@ -341,9 +360,9 @@ func realMain() error {
 	}
 	var tokenStorage common2.TokenStorage
 	redis := cmd.ParseRedisCLIParameters(paramsExtractor)
-	if *boltTokenbDB != "" {
+	if boltTokenbDB != "" {
 		log.Infoln("Initialize bolt db storage for tokens")
-		db, err := bolt.Open(*boltTokenbDB, 0600, nil)
+		db, err := bolt.Open(boltTokenbDB, 0600, nil)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize boltdb token storage")
 			return err
@@ -388,7 +407,7 @@ func realMain() error {
 		poisonCallbacks.AddCallback(poison.EmptyCallback{})
 		if config.ScriptOnPoison() != "" {
 			poisonCallbacks.AddCallback(poison.NewExecuteScriptCallback(config.ScriptOnPoison()))
-			log.WithField("poison_run_script_file", *scriptOnPoison).Infoln("Turned on script execution for on detected poison record")
+			log.WithField("poison_run_script_file", scriptOnPoison).Infoln("Turned on script execution for on detected poison record")
 		}
 		// should setup "stopOnPoison" as last poison record callback"
 		if config.StopOnPoison() {
@@ -410,7 +429,7 @@ func realMain() error {
 		return err
 	}
 
-	waitTimeout := time.Duration(*closeConnectionTimeout) * time.Second
+	waitTimeout := time.Duration(closeConnectionTimeout) * time.Second
 	readerServer, err := server.NewReaderServer(translatorData, grpcServer, waitTimeout)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartService).
@@ -450,11 +469,11 @@ func realMain() error {
 		sigHandlerSIGHUP.RegisterWithContext(mainContext)
 	}()
 
-	if *prometheusAddress != "" {
+	if prometheusAddress != "" {
 		common.RegisterMetrics(ServiceName)
-		_, prometheusHTTPServer, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
+		_, prometheusHTTPServer, err := cmd.RunPrometheusHTTPHandler(prometheusAddress)
 		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorPrometheusHTTPHandler).WithError(err).WithField("incoming_connection_prometheus_metrics_string", *prometheusAddress).Errorln("Can't run prometheus handler")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorPrometheusHTTPHandler).WithError(err).WithField("incoming_connection_prometheus_metrics_string", prometheusAddress).Errorln("Can't run prometheus handler")
 			return err
 		}
 		log.Infof("Configured to send metrics and stats to `incoming_connection_prometheus_metrics_string`")
@@ -470,7 +489,7 @@ func realMain() error {
 		config.GRPCConnectionWrapper.AddOnServerHandshakeCallback(common.NewMetricConnectionCallback(common.GRPCConnectionType))
 	}
 
-	if *enableAuditLog {
+	if enableAuditLog {
 		// handle SIGUSR1 signal (we use it for force refreshing of audit log chain)
 		sigHandlerSIGUSR1 := make(chan os.Signal, 1)
 
@@ -588,7 +607,7 @@ func realMain() error {
 		log.Infof("%s process forked to PID: %v", ServiceName, fork)
 
 		// Wait a maximum of N seconds for existing connections to finish
-		if utils.WaitWithTimeout(readerServer.GetConnectionManager().WaitGroup, time.Duration(*closeConnectionTimeout)*time.Second) {
+		if utils.WaitWithTimeout(readerServer.GetConnectionManager().WaitGroup, time.Duration(closeConnectionTimeout)*time.Second) {
 			log.Warningf("Server shutdown Timeout: %d active connections will be cut", readerServer.GetConnectionManager().Counter)
 		}
 		log.Infof("Server graceful restart completed, bye PID: %v", os.Getpid())
@@ -599,10 +618,10 @@ func realMain() error {
 
 	log.Infof("Setup ready. Start listening to connections. Current PID: %v", os.Getpid())
 
-	if *debug {
+	if debug {
 		log.Infof("Enabling DEBUG log level")
 		logging.SetLogLevel(logging.LogDebug)
-	} else if *verbose {
+	} else if verbose {
 		log.Infof("Enabling VERBOSE log level")
 		logging.SetLogLevel(logging.LogVerbose)
 	} else {

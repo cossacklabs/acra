@@ -28,12 +28,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 func TestPrintKeysDefault(t *testing.T) {
@@ -133,7 +133,7 @@ func TestListRotatedKeysV1(t *testing.T) {
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
-	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+	extractor := args.NewServiceExtractor(flagSet, map[string]string{})
 
 	dirName := t.TempDir()
 	if err := os.Chmod(dirName, 0700); err != nil {
@@ -258,7 +258,7 @@ func TestListRotatedKeysJSON(t *testing.T) {
 	}
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
-	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+	extractor := args.NewServiceExtractor(flagSet, map[string]string{})
 
 	dirName := t.TempDir()
 	if err := os.Chmod(dirName, 0700); err != nil {
@@ -359,7 +359,7 @@ func TestListRotatedKeysV2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+	extractor := args.NewServiceExtractor(flagSet, map[string]string{})
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
 	listCMD := &ListKeySubcommand{

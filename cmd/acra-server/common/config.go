@@ -24,7 +24,6 @@ import (
 	"go.opencensus.io/trace"
 
 	acracensor "github.com/cossacklabs/acra/acra-censor"
-	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/encryptor"
 	encryptorConfig "github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/encryptor/config_loader"
@@ -34,6 +33,7 @@ import (
 	"github.com/cossacklabs/acra/sqlparser/dialect"
 	mysqlDialect "github.com/cossacklabs/acra/sqlparser/dialect/mysql"
 	pgDialect "github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // Config describes AcraServer configuration

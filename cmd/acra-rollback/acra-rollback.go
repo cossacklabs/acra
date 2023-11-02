@@ -40,7 +40,6 @@ import (
 
 	"github.com/cossacklabs/acra/acrastruct"
 	"github.com/cossacklabs/acra/cmd"
-	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
@@ -49,6 +48,7 @@ import (
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // Constants used by AcraRollback
@@ -160,23 +160,28 @@ func (ex *WriteToFileExecutor) Close() {
 	}
 }
 
-func main() {
-	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which the keys will be loaded")
-	clientID := flag.String("client_id", "", "Client ID should be name of file with private key")
-	connectionString := flag.String("connection_string", "", "Connection string for DB PostgreSQL(postgresql://{user}:{password}@{host}:{port}/{dbname}?sslmode={sslmode}), MySQL ({user}:{password}@tcp({host}:{port})/{dbname})")
-	sqlSelect := flag.String("select", "", "Query to fetch data for decryption")
-	sqlInsert := flag.String("insert", "", "Query for insert decrypted data with placeholders (pg: $n, mysql: ?)")
-	outputFile := flag.String("output_file", "decrypted.sql", "File for store inserts queries")
-	execute := flag.Bool("execute", false, "Execute inserts")
-	escapeFormat := flag.Bool("escape", false, "Escape bytea format")
-	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
-	usePostgresql := flag.Bool("postgresql_enable", false, "Handle Postgresql connections")
-	dbTLSEnabled := flag.Bool("tls_database_enabled", false, "Enable TLS for DB")
+func registerFlags(flagSet *flag.FlagSet) {
+	flagSet.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which the keys will be loaded")
+	flagSet.String("client_id", "", "Client ID should be name of file with private key")
+	flagSet.String("connection_string", "", "Connection string for DB PostgreSQL(postgresql://{user}:{password}@{host}:{port}/{dbname}?sslmode={sslmode}), MySQL ({user}:{password}@tcp({host}:{port})/{dbname})")
+	flagSet.String("select", "", "Query to fetch data for decryption")
+	flagSet.String("insert", "", "Query for insert decrypted data with placeholders (pg: $n, mysql: ?)")
+	flagSet.String("output_file", "decrypted.sql", "File for store inserts queries")
+	flagSet.Bool("execute", false, "Execute inserts")
+	flagSet.Bool("escape", false, "Escape bytea format")
+	flagSet.Bool("mysql_enable", false, "Handle MySQL connections")
+	flagSet.Bool("postgresql_enable", false, "Handle Postgresql connections")
+	flagSet.Bool("tls_database_enabled", false, "Enable TLS for DB")
 
-	network.RegisterTLSArgsForService(flag.CommandLine, true, "", network.DatabaseNameConstructorFunc())
-	network.RegisterTLSBaseArgs(flag.CommandLine)
+	network.RegisterTLSArgsForService(flagSet, true, "", network.DatabaseNameConstructorFunc())
+	network.RegisterTLSBaseArgs(flagSet)
 	keyloader.RegisterKeyStoreStrategyParameters()
+
+}
+
+func main() {
 	logging.SetLogLevel(logging.LogVerbose)
+	registerFlags(flag.CommandLine)
 
 	if err := cmd.ParseFlags(flag.CommandLine, os.Args[1:]); err != nil {
 		if err == cmd.ErrDumpRequested {
@@ -198,52 +203,64 @@ func main() {
 
 	paramsExtractor := args.NewServiceExtractor(flag.CommandLine, serviceConfig)
 
-	twoDrivers := *useMysql && *usePostgresql
-	noDrivers := !(*useMysql || *usePostgresql)
+	keysDir := paramsExtractor.GetString("keys_dir", "")
+	clientID := paramsExtractor.GetString("client_id", "")
+	connectionString := paramsExtractor.GetString("connection_string", "")
+	sqlSelect := paramsExtractor.GetString("select", "")
+	sqlInsert := paramsExtractor.GetString("insert", "")
+	outputFile := paramsExtractor.GetString("output_file", "")
+	execute := paramsExtractor.GetBool("execute", "")
+	escapeFormat := paramsExtractor.GetBool("escape", "")
+	useMysql := paramsExtractor.GetBool("mysql_enable", "")
+	usePostgresql := paramsExtractor.GetBool("postgresql_enable", "")
+	dbTLSEnabled := paramsExtractor.GetBool("tls_database_enabled", "")
+
+	twoDrivers := useMysql && usePostgresql
+	noDrivers := !(useMysql || usePostgresql)
 	if twoDrivers || noDrivers {
 		log.Errorln("You must pass only --mysql_enable or --postgresql_enable (one required)")
 		os.Exit(1)
 	}
-	if *useMysql {
+	if useMysql {
 		PLACEHOLDER = "?"
 	}
 
-	if !strings.Contains(*sqlInsert, PLACEHOLDER) {
+	if !strings.Contains(sqlInsert, PLACEHOLDER) {
 		log.Errorln("SQL INSERT statement doesn't contain any placeholders")
 		os.Exit(1)
 	}
 
-	if *connectionString == "" {
+	if connectionString == "" {
 		log.Errorln("Connection_string arg is missing")
 		os.Exit(1)
 	}
 
-	cmd.ValidateClientID(*clientID)
+	cmd.ValidateClientID(clientID)
 
-	if *sqlSelect == "" {
+	if sqlSelect == "" {
 		log.Errorln("Sql_select arg is missing")
 		os.Exit(1)
 	}
-	if *sqlInsert == "" {
+	if sqlInsert == "" {
 		log.Errorln("Sql_insert arg is missing")
 		os.Exit(1)
 	}
 
-	if *outputFile == "" && !*execute {
+	if outputFile == "" && !execute {
 		log.Errorln("Output_file missing or execute flag")
 		os.Exit(1)
 	}
 
 	var keystorage keystore.DecryptionKeyStore
-	if filesystemV2.IsKeyDirectory(*keysDir, paramsExtractor) {
-		keystorage = openKeyStoreV2(*keysDir, paramsExtractor)
+	if filesystemV2.IsKeyDirectory(keysDir, paramsExtractor) {
+		keystorage = openKeyStoreV2(keysDir, paramsExtractor)
 	} else {
-		keystorage = openKeyStoreV1(*keysDir, paramsExtractor)
+		keystorage = openKeyStoreV1(keysDir, paramsExtractor)
 	}
 
 	var dbTLSConfig *tls.Config
-	if *dbTLSEnabled {
-		host, err := network.GetDriverConnectionStringHost(*connectionString, *useMysql)
+	if dbTLSEnabled {
+		host, err := network.GetDriverConnectionStringHost(connectionString, useMysql)
 		if err != nil {
 			log.WithError(err).Errorln("Failed to get DB host from connection URL")
 			os.Exit(1)
@@ -258,8 +275,8 @@ func main() {
 	}
 
 	var db *sql.DB
-	if *useMysql {
-		config, err := mysql.ParseDSN(*connectionString)
+	if useMysql {
+		config, err := mysql.ParseDSN(connectionString)
 		if err != nil {
 			log.WithError(err).Errorln("Can't parse connection string for MySQL driver")
 			os.Exit(1)
@@ -279,7 +296,7 @@ func main() {
 		}
 		db = sql.OpenDB(connector)
 	} else {
-		config, err := pgx.ParseConfig(*connectionString)
+		config, err := pgx.ParseConfig(connectionString)
 		if err != nil {
 			log.WithError(err).Errorln("Can't parse config ")
 			os.Exit(1)
@@ -298,27 +315,27 @@ func main() {
 		log.WithError(err).Errorln("Can't connect to db")
 		os.Exit(1)
 	}
-	rows, err := db.Query(*sqlSelect)
+	rows, err := db.Query(sqlSelect)
 	if err != nil {
-		log.WithError(err).Errorf("Error with select query '%v'", *sqlSelect)
+		log.WithError(err).Errorf("Error with select query '%v'", sqlSelect)
 		os.Exit(1)
 	}
 	defer rows.Close()
 
 	executors := list.New()
-	if *outputFile != "" {
-		if *useMysql {
-			executors.PushFront(NewWriteToFileExecutor(*outputFile, *sqlInsert, &utils.MysqlEncoder{}))
+	if outputFile != "" {
+		if useMysql {
+			executors.PushFront(NewWriteToFileExecutor(outputFile, sqlInsert, &utils.MysqlEncoder{}))
 		} else {
-			if *escapeFormat {
-				executors.PushFront(NewWriteToFileExecutor(*outputFile, *sqlInsert, &utils.EscapeEncoder{}))
+			if escapeFormat {
+				executors.PushFront(NewWriteToFileExecutor(outputFile, sqlInsert, &utils.EscapeEncoder{}))
 			} else {
-				executors.PushFront(NewWriteToFileExecutor(*outputFile, *sqlInsert, &utils.HexEncoder{}))
+				executors.PushFront(NewWriteToFileExecutor(outputFile, sqlInsert, &utils.HexEncoder{}))
 			}
 		}
 	}
-	if *execute {
-		executors.PushFront(NewInsertExecutor(*sqlInsert, db))
+	if execute {
+		executors.PushFront(NewInsertExecutor(sqlInsert, db))
 	}
 	for e := executors.Front(); e != nil; e = e.Next() {
 		executor := e.Value.(Executor)
@@ -331,7 +348,7 @@ func main() {
 		if err != nil {
 			ErrorExit("Can't read data from row", err)
 		}
-		privateKeys, err := keystorage.GetServerDecryptionPrivateKeys([]byte(*clientID))
+		privateKeys, err := keystorage.GetServerDecryptionPrivateKeys([]byte(clientID))
 		if err != nil {
 			log.WithError(err).Errorf("Can't get private key for row with number %v", i)
 			continue

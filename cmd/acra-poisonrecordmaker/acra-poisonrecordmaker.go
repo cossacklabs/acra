@@ -31,7 +31,6 @@ import (
 	"os"
 
 	"github.com/cossacklabs/acra/cmd"
-	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
@@ -44,6 +43,7 @@ import (
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/utils/args"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -61,14 +61,18 @@ const (
 	RecordTypeAcraBlock  = "acrablock"
 )
 
-func main() {
-	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
-	dataLength := flag.Int("data_length", poison.UseDefaultDataLength, fmt.Sprintf("Length of random data for data block in acrastruct. -1 is random in range 1..%v", poison.DefaultDataLength))
-	recordType := flag.String("type", RecordTypeAcraStruct, fmt.Sprintf("Type of poison record: \"%s\" | \"%s\"\n", RecordTypeAcraStruct, RecordTypeAcraBlock))
+func registerFlags(flagSet *flag.FlagSet) {
+	flagSet.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
+	flagSet.Int("data_length", poison.UseDefaultDataLength, fmt.Sprintf("Length of random data for data block in acrastruct. -1 is random in range 1..%v", poison.DefaultDataLength))
+	flagSet.String("type", RecordTypeAcraStruct, fmt.Sprintf("Type of poison record: \"%s\" | \"%s\"\n", RecordTypeAcraStruct, RecordTypeAcraBlock))
 
-	network.RegisterTLSBaseArgs(flag.CommandLine)
+	network.RegisterTLSBaseArgs(flagSet)
 	keyloader.RegisterKeyStoreStrategyParameters()
+}
+
+func main() {
 	logging.SetLogLevel(logging.LogDiscard)
+	registerFlags(flag.CommandLine)
 
 	if err := cmd.ParseFlags(flag.CommandLine, os.Args[1:]); err != nil {
 		if err == cmd.ErrDumpRequested {
@@ -90,18 +94,22 @@ func main() {
 
 	paramsExtractor := args.NewServiceExtractor(flag.CommandLine, serviceConfig)
 
+	keysDir := paramsExtractor.GetString("keys_dir", "")
+	dataLength := paramsExtractor.GetInt("data_length", "")
+	recordType := paramsExtractor.GetString("type", "")
+
 	var store keystore.PoisonKeyStorageAndGenerator
-	if filesystemV2.IsKeyDirectory(*keysDir, paramsExtractor) {
-		store = openKeyStoreV2(*keysDir, paramsExtractor)
+	if filesystemV2.IsKeyDirectory(keysDir, paramsExtractor) {
+		store = openKeyStoreV2(keysDir, paramsExtractor)
 	} else {
-		store = openKeyStoreV1(*keysDir, paramsExtractor)
+		store = openKeyStoreV1(keysDir, paramsExtractor)
 	}
 	var poisonRecord []byte
-	switch *recordType {
+	switch recordType {
 	case RecordTypeAcraStruct:
-		poisonRecord, err = poison.CreatePoisonRecord(store, *dataLength)
+		poisonRecord, err = poison.CreatePoisonRecord(store, dataLength)
 	case RecordTypeAcraBlock:
-		poisonRecord, err = poison.CreateSymmetricPoisonRecord(store, *dataLength)
+		poisonRecord, err = poison.CreateSymmetricPoisonRecord(store, dataLength)
 	default:
 		log.Errorf("Incorrect type of record. Should be used \"%s\" or \"%s\"\n", RecordTypeAcraStruct, RecordTypeAcraBlock)
 		os.Exit(1)

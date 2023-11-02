@@ -24,9 +24,9 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/cmd"
-	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/network"
 	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // EnableSubcommand is the "acra-tokens enable" subcommand.

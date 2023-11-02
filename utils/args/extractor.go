@@ -9,12 +9,12 @@ import (
 
 // ServiceExtractor encapsulate logic of parsing parameters from CLI and config
 type ServiceExtractor struct {
-	configData map[string]interface{}
+	configData map[string]string
 	flags      *flag.FlagSet
 }
 
 // NewServiceExtractor create new ServiceExtractor
-func NewServiceExtractor(flags *flag.FlagSet, config map[string]interface{}) *ServiceExtractor {
+func NewServiceExtractor(flags *flag.FlagSet, config map[string]string) *ServiceExtractor {
 	return &ServiceExtractor{
 		configData: config,
 		flags:      flags,
@@ -26,33 +26,23 @@ func NewServiceExtractor(flags *flag.FlagSet, config map[string]interface{}) *Se
 func (e *ServiceExtractor) GetString(param, generalParam string) string {
 	if isFlagSet(param, e.flags) {
 		if f := e.flags.Lookup(param); f != nil {
-			if value := f.Value.String(); value != "" {
-				return value
-			}
+			return f.Value.String()
 		}
 	}
 
 	if rawValue, ok := e.configData[param]; ok {
-		value, ok := rawValue.(string)
-		if ok {
-			return value
-		}
+		return rawValue
 	}
 
 	if generalParam != "" {
 		if isFlagSet(generalParam, e.flags) {
 			if f := e.flags.Lookup(generalParam); f != nil {
-				if value := f.Value.String(); value != "" {
-					return value
-				}
+				return f.Value.String()
 			}
 		}
 
 		if rawValue, ok := e.configData[generalParam]; ok {
-			value, ok := rawValue.(string)
-			if ok {
-				return value
-			}
+			return rawValue
 		}
 	}
 
@@ -73,10 +63,11 @@ func (e *ServiceExtractor) GetBool(param, generalParam string) bool {
 	}
 
 	if rawValue, ok := e.configData[param]; ok {
-		value, ok := rawValue.(bool)
-		if ok {
-			return value
+		v, err := strconv.ParseBool(rawValue)
+		if err != nil {
+			log.WithField("value", rawValue).Fatalf("Can't cast %s to boolean value", param)
 		}
+		return v
 	}
 
 	if generalParam != "" {
@@ -91,10 +82,11 @@ func (e *ServiceExtractor) GetBool(param, generalParam string) bool {
 		}
 
 		if rawValue, ok := e.configData[generalParam]; ok {
-			value, ok := rawValue.(bool)
-			if ok {
-				return value
+			v, err := strconv.ParseBool(rawValue)
+			if err != nil {
+				log.WithField("value", rawValue).Fatalf("Can't cast %s to boolean value", param)
 			}
+			return v
 		}
 	}
 
@@ -115,10 +107,11 @@ func (e *ServiceExtractor) GetInt(param, generalParam string) int {
 	}
 
 	if rawValue, ok := e.configData[param]; ok {
-		value, ok := rawValue.(int)
-		if ok {
-			return value
+		v, err := strconv.ParseInt(rawValue, 10, 64)
+		if err != nil {
+			log.WithField("value", rawValue).Fatalf("Can't cast %s to integer value", param)
 		}
+		return int(v)
 	}
 
 	if generalParam != "" {
@@ -133,10 +126,11 @@ func (e *ServiceExtractor) GetInt(param, generalParam string) int {
 		}
 
 		if rawValue, ok := e.configData[generalParam]; ok {
-			value, ok := rawValue.(int)
-			if ok {
-				return value
+			v, err := strconv.ParseInt(rawValue, 10, 64)
+			if err != nil {
+				log.WithField("value", rawValue).Fatalf("Can't cast %s to integer value", param)
 			}
+			return int(v)
 		}
 	}
 

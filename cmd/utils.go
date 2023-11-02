@@ -341,7 +341,7 @@ func checkVersion(config map[string]interface{}) error {
 	return nil
 }
 
-// ParseFlags parses CommandLine flags and dump config if requested.
+// ParseFlags parses CommandLine flags or return ErrDumpRequested  if requested.
 func ParseFlags(flags *flag_.FlagSet, arguments []string) error {
 	err := flags.Parse(arguments)
 	if *dumpconfig {
@@ -351,8 +351,8 @@ func ParseFlags(flags *flag_.FlagSet, arguments []string) error {
 }
 
 // ParseConfig parse service config by configPath if exists
-func ParseConfig(configPath, serviceName string) (map[string]interface{}, error) {
-	result := make(map[string]interface{})
+func ParseConfig(configPath, serviceName string) (map[string]string, error) {
+	result := make(map[string]string)
 	if configPath == "" {
 		return result, nil
 	}

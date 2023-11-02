@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cossacklabs/acra/cmd/args"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 func TestDestroyCMD_FS_V2(t *testing.T) {
@@ -38,7 +38,7 @@ func TestDestroyCMD_FS_V2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+	extractor := args.NewServiceExtractor(flagSet, map[string]string{})
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
@@ -242,7 +242,7 @@ func TestDestroyCMD_FS_V1(t *testing.T) {
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
-	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+	extractor := args.NewServiceExtractor(flagSet, map[string]string{})
 
 	dirName := t.TempDir()
 	if err := os.Chmod(dirName, 0700); err != nil {
@@ -430,7 +430,7 @@ func TestDestroyRotatedCMD_FS_V1(t *testing.T) {
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
-	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+	extractor := args.NewServiceExtractor(flagSet, map[string]string{})
 
 	tcasesWithSymmetricKeys := []struct {
 		destroyKeyKind  string
@@ -628,7 +628,7 @@ func TestDestroyRotatedCMD_FS_V2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	extractor := args.NewServiceExtractor(flagSet, map[string]interface{}{})
+	extractor := args.NewServiceExtractor(flagSet, map[string]string{})
 
 	tcases := []struct {
 		destroyKeyKind  string

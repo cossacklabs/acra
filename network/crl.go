@@ -31,7 +31,7 @@ import (
 
 	"github.com/golang/groupcache/lru"
 
-	"github.com/cossacklabs/acra/cmd/args"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // Errors returned by CRL verifier

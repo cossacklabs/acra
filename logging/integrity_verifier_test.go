@@ -20,8 +20,6 @@ import (
 	"bufio"
 	"encoding/hex"
 	"errors"
-	"github.com/cossacklabs/acra/utils"
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -35,6 +33,10 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/utils"
 )
 
 var auditLogKey, _ = hex.DecodeString("f1f6ff1960b3321d890eef6b26a64ecbf828b78a0b889349170ed2ca1a5812d1")
@@ -188,7 +190,7 @@ func generateLogEntries(key []byte, format string, skipChainFinalize bool) ([]st
 		logToFile = oldValue
 	}()
 
-	writer, finalizeLogWriter, err := NewWriter()
+	writer, finalizeLogWriter, err := NewWriter(logToConsole, logToFile)
 	if err != nil {
 		return nil, err
 	}
@@ -348,7 +350,7 @@ func generateRotatedLogs(tempLogDir, logFileName, format string, t *testing.T, r
 	staticVarFinalize := setLogFilePath(logFileName)
 	defer staticVarFinalize()
 
-	writer, logWriterFinalize, err := NewWriter()
+	writer, logWriterFinalize, err := NewWriter(logToConsole, logToFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -537,7 +539,7 @@ func testAuditLogChainConsistency(t *testing.T, format string, entriesCombinator
 		logToFile = oldValue
 	}()
 
-	writer, finalizeLogWriter, err := NewWriter()
+	writer, finalizeLogWriter, err := NewWriter(logToConsole, logToFile)
 	if err != nil {
 		t.Fatal(err)
 	}
