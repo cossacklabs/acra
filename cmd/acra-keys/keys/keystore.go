@@ -50,7 +50,8 @@ type KeyStoreParameters interface {
 
 // CommonKeyStoreParameters is a mix-in of command line parameters for keystore construction.
 type CommonKeyStoreParameters struct {
-	flagSet *flag.FlagSet
+	flagSet   *flag.FlagSet
+	extractor *args.ServiceExtractor
 
 	keyDir       string
 	keyDirPublic string
@@ -58,8 +59,7 @@ type CommonKeyStoreParameters struct {
 
 // GetExtractor ServiceParamsExtractor.
 func (p *CommonKeyStoreParameters) GetExtractor() *args.ServiceExtractor {
-	//TODO implement me
-	panic("implement me")
+	return p.extractor
 }
 
 // KeyDir returns path to key directory.
@@ -95,6 +95,7 @@ func (p *CommonKeyStoreParameters) RegisterPrefixed(flags *flag.FlagSet, default
 	flags.StringVar(&p.keyDir, flagPrefix+"keys_dir", defaultKeysDir, "path to key directory"+descriptionSuffix)
 	flags.StringVar(&p.keyDirPublic, flagPrefix+"keys_dir_public", "", "path to key directory for public keys"+descriptionSuffix)
 	p.flagSet = flags
+	p.extractor = args.NewServiceExtractor(p.flagSet, map[string]string{})
 }
 
 // OpenKeyStoreForReading opens a keystore suitable for reading keys.

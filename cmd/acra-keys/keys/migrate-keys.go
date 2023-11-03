@@ -255,7 +255,7 @@ func MigrateV1toV2(srcV1 filesystem.KeyExport, dstV2 keystoreV2.KeyFileImportV1)
 func (m *MigrateKeysSubcommand) openKeyStoreV1(params KeyStoreParameters) (*filesystem.KeyStore, error) {
 	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(SrcMasterKeyVarName))
 
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(m.GetExtractor(), "src_")
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(params.GetExtractor(), "src_")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		return nil, err
@@ -292,13 +292,13 @@ func (m *MigrateKeysSubcommand) openKeyStoreV1(params KeyStoreParameters) (*file
 func (m *MigrateKeysSubcommand) openKeyStoreV2(params KeyStoreParameters) (*keystoreV2.ServerKeyStore, error) {
 	keyloader.RegisterKeyEncryptorFabric(keyloader.KeystoreStrategyEnvMasterKey, env_loader.NewEnvKeyEncryptorFabric(DstMasterKeyVarName))
 
-	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(m.extractor, "dst_")
+	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(params.GetExtractor(), "dst_")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")
 		return nil, err
 	}
 	keyDirPath := params.KeyDir()
-	if filesystemV2.IsKeyDirectory(keyDirPath, m.extractor) && !m.ForceWrite() {
+	if filesystemV2.IsKeyDirectory(keyDirPath, params.GetExtractor()) && !m.ForceWrite() {
 		log.WithField("path", keyDirPath).Error("Key directory already exists")
 		log.Info("Run with --force to import into existing directory")
 		return nil, errors.New("destination exists")
