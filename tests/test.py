@@ -599,15 +599,12 @@ class TestCheckLogPoisonRecord(BasePoisonRecordTest):
         self.assertIn('code=101', log)
 
 
-class TestKeyStorageClearing(AcraCatchLogsMixin, BaseTestCase):
+class TestKeyStorageClearing(BaseTestCase):
     def setUp(self):
         self.checkSkip()
         try:
             self.init_key_stores()
             if not self.EXTERNAL_ACRA:
-                config = base.load_default_config('acra-server', skip_keys=[])
-                temp_config = tempfile.NamedTemporaryFile()
-                dump_yaml_config(config, temp_config.name)
                 self.acra = self.fork_acra(
                     http_api_enable='true',
                     tls_ocsp_from_cert='ignore',
@@ -671,151 +668,230 @@ class TestKeyStorageClearing(AcraCatchLogsMixin, BaseTestCase):
         with urlopen('https://localhost:{}/resetKeyStorage'.format(self.ACRASERVER_PORT + 1),
                      context=ssl_context) as response:
             self.assertEqual(response.status, 200)
-        acra_logs = self.read_log(self.acra)
-        self.assertNotIn("OCSP: Verifying", acra_logs)
-        self.assertNotIn("CRL: Verifying", acra_logs)
 
 
-class TestKeyStorageClearingWithTLSSpecificCLIAndConfig(TestKeyStorageClearing):
+class TestServiceArgsExtractor(AcraCatchLogsMixin, BaseTestCase):
     def setUp(self):
         self.checkSkip()
-        try:
-            self.init_key_stores()
-            if not self.EXTERNAL_ACRA:
-                config = load_yaml_config('configs/acra-server.yaml')
-                # explicitly set specific CLI config options as prefer and pass CLI with `ignore` because the extract flow is the following:
-                # Specific param CLI -> Specific CLI Config -> General CLI -> General CLI Config
-                config['tls_ocsp_client_from_cert'] = 'prefer'
-                config['tls_crl_client_from_cert'] = 'prefer'
-                config['tls_ocsp_database_from_cert'] = 'prefer'
-                config['tls_crl_database_from_cert'] = 'prefer'
-                temp_config = tempfile.NamedTemporaryFile()
-                dump_yaml_config(config, temp_config.name)
-                # using general CLI
-                self.acra = self.fork_acra(
-                    http_api_enable='true',
-                    # pass 'ignore` values as specific params to make sure Specific CLI is in priority
-                    tls_ocsp_client_from_cert='ignore',
-                    tls_crl_client_from_cert='ignore',
-                    tls_ocsp_database_from_cert='ignore',
-                    tls_crl_database_from_cert='ignore',
-                    tls_ocsp_url='',
-                    tls_crl_url='',
-                    config_file=temp_config.name,
-                    keys_dir=self.server_keys_dir)
 
-            args = get_connect_args(port=self.ACRASERVER_PORT, sslmode='require')
-            args.update(get_tls_connection_args(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT))
-            self.engine1 = sa.create_engine(
-                get_engine_connection_string(
-                    self.get_acraserver_connection_string(),
-                    DB_NAME),
-                connect_args=args)
+    def checkSkip(self):
+        if not base.TEST_WITH_TLS:
+            self.skipTest("running tests with TLS")
 
-            self.engine_raw = sa.create_engine(
-                '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
-                connect_args=connect_args)
+    def init_key_stores(self):
+        self.server_keystore = tempfile.TemporaryDirectory()
+        self.server_keys_dir = os.path.join(self.server_keystore.name, '.acrakeys')
 
-            self.engines = [self.engine1, self.engine_raw]
+        create_client_keypair_from_certificate(tls_cert=TEST_TLS_CLIENT_CERT, keys_dir=self.server_keys_dir,
+                                               only_storage=True)
 
-            metadata.create_all(self.engine_raw)
-            self.engine_raw.execute('delete from test;')
-        except:
-            self.tearDown()
-            raise
+    def stop_acra(self):
+        for engine in getattr(self, 'engines', []):
+            engine.dispose()
 
+        processes = []
+        if not self.EXTERNAL_ACRA and hasattr(self, 'acra'):
+            processes.append(self.acra)
 
-class TestKeyStorageClearingWithTLSConfigSpecificCLI(TestKeyStorageClearing):
-    def setUp(self):
-        self.checkSkip()
-        try:
-            self.init_key_stores()
-            if not self.EXTERNAL_ACRA:
-                config = load_yaml_config('configs/acra-server.yaml')
-                # explicitly set specific CLI config options and not pass CLI because the extract flow is the following:
-                # Specific param CLI -> Specific CLI Config -> General CLI -> General CLI Config
-                config['tls_ocsp_client_from_cert'] = 'ignore'
-                config['tls_crl_client_from_cert'] = 'ignore'
-                config['tls_ocsp_database_from_cert'] = 'ignore'
-                config['tls_crl_database_from_cert'] = 'ignore'
-                temp_config = tempfile.NamedTemporaryFile()
-                dump_yaml_config(config, temp_config.name)
-                # using general CLI
-                self.acra = self.fork_acra(
-                    http_api_enable='true',
-                    # pass 'prefer` values as general params to make sure config is in priority
-                    tls_ocsp_from_cert='prefer',
-                    tls_crl_from_cert='prefer',
-                    tls_ocsp_url='',
-                    tls_crl_url='',
-                    config_file=temp_config.name,
-                    keys_dir=self.server_keys_dir)
+        stop_process(processes)
+        send_signal_by_process_name('acra-server', signal.SIGKILL)
+        self.server_keystore.cleanup()
 
-            args = get_connect_args(port=self.ACRASERVER_PORT, sslmode='require')
-            args.update(get_tls_connection_args(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT))
-            self.engine1 = sa.create_engine(
-                get_engine_connection_string(
-                    self.get_acraserver_connection_string(),
-                    DB_NAME),
-                connect_args=args)
+    def get_acra_cli_args(self, acra_kwargs):
+        connection_string = self.get_acraserver_connection_string(
+            acra_kwargs.get('incoming_connection_port', self.ACRASERVER_PORT))
+        api_connection_string = self.get_acraserver_api_connection_string(
+            acra_kwargs.get('incoming_connection_api_port')
+        )
+        args = {
+            'db_host': base.DB_HOST,
+            'db_port': base.DB_PORT,
+            'logging_format': 'cef',
+            # we doesn't need in tests waiting closing connections
+            'incoming_connection_close_timeout': 0,
+            self.ACRA_BYTEA: 'true',
+            'incoming_connection_string': connection_string,
+            'incoming_connection_api_string': api_connection_string,
+            'acrastruct_wholecell_enable': 'true' if self.WHOLECELL_MODE else 'false',
+            'acrastruct_injectedcell_enable': 'false' if self.WHOLECELL_MODE else 'true',
+            'd': 'true' if self.DEBUG_LOG else 'false',
+            'http_api_enable': 'true',
+            'http_api_tls_transport_enable': 'true',
+            'keystore_cache_on_start_enable': 'false',
+            'keys_dir': base.KEYS_FOLDER.name,
+        }
+        # keystore v2 doest not support caching, disable it for now
+        if base.KEYSTORE_VERSION == 'v2':
+            args['keystore_cache_size'] = -1
+        if base.TEST_WITH_TRACING:
+            args['tracing_log_enable'] = 'true'
+            if base.TEST_TRACE_TO_JAEGER:
+                args['tracing_jaeger_enable'] = 'true'
+        if self.LOG_METRICS:
+            args['incoming_connection_prometheus_metrics_string'] = self.get_prometheus_address(
+                self.ACRASERVER_PROMETHEUS_PORT)
+        if self.with_tls():
+            args['tls_key'] = base.TEST_TLS_SERVER_KEY
+            args['tls_cert'] = base.TEST_TLS_SERVER_CERT
+            args['tls_ca'] = base.TEST_TLS_CA
+            args['tls_auth'] = base.ACRA_TLS_AUTH
+        else:
+            # Explicitly disable certificate validation by default since otherwise we may end up
+            # in a situation when some certificate contains OCSP or CRL URI while corresponding
+            # services were not started by this script (because TLS testing was disabled)
+            args['tls_ocsp_from_cert'] = 'ignore'
+            args['tls_crl_from_cert'] = 'ignore'
+        if base.TEST_MYSQL:
+            args['mysql_enable'] = 'true'
+            args['postgresql_enable'] = 'false'
+        args.update(acra_kwargs)
+        return args
 
-            self.engine_raw = sa.create_engine(
-                '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
-                connect_args=connect_args)
+    def testArgsExtractionOrder(self):
+        # parsing args priority:
+        # Specific param CLI -> Specific CLI Config -> General CLI -> General CLI Config
+        test_cases = {
+            'specific CLI usage':{
+                # 1. case if specific_cli specified - use it, ignore all others;
+                'specific_cli': {
+                    'tls_ocsp_client_from_cert': 'ignore',
+                    'tls_crl_client_from_cert': 'ignore',
+                    'tls_ocsp_database_from_cert': 'ignore',
+                    'tls_crl_database_from_cert': 'ignore',
+                },
+                'config_values': {
+                    'tls_ocsp_client_from_cert': 'prefer',
+                    'tls_crl_client_from_cert': 'prefer',
+                    'tls_ocsp_database_from_cert': 'prefer',
+                    'tls_crl_database_from_cert': 'prefer',
+                },
+                'generic_cli': {
+                    'tls_ocsp_from_cert': 'prefer',
+                    'tls_crl_from_cert': 'prefer',
+                },
+            },
+            'config specific CLI usage':{
+                # 2. case if specific_cli is not specified - use config_specific_cli;
+                'specific_cli': {},
+                'config_values': {
+                    'tls_ocsp_client_from_cert': 'ignore',
+                    'tls_crl_client_from_cert': 'ignore',
+                    'tls_ocsp_database_from_cert': 'ignore',
+                    'tls_crl_database_from_cert': 'ignore',
+                },
+                'generic_cli': {
+                    'tls_ocsp_from_cert': 'prefer',
+                    'tls_crl_from_cert': 'prefer',
+                },
+            },
+            'generic CLI usage':{
+                # 3. case if specific_cli/config_specific_cli is not specified - use generic_cli;
+                'specific_cli': {},
+                'config_values': {
+                    'tls_ocsp_client_from_cert': 'null',
+                    'tls_crl_client_from_cert': 'null',
+                    'tls_ocsp_database_from_cert': 'null',
+                    'tls_crl_database_from_cert': 'null',
+                },
+                'generic_cli': {
+                    'tls_ocsp_from_cert': 'ignore',
+                    'tls_crl_from_cert': 'ignore',
+                },
+            },
+            'config generic CLI usage':{
+                # 4. case if specific_cli/config_specific_cli is not specified - use generic_cli;
+                'specific_cli': {},
+                'config_values': {
+                    'tls_ocsp_client_from_cert': 'null',
+                    'tls_crl_client_from_cert': 'null',
+                    'tls_ocsp_database_from_cert': 'null',
+                    'tls_crl_database_from_cert': 'null',
+                    # specify generic_cli in config
+                    'tls_ocsp_from_cert': 'ignore',
+                    'tls_crl_from_cert': 'ignore',
+                },
+                'generic_cli': {},
+            },
+            'default specific CLI usage':{
+                # 5. if nothing were specified the Specified CLI default values should be used - OCSP/CRL should be enabled \
+                # as the default value is prefer
+                'specific_cli': {},
+                'config_values': {
+                    'tls_ocsp_client_from_cert': 'null',
+                    'tls_crl_client_from_cert': 'null',
+                    'tls_ocsp_database_from_cert': 'null',
+                    'tls_crl_database_from_cert': 'null',
+                    'tls_ocsp_from_cert': 'null',
+                    'tls_crl_from_cert': 'null',
+                },
+                'generic_cli': {},
+            },
+        }
 
-            self.engines = [self.engine1, self.engine_raw]
+        cli_args = {}
 
-            metadata.create_all(self.engine_raw)
-            self.engine_raw.execute('delete from test;')
-        except:
-            self.tearDown()
-            raise
+        for name, case in test_cases.items():
+            try:
+                self.init_key_stores()
+                if not self.EXTERNAL_ACRA:
+                    config = load_yaml_config('configs/acra-server.yaml')
+                    temp_config = tempfile.NamedTemporaryFile()
 
+                    if len(case['config_values']) > 0:
+                        for key, value in case['config_values'].items():
+                            if value == 'null':
+                                del config[key]
+                            else:
+                                config[key] = value
 
-class TestKeyStorageClearingWithTLSGeneralCLI(TestKeyStorageClearing):
-    def setUp(self):
-        self.checkSkip()
-        try:
-            self.init_key_stores()
-            if not self.EXTERNAL_ACRA:
-                config = load_yaml_config('configs/acra-server.yaml')
-                # explicitly delete specific CLI options to use general CLI because the extract flow is the following:
-                # Specific param CLI -> Specific CLI Config -> General CLI -> General CLI Config
-                del config['tls_ocsp_client_from_cert']
-                del config['tls_crl_client_from_cert']
-                del config['tls_ocsp_database_from_cert']
-                del config['tls_crl_database_from_cert']
-                temp_config = tempfile.NamedTemporaryFile()
-                dump_yaml_config(config, temp_config.name)
-                # using general CLI
-                self.acra = self.fork_acra(
-                    http_api_enable='true',
-                    tls_ocsp_from_cert='ignore',
-                    tls_crl_from_cert='ignore',
-                    tls_ocsp_url='',
-                    tls_crl_url='',
-                    config_file=temp_config.name,
-                    keys_dir=self.server_keys_dir)
+                    dump_yaml_config(config, temp_config.name)
 
-            args = get_connect_args(port=self.ACRASERVER_PORT, sslmode='require')
-            args.update(get_tls_connection_args(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT))
-            self.engine1 = sa.create_engine(
-                get_engine_connection_string(
-                    self.get_acraserver_connection_string(),
-                    DB_NAME),
-                connect_args=args)
+                    cli_args['config_file'] = temp_config.name
+                    cli_args['keys_dir'] = self.server_keys_dir
 
-            self.engine_raw = sa.create_engine(
-                '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
-                connect_args=connect_args)
+                    if len(case['specific_cli']) > 0:
+                        cli_args.update(case['specific_cli'])
 
-            self.engines = [self.engine1, self.engine_raw]
+                    if len(case['generic_cli']) > 0:
+                        cli_args.update(case['generic_cli'])
 
-            metadata.create_all(self.engine_raw)
-            self.engine_raw.execute('delete from test;')
-        except:
-            self.tearDown()
-            raise
+                    self.acra = self.fork_acra(**cli_args)
+
+                args = get_connect_args(port=self.ACRASERVER_PORT, sslmode='require')
+                args.update(get_tls_connection_args(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT))
+                self.engine1 = sa.create_engine(
+                    get_engine_connection_string(
+                        self.get_acraserver_connection_string(),
+                        DB_NAME),
+                    connect_args=args)
+
+                self.engine_raw = sa.create_engine(
+                    '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
+                    connect_args=connect_args)
+
+                self.engines = [self.engine1, self.engine_raw]
+
+                metadata.create_all(self.engine_raw)
+                self.engine_raw.execute('delete from test;')
+            except:
+                self.stop_acra()
+                self.tearDown()
+                raise
+
+            result = self.engine1.execute(sa.select([1]).limit(1))
+            result.fetchone()
+            acra_logs = self.read_log(self.acra)
+
+            if name == 'default specific CLI usage':
+                self.assertIn("OCSP: Verifying", acra_logs)
+                self.assertIn("CRL: Verifying", acra_logs)
+            else:
+                self.assertNotIn("OCSP: Verifying", acra_logs)
+                self.assertNotIn("CRL: Verifying", acra_logs)
+            self.stop_acra()
+            # explicitly clear log file
+            open(self.log_files[self.acra].name, 'w').close()
+            cli_args.clear()
 
 
 class TestKeyStoreMigration(BaseTestCase):
