@@ -605,6 +605,9 @@ class TestKeyStorageClearing(AcraCatchLogsMixin, BaseTestCase):
         try:
             self.init_key_stores()
             if not self.EXTERNAL_ACRA:
+                config = base.load_default_config('acra-server', skip_keys=[])
+                temp_config = tempfile.NamedTemporaryFile()
+                dump_yaml_config(config, temp_config.name)
                 self.acra = self.fork_acra(
                     http_api_enable='true',
                     tls_ocsp_from_cert='ignore',
