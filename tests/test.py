@@ -599,7 +599,7 @@ class TestCheckLogPoisonRecord(BasePoisonRecordTest):
         self.assertIn('code=101', log)
 
 
-class TestKeyStorageClearing(BaseTestCase):
+class TestKeyStorageClearing(AcraCatchLogsMixin, BaseTestCase):
     def setUp(self):
         self.checkSkip()
         try:
@@ -668,6 +668,151 @@ class TestKeyStorageClearing(BaseTestCase):
         with urlopen('https://localhost:{}/resetKeyStorage'.format(self.ACRASERVER_PORT + 1),
                      context=ssl_context) as response:
             self.assertEqual(response.status, 200)
+        acra_logs = self.read_log(self.acra)
+        self.assertNotIn("OCSP: Verifying", acra_logs)
+        self.assertNotIn("CRL: Verifying", acra_logs)
+
+
+class TestKeyStorageClearingWithTLSSpecificCLIAndConfig(TestKeyStorageClearing):
+    def setUp(self):
+        self.checkSkip()
+        try:
+            self.init_key_stores()
+            if not self.EXTERNAL_ACRA:
+                config = load_yaml_config('configs/acra-server.yaml')
+                # explicitly set specific CLI config options as prefer and pass CLI with `ignore` because the extract flow is the following:
+                # Specific param CLI -> Specific CLI Config -> General CLI -> General CLI Config
+                config['tls_ocsp_client_from_cert'] = 'prefer'
+                config['tls_crl_client_from_cert'] = 'prefer'
+                config['tls_ocsp_database_from_cert'] = 'prefer'
+                config['tls_crl_database_from_cert'] = 'prefer'
+                temp_config = tempfile.NamedTemporaryFile()
+                dump_yaml_config(config, temp_config.name)
+                # using general CLI
+                self.acra = self.fork_acra(
+                    http_api_enable='true',
+                    # pass 'ignore` values as specific params to make sure Specific CLI is in priority
+                    tls_ocsp_client_from_cert='ignore',
+                    tls_crl_client_from_cert='ignore',
+                    tls_ocsp_database_from_cert='ignore',
+                    tls_crl_database_from_cert='ignore',
+                    tls_ocsp_url='',
+                    tls_crl_url='',
+                    config_file=temp_config.name,
+                    keys_dir=self.server_keys_dir)
+
+            args = get_connect_args(port=self.ACRASERVER_PORT, sslmode='require')
+            args.update(get_tls_connection_args(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT))
+            self.engine1 = sa.create_engine(
+                get_engine_connection_string(
+                    self.get_acraserver_connection_string(),
+                    DB_NAME),
+                connect_args=args)
+
+            self.engine_raw = sa.create_engine(
+                '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
+                connect_args=connect_args)
+
+            self.engines = [self.engine1, self.engine_raw]
+
+            metadata.create_all(self.engine_raw)
+            self.engine_raw.execute('delete from test;')
+        except:
+            self.tearDown()
+            raise
+
+
+class TestKeyStorageClearingWithTLSConfigSpecificCLI(TestKeyStorageClearing):
+    def setUp(self):
+        self.checkSkip()
+        try:
+            self.init_key_stores()
+            if not self.EXTERNAL_ACRA:
+                config = load_yaml_config('configs/acra-server.yaml')
+                # explicitly set specific CLI config options and not pass CLI because the extract flow is the following:
+                # Specific param CLI -> Specific CLI Config -> General CLI -> General CLI Config
+                config['tls_ocsp_client_from_cert'] = 'ignore'
+                config['tls_crl_client_from_cert'] = 'ignore'
+                config['tls_ocsp_database_from_cert'] = 'ignore'
+                config['tls_crl_database_from_cert'] = 'ignore'
+                temp_config = tempfile.NamedTemporaryFile()
+                dump_yaml_config(config, temp_config.name)
+                # using general CLI
+                self.acra = self.fork_acra(
+                    http_api_enable='true',
+                    # pass 'prefer` values as general params to make sure config is in priority
+                    tls_ocsp_from_cert='prefer',
+                    tls_crl_from_cert='prefer',
+                    tls_ocsp_url='',
+                    tls_crl_url='',
+                    config_file=temp_config.name,
+                    keys_dir=self.server_keys_dir)
+
+            args = get_connect_args(port=self.ACRASERVER_PORT, sslmode='require')
+            args.update(get_tls_connection_args(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT))
+            self.engine1 = sa.create_engine(
+                get_engine_connection_string(
+                    self.get_acraserver_connection_string(),
+                    DB_NAME),
+                connect_args=args)
+
+            self.engine_raw = sa.create_engine(
+                '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
+                connect_args=connect_args)
+
+            self.engines = [self.engine1, self.engine_raw]
+
+            metadata.create_all(self.engine_raw)
+            self.engine_raw.execute('delete from test;')
+        except:
+            self.tearDown()
+            raise
+
+
+class TestKeyStorageClearingWithTLSGeneralCLI(TestKeyStorageClearing):
+    def setUp(self):
+        self.checkSkip()
+        try:
+            self.init_key_stores()
+            if not self.EXTERNAL_ACRA:
+                config = load_yaml_config('configs/acra-server.yaml')
+                # explicitly delete specific CLI options to use general CLI because the extract flow is the following:
+                # Specific param CLI -> Specific CLI Config -> General CLI -> General CLI Config
+                del config['tls_ocsp_client_from_cert']
+                del config['tls_crl_client_from_cert']
+                del config['tls_ocsp_database_from_cert']
+                del config['tls_crl_database_from_cert']
+                temp_config = tempfile.NamedTemporaryFile()
+                dump_yaml_config(config, temp_config.name)
+                # using general CLI
+                self.acra = self.fork_acra(
+                    http_api_enable='true',
+                    tls_ocsp_from_cert='ignore',
+                    tls_crl_from_cert='ignore',
+                    tls_ocsp_url='',
+                    tls_crl_url='',
+                    config_file=temp_config.name,
+                    keys_dir=self.server_keys_dir)
+
+            args = get_connect_args(port=self.ACRASERVER_PORT, sslmode='require')
+            args.update(get_tls_connection_args(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT))
+            self.engine1 = sa.create_engine(
+                get_engine_connection_string(
+                    self.get_acraserver_connection_string(),
+                    DB_NAME),
+                connect_args=args)
+
+            self.engine_raw = sa.create_engine(
+                '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
+                connect_args=connect_args)
+
+            self.engines = [self.engine1, self.engine_raw]
+
+            metadata.create_all(self.engine_raw)
+            self.engine_raw.execute('delete from test;')
+        except:
+            self.tearDown()
+            raise
 
 
 class TestKeyStoreMigration(BaseTestCase):
@@ -5238,8 +5383,8 @@ class BaseTestMySQLPreparedStatementsFromSQL(AcraCatchLogsMixin):
 
         # Insert searchable data and some additional different rows
         _, columns_order = self.prepare_from_arg(prepared_name='insert_data', engine=self.engine2,
-                                                query=self.test_prepared_sql_statements_table.insert(),
-                                                data_types=self.prepared_sql_statements_table_data_types)
+                                                 query=self.test_prepared_sql_statements_table.insert(),
+                                                 data_types=self.prepared_sql_statements_table_data_types)
 
         args = []
         for key in columns_order:
@@ -5437,8 +5582,8 @@ class BaseTestMySQLPreparedStatementsFromSQL(AcraCatchLogsMixin):
 
         # Insert searchable data and some additional different rows
         _, columns_order = self.prepare(prepared_name='insert_data', engine=self.engine2,
-                                       query=self.test_prepared_sql_statements_table.insert(),
-                                       data_types=self.prepared_sql_statements_table_data_types)
+                                        query=self.test_prepared_sql_statements_table.insert(),
+                                        data_types=self.prepared_sql_statements_table_data_types)
 
         args = []
         for key in columns_order:
