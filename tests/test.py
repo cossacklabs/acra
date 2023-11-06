@@ -750,8 +750,8 @@ class TestServiceArgsExtractor(AcraCatchLogsMixin, BaseTestCase):
     def testArgsExtractionOrder(self):
         # parsing args priority:
         # Specific param CLI -> Specific CLI Config -> General CLI -> General CLI Config
-        test_cases = {
-            'specific CLI usage':{
+        test_cases = [
+            {
                 # 1. case if specific_cli specified - use it, ignore all others;
                 'specific_cli': {
                     'tls_ocsp_client_from_cert': 'ignore',
@@ -769,8 +769,9 @@ class TestServiceArgsExtractor(AcraCatchLogsMixin, BaseTestCase):
                     'tls_ocsp_from_cert': 'prefer',
                     'tls_crl_from_cert': 'prefer',
                 },
+                'not_expected_message': ['OCSP: Verifying', 'CRL: Verifying']
             },
-            'config specific CLI usage':{
+            {
                 # 2. case if specific_cli is not specified - use config_specific_cli;
                 'specific_cli': {},
                 'config_values': {
@@ -783,8 +784,9 @@ class TestServiceArgsExtractor(AcraCatchLogsMixin, BaseTestCase):
                     'tls_ocsp_from_cert': 'prefer',
                     'tls_crl_from_cert': 'prefer',
                 },
+                'not_expected_message': ['OCSP: Verifying', 'CRL: Verifying']
             },
-            'generic CLI usage':{
+            {
                 # 3. case if specific_cli/config_specific_cli is not specified - use generic_cli;
                 'specific_cli': {},
                 'config_values': {
@@ -797,8 +799,9 @@ class TestServiceArgsExtractor(AcraCatchLogsMixin, BaseTestCase):
                     'tls_ocsp_from_cert': 'ignore',
                     'tls_crl_from_cert': 'ignore',
                 },
+                'not_expected_message': ['OCSP: Verifying', 'CRL: Verifying']
             },
-            'config generic CLI usage':{
+            {
                 # 4. case if specific_cli/config_specific_cli is not specified - use generic_cli;
                 'specific_cli': {},
                 'config_values': {
@@ -811,8 +814,9 @@ class TestServiceArgsExtractor(AcraCatchLogsMixin, BaseTestCase):
                     'tls_crl_from_cert': 'ignore',
                 },
                 'generic_cli': {},
+                'not_expected_message': ['OCSP: Verifying', 'CRL: Verifying']
             },
-            'default specific CLI usage':{
+            {
                 # 5. if nothing were specified the Specified CLI default values should be used - OCSP/CRL should be enabled \
                 # as the default value is prefer
                 'specific_cli': {},
@@ -825,13 +829,14 @@ class TestServiceArgsExtractor(AcraCatchLogsMixin, BaseTestCase):
                     'tls_crl_from_cert': 'null',
                 },
                 'generic_cli': {},
+                'expected_message': ['OCSP: Verifying', 'CRL: Verifying']
             },
-        }
+        ]
 
-        cli_args = {}
-
-        for name, case in test_cases.items():
+        for case in test_cases:
+            self.assertTrue(any([case.get("expected_message"), case.get("not_expected_message")]))
             try:
+                cli_args = {}
                 self.init_key_stores()
                 if not self.EXTERNAL_ACRA:
                     config = load_yaml_config('configs/acra-server.yaml')
@@ -882,16 +887,17 @@ class TestServiceArgsExtractor(AcraCatchLogsMixin, BaseTestCase):
             result.fetchone()
             acra_logs = self.read_log(self.acra)
 
-            if name == 'default specific CLI usage':
-                self.assertIn("OCSP: Verifying", acra_logs)
-                self.assertIn("CRL: Verifying", acra_logs)
-            else:
-                self.assertNotIn("OCSP: Verifying", acra_logs)
-                self.assertNotIn("CRL: Verifying", acra_logs)
+            if case.get('expected_message'):
+                for msg in case.get('expected_message'):
+                    self.assertIn(msg, acra_logs)
+
+            if case.get("not_expected_message"):
+                for msg in case.get('not_expected_message'):
+                    self.assertNotIn(msg, acra_logs)
+
             self.stop_acra()
             # explicitly clear log file
             open(self.log_files[self.acra].name, 'w').close()
-            cli_args.clear()
 
 
 class TestKeyStoreMigration(BaseTestCase):
