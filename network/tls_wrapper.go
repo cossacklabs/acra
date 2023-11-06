@@ -22,7 +22,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"net"
 	"time"
@@ -156,10 +155,6 @@ func NewTLSConfigByName(extractor *args.ServiceExtractor, name, host string, nam
 		key  = extractor.GetString(namerFunc(name, "key", ""), "tls_key")
 	)
 
-	fmt.Println(ca)
-	fmt.Println(sni)
-	fmt.Println(cert)
-	fmt.Println(key)
 	v := extractor.GetInt(namerFunc(name, "auth", ""), "")
 	if v == tlsAuthNotSet {
 		v = tlsAuthType

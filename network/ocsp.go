@@ -22,7 +22,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	url_ "net/url"
@@ -136,10 +135,6 @@ func NewOCSPConfigByName(extractor *args.ServiceExtractor, name string, namerFun
 		fromCert          = extractor.GetString(namerFunc(name, "from_cert", "ocsp"), "tls_ocsp_from_cert")
 		checkOnlyLeafCert = extractor.GetBool(namerFunc(name, "check_only_leaf_certificate", "ocsp"), "tls_ocsp_check_only_leaf_certificate")
 	)
-
-	fmt.Println("fromCert ", fromCert)
-	fmt.Println("required ", required)
-
 
 	return NewOCSPConfig(url, required, fromCert, checkOnlyLeafCert)
 }
