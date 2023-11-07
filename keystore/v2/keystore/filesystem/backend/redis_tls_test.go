@@ -22,13 +22,15 @@ package backend
 import (
 	"crypto/tls"
 	"flag"
-	"github.com/cossacklabs/acra/cmd"
-	"github.com/cossacklabs/acra/network"
-	tests2 "github.com/cossacklabs/acra/utils/tests"
 	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/utils/args"
+	tests2 "github.com/cossacklabs/acra/utils/tests"
 
 	"github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend/api"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend/api/tests"
@@ -82,7 +84,9 @@ func prepareTLSRedisConfig(t *testing.T) (*cmd.RedisOptions, *flag.FlagSet) {
 	if err := flagset.Lookup("redis_tls_enable").Value.Set("true"); err != nil {
 		t.Fatal(err)
 	}
-	options := cmd.ParseRedisCLIParametersFromFlags(flagset, "")
+
+	extractor := args.NewServiceExtractor(flagset, map[string]string{})
+	options := cmd.ParseRedisCLIParametersFromFlags(extractor, "")
 	return options, flagset
 }
 
@@ -102,7 +106,9 @@ func TestRedis(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	redisOptions, err := options.KeysOptions(flagset)
+
+	extractor := args.NewServiceExtractor(flagset, map[string]string{})
+	redisOptions, err := options.KeysOptions(extractor)
 	if err != nil {
 		t.Fatal(err)
 	}

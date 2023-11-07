@@ -28,7 +28,6 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -44,6 +43,7 @@ import (
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/utils/args"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -55,58 +55,90 @@ var (
 	ServiceName       = "acra-keymaker"
 )
 
-func main() {
-	clientID := flag.String("client_id", "client", "Client ID")
-	dataKeys := flag.Bool("generate_acrawriter_keys", false, "Create keypair for data encryption/decryption")
-	outputDir := flag.String("keys_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved keys")
-	outputPublicKey := flag.String("keys_public_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved public key")
-	hmac := flag.Bool("generate_hmac_key", false, "Create key for HMAC calculation")
-	logKey := flag.Bool("generate_log_key", false, "Create key for log integrity checks")
-	symStorageKey := flag.Bool("generate_symmetric_storage_key", false, "Generate symmetric key for data encryption/decryption with AcraBlock")
-	masterKey := flag.String("generate_master_key", "", "Generate new random master key and save to file")
-	poisonRecord := flag.Bool("generate_poisonrecord_keys", false, "Generate keypair and symmetric key for poison records")
-	keystoreVersion := flag.String("keystore", "", "set keystore format: v1 (current), v2 (new)")
-	kmsKeyPolicy := flag.String("kms_key_policy", kms.KeyPolicyCreate, fmt.Sprintf("KMS usage key policy: <%s>", strings.Join(kms.SupportedPolicies, "|")))
+func registerFlags(flagSet *flag.FlagSet) {
+	flagSet.String("client_id", "client", "Client ID")
+	flagSet.Bool("generate_acrawriter_keys", false, "Create keypair for data encryption/decryption")
+	flagSet.String("keys_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved keys")
+	flagSet.String("keys_public_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved public key")
+	flagSet.Bool("generate_hmac_key", false, "Create key for HMAC calculation")
+	flagSet.Bool("generate_log_key", false, "Create key for log integrity checks")
+	flagSet.Bool("generate_symmetric_storage_key", false, "Generate symmetric key for data encryption/decryption with AcraBlock")
+	flagSet.String("generate_master_key", "", "Generate new random master key and save to file")
+	flagSet.Bool("generate_poisonrecord_keys", false, "Generate keypair and symmetric key for poison records")
+	flagSet.String("keystore", "", "set keystore format: v1 (current), v2 (new)")
+	flagSet.String("kms_key_policy", kms.KeyPolicyCreate, fmt.Sprintf("KMS usage key policy: <%s>", strings.Join(kms.SupportedPolicies, "|")))
 
-	tlsClientCertOld := flag.String("tls_cert", "", "Path to TLS certificate to use as client_id identifier. Deprecated since 0.96.0 use --tls_client_id_cert")
-	tlsClientCertNew := flag.String("tls_client_id_cert", "", "Path to TLS certificate to use as client_id identifier.")
-	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
+	flagSet.String("tls_cert", "", "Path to TLS certificate to use as client_id identifier. Deprecated since 0.96.0 use --tls_client_id_cert")
+	flagSet.String("tls_client_id_cert", "", "Path to TLS certificate to use as client_id identifier.")
+	flagSet.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
 
 	cmd.RegisterRedisKeystoreParameters()
 	keyloader.RegisterKeyStoreStrategyParameters()
-	logging.SetLogLevel(logging.LogVerbose)
+}
 
-	err := cmd.Parse(DefaultConfigPath, ServiceName)
-	if err != nil {
+func main() {
+	logging.SetLogLevel(logging.LogVerbose)
+	registerFlags(flag.CommandLine)
+
+	if err := cmd.ParseFlags(flag.CommandLine, os.Args[1:]); err != nil {
+		if err == cmd.ErrDumpRequested {
+			cmd.DumpConfig(DefaultConfigPath, ServiceName, true)
+			os.Exit(0)
+		}
+
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse args")
 		os.Exit(1)
 	}
 
-	if *tlsClientCertOld != "" && *tlsClientCertNew != "" {
+	serviceConfig, err := cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
+			Errorln("Can't parse config")
+		os.Exit(1)
+	}
+
+	paramsExtractor := args.NewServiceExtractor(flag.CommandLine, serviceConfig)
+
+	clientID := paramsExtractor.GetString("client_id", "")
+	dataKeys := paramsExtractor.GetBool("generate_acrawriter_keys", "")
+	outputDir := paramsExtractor.GetString("keys_output_dir", "")
+	outputPublicKey := paramsExtractor.GetString("keys_public_output_dir", "")
+	hmac := paramsExtractor.GetBool("generate_hmac_key", "")
+	logKey := paramsExtractor.GetBool("generate_log_key", "")
+	symStorageKey := paramsExtractor.GetBool("generate_symmetric_storage_key", "")
+	masterKey := paramsExtractor.GetString("generate_master_key", "")
+	poisonRecord := paramsExtractor.GetBool("generate_poisonrecord_keys", "")
+	keystoreVersion := paramsExtractor.GetString("keystore", "")
+	kmsKeyPolicy := paramsExtractor.GetString("kms_key_policy", "")
+	tlsClientCertOld := paramsExtractor.GetString("tls_cert", "")
+	tlsClientCertNew := paramsExtractor.GetString("tls_client_id_cert", "")
+	tlsIdentifierExtractorType := paramsExtractor.GetString("tls_identifier_extractor_type", "")
+
+	if tlsClientCertOld != "" && tlsClientCertNew != "" {
 		log.Errorln("You cant specify --tls_cert (deprecated since 0.96.0) and --tls_client_id_cert simultaneously")
 		os.Exit(1)
 	}
 
-	tlsClientCert := *tlsClientCertNew
-	if tlsClientCert == "" && *tlsClientCertOld != "" {
-		tlsClientCert = *tlsClientCertOld
+	tlsClientCert := tlsClientCertNew
+	if tlsClientCert == "" && tlsClientCertOld != "" {
+		tlsClientCert = tlsClientCertOld
 	}
 
-	if len(*clientID) != 0 && tlsClientCert != "" {
+	if len(clientID) != 0 && tlsClientCert != "" {
 		log.Errorln("You can either specify identifier for keys via specific clientID by --client_id parameter or via TLS certificate by --tls_cert parameter.")
 		os.Exit(1)
 	}
 
-	if len(*clientID) == 0 && tlsClientCert != "" {
+	if len(clientID) == 0 && tlsClientCert != "" {
 		idConverter, err := network.NewDefaultHexIdentifierConverter()
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize identifier converter")
 			os.Exit(1)
 		}
-		identifierExtractor, err := network.NewIdentifierExtractorByType(*tlsIdentifierExtractorType)
+		identifierExtractor, err := network.NewIdentifierExtractorByType(tlsIdentifierExtractorType)
 		if err != nil {
-			log.WithField("type", *tlsIdentifierExtractorType).WithError(err).Errorln("Can't initialize identifier extractor")
+			log.WithField("type", tlsIdentifierExtractorType).WithError(err).Errorln("Can't initialize identifier extractor")
 			os.Exit(1)
 		}
 		clientIDExtractor, err := network.NewTLSClientIDExtractor(identifierExtractor, idConverter)
@@ -134,17 +166,17 @@ func main() {
 			log.WithError(err).Errorln("Can't extract clientID from TLS certificate")
 			os.Exit(1)
 		}
-		*clientID = string(tlsClientID)
+		clientID = string(tlsClientID)
 	}
 
 	// all keys required clientID for generation
-	if *dataKeys || *hmac || *symStorageKey {
-		cmd.ValidateClientID(*clientID)
+	if dataKeys || hmac || symStorageKey {
+		cmd.ValidateClientID(clientID)
 	}
 
-	if *masterKey != "" {
+	if masterKey != "" {
 		var newKey []byte
-		switch *keystoreVersion {
+		switch keystoreVersion {
 		case "v1":
 			newKey, err = keystore.GenerateSymmetricKey()
 		case "v2":
@@ -153,7 +185,7 @@ func main() {
 			log.Errorf("Keystore version is required: --keystore={v1|v2}")
 			os.Exit(1)
 		default:
-			log.Errorf("Unknown --keystore option: %v", *keystoreVersion)
+			log.Errorf("Unknown --keystore option: %v", keystoreVersion)
 			os.Exit(1)
 		}
 		if err != nil {
@@ -161,29 +193,29 @@ func main() {
 			os.Exit(1)
 		}
 
-		if keystoreOptions := keyloader.ParseCLIOptions(); keystoreOptions.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSMasterKey {
-			keyManager, err := kms.NewKeyManager(kms.ParseCLIParameters())
+		if keystoreOptions := keyloader.ParseCLIOptions(paramsExtractor); keystoreOptions.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSMasterKey {
+			keyManager, err := kms.NewKeyManager(kms.ParseCLIParameters(paramsExtractor))
 			if err != nil {
-				log.WithError(err).WithField("path", *masterKey).Errorln("Failed to initializer kms KeyManager")
+				log.WithError(err).WithField("path", masterKey).Errorln("Failed to initializer kms KeyManager")
 				os.Exit(1)
 			}
 
-			switch *kmsKeyPolicy {
+			switch kmsKeyPolicy {
 			case kms.KeyPolicyCreate:
 				newKey, err = newMasterKeyWithKMSCreate(keyManager, newKey)
 				if err != nil {
-					log.WithField("path", *masterKey).Errorln("Failed to create key with KMS")
+					log.WithField("path", masterKey).Errorln("Failed to create key with KMS")
 					os.Exit(1)
 				}
 
 			default:
-				log.WithField("supported", kms.SupportedPolicies).WithField("policy", *kmsKeyPolicy).Errorln("Unsupported key policy for `kms_key_policy`")
+				log.WithField("supported", kms.SupportedPolicies).WithField("policy", kmsKeyPolicy).Errorln("Unsupported key policy for `kms_key_policy`")
 				os.Exit(1)
 			}
 		}
 
-		if err := ioutil.WriteFile(*masterKey, newKey, 0600); err != nil {
-			log.WithError(err).WithField("path", *masterKey).Errorln("Failed to write master key")
+		if err := os.WriteFile(masterKey, newKey, 0600); err != nil {
+			log.WithError(err).WithField("path", masterKey).Errorln("Failed to write master key")
 			os.Exit(1)
 		}
 		os.Exit(0)
@@ -191,28 +223,28 @@ func main() {
 
 	var store keystore.KeyMaking
 	// If the keystore already exists, detect its version automatically and allow to not specify it.
-	if *keystoreVersion == "" {
-		if filesystemV2.IsKeyDirectory(*outputDir) {
-			*keystoreVersion = "v2"
-		} else if filesystem.IsKeyDirectory(*outputDir) {
-			*keystoreVersion = "v1"
+	if keystoreVersion == "" {
+		if filesystemV2.IsKeyDirectory(outputDir, paramsExtractor) {
+			keystoreVersion = "v2"
+		} else if filesystem.IsKeyDirectory(outputDir, paramsExtractor) {
+			keystoreVersion = "v1"
 		}
 	}
 
-	switch *keystoreVersion {
+	switch keystoreVersion {
 	case "v1":
-		store = openKeyStoreV1(*outputDir, *outputPublicKey)
+		store = openKeyStoreV1(outputDir, outputPublicKey, paramsExtractor)
 	case "v2":
-		store = openKeyStoreV2(*outputDir)
+		store = openKeyStoreV2(outputDir, paramsExtractor)
 	case "":
 		log.Errorf("Keystore version is required: --keystore={v1|v2}")
 		os.Exit(1)
 	default:
-		log.Errorf("Unknown --keystore version: %v (supported: v1, v2)", *keystoreVersion)
+		log.Errorf("Unknown --keystore version: %v (supported: v1, v2)", keystoreVersion)
 		os.Exit(1)
 	}
 
-	if *poisonRecord {
+	if poisonRecord {
 		// Generate poison record symmetric key
 		if err = store.GeneratePoisonSymmetricKey(); err != nil {
 			panic(err)
@@ -225,28 +257,28 @@ func main() {
 		fmt.Println("Generated keypair for poison records")
 	}
 
-	if *dataKeys {
-		err = store.GenerateDataEncryptionKeys([]byte(*clientID))
+	if dataKeys {
+		err = store.GenerateDataEncryptionKeys([]byte(clientID))
 		if err != nil {
 			panic(err)
 		}
 		fmt.Println("Generated storage encryption keypair")
 	}
-	if *hmac {
-		err = store.GenerateHmacKey([]byte(*clientID))
+	if hmac {
+		err = store.GenerateHmacKey([]byte(clientID))
 		if err != nil {
 			panic(err)
 		}
 		fmt.Println("Generated HMAC key for searchable encryption")
 	}
-	if *symStorageKey {
-		err = store.GenerateClientIDSymmetricKey([]byte(*clientID))
+	if symStorageKey {
+		err = store.GenerateClientIDSymmetricKey([]byte(clientID))
 		if err != nil {
 			panic(err)
 		}
 		fmt.Println("Generated storage symmetric key for clientID")
 	}
-	if *logKey {
+	if logKey {
 		err = store.GenerateLogKey()
 		if err != nil {
 			panic(err)
@@ -254,15 +286,15 @@ func main() {
 		fmt.Println("Generated HMAC key for secure logging")
 	}
 
-	if !(*dataKeys || *hmac || *poisonRecord || *symStorageKey || *logKey) {
-		cmd.ValidateClientID(*clientID)
+	if !(dataKeys || hmac || poisonRecord || symStorageKey || logKey) {
+		cmd.ValidateClientID(clientID)
 
-		err = store.GenerateDataEncryptionKeys([]byte(*clientID))
+		err = store.GenerateDataEncryptionKeys([]byte(clientID))
 		if err != nil {
 			panic(err)
 		}
 		fmt.Println("Generated storage encryption keypair")
-		err = store.GenerateHmacKey([]byte(*clientID))
+		err = store.GenerateHmacKey([]byte(clientID))
 		if err != nil {
 			panic(err)
 		}
@@ -272,7 +304,7 @@ func main() {
 			panic(err)
 		}
 		fmt.Println("Generated HMAC key for secure logging")
-		err = store.GenerateClientIDSymmetricKey([]byte(*clientID))
+		err = store.GenerateClientIDSymmetricKey([]byte(clientID))
 		if err != nil {
 			panic(err)
 		}
@@ -290,10 +322,10 @@ func main() {
 	}
 }
 
-func openKeyStoreV1(output, outputPublic string) keystore.KeyMaking {
+func openKeyStoreV1(output, outputPublic string, extractor *args.ServiceExtractor) keystore.KeyMaking {
 	var keyStoreEncryptor keystore.KeyEncryptor
 
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(flag.CommandLine, "")
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		os.Exit(1)
@@ -307,12 +339,12 @@ func openKeyStoreV1(output, outputPublic string) keystore.KeyMaking {
 	}
 	keyStoreBuilder.Encryptor(keyStoreEncryptor)
 
-	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
+	if redis := cmd.ParseRedisCLIParameters(extractor); redis.KeysConfigured() {
 		// if redisTLS = nil then will not be used TLS for Redis
 		var redisTLS *tls.Config
 		var err error
 		if redis.TLSEnable {
-			redisTLS, err = network.NewTLSConfigByName(flag.CommandLine, "redis", redis.HostPort, network.ClientNameConstructorFunc())
+			redisTLS, err = network.NewTLSConfigByName(extractor, "redis", redis.HostPort, network.ClientNameConstructorFunc())
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 					Errorln("Can't initialize TLS config for Redis client")
@@ -333,22 +365,22 @@ func openKeyStoreV1(output, outputPublic string) keystore.KeyMaking {
 		os.Exit(1)
 	}
 
-	if keyLoaderParams := keyloader.ParseCLIOptions(); keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
-		keyManager, _ := kms.NewKeyManager(kms.ParseCLIParameters())
+	if keyLoaderParams := keyloader.ParseCLIOptions(extractor); keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
+		keyManager, _ := kms.NewKeyManager(kms.ParseCLIParameters(extractor))
 		return base.NewKeyMakingWrapper(keyStore, keyManager, kms.NewKMSPerClientKeyMapper())
 	}
 	return keyStore
 }
 
-func openKeyStoreV2(keyDirPath string) keystore.KeyMaking {
-	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(flag.CommandLine, "")
+func openKeyStoreV2(keyDirPath string, extractor *args.ServiceExtractor) keystore.KeyMaking {
+	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")
 		os.Exit(1)
 	}
 	var backend filesystemBackendV2.Backend
-	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
-		redisOptions, err := redis.KeysOptions(flag.CommandLine)
+	if redis := cmd.ParseRedisCLIParameters(extractor); redis.KeysConfigured() {
+		redisOptions, err := redis.KeysOptions(extractor)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize Redis options")
 			os.Exit(1)

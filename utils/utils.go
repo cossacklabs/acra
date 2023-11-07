@@ -20,17 +20,18 @@ package utils
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/cossacklabs/themis/gothemis/keys"
 	"io"
 	"io/ioutil"
+	"os"
+	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 	"unsafe"
 
+	"github.com/cossacklabs/themis/gothemis/keys"
+
 	log "github.com/sirupsen/logrus"
-	"os"
-	"path/filepath"
-	"runtime"
 )
 
 // WriteFull writes data to io.Writer.

@@ -24,7 +24,6 @@ import (
 	flag_ "flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"os"
@@ -313,17 +312,13 @@ func DumpConfigFromFlagSets(flagSets []*flag_.FlagSet, configPath, serviceName s
 	return nil
 }
 
-func checkVersion(config map[string]interface{}) error {
-	if config == nil {
+func checkVersion(config map[string]string) error {
+	if config == nil || len(config) == 0 {
 		return nil
 	}
-	configVersion, ok := config["version"]
+	versionValue, ok := config["version"]
 	if !ok {
 		return errors.New("config hasn't version key")
-	}
-	versionValue, ok := configVersion.(string)
-	if !ok {
-		return errors.New("value of version is not string")
 	}
 
 	version, err := utils.ParseVersion(versionValue)
@@ -342,83 +337,50 @@ func checkVersion(config map[string]interface{}) error {
 	return nil
 }
 
-// Parse parses flag settings from YAML config file and command line.
-func Parse(configPath, serviceName string) error {
-	err := ParseFlagsWithConfig(flag_.CommandLine, os.Args[1:], configPath, serviceName)
-	if err == ErrDumpRequested {
-		DumpConfig(configPath, serviceName, true)
-		os.Exit(0)
+// ParseFlags parses CommandLine flags or return ErrDumpRequested  if requested.
+func ParseFlags(flags *flag_.FlagSet, arguments []string) error {
+	err := flags.Parse(arguments)
+	if *dumpconfig {
+		return ErrDumpRequested
 	}
 	return err
 }
 
-// ParseFlagsWithConfig parses flag settings from YAML config file and command line.
-func ParseFlagsWithConfig(flags *flag_.FlagSet, arguments []string, configPath, serviceName string) error {
-	/*load from yaml config and cli. if dumpconfig option pass than generate config and exit*/
-	log.Debugf("Parsing config from path %v", configPath)
-	// first parse using bultin flag
-	err := flags.Parse(arguments)
-	if err != nil {
-		return err
+// ParseConfig parse service config by configPath if exists
+func ParseConfig(configPath, serviceName string) (map[string]string, error) {
+	result := make(map[string]string)
+	if configPath == "" {
+		return result, nil
 	}
 
 	configPath = ConfigPath(configPath)
-	var yamlConfig map[string]interface{}
-	var extraArgs []string
-	// parse yaml and add params that wasn't passed from cli
-	if configPath != "" {
+	configAbsPath, err := filepath.Abs(configPath)
+	if err != nil {
+		return nil, err
+	}
 
-		configPath, err := filepath.Abs(configPath)
+	exists, err := utils.FileExists(configAbsPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if exists {
+		data, err := os.ReadFile(configPath)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		exists, err := utils.FileExists(configPath)
+
+		err = yaml.Unmarshal(data, &result)
 		if err != nil {
-			return err
-		}
-		if exists {
-			data, err := ioutil.ReadFile(configPath)
-			if err != nil {
-				return err
-			}
-			err = yaml.Unmarshal(data, &yamlConfig)
-			if err != nil {
-				return err
-			}
-			setArgs := make(map[string]bool)
-			flags.Visit(func(flag *flag_.Flag) {
-				setArgs[flag.Name] = true
-			})
-			// generate args list for flag.Parse as it was from cli args
-			flags.VisitAll(func(flag *flag_.Flag) {
-				// generate only args that wasn't set from cli
-				if _, alreadySet := setArgs[flag.Name]; !alreadySet {
-					if value, yamlOk := yamlConfig[flag.Name]; yamlOk {
-						if value != nil {
-							extraArgs = append(extraArgs, fmt.Sprintf("--%v=%v", flag.Name, value))
-						}
-					}
-				}
-			})
+			return nil, err
 		}
 	}
-	// Set global options from config that wasn't set by CLI, if there are any.
-	if len(extraArgs) != 0 {
-		err = flags.Parse(extraArgs)
-		if err != nil {
-			return err
-		}
-		// Parse the command-line options again so that flag.Args() returns
-		// whatever was left on the actual command-line, not the config values.
-		flags.Parse(arguments)
+
+	if err = checkVersion(result); err != nil {
+		return nil, err
 	}
-	if *dumpconfig {
-		return ErrDumpRequested
-	}
-	if err = checkVersion(yamlConfig); err != nil {
-		return err
-	}
-	return nil
+
+	return result, nil
 }
 
 // Argon2Params describes params for Argon2 hashing

@@ -24,10 +24,11 @@ import (
 	"os"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
-	log "github.com/sirupsen/logrus"
 )
 
 // ServiceName constant for logging and configuration parsing.
@@ -81,7 +82,7 @@ func ParseParameters(subcommands []Subcommand) Subcommand {
 }
 
 func parseParameters(subcommands []Subcommand) (Subcommand, error) {
-	err := cmd.ParseFlagsWithConfig(flag.CommandLine, os.Args[1:], DefaultConfigPath, ServiceName)
+	err := cmd.ParseFlags(flag.CommandLine, os.Args[1:])
 	// If there is "--dump_config" on the command line,
 	// dump configuration for all subcommand and immediately exit.
 	if err == cmd.ErrDumpRequested {
@@ -96,6 +97,11 @@ func parseParameters(subcommands []Subcommand) (Subcommand, error) {
 	if err != nil {
 		return nil, err
 	}
+	_, err = cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		return nil, err
+	}
+
 	names := make([]string, len(subcommands))
 	for i, command := range subcommands {
 		names[i] = command.Name()
