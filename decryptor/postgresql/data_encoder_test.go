@@ -6,22 +6,24 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
 	"math"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
+
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	_ "github.com/cossacklabs/acra/decryptor/postgresql/types"
-	"github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/encryptor/config"
-	common2 "github.com/cossacklabs/acra/encryptor/config/common"
+	encryptor "github.com/cossacklabs/acra/encryptor/base"
+	"github.com/cossacklabs/acra/encryptor/base/config"
+	common2 "github.com/cossacklabs/acra/encryptor/base/config/common"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/sirupsen/logrus"
 )
 
 // TestEncodingDecodingProcessorBinaryIntData checks decoding binary INT values to string SQL literals and back

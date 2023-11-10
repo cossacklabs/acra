@@ -9,7 +9,7 @@ import (
 	queryEncryptor "github.com/cossacklabs/acra/encryptor/base"
 	"github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/encryptor/mysql"
-	base2 "github.com/cossacklabs/acra/encryptor/postgresql"
+	"github.com/cossacklabs/acra/encryptor/postgresql"
 	"github.com/cossacklabs/acra/sqlparser"
 )
 
@@ -26,7 +26,7 @@ func NewPostgresqlTokenizeQuery(schemaStore config.TableSchemaStore, tokenEncryp
 	return &TokenizeQuery{
 		searchableQueryFilter: queryEncryptor.NewSearchableQueryFilter(schemaStore, queryEncryptor.QueryFilterModeConsistentTokenization),
 		tokenEncryptor:        tokenEncryptor,
-		coder:                 &base2.PostgresqlDBDataCoder{},
+		coder:                 &postgresql.PostgresqlDBDataCoder{},
 		schemaStore:           schemaStore,
 	}
 }

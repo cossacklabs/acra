@@ -20,13 +20,15 @@ import (
 	"crypto/tls"
 	"errors"
 	"flag"
-	"github.com/cossacklabs/acra/network"
 	"os"
 	"strconv"
 
-	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/network"
+
 	goRedis "github.com/go-redis/redis/v7"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/logging"
 )
 
 // RedisOptions keep command-line options related to Redis database configuration.

@@ -4,7 +4,7 @@ syntax = "proto3";
 // to not break backward compatibility)
 package github.com.cossacklabs.acra.encryptor.config.common;
 
-option go_package = "github.com/cossacklabs/acra/encryptor/config/common";
+option go_package = "github.com/cossacklabs/acra/encryptor/base/config/common";
 
 // EncryptedType defines types for encrypted data.
 enum EncryptedType {

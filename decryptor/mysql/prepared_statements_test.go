@@ -13,7 +13,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/mocks"
 	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
-	"github.com/cossacklabs/acra/encryptor/config"
+	"github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/sqlparser"
 )
 

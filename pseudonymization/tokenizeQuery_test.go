@@ -6,15 +6,16 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/mocks"
-	encryptor2 "github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/encryptor/config"
+	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/encryptor/postgresql"
 	"github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/pseudonymization/storage"
 	"github.com/cossacklabs/acra/sqlparser"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 // TestSearchableTokenizationWithTextFormat process searchable SELECT query with placeholder for prepared statement
@@ -103,13 +104,13 @@ schemas:
 		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "UPDATE test_table SET kind = 'Dramatic' WHERE data1='somedata';"},
 		{Value: []byte("4444"), Type: common.TokenType_Int32, TokenType: "int32", Query: "UPDATE test_table SET kind = 'Dramatic' WHERE data1=4444 and data_ignored='ignoreddata';"},
 		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "DELETE FROM test_table WHERE data1='somedata';"},
-		{Value: randomBytes, Type: common.TokenType_Bytes, TokenType: "bytes", Query: fmt.Sprintf("DELETE FROM test_table where data1='%s' or data_ignored='ignoreddata'", encryptor2.PgEncodeToHexString(randomBytes)), OnlyDBType: getBoolReference(config.UsePostgreSQL)},
+		{Value: randomBytes, Type: common.TokenType_Bytes, TokenType: "bytes", Query: fmt.Sprintf("DELETE FROM test_table where data1='%s' or data_ignored='ignoreddata'", postgresql.PgEncodeToHexString(randomBytes)), OnlyDBType: getBoolReference(config.UsePostgreSQL)},
 		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "select data1 from test_table where data1='somedata'"},
 		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "select data1 from test_table where data1='somedata' and data_ignored='ignoreddata'"},
 		{Value: []byte("333"), Type: common.TokenType_Int32, TokenType: "int32", Query: "select data1 from test_table where data1=333"},
 		{Value: []byte("33333333333333333"), Type: common.TokenType_Int64, TokenType: "int64", Query: "select data1 from test_table where data1=33333333333333333"},
 		{Value: []byte("test@gmail.com"), Type: common.TokenType_Email, TokenType: "email", Query: "select data1 from test_table where data1='test@gmail.com'"},
-		{Value: randomBytes, Type: common.TokenType_Bytes, TokenType: "bytes", Query: fmt.Sprintf("select data1 from test_table where data1='%s'", encryptor2.PgEncodeToHexString(randomBytes)), OnlyDBType: getBoolReference(config.UsePostgreSQL)},
+		{Value: randomBytes, Type: common.TokenType_Bytes, TokenType: "bytes", Query: fmt.Sprintf("select data1 from test_table where data1='%s'", postgresql.PgEncodeToHexString(randomBytes)), OnlyDBType: getBoolReference(config.UsePostgreSQL)},
 	}
 
 	for i, tcase := range testcases {
@@ -185,7 +186,7 @@ schemas:
 				if tcase.Type == common.TokenType_Bytes {
 					var binAnonymized = anonymized
 					if bytes.HasPrefix(lRightExpr.Val, []byte{'\\', 'x'}) {
-						binAnonymized = encryptor2.PgEncodeToHexString(anonymized)
+						binAnonymized = postgresql.PgEncodeToHexString(anonymized)
 					}
 
 					assert.Equal(t, lRightExpr.Val, binAnonymized, fmt.Sprintf("Iteration %d", i))
@@ -327,7 +328,7 @@ func (c customAnonymizer) AnonymizeConsistently(data interface{}, context common
 
 	if dataType == common.TokenType_Bytes {
 		// pretend anonymizer return encoded data that should be encode to hex
-		return encryptor2.PgEncodeToHexString(anonymized.([]byte)), nil
+		return postgresql.PgEncodeToHexString(anonymized.([]byte)), nil
 	}
 
 	return anonymized, nil
@@ -401,7 +402,7 @@ schemas:
 
 	testcases := []testcase{
 		{Value: []byte("somedata"), TokenType: "str", Query: "INSERT INTO table2 SELECT * FROM test_table WHERE data1='somedata';"},
-		{shouldHaveHexEncoding: true, Value: randomBytes, TokenType: "bytes", Query: fmt.Sprintf("INSERT INTO table2 SELECT * FROM test_table WHERE data1='%s';", encryptor2.PgEncodeToHexString(randomBytes))},
+		{shouldHaveHexEncoding: true, Value: randomBytes, TokenType: "bytes", Query: fmt.Sprintf("INSERT INTO table2 SELECT * FROM test_table WHERE data1='%s';", postgresql.PgEncodeToHexString(randomBytes))},
 		{shouldHaveHexEncoding: true, Value: []byte("q{r."), TokenType: "bytes", Query: fmt.Sprintf("INSERT INTO table2 SELECT * FROM test_table WHERE data1='%s';", []byte("q{r."))},
 	}
 
@@ -432,7 +433,7 @@ schemas:
 
 		expectedValue := anonymized
 		if tcase.shouldHaveHexEncoding {
-			expectedValue = encryptor2.PgEncodeToHexString(anonymized)
+			expectedValue = postgresql.PgEncodeToHexString(anonymized)
 		}
 
 		assert.Equal(t, rightExpr.Val, expectedValue, fmt.Sprintf("Fail in %d iteration\n", i))

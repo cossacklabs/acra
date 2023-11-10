@@ -3,7 +3,7 @@ package base
 import (
 	"testing"
 
-	"github.com/cossacklabs/acra/encryptor/config"
+	"github.com/cossacklabs/acra/encryptor/base/config"
 
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"

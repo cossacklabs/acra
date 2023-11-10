@@ -19,8 +19,10 @@ package postgresql
 import (
 	"encoding/hex"
 	"strconv"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	pg_query "github.com/pganalyze/pg_query_go/v4"
 	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/encryptor/base"
@@ -156,5 +158,172 @@ func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte, setting c
 			return PgEncodeToHexString(data), nil
 		}
 	}
+	return nil, base.ErrUnsupportedExpression
+}
+
+type PostgresqlPgQueryDBDataCoder struct{}
+
+// Decode hex/escaped literals to raw binary values for encryption/decryption. String values left as is because it
+// doesn't need any decoding. Historically Int values had support only for tokenization and operated over string SQL
+// literals.
+func (*PostgresqlPgQueryDBDataCoder) Decode(aConst *pg_query.A_Const, setting config.ColumnEncryptionSetting) ([]byte, error) {
+	if sval := aConst.GetSval(); sval != nil {
+		if strings.HasPrefix(sval.GetSval(), "\\x") {
+			// try to decode hex/octal encoding
+			binValue, err := utils.DecodeEscaped([]byte(sval.GetSval()))
+			if err != nil && err != utils.ErrDecodeOctalString {
+				// return error on hex decode
+				if _, ok := err.(hex.InvalidByteError); err == hex.ErrLength || ok {
+					return nil, err
+				} else if err == utils.ErrDecodeOctalString {
+					return nil, err
+				}
+
+				logrus.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeSQLValue).Warningln("Can't decode value, process as unescaped string")
+				// return value as is because it may be string with printable characters that wasn't encoded on client
+				return []byte(sval.GetSval()), nil
+			}
+			return binValue, nil
+		}
+
+		// simple strings should be handled as is
+		typeID := setting.GetDBDataTypeID()
+		if typeID != 0 && typeID != pgtype.ByteaOID {
+			return []byte(sval.GetSval()), nil
+		}
+		// bytea strings are escaped with \x hex value or with octal encoding
+
+		// try to decode hex/octal encoding
+		binValue, err := utils.DecodeEscaped([]byte(sval.GetSval()))
+		if err != nil && err != utils.ErrDecodeOctalString {
+			// return error on hex decode
+			if _, ok := err.(hex.InvalidByteError); err == hex.ErrLength || ok {
+				return nil, err
+			} else if err == utils.ErrDecodeOctalString {
+				return nil, err
+			}
+
+			logrus.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeSQLValue).Warningln("Can't decode value, process as unescaped string")
+			// return value as is because it may be string with printable characters that wasn't encoded on client
+			return []byte(sval.GetSval()), nil
+		}
+		return binValue, nil
+	}
+
+	//switch val := expr.(type) {
+	//case *sqlparser.SQLVal:
+	//	switch val.Type {
+	//	case sqlparser.IntVal:
+	//		return val.Val, nil
+	//	case sqlparser.HexVal:
+	//		binValue := make([]byte, hex.DecodedLen(len(val.Val)))
+	//		_, err := hex.Decode(binValue, val.Val)
+	//		if err != nil {
+	//			logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeHexData).WithError(err).Errorln("Can't decode hex string literal")
+	//			return nil, err
+	//		}
+	//		return binValue, err
+	//	case sqlparser.PgEscapeString:
+	//		// try to decode hex/octal encoding
+	//		binValue, err := utils.DecodeEscaped(val.Val)
+	//		if err != nil && err != utils.ErrDecodeOctalString {
+	//			// return error on hex decode
+	//			if _, ok := err.(hex.InvalidByteError); err == hex.ErrLength || ok {
+	//				return nil, err
+	//			} else if err == utils.ErrDecodeOctalString {
+	//				return nil, err
+	//			}
+	//
+	//			logrus.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeSQLValue).Warningln("Can't decode value, process as unescaped string")
+	//			// return value as is because it may be string with printable characters that wasn't encoded on client
+	//			return val.Val, nil
+	//		}
+	//		return binValue, nil
+	//	case sqlparser.StrVal:
+	//		// simple strings should be handled as is
+	//		typeID := setting.GetDBDataTypeID()
+	//		if typeID != 0 && typeID != pgtype.ByteaOID {
+	//			return val.Val, nil
+	//		}
+	//		// bytea strings are escaped with \x hex value or with octal encoding
+	//
+	//		// try to decode hex/octal encoding
+	//		binValue, err := utils.DecodeEscaped(val.Val)
+	//		if err != nil && err != utils.ErrDecodeOctalString {
+	//			// return error on hex decode
+	//			if _, ok := err.(hex.InvalidByteError); err == hex.ErrLength || ok {
+	//				return nil, err
+	//			} else if err == utils.ErrDecodeOctalString {
+	//				return nil, err
+	//			}
+	//
+	//			logrus.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeSQLValue).Warningln("Can't decode value, process as unescaped string")
+	//			// return value as is because it may be string with printable characters that wasn't encoded on client
+	//			return val.Val, nil
+	//		}
+	//		return binValue, nil
+	//	}
+	//}
+	return nil, base.ErrUnsupportedExpression
+}
+
+// Encode data to correct literal from binary data for this expression
+func (*PostgresqlPgQueryDBDataCoder) Encode(aConst *pg_query.A_Const, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
+	//switch val := expr.(type) {
+	//case *sqlparser.SQLVal:
+	//	switch val.Type {
+	//	case sqlparser.HexVal:
+	//		output := make([]byte, hex.EncodedLen(len(data)))
+	//		hex.Encode(output, data)
+	//		return output, nil
+	//	case sqlparser.IntVal:
+	//		// QueryDataEncryptor can tokenize INT SQL literal and we should not do anything because it is still valid
+	//		// INT literal. Also, handler can encrypt data and replace SQL literal with encrypted data as []byte result.
+	//		// Due to invalid format for INT literals, we should encode it as valid hex encoded binary value and change
+	//		// type of SQL token for sqlparser that encoded into final SQL string
+	//
+	//		// if data was just tokenized, so we return it as is because it is valid int literal
+	//		if _, err := strconv.Atoi(string(data)); err == nil {
+	//			return data, nil
+	//		}
+	//		// otherwise change type and pass it below for hex encoding
+	//		val.Type = sqlparser.PgEscapeString
+	//		fallthrough
+	//	case sqlparser.PgEscapeString:
+	//		// if type is not byte array, then it probably string or int and we pass printable strings
+	//		if setting.GetDBDataTypeID() != 0 && setting.GetDBDataTypeID() != pgtype.ByteaOID {
+	//			// valid strings we pass as is without extra encoding
+	//			if utils.IsPrintablePostgresqlString(data) {
+	//				return data, nil
+	//			}
+	//		}
+	//		// valid string can contain escaped symbols, or tokenizer may generate string with symbols that should be escaped
+	//		return utils.EncodeToOctal(data), nil
+	//	case sqlparser.StrVal:
+	//		// if type is not byte array, then it probably string or int and we pass printable strings
+	//		if setting.GetDBDataTypeID() != 0 && setting.GetDBDataTypeID() != pgtype.ByteaOID {
+	//			// valid strings we pass as is without extra encoding
+	//			if utils.IsPrintablePostgresqlString(data) {
+	//				return data, nil
+	//			}
+	//		}
+	//		// byte array can be valid hex/octal encoded value, eventually we should encode it as binary data
+	//		return PgEncodeToHexString(data), nil
+	//	}
+	//}
+
+	if sval := aConst.GetSval(); sval != nil {
+		if setting.GetDBDataTypeID() != 0 && setting.GetDBDataTypeID() != pgtype.ByteaOID {
+			// valid strings we pass as is without extra encoding
+			if utils.IsPrintablePostgresqlString(data) {
+				return data, nil
+			}
+		}
+		// byte array can be valid hex/octal encoded value, eventually we should encode it as binary data
+		return PgEncodeToHexString(data), nil
+	}
+
+	// if type is not byte array, then it probably string or int and we pass printable strings
+
 	return nil, base.ErrUnsupportedExpression
 }

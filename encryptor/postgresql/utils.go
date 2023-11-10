@@ -1,6 +1,7 @@
 package postgresql
 
 import (
+	"bytes"
 	"context"
 	"errors"
 
@@ -9,6 +10,8 @@ import (
 
 	"github.com/cossacklabs/acra/encryptor/base"
 	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/utils"
 )
 
 var (
@@ -17,6 +20,33 @@ var (
 	errTableAlreadyMatched    = errors.New("aliased table name already matched")
 	errAliasedTableNotMatched = errors.New("aliases table not matched")
 	errEmptyTableExprs        = errors.New("empty table exprs")
+)
+
+// AliasToTableMap store table alias as key and table name as value
+type AliasToTableMap map[string]string
+
+// AliasedTableName store TableName and related As value together
+type AliasedTableName struct {
+	TableName string
+	As        string
+}
+
+// NewAliasToTableMapFromTables create AliasToTableMap from slice of aliased tables
+func NewAliasToTableMapFromTables(tables []*AliasedTableName) AliasToTableMap {
+	qualifierMap := AliasToTableMap{}
+	for _, table := range tables {
+		if table.As == "" {
+			qualifierMap[table.TableName] = table.TableName
+		} else {
+			qualifierMap[table.As] = table.TableName
+		}
+	}
+	return qualifierMap
+}
+
+const (
+	allColumnsName         = "*"
+	placeholdersSettingKey = "bind_encryption_settings"
 )
 
 // ParseQuerySettings parse list of select query settings based on schemaStore
@@ -97,10 +127,53 @@ func MapColumnsToAliases(selectQuery *pg_query.SelectStmt, tableSchemaStore conf
 
 			if val := target.GetVal(); val != nil && val.GetColumnRef() != nil {
 				// handling the case select * from table1
-				if fields := val.GetColumnRef().GetFields(); len(fields) == 1 && fields[0].GetAStar() != nil {
-					// TODO: case when Star and joins
 
+				fields := val.GetColumnRef().GetFields()
+				// select * from table => fields len is 1;
+				// select t1.* from table t1 => fields len is 2; and second one is AStart
+				if (len(fields) == 1 && fields[0].GetAStar() != nil) || (len(fields) == 2 && fields[1].GetAStar() != nil) {
+					if len(joinTables) > 0 {
+						if len(fields) == 2 {
+							alias := fields[0].GetString_().GetSval()
+							joinTable, ok := joinAliases[alias]
+							if !ok {
+								return nil, base.ErrUnsupportedExpression
+							}
+							out = append(out, &base.ColumnInfo{Table: joinTable, Name: allColumnsName, Alias: allColumnsName})
+							continue
+						}
+
+						for i := len(joinTables) - 1; i >= 0; i-- {
+							out = append(out, &base.ColumnInfo{Table: joinTables[i], Name: allColumnsName, Alias: allColumnsName})
+						}
+						continue
+					}
+
+					tableName, err := getFirstTableWithoutAlias(selectQuery.FromClause)
+					if err == nil {
+						out = append(out, &base.ColumnInfo{Table: tableName, Name: allColumnsName, Alias: allColumnsName})
+					} else {
+						if len(selectQuery.FromClause) == 1 {
+							tableNameStr, err := getTableNameWithoutAliases(selectQuery.FromClause[0])
+							if err != nil {
+								return nil, err
+							}
+							out = append(out, &base.ColumnInfo{Table: tableNameStr, Name: allColumnsName, Alias: allColumnsName})
+							continue
+						}
+
+						if len(fields) == 2 {
+							alias := fields[0].GetString_().GetSval()
+							tableNameStr, err := findTableName(alias, alias, selectQuery.FromClause)
+							if err != nil {
+								return nil, err
+							}
+							out = append(out, &base.ColumnInfo{Table: tableNameStr.Table, Name: allColumnsName, Alias: allColumnsName})
+						}
+					}
+					continue
 				}
+
 				info, err := FindColumnInfo(selectQuery.GetFromClause(), val.GetColumnRef(), tableSchemaStore)
 				if err == nil {
 					out = append(out, &info)
@@ -109,11 +182,12 @@ func MapColumnsToAliases(selectQuery *pg_query.SelectStmt, tableSchemaStore conf
 			}
 
 			if val := target.GetVal(); val != nil && val.GetRowExpr() != nil {
-				//TODO: potential syntax to select tuple
-				// select (id, phone_number), ssn from users;
+				//TODO: potential syntax to select tuple select (id, phone_number), ssn from users;
 				// add processing
 				return nil, base.ErrUnsupportedExpression
 			}
+
+			out = append(out, nil)
 		}
 	}
 	return out, nil
@@ -150,6 +224,15 @@ func FindColumnInfo(fromClause []*pg_query.Node, colRef *pg_query.ColumnRef, sch
 	info.Alias = alias
 
 	return info, nil
+}
+
+func getTableNameWithoutAliases(node *pg_query.Node) (string, error) {
+	rangeVar := node.GetRangeVar()
+	if rangeVar == nil {
+		return "", errNotFoundtable
+	}
+
+	return rangeVar.GetRelname(), nil
 }
 
 func getMatchedTable(fromExpr []*pg_query.Node, colRef *pg_query.ColumnRef, tableSchemaStore config.TableSchemaStore) (string, error) {
@@ -227,7 +310,7 @@ func getNonAliasedName(node *pg_query.Node) (string, bool) {
 		return "", false
 	}
 
-	if node.GetAlias() != nil {
+	if node.GetRangeVar().GetAlias() != nil {
 		return "", false
 	}
 
@@ -327,7 +410,7 @@ func findTableName(alias, columnName string, expr any) (base.ColumnInfo, error) 
 // recursive processing starts from RightExpr leaf to the LeftExpr one, and when cast LeftExpr to AliasedTableExpr is successful
 // it means that we reach last leaf in the tree.
 func parseJoinTablesInfo(joinExp *pg_query.JoinExpr, tables *[]string, aliases map[string]string) bool {
-	if larg := joinExp.GetLarg(); larg != nil && larg.GetRangeVar() != nil {
+	if larg := joinExp.GetLarg(); larg != nil && larg.GetRangeVar() != nil || larg.GetRangeSubselect() != nil {
 		// here we reach the last leaf in the JoinTableExpr recursive tree, processing SHOULD be stopped in this block.
 		// and we should process remaining RightExpr and LeftExpr leafs more before exit.
 		ok := getRightJoinTableInfo(joinExp, tables, aliases)
@@ -370,39 +453,27 @@ func parseJoinTablesInfo(joinExp *pg_query.JoinExpr, tables *[]string, aliases m
 // in case of more complex JOINs constructions like `JOIN (table1 AS t1 JOIN table2 AS t2 ON ... JOIN table3 ...) ON ...`
 // represented by sqlparser.ParenTableExpr it runs parseJoinTablesInfo itself recursively to collect tableName and its alias info inside this block
 func getRightJoinTableInfo(joinExp *pg_query.JoinExpr, tables *[]string, aliases map[string]string) bool {
-	if rarg := joinExp.GetRarg(); rarg != nil && rarg.GetRangeVar() != nil {
-
+	rarg := joinExp.GetRarg()
+	if rarg != nil && rarg.GetJoinExpr() != nil {
+		return parseJoinTablesInfo(rarg.GetJoinExpr(), tables, aliases)
 	}
 
-	//parentExpr, ok := joinExp.RightExpr.(*sqlparser.ParenTableExpr)
-	//if ok {
-	//	for _, expr := range parentExpr.Exprs {
-	//		innerJoinExpr, ok := expr.(*sqlparser.JoinTableExpr)
-	//		if !ok {
-	//			continue
-	//		}
-	//		return parseJoinTablesInfo(innerJoinExpr, tables, aliases)
-	//	}
-	//}
-	//
-	//rAliased, ok := joinExp.RightExpr.(*sqlparser.AliasedTableExpr)
-	//if !ok {
-	//	return false
-	//}
-	//
-	//tableName, ok := rAliased.Expr.(sqlparser.TableName)
-	//if !ok {
-	//	return false
-	//}
-	//
-	//alias := rAliased.As.RawValue()
-	//if rAliased.As.RawValue() == "" {
-	//	alias = tableName.Name.RawValue()
-	//}
-	//if _, ok := aliases[alias]; !ok {
-	//	*tables = append(*tables, tableName.Name.RawValue())
-	//	aliases[alias] = tableName.Name.RawValue()
-	//}
+	if rarg != nil && rarg.GetRangeVar() == nil {
+		return false
+	}
+
+	var tableName = rarg.GetRangeVar().GetRelname()
+	var alias string
+	if al := rarg.GetRangeVar().GetAlias(); al == nil {
+		alias = tableName
+	} else {
+		alias = rarg.GetRangeVar().GetAlias().GetAliasname()
+	}
+
+	if _, ok := aliases[alias]; !ok {
+		*tables = append(*tables, tableName)
+		aliases[alias] = tableName
+	}
 
 	return true
 }
@@ -442,14 +513,65 @@ func getFirstTableWithoutAlias(fromExpr []*pg_query.Node) (string, error) {
 // getJoinFirstTableWithoutAlias recursively process JoinTableExpr tree until it reaches the first table in JOIN declarations
 // used to handle queries like this `select table1.column1, column2, column3 from table1 join table2 as t2` and match column2 to table1
 func getJoinFirstTableWithoutAlias(joinExp *pg_query.JoinExpr) (string, bool) {
-	//aliased, ok := joinExp.LeftExpr.(*sqlparser.AliasedTableExpr)
-	//if ok {
-	//	return getNonAliasedName(aliased)
-	//}
-	//
-	//joinExp, ok = joinExp.LeftExpr.(*sqlparser.JoinTableExpr)
-	//if !ok {
-	//	return "", false
-	//}
-	return getJoinFirstTableWithoutAlias(joinExp)
+	if larg := joinExp.GetLarg(); larg != nil && larg.GetRangeVar() != nil {
+		return getNonAliasedName(larg)
+	}
+
+	larg := joinExp.GetLarg()
+	if larg == nil || larg.GetJoinExpr() == nil {
+		return "", false
+	}
+
+	return getJoinFirstTableWithoutAlias(larg.GetJoinExpr())
+}
+
+// GetTablesWithAliases collect all tables from all update TableExprs which may be as subquery/table/join/etc
+// collect only table names and ignore aliases for subqueries
+func GetTablesWithAliases(tables []*pg_query.Node) []*AliasedTableName {
+	var outputTables []*AliasedTableName
+	for _, exp := range tables {
+		if ranageVar := exp.GetRangeVar(); ranageVar != nil {
+			var alias string
+			if ranageVar.GetAlias() != nil {
+				alias = ranageVar.GetAlias().GetAliasname()
+			}
+			outputTables = append(outputTables, &AliasedTableName{TableName: ranageVar.GetRelname(), As: alias})
+		}
+
+		if joinExp := exp.GetJoinExpr(); joinExp != nil {
+			outputTables = append(outputTables, GetTablesWithAliases([]*pg_query.Node{joinExp.GetLarg(), joinExp.GetRarg()})...)
+		}
+	}
+	return outputTables
+}
+
+// UpdateExpressionValue decode value from DB related string to binary format, call updateFunc, encode to DB string format and replace value in expression with new
+func UpdateExpressionValue(ctx context.Context, expr *pg_query.A_Const, coder *PostgresqlPgQueryDBDataCoder, setting config.ColumnEncryptionSetting, updateFunc func(context.Context, []byte) ([]byte, error)) error {
+	if sval := expr.GetSval(); sval != nil {
+		rawData, err := coder.Decode(expr, setting)
+		if err != nil {
+			if err == utils.ErrDecodeOctalString || err == base.ErrUnsupportedExpression {
+				logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeSQLValue).
+					WithError(err).
+					Warningln("Can't decode data with unsupported coding format or unsupported expression")
+				return ErrUpdateLeaveDataUnchanged
+			}
+			return err
+		}
+
+		newData, err := updateFunc(ctx, rawData)
+		if err != nil {
+			return err
+		}
+		if len(newData) == len(rawData) && bytes.Equal(newData, rawData) {
+			return ErrUpdateLeaveDataUnchanged
+		}
+		coded, err := coder.Encode(expr, newData, setting)
+		if err != nil {
+			return err
+		}
+		sval.Sval = string(coded)
+	}
+
+	return nil
 }

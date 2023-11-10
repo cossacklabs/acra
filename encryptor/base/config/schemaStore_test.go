@@ -7,13 +7,14 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
-	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
-	common2 "github.com/cossacklabs/acra/encryptor/config/common"
-	"github.com/cossacklabs/acra/masking/common"
 	"github.com/jackc/pgx/v5/pgtype"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
+	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
+	common2 "github.com/cossacklabs/acra/encryptor/base/config/common"
+	"github.com/cossacklabs/acra/masking/common"
 )
 
 func TestCryptoEnvelopeDefaultValuesWithDefinedValue(t *testing.T) {

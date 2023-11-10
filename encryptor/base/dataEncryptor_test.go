@@ -21,8 +21,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/cossacklabs/acra/encryptor/config"
-	common2 "github.com/cossacklabs/acra/encryptor/config/common"
+	"github.com/cossacklabs/acra/encryptor/base/config"
+	common2 "github.com/cossacklabs/acra/encryptor/base/config/common"
 
 	"github.com/cossacklabs/acra/acrastruct"
 

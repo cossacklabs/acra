@@ -4,16 +4,18 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
 	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/mocks"
-	encryptor2 "github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/encryptor/config"
+	encryptor2 "github.com/cossacklabs/acra/encryptor/base"
+	"github.com/cossacklabs/acra/encryptor/base/config"
 	mocks2 "github.com/cossacklabs/acra/keystore/mocks"
 	"github.com/cossacklabs/acra/sqlparser"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"testing"
 )
 
 // TestSearchablePreparedStatementsWithTextFormat process searchable SELECT query with placeholder for prepared statement

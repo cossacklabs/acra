@@ -22,7 +22,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
 	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
 	"github.com/cossacklabs/acra/decryptor/mysql/types"
-	encryptorConfig "github.com/cossacklabs/acra/encryptor/config"
+	encryptorConfig "github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/poison"
