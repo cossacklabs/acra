@@ -1,12 +1,16 @@
-package postgresql
+package mysql
 
 import (
 	"testing"
 
-	pg_query "github.com/Zhaars/pg_query_go/v4"
+	"github.com/stretchr/testify/mock"
 
-	"github.com/cossacklabs/acra/encryptor/base"
+	"github.com/cossacklabs/acra/decryptor/base/mocks"
 	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/sqlparser"
+	"github.com/cossacklabs/acra/sqlparser/dialect"
+	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
+	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
 )
 
 func TestGetFirstTableWithoutAlias(t *testing.T) {
@@ -20,17 +24,21 @@ func TestGetFirstTableWithoutAlias(t *testing.T) {
 		{SQL: `select * from table2 t2, table1`, Table: "table1"},
 		{SQL: `select * from table2 t2, table1, table3 as t3`, Table: "table1"},
 		{SQL: `select * from table2 t2, table1 t1, table3 as t3`, Error: errNotFoundtable},
-		{SQL: `select * from table1 join table2 t2 on t1.test = test join table3 t3 on t2.test = t3.test join table4 t4 on t3.test = t4.test`, Table: "table1"},
-		{SQL: `select * from table1 t2 join table2 t3 on t2.test = t3.test `, Error: errNotFoundtable},
+		{SQL: `select * from table1 join table2 join table3 join table4`, Table: "table1"},
+		{SQL: `select * from table1 t2 join table2 `, Error: errNotFoundtable},
 	}
 
+	parser := sqlparser.New(sqlparser.ModeStrict)
 	for _, tcase := range testcases {
-		parsed, err := pg_query.Parse(tcase.SQL)
+		parsed, err := parser.Parse(tcase.SQL)
 		if err != nil {
 			t.Fatal(err)
 		}
-
-		tableName, err := getFirstTableWithoutAlias(parsed.Stmts[0].GetStmt().GetSelectStmt().FromClause)
+		selectExpr, ok := parsed.(*sqlparser.Select)
+		if !ok {
+			t.Fatal("Test cases should contain only Select queries")
+		}
+		tableName, err := getFirstTableWithoutAlias(selectExpr.From)
 		if err != tcase.Error {
 			t.Fatal(err)
 		}
@@ -45,6 +53,7 @@ func TestGetFirstTableWithoutAlias(t *testing.T) {
 }
 
 func TestMapColumnsToAliases(t *testing.T) {
+	parser := sqlparser.New(sqlparser.ModeStrict)
 	t.Run("With enumeration fields query", func(t *testing.T) {
 
 		testConfig := `
@@ -67,26 +76,15 @@ schemas:
 		}
 
 		query := `
-select t1.col1,
-       t1.col2,
-       t2.col1,
-       t2.col2,
-       t3.col1,
-       t4.col4,
-       col5,
-       table6.col6
-from table5,
-     table6
-         inner join (select col1, col22 as col2, col3 from table1) as t1 on t2.col1 = t1.col1
-         inner join (select t1.col1, t2.col3 col2, t1.col3
-                     from table1 t1
-                              inner join table2 t2 on t1.col1 = t2.col1) as t2 on t2.col1 = t1.col1
-         inner join table3 t3 on t3.col1 = t1.col1
-         inner join table4 as t4 on t4.col4 = t1.col4
-         inner join table6 on table6.col1 = t1.col1
-
+select t1.col1, t1.col2, t2.col1, t2.col2, t3.col1, t4.col4, col5, table6.col6
+from table5, table6
+inner join (select col1, col22 as col2, col3 from table1) as t1
+inner join (select t1.col1, t2.col3 col2, t1.col3 from table1 t1 inner join table2 t2 on t1.col1=t2.col1) as t2 on t2.col1=t1.col1
+inner join table3 t3 on t3.col1=t1.col1
+inner join table4 as t4 on t4.col4=t1.col4
+inner join table6 on table6.col1=t1.col1
 `
-		expectedValues := []base.ColumnInfo{
+		expectedValues := []ColumnInfo{
 			// column's alias is subquery alias with column and table without aliases in subquery
 			{Alias: "t1", Table: "table1", Name: "col1"},
 			// column's alias is subquery alias with column with AS expression and table without alias
@@ -104,12 +102,15 @@ from table5,
 			// column with alias as table name in FROM expression
 			{Table: "table6", Name: "col6", Alias: "table6"},
 		}
-
-		parsed, err := pg_query.Parse(query)
+		parsed, err := parser.Parse(query)
 		if err != nil {
 			t.Fatal(err)
 		}
-		columns, err := MapColumnsToAliases(parsed.Stmts[0].GetStmt().GetSelectStmt(), schemaStore)
+		selectExpr, ok := parsed.(*sqlparser.Select)
+		if !ok {
+			t.Fatal("Test query should be Select expression")
+		}
+		columns, err := MapColumnsToAliases(selectExpr, schemaStore)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -161,11 +162,12 @@ schemas:
 
 		testcases := []struct {
 			query          string
-			expectedValues []*base.ColumnInfo
+			dialect        dialect.Dialect
+			expectedValues []*ColumnInfo
 		}{
 			{
 				query: `SELECT "id", "email", "mobile_number" AS "mobileNumber" FROM "users" AS "User" where "User"."is_active"`,
-				expectedValues: []*base.ColumnInfo{
+				expectedValues: []*ColumnInfo{
 					{Alias: "User", Table: "users", Name: "id"},
 					{Alias: "User", Table: "users", Name: "email"},
 					{Alias: "User", Table: "users", Name: "mobile_number"},
@@ -173,7 +175,7 @@ schemas:
 			},
 			{
 				query: `SELECT "id", "email", "mobile_number" AS "mobileNumber" FROM "users" AS "User", "table1" as "test_table"`,
-				expectedValues: []*base.ColumnInfo{
+				expectedValues: []*ColumnInfo{
 					{Alias: "User", Table: "users", Name: "id"},
 					{Alias: "User", Table: "users", Name: "email"},
 					{Alias: "User", Table: "users", Name: "mobile_number"},
@@ -181,13 +183,13 @@ schemas:
 			},
 			{
 				query: `SELECT "id", "email", "mobile_number" AS "mobileNumber" FROM "users" AS "User", "users_duplicate" as "User2"`,
-				expectedValues: []*base.ColumnInfo{
+				expectedValues: []*ColumnInfo{
 					nil, nil, nil,
 				},
 			},
 			{
 				query: `SELECT "id", "email", "mobile_number", "id_tmp", "email_tmp", "mobile_number_tmp"  AS "mobileNumber" FROM "users" AS "User", "users_temp" as "temp"`,
-				expectedValues: []*base.ColumnInfo{
+				expectedValues: []*ColumnInfo{
 					{Alias: "User", Table: "users", Name: "id"},
 					{Alias: "User", Table: "users", Name: "email"},
 					{Alias: "User", Table: "users", Name: "mobile_number"},
@@ -196,14 +198,40 @@ schemas:
 					{Alias: "temp", Table: "users_temp", Name: "mobile_number_tmp"},
 				},
 			},
+			{
+				query:   `SELECT id, email, mobile_number FROM users AS alias where alias.is_active`,
+				dialect: mysql.NewMySQLDialect(),
+				expectedValues: []*ColumnInfo{
+					{Alias: "alias", Table: "users", Name: "id"},
+					{Alias: "alias", Table: "users", Name: "email"},
+					{Alias: "alias", Table: "users", Name: "mobile_number"},
+				},
+			},
+			{
+				// should return nil, nil, nil as all the columns present in both tables which is invalid
+				query:   `SELECT id, email, mobile_number FROM users, users_duplicate`,
+				dialect: mysql.NewMySQLDialect(),
+				expectedValues: []*ColumnInfo{
+					nil, nil, nil,
+				},
+			},
 		}
 		for i, tcase := range testcases {
-			parsed, err := pg_query.Parse(tcase.query)
+			var dialect dialect.Dialect = postgresql.NewPostgreSQLDialect()
+			if tcase.dialect != nil {
+				dialect = tcase.dialect
+			}
+			sqlparser.SetDefaultDialect(dialect)
+
+			parsed, err := parser.Parse(tcase.query)
 			if err != nil {
 				t.Fatal(err)
 			}
-
-			columns, err := MapColumnsToAliases(parsed.Stmts[0].GetStmt().GetSelectStmt(), schemaStore)
+			selectExpr, ok := parsed.(*sqlparser.Select)
+			if !ok {
+				t.Fatal("Test query should be Select expression")
+			}
+			columns, err := MapColumnsToAliases(selectExpr, schemaStore)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -228,28 +256,27 @@ schemas:
 	t.Run("Join enumeration fields query", func(t *testing.T) {
 		queries := []string{
 			`select table1.number, from_number, to_number, type, amount, created_date
-				from table1 join table2 as t2 on from_number = t2.number or to_number = t2.number join users as u on t2.user_id = u.id`,
+			from table1 join table2 as t2 on from_number = t2.number or to_number = t2.number join users as u on t2.user_id = u.id`,
 
 			// select with revers order of JOINs declaration
 			`select t3.*, t1.*, t2.*
-				from table1 AS t1 join table2 as t2 on from_number = t2.number or to_number = t2.number join table3 as t3 on t2.user_id = t3.id`,
+			from table1 AS t1 join table2 as t2 on from_number = t2.number or to_number = t2.number join table3 as t3 on t2.user_id = t3.id`,
 
 			// case with multiple table JOIN block ParenTableExpr
 			`select t1.number AS t1_number, t2.number AS t2_number from (select * from tablex) AS t JOIN (table1 AS t1 JOIN table2 AS t2 ON t1.id = t2.exam_type_id) ON t.version_id =
-				              t1.version_id`,
-			//
+			              t1.version_id`,
+
 			// example with several multiple table JOIN blocks ParenTableExpr
 			`select t1.number AS t1_number, t2.number, t3.number, t4.number from (select * from tablex) AS t JOIN (table1 AS t1 JOIN table2 AS t2 ON t1.id = t2.exam_type_id)  ON t.version_id =
-				             t1.version_id JOIN (table3 AS t3 JOIN table4 AS t4 ON t3.id = t4.exam_type_id) ON t.version_id =
-				             t3.version_id`,
+			             t1.version_id JOIN (table3 AS t3 JOIN table4 AS t4 ON t3.id = t4.exam_type_id) ON t.version_id =
+			             t3.version_id`,
 
 			// case with multiple table JOIN block with more tables inside
-			// not valid PostgreSQL query
-			//`select t1.number AS t1_number, t2.number, t3.number, t4.number from (select * from tablex) AS t JOIN (table1 AS t1 JOIN table2 AS t2 JOIN table3 as t3 JOIN table4 as t4 ON t1.id = t2.exam_type_id)  ON t.version_id =
-			//              t1.version_id`,
+			`select t1.number AS t1_number, t2.number, t3.number, t4.number from (select * from tablex) AS t JOIN (table1 AS t1 JOIN table2 AS t2 JOIN table3 as t3 JOIN table4 as t4 ON t1.id = t2.exam_type_id)  ON t.version_id =
+			              t1.version_id`,
 		}
 
-		expectedValues := [][]base.ColumnInfo{
+		expectedValues := [][]ColumnInfo{
 			{
 				{Alias: "table1", Table: "table1", Name: "number"},
 				{Alias: "table1", Table: "table1", Name: "from_number"},
@@ -282,12 +309,16 @@ schemas:
 		}
 
 		for i, query := range queries {
-			parsed, err := pg_query.Parse(query)
+			parsed, err := parser.Parse(query)
 			if err != nil {
 				t.Fatal(err)
 			}
+			selectExpr, ok := parsed.(*sqlparser.Select)
+			if !ok {
+				t.Fatal("Test query should be Select expression")
+			}
 
-			columns, err := MapColumnsToAliases(parsed.Stmts[0].GetStmt().GetSelectStmt(), &config.MapTableSchemaStore{})
+			columns, err := MapColumnsToAliases(selectExpr, &config.MapTableSchemaStore{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -309,12 +340,12 @@ schemas:
 	})
 	t.Run("Join enumeration asterisk query", func(t *testing.T) {
 		queries := []string{
-			`select *  from  test_table join test_table2 t2 on true join test_table3 t3 on t2.id = t3.id join test_table4 t4 on t3.id = t4.id`,
-			`select t2.*, t3.*  from  test_table join test_table2 t2 on true join test_table3 t3 on t2.id = t3.id join test_table4 t4 on t3.id = t4.id`,
-			`select t2.*, t3.*, *  from  test_table join test_table2 t2 on true join test_table3 t3 on t2.id = t3.id join test_table4 t4 on t3.id = t4.id`,
+			`select *  from  test_table join test_table2 join test_table3 t3 on t2.id = t3.id join test_table4 t4 on t3.id = t4.id`,
+			`select t2.*, t3.*  from  test_table join test_table2 t2 join test_table3 t3 on t2.id = t3.id join test_table4 t4 on t3.id = t4.id`,
+			`select t2.*, t3.*, *  from  test_table join test_table2 t2 join test_table3 t3 on t2.id = t3.id join test_table4 t4 on t3.id = t4.id`,
 		}
 
-		expectedValues := [][]base.ColumnInfo{
+		expectedValues := [][]ColumnInfo{
 			{
 				{Alias: allColumnsName, Table: "test_table", Name: allColumnsName},
 				{Alias: allColumnsName, Table: "test_table2", Name: allColumnsName},
@@ -336,12 +367,16 @@ schemas:
 		}
 
 		for i, query := range queries {
-			parsed, err := pg_query.Parse(query)
+			parsed, err := parser.Parse(query)
 			if err != nil {
 				t.Fatal(err)
 			}
+			selectExpr, ok := parsed.(*sqlparser.Select)
+			if !ok {
+				t.Fatal("Test query should be Select expression")
+			}
 
-			columns, err := MapColumnsToAliases(parsed.Stmts[0].GetStmt().GetSelectStmt(), &config.MapTableSchemaStore{})
+			columns, err := MapColumnsToAliases(selectExpr, &config.MapTableSchemaStore{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -365,14 +400,18 @@ schemas:
 	t.Run("With asterisk query", func(t *testing.T) {
 		query := `select * from test_table`
 
-		parsed, err := pg_query.Parse(query)
+		parsed, err := parser.Parse(query)
 		if err != nil {
 			t.Fatal(err)
 		}
+		selectExpr, ok := parsed.(*sqlparser.Select)
+		if !ok {
+			t.Fatal("Test query should be Select expression")
+		}
 
-		expectedValue := base.ColumnInfo{Alias: "*", Table: "test_table", Name: "*"}
+		expectedValue := ColumnInfo{Alias: "*", Table: "test_table", Name: "*"}
 
-		columns, err := MapColumnsToAliases(parsed.Stmts[0].GetStmt().GetSelectStmt(), &config.MapTableSchemaStore{})
+		columns, err := MapColumnsToAliases(selectExpr, &config.MapTableSchemaStore{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -419,7 +458,7 @@ schemas:
 		// TODO: consider tracking queries with asterisk from sub-queries as we need to map it via encryptor config
 		// e.g select anon.value_table1, anon.value_table2 from (select * from table1 as tb1 JOIN table2 AS tb2 ON tb1.id = tb2.id) as anon;
 
-		expectedValues := [][]base.ColumnInfo{
+		expectedValues := [][]ColumnInfo{
 			{
 				{Alias: "table2", Table: "table2", Name: "value"},
 				{Alias: "table3", Table: "table3", Name: "value"},
@@ -428,12 +467,16 @@ schemas:
 		}
 
 		for i, query := range queries {
-			parsed, err := pg_query.Parse(query)
+			parsed, err := parser.Parse(query)
 			if err != nil {
 				t.Fatal(err)
 			}
+			selectExpr, ok := parsed.(*sqlparser.Select)
+			if !ok {
+				t.Fatal("Test query should be Select expression")
+			}
 
-			columns, err := MapColumnsToAliases(parsed.Stmts[0].GetStmt().GetSelectStmt(), schemaStore)
+			columns, err := MapColumnsToAliases(selectExpr, schemaStore)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -457,17 +500,21 @@ schemas:
 	t.Run("With table asterisk query", func(t *testing.T) {
 		query := `select t1.*, t2.* from test_table t1, test_table t2`
 
-		parsed, err := pg_query.Parse(query)
+		parsed, err := parser.Parse(query)
 		if err != nil {
 			t.Fatal(err)
 		}
+		selectExpr, ok := parsed.(*sqlparser.Select)
+		if !ok {
+			t.Fatal("Test query should be Select expression")
+		}
 
-		expectedValue := []base.ColumnInfo{
+		expectedValue := []ColumnInfo{
 			{Alias: allColumnsName, Table: "test_table", Name: allColumnsName},
 			{Alias: allColumnsName, Table: "test_table", Name: allColumnsName},
 		}
 
-		columns, err := MapColumnsToAliases(parsed.Stmts[0].GetStmt().GetSelectStmt(), &config.MapTableSchemaStore{})
+		columns, err := MapColumnsToAliases(selectExpr, &config.MapTableSchemaStore{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -482,4 +529,51 @@ schemas:
 			}
 		}
 	})
+}
+
+func TestPlaceholderSettings(t *testing.T) {
+	clientSession := &mocks.ClientSession{}
+	sessionData := make(map[string]interface{}, 2)
+	clientSession.On("GetData", mock.Anything).Return(func(key string) interface{} {
+		return sessionData[key]
+	}, func(key string) bool {
+		_, ok := sessionData[key]
+		return ok
+	})
+	clientSession.On("DeleteData", mock.Anything).Run(func(args mock.Arguments) {
+		delete(sessionData, args[0].(string))
+	})
+	clientSession.On("SetData", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		sessionData[args[0].(string)] = args[1]
+	})
+
+	sessionData[placeholdersSettingKey] = "trash"
+
+	data := PlaceholderSettingsFromClientSession(clientSession)
+	if data != nil {
+		t.Fatal("Expect nil for value with invalid type")
+	}
+	DeletePlaceholderSettingsFromClientSession(clientSession)
+
+	// get new initialized map
+	data = PlaceholderSettingsFromClientSession(clientSession)
+	// set some data
+	data[0] = &config.BasicColumnEncryptionSetting{}
+	data[1] = &config.BasicColumnEncryptionSetting{}
+
+	newData := PlaceholderSettingsFromClientSession(clientSession)
+	if len(newData) != len(data) {
+		t.Fatal("Unexpected map with different size")
+	}
+	// clear data, force to return map to the pool cleared from data
+	DeletePlaceholderSettingsFromClientSession(clientSession)
+
+	// we expect that will be returned same value from sync.Pool and check that it's cleared
+	newData = PlaceholderSettingsFromClientSession(clientSession)
+	if len(newData) != 0 {
+		t.Fatal("Map's data wasn't cleared")
+	}
+	if len(newData) != len(data) {
+		t.Fatal("Source map's data wasn't cleared")
+	}
 }

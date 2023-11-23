@@ -3,47 +3,38 @@ package pseudonymization
 import (
 	"context"
 
+	pg_query "github.com/Zhaars/pg_query_go/v4"
 	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/decryptor/base"
-	queryEncryptor "github.com/cossacklabs/acra/encryptor/base"
+	encryptor_base "github.com/cossacklabs/acra/encryptor/base"
 	"github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/encryptor/mysql"
 	"github.com/cossacklabs/acra/encryptor/postgresql"
 	"github.com/cossacklabs/acra/sqlparser"
 )
 
-// TokenizeQuery replace tokenized data inside AcraStruct/AcraBlocks and change WHERE conditions to support searchable tokenization
-type TokenizeQuery struct {
-	coder                 queryEncryptor.DBDataCoder
+// PostgreSQLTokenizeQuery replace tokenized data inside AcraStruct/AcraBlocks and change WHERE conditions to support searchable tokenization
+type PostgreSQLTokenizeQuery struct {
+	coder                 *postgresql.PostgresqlPgQueryDBDataCoder
 	tokenEncryptor        *TokenEncryptor
-	searchableQueryFilter *queryEncryptor.SearchableQueryFilter
+	searchableQueryFilter *postgresql.SearchableQueryFilter
 	schemaStore           config.TableSchemaStore
 }
 
-// NewPostgresqlTokenizeQuery return TokenizeQuery with coder for postgresql
-func NewPostgresqlTokenizeQuery(schemaStore config.TableSchemaStore, tokenEncryptor *TokenEncryptor) *TokenizeQuery {
-	return &TokenizeQuery{
-		searchableQueryFilter: queryEncryptor.NewSearchableQueryFilter(schemaStore, queryEncryptor.QueryFilterModeConsistentTokenization),
+// NewPostgresqlTokenizeQuery return PostgreSQLTokenizeQuery with coder for postgresql
+func NewPostgresqlTokenizeQuery(schemaStore config.TableSchemaStore, tokenEncryptor *TokenEncryptor) *PostgreSQLTokenizeQuery {
+	return &PostgreSQLTokenizeQuery{
+		searchableQueryFilter: postgresql.NewSearchableQueryFilter(schemaStore),
 		tokenEncryptor:        tokenEncryptor,
-		coder:                 &postgresql.PostgresqlDBDataCoder{},
-		schemaStore:           schemaStore,
-	}
-}
-
-// NewMySQLTokenizeQuery return TokenizeQuery with coder for mysql
-func NewMySQLTokenizeQuery(schemaStore config.TableSchemaStore, tokenEncryptor *TokenEncryptor) *TokenizeQuery {
-	return &TokenizeQuery{
-		searchableQueryFilter: queryEncryptor.NewSearchableQueryFilter(schemaStore, queryEncryptor.QueryFilterModeConsistentTokenization),
-		tokenEncryptor:        tokenEncryptor,
-		coder:                 &mysql.MysqlDBDataCoder{},
+		coder:                 &postgresql.PostgresqlPgQueryDBDataCoder{},
 		schemaStore:           schemaStore,
 	}
 }
 
 // ID returns name of this QueryObserver.
-func (encryptor *TokenizeQuery) ID() string {
-	return "TokenizeQuery"
+func (encryptor *PostgreSQLTokenizeQuery) ID() string {
+	return "PostgreSQLTokenizeQuery"
 }
 
 // OnQuery processes query text before database sees it.
@@ -57,52 +48,57 @@ func (encryptor *TokenizeQuery) ID() string {
 //	WHERE column = $1        ===>   WHERE column = tokenize($1)
 //
 // and actual "value" is passed via parameters later. See OnBind() for details.
-func (encryptor *TokenizeQuery) OnQuery(ctx context.Context, query base.OnQueryObject) (base.OnQueryObject, bool, error) {
-	logrus.Debugln("TokenizeQuery.OnQuery")
-	stmt, err := query.Statement()
-	if err != nil {
-		logrus.WithError(err).Debugln("Can't parse SQL statement")
-		return query, false, err
+func (encryptor *PostgreSQLTokenizeQuery) OnQuery(ctx context.Context, query base.OnQueryObject) (base.OnQueryObject, bool, error) {
+	logrus.Debugln("PostgreSQLTokenizeQuery.OnQuery")
+
+	parseResult, err := pg_query.Parse(query.Query())
+	if err != nil || len(parseResult.Stmts) == 0 {
+		logrus.Debugln("Failed to parse incoming query", err)
+		return query, false, nil
 	}
 
 	// Extract the subexpressions that we are interested in for encryption.
 	// The list might be empty for non-SELECT queries or for non-eligible SELECTs.
 	// In that case we don't have any more work to do here.
-	items := encryptor.searchableQueryFilter.FilterSearchableComparisons(stmt)
+	items := encryptor.searchableQueryFilter.FilterSearchableComparisons(parseResult)
 	if len(items) == 0 {
 		return query, false, nil
 	}
+
 	clientSession := base.ClientSessionFromContext(ctx)
-	bindSettings := queryEncryptor.PlaceholderSettingsFromClientSession(clientSession)
+	bindSettings := encryptor_base.PlaceholderSettingsFromClientSession(clientSession)
 	for _, item := range items {
 		if !item.Setting.IsTokenized() {
 			continue
 		}
 
-		rightVal, ok := item.Expr.Right.(*sqlparser.SQLVal)
-		if !ok {
+		if item.Expr.Rexpr.GetAConst() == nil {
 			logrus.Debugln("expect SQLVal as Right expression for searchable consistent tokenization")
 			continue
 		}
 
 		encryptor.searchableQueryFilter.ChangeSearchableOperator(item.Expr)
 
-		err = queryEncryptor.UpdateExpressionValue(ctx, item.Expr.Right, encryptor.coder, item.Setting, encryptor.getTokenizerDataWithSetting(item.Setting))
+		err = postgresql.UpdateExpressionValue(ctx, item.Expr.Rexpr.GetAConst(), encryptor.coder, item.Setting, encryptor.getTokenizerDataWithSetting(item.Setting))
 		if err != nil {
 			logrus.WithError(err).Debugln("Failed to update expression")
 			return query, false, err
 		}
 
-		placeholderIndex, err := queryEncryptor.ParsePlaceholderIndex(rightVal)
-		if err == queryEncryptor.ErrInvalidPlaceholder {
+		paramRef := item.Expr.Rexpr.GetParamRef()
+		if paramRef == nil {
 			continue
-		} else if err != nil {
-			return query, false, err
 		}
-		bindSettings[placeholderIndex] = item.Setting
+		placeholderIndex := paramRef.GetNumber() - 1
+		bindSettings[int(placeholderIndex)] = item.Setting
 	}
-	logrus.Debugln("TokenizeQuery.OnQuery changed query")
-	return base.NewOnQueryObjectFromStatement(stmt, nil), true, nil
+
+	logrus.Debugln("PostgreSQLTokenizeQuery.OnQuery changed query")
+	stmt, err := pg_query.Deparse(parseResult)
+	if err != nil {
+		return nil, false, err
+	}
+	return base.NewOnQueryObjectFromQuery(stmt, nil), true, nil
 }
 
 // OnBind processes bound values for prepared statements.
@@ -116,12 +112,20 @@ func (encryptor *TokenizeQuery) OnQuery(ctx context.Context, query base.OnQueryO
 //	WHERE column = $1        ===>   WHERE column = tokenize($1)
 //
 // and actual "value" is passed via parameters, visible here in OnBind().
-func (encryptor *TokenizeQuery) OnBind(ctx context.Context, statement sqlparser.Statement, values []base.BoundValue) ([]base.BoundValue, bool, error) {
-	logrus.Debugln("TokenizeQuery.OnBind")
+func (encryptor *PostgreSQLTokenizeQuery) OnBind(ctx context.Context, statement sqlparser.Statement, values []base.BoundValue) ([]base.BoundValue, bool, error) {
+	logrus.Debugln("PostgreSQLTokenizeQuery.OnBind")
+
+	// TODO: use pg_query.ParseResult instead of sqlparser.Statement
+	parseResult, err := pg_query.Parse(sqlparser.String(statement))
+	if err != nil || len(parseResult.Stmts) == 0 {
+		logrus.Debugln("Failed to parse incoming query", err)
+		return values, false, err
+	}
+
 	// Extract the subexpressions that we are interested in for searchable encryption.
 	// The list might be empty for non-SELECT queries or for non-eligible SELECTs.
 	// In that case we don't have any more work to do here.
-	items := encryptor.searchableQueryFilter.FilterSearchableComparisons(statement)
+	items := encryptor.searchableQueryFilter.FilterSearchableComparisons(parseResult)
 	if len(items) == 0 {
 		return values, false, nil
 	}
@@ -133,23 +137,20 @@ func (encryptor *TokenizeQuery) OnBind(ctx context.Context, statement sqlparser.
 			continue
 		}
 
-		switch value := item.Expr.Right.(type) {
-		case *sqlparser.SQLVal:
-			var err error
-			index, err := queryEncryptor.ParsePlaceholderIndex(value)
-			if err != nil {
-				return values, false, err
-			}
-			if index >= len(values) {
-				logrus.WithFields(logrus.Fields{"placeholder": value.Val, "index": index, "values": len(values)}).
-					Warning("Invalid placeholder index")
-				return values, false, queryEncryptor.ErrInvalidPlaceholder
-			}
-			indexes = append(indexes, index)
+		paramRef := item.Expr.Rexpr.GetParamRef()
+		if paramRef == nil {
+			continue
 		}
+		index := int(paramRef.GetNumber() - 1)
+		if index >= len(values) {
+			logrus.WithFields(logrus.Fields{"placeholder": paramRef.GetNumber(), "index": index, "values": len(values)}).
+				Warning("Invalid placeholder index")
+			return values, false, encryptor_base.ErrInvalidPlaceholder
+		}
+		indexes = append(indexes, index)
 	}
 
-	bindData := queryEncryptor.ParseSearchQueryPlaceholdersSettings(statement, encryptor.schemaStore)
+	bindData := mysql.ParseSearchQueryPlaceholdersSettings(statement, encryptor.schemaStore)
 	if len(bindData) > len(indexes) {
 		return values, false, nil
 	}
@@ -157,7 +158,7 @@ func (encryptor *TokenizeQuery) OnBind(ctx context.Context, statement sqlparser.
 	return encryptor.replaceValuesWithTokenizedData(ctx, values, indexes, bindData)
 }
 
-func (encryptor *TokenizeQuery) replaceValuesWithTokenizedData(ctx context.Context, values []base.BoundValue, placeholders []int, bindData map[int]config.ColumnEncryptionSetting) ([]base.BoundValue, bool, error) {
+func (encryptor *PostgreSQLTokenizeQuery) replaceValuesWithTokenizedData(ctx context.Context, values []base.BoundValue, placeholders []int, bindData map[int]config.ColumnEncryptionSetting) ([]base.BoundValue, bool, error) {
 	// If there are no interesting placholder positions then we don't have to process anything.
 	if len(placeholders) == 0 {
 		return values, false, nil
@@ -196,10 +197,10 @@ func (encryptor *TokenizeQuery) replaceValuesWithTokenizedData(ctx context.Conte
 	return newValues, true, nil
 }
 
-func (encryptor *TokenizeQuery) getTokenizerDataWithSetting(setting config.ColumnEncryptionSetting) func(ctx context.Context, dataToTokenize []byte) (tokenized []byte, err error) {
+func (encryptor *PostgreSQLTokenizeQuery) getTokenizerDataWithSetting(setting config.ColumnEncryptionSetting) func(ctx context.Context, dataToTokenize []byte) (tokenized []byte, err error) {
 	return func(ctx context.Context, dataToTokenize []byte) (tokenized []byte, err error) {
 		logger := logrus.WithFields(logrus.Fields{"column": setting.ColumnName()})
-		logger.Debugln("Searchable TokenizeQuery")
+		logger.Debugln("Searchable PostgreSQLTokenizeQuery")
 
 		accessContext := base.AccessContextFromContext(ctx)
 		clientID := setting.ClientID()

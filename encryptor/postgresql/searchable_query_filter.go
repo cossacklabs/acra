@@ -14,15 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package base
+package postgresql
 
 import (
 	"errors"
+	"strings"
 
+	pg_query "github.com/Zhaars/pg_query_go/v4"
 	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/encryptor/base/config"
-	"github.com/cossacklabs/acra/sqlparser"
 )
 
 // ErrUnsupportedQueryType represent error related unsupported Query type
@@ -37,36 +38,36 @@ const (
 	QueryFilterModeConsistentTokenization
 )
 
+const SubstrFuncName = "substr"
+
 // SearchableExprItem represent the filtered value found by SearchableQueryFilter
 type SearchableExprItem struct {
-	Expr    *sqlparser.ComparisonExpr
+	Expr    *pg_query.A_Expr
 	Setting config.ColumnEncryptionSetting
 }
 
 // SearchableQueryFilter filter searchable expression based on SearchableQueryFilterMode
 type SearchableQueryFilter struct {
-	mode        SearchableQueryFilterMode
 	schemaStore config.TableSchemaStore
 }
 
 // NewSearchableQueryFilter create new SearchableQueryFilter from schemaStore and SearchableQueryFilterMode
-func NewSearchableQueryFilter(schemaStore config.TableSchemaStore, mode SearchableQueryFilterMode) *SearchableQueryFilter {
+func NewSearchableQueryFilter(schemaStore config.TableSchemaStore) *SearchableQueryFilter {
 	return &SearchableQueryFilter{
 		schemaStore: schemaStore,
-		mode:        mode,
 	}
 }
 
 // FilterSearchableComparisons filter search comparisons from statement
-func (filter *SearchableQueryFilter) FilterSearchableComparisons(statement sqlparser.Statement) []SearchableExprItem {
-	tableExps, err := filterTableExpressions(statement)
+func (filter *SearchableQueryFilter) FilterSearchableComparisons(result *pg_query.ParseResult) []SearchableExprItem {
+	tableExps, err := filterTableExpressions(result)
 	if err != nil {
 		logrus.Debugln("Unsupported search query")
 		return nil
 	}
 
 	// Walk through WHERE clauses of a SELECT statements...
-	whereExprs, err := GetWhereStatements(statement)
+	whereExprs, err := GetWhereStatements(result)
 	if err != nil {
 		logrus.WithError(err).Debugln("Failed to extract WHERE clauses")
 		return nil
@@ -86,61 +87,65 @@ func (filter *SearchableQueryFilter) FilterSearchableComparisons(statement sqlpa
 }
 
 // ChangeSearchableOperator change the operator of ComparisonExpr to EqualStr|NotEqualStr depending on expr.Operator
-func (filter *SearchableQueryFilter) ChangeSearchableOperator(expr *sqlparser.ComparisonExpr) {
-	switch expr.Operator {
-	case sqlparser.EqualStr, sqlparser.NullSafeEqualStr, sqlparser.LikeStr, sqlparser.ILikeStr:
-		expr.Operator = sqlparser.EqualStr
-	case sqlparser.NotEqualStr, sqlparser.NotLikeStr, sqlparser.NotILikeStr:
-		expr.Operator = sqlparser.NotEqualStr
+func (filter *SearchableQueryFilter) ChangeSearchableOperator(expr *pg_query.A_Expr) {
+	switch expr.Name[0].GetString_().GetSval() {
+	//case sqlparser.EqualStr, sqlparser.NullSafeEqualStr, sqlparser.LikeStr, sqlparser.ILikeStr:
+	//	expr.Operator = sqlparser.EqualStr
+	//case sqlparser.NotEqualStr, sqlparser.NotLikeStr, sqlparser.NotILikeStr:
+	//	expr.Operator = sqlparser.NotEqualStr
 	}
 }
 
-func filterTableExpressions(statement sqlparser.Statement) (sqlparser.TableExprs, error) {
-	switch query := statement.(type) {
-	case *sqlparser.Select:
-		return query.From, nil
-	case *sqlparser.Update:
-		return query.TableExprs, nil
-	case *sqlparser.Delete:
-		return query.TableExprs, nil
-	case *sqlparser.Insert:
+func filterTableExpressions(parseResult *pg_query.ParseResult) ([]*pg_query.Node, error) {
+	switch {
+	case parseResult.Stmts[0].Stmt.GetSelectStmt() != nil:
+		stmt := parseResult.Stmts[0].Stmt.GetSelectStmt()
+		return stmt.FromClause, nil
+	case parseResult.Stmts[0].Stmt.GetInsertStmt() != nil:
 		// only support INSERT INTO table2 SELECT * FROM test_table WHERE data1='somedata' syntax for INSERTs
-		if selectInInsert, ok := query.Rows.(*sqlparser.Select); ok {
-			return selectInInsert.From, nil
+		if selectStmt := parseResult.Stmts[0].Stmt.GetInsertStmt().GetSelectStmt(); selectStmt != nil {
+			return selectStmt.GetSelectStmt().FromClause, nil
 		}
 		return nil, ErrUnsupportedQueryType
+	case parseResult.Stmts[0].Stmt.GetUpdateStmt() != nil:
+		stmt := parseResult.Stmts[0].Stmt.GetUpdateStmt()
+		return []*pg_query.Node{{
+			Node: &pg_query.Node_RangeVar{
+				RangeVar: stmt.GetRelation(),
+			},
+		}}, nil
+	case parseResult.Stmts[0].Stmt.GetDeleteStmt() != nil:
+		stmt := parseResult.Stmts[0].Stmt.GetDeleteStmt()
+		return []*pg_query.Node{{
+			Node: &pg_query.Node_RangeVar{
+				RangeVar: stmt.GetRelation(),
+			},
+		}}, nil
 	default:
 		return nil, ErrUnsupportedQueryType
 	}
 }
 
-func isSupportedSQLVal(val *sqlparser.SQLVal) bool {
-	switch val.Type {
-	case sqlparser.PgEscapeString, sqlparser.HexVal, sqlparser.StrVal, sqlparser.PgPlaceholder, sqlparser.ValArg, sqlparser.IntVal:
-		return true
-	}
-	return false
-}
-
 // filterColumnEqualComparisonExprs return only <ColName> = <VALUE> or <ColName> != <VALUE> or <ColName> <=> <VALUE> expressions
-func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(stmt sqlparser.SQLNode, tableExpr sqlparser.TableExprs) ([]SearchableExprItem, error) {
+func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(whereNode *pg_query.Node, tableExpr []*pg_query.Node) ([]SearchableExprItem, error) {
 	var exprs []SearchableExprItem
 
-	err := sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
-		comparisonExpr, ok := node.(*sqlparser.ComparisonExpr)
-		if !ok {
+	err := pg_query.Walk(func(node *pg_query.Node) (kontinue bool, err error) {
+		expr := node.GetAExpr()
+		if expr == nil {
 			return true, nil
 		}
 
-		lColumn, ok := comparisonExpr.Left.(*sqlparser.ColName)
-		if !ok {
-			if filter.mode == QueryFilterModeSearchableEncryption {
-				// handle case if query was processed by searchable encryptor
-				substrExpr, ok := comparisonExpr.Left.(*sqlparser.SubstrExpr)
-				if !ok {
+		var lColumn = expr.Lexpr.GetColumnRef()
+		if expr.Lexpr.GetColumnRef() == nil {
+			//handle case if query was processed by searchable encryptor
+			if funcCall := expr.Lexpr.GetFuncCall(); funcCall != nil {
+				funcName := funcCall.GetFuncname()
+				if len(funcName) == 1 && strings.HasPrefix(funcName[0].GetString_().GetSval(), SubstrFuncName) {
+					lColumn = funcCall.GetArgs()[0].GetColumnRef()
+				} else {
 					return true, nil
 				}
-				lColumn = substrExpr.Name
 			} else {
 				return true, nil
 			}
@@ -164,9 +169,8 @@ func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(stmt sqlpa
 		// we want to log the warn message that searchable tokenization/encryption can work only with <ColName> = <VALUE> statements
 		// however, there is one exception - for searchable encryption it can be the scenario where we have:  join table1 t1 on t1.surname = t2.surname
 		// and if t1 and t2 are tables from encryptor_config and t1.surname and t2.surname are searchable, we want to have: join table1 t1 on substr(t1.surname, ...) = substr(t2.surname, ...)
-		if rColumn, ok := comparisonExpr.Right.(*sqlparser.ColName); ok {
+		if rColumn := expr.Rexpr.GetColumnRef(); rColumn != nil {
 			// get right columnSetting to check weather it is searchable too
-
 			columnInfo, err := FindColumnInfo(tableExpr, rColumn, filter.schemaStore)
 			if err != nil {
 				return true, nil
@@ -176,7 +180,7 @@ func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(stmt sqlpa
 			if rColumnSetting != nil {
 				if rColumnSetting.IsSearchable() {
 					exprs = append(exprs, SearchableExprItem{
-						Expr:    comparisonExpr,
+						Expr:    expr,
 						Setting: rColumnSetting,
 					})
 					return true, nil
@@ -186,16 +190,18 @@ func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(stmt sqlpa
 			logrus.Infoln("Searchable encryption/tokenization support equal comparison only by SQLVal but not by ColName")
 		}
 
-		if sqlVal, ok := comparisonExpr.Right.(*sqlparser.SQLVal); ok && isSupportedSQLVal(sqlVal) {
-			if comparisonExpr.Operator == sqlparser.EqualStr || comparisonExpr.Operator == sqlparser.NotEqualStr || comparisonExpr.Operator == sqlparser.NullSafeEqualStr {
-				exprs = append(exprs, SearchableExprItem{
-					Expr:    comparisonExpr,
-					Setting: lColumnSetting,
-				})
+		if expr.Rexpr.GetAConst() != nil || expr.Rexpr.GetParamRef() != nil {
+			if len(expr.Name) == 1 {
+				if val := expr.Name[0].GetString_(); val != nil && (val.GetSval() == "=" || val.GetSval() == "<>") {
+					exprs = append(exprs, SearchableExprItem{
+						Expr:    expr,
+						Setting: lColumnSetting,
+					})
+				}
 			}
 		}
 
 		return true, nil
-	}, stmt)
+	}, whereNode)
 	return exprs, err
 }

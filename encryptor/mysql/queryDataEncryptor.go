@@ -127,19 +127,19 @@ func (encryptor *QueryDataEncryptor) encryptExpression(ctx context.Context, expr
 	if schema.NeedToEncrypt(columnName) {
 		setting := schema.GetColumnEncryptionSettings(columnName)
 		if sqlVal, ok := expr.(*sqlparser.SQLVal); ok {
-			placeholderIndex, err := base.ParsePlaceholderIndex(sqlVal)
+			placeholderIndex, err := ParsePlaceholderIndex(sqlVal)
 			if err == nil {
 				bindPlaceholder[placeholderIndex] = setting
 			}
 		}
-		err := base.UpdateExpressionValue(ctx, expr, encryptor.dataCoder, setting, func(ctx context.Context, data []byte) ([]byte, error) {
+		err := UpdateExpressionValue(ctx, expr, encryptor.dataCoder, setting, func(ctx context.Context, data []byte) ([]byte, error) {
 			if len(data) == 0 {
 				return data, nil
 			}
 			return encryptor.encryptWithColumnSettings(ctx, schema.GetColumnEncryptionSettings(columnName), data)
 		})
 		// didn't change anything because it already encrypted
-		if err == base.ErrUpdateLeaveDataUnchanged {
+		if err == ErrUpdateLeaveDataUnchanged {
 			return false, nil
 		} else if err != nil {
 			return false, err
@@ -197,7 +197,7 @@ func (encryptor *QueryDataEncryptor) encryptUpdateQuery(ctx context.Context, upd
 		fromTables = append(fromTables, update.From...)
 	}
 
-	tables := base.GetTablesWithAliases(fromTables)
+	tables := GetTablesWithAliases(fromTables)
 	if !encryptor.hasTablesToEncrypt(tables) {
 		return false, nil
 	}
@@ -235,7 +235,7 @@ func (encryptor *QueryDataEncryptor) OnColumn(ctx context.Context, data []byte) 
 const allColumnsName = "*"
 
 func (encryptor *QueryDataEncryptor) onSelect(ctx context.Context, statement *sqlparser.Select) (bool, error) {
-	querySelectSettings, err := base.ParseQuerySettings(ctx, statement, encryptor.schemaStore)
+	querySelectSettings, err := ParseQuerySettings(ctx, statement, encryptor.schemaStore)
 	if err != nil {
 		return false, err
 	}
@@ -258,7 +258,7 @@ func (encryptor *QueryDataEncryptor) onDelete(ctx context.Context, delete *sqlpa
 		fromTables = append(fromTables, delete.Targets...)
 	}
 
-	tables := base.GetTablesWithAliases(fromTables)
+	tables := GetTablesWithAliases(fromTables)
 	if !encryptor.hasTablesToEncrypt(tables) {
 		return false, nil
 	}
@@ -333,7 +333,7 @@ func (encryptor *QueryDataEncryptor) onReturning(ctx context.Context, returning 
 			continue
 		}
 
-		columnInfo, err := base.FindColumnInfo(fromTables, colName, encryptor.schemaStore)
+		columnInfo, err := FindColumnInfo(fromTables, colName, encryptor.schemaStore)
 		if err != nil {
 			querySelectSettings = append(querySelectSettings, nil)
 			continue
@@ -526,7 +526,7 @@ func (encryptor *QueryDataEncryptor) encryptUpdateValues(ctx context.Context, up
 	//
 	// and we need to take all of that into account. But we're interested only in the first table.
 	// If the updated table does not have a schema entry, there is nothing to encrypt here.
-	tables := base.GetTablesWithAliases(update.TableExprs)
+	tables := GetTablesWithAliases(update.TableExprs)
 	//tableName := tables[0].TableName.Name.String()
 	tableName := tables[0].TableName.Name.ValueForConfig()
 	schema := encryptor.schemaStore.GetTableSchema(tableName)
@@ -585,7 +585,7 @@ func (encryptor *QueryDataEncryptor) updatePlaceholderMap(valuesCount int, place
 		if exists && name != columnName {
 			logrus.WithFields(logrus.Fields{"placeholder": text, "old_column": name, "new_column": columnName}).
 				Warning("Inconsistent placeholder mapping")
-			return base.ErrInconsistentPlaceholder
+			return ErrInconsistentPlaceholder
 		}
 		placeholders[index] = columnName
 		return nil
@@ -634,7 +634,7 @@ func (encryptor *QueryDataEncryptor) encryptValuesWithPlaceholders(ctx context.C
 			continue
 		}
 		encryptedData, err := encryptor.encryptWithColumnSettings(ctx, setting, valueData)
-		if err != nil && err != base.ErrUpdateLeaveDataUnchanged {
+		if err != nil && err != ErrUpdateLeaveDataUnchanged {
 			logrus.WithError(err).WithFields(logrus.Fields{"index": valueIndex, "column": columnName}).
 				Debug("Failed to encrypt column")
 			return oldValues, false, err

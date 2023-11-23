@@ -20,7 +20,7 @@ import (
 	"github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/encryptor/mysql"
 	"github.com/cossacklabs/acra/hmac"
-	hashDecryptor "github.com/cossacklabs/acra/hmac/decryptor"
+	decryptor "github.com/cossacklabs/acra/hmac/decryptor/mysql"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/masking"
 	"github.com/cossacklabs/acra/pseudonymization"
@@ -126,7 +126,7 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 			return nil, err
 		}
 		chainEncryptors = append(chainEncryptors, searchableAcrawriterEncryptor)
-		acraBlockStructHashEncryptor := hashDecryptor.NewMysqlHashQuery(factory.keystore, schemaStore, registryHandler)
+		acraBlockStructHashEncryptor := decryptor.NewHashQuery(factory.keystore, schemaStore, registryHandler)
 		proxy.AddQueryObserver(acraBlockStructHashEncryptor)
 	}
 

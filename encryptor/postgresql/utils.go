@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 
-	pg_query "github.com/pganalyze/pg_query_go/v4"
+	pg_query "github.com/Zhaars/pg_query_go/v4"
 	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/encryptor/base"
@@ -13,6 +13,12 @@ import (
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 )
+
+// InvalidPlaceholderIndex value that represent invalid index for sql placeholders
+const InvalidPlaceholderIndex = -1
+
+// ErrInvalidPlaceholder is returned when Acra cannot parse SQL placeholder expression.
+var ErrInvalidPlaceholder = errors.New("invalid placeholder value")
 
 var (
 	errNotFoundtable          = errors.New("not found table for alias")
@@ -44,10 +50,7 @@ func NewAliasToTableMapFromTables(tables []*AliasedTableName) AliasToTableMap {
 	return qualifierMap
 }
 
-const (
-	allColumnsName         = "*"
-	placeholdersSettingKey = "bind_encryption_settings"
-)
+const allColumnsName = "*"
 
 // ParseQuerySettings parse list of select query settings based on schemaStore
 func ParseQuerySettings(ctx context.Context, statement *pg_query.SelectStmt, schemaStore config.TableSchemaStore) ([]*base.QueryDataItem, error) {
@@ -547,7 +550,7 @@ func GetTablesWithAliases(tables []*pg_query.Node) []*AliasedTableName {
 
 // UpdateExpressionValue decode value from DB related string to binary format, call updateFunc, encode to DB string format and replace value in expression with new
 func UpdateExpressionValue(ctx context.Context, expr *pg_query.A_Const, coder *PostgresqlPgQueryDBDataCoder, setting config.ColumnEncryptionSetting, updateFunc func(context.Context, []byte) ([]byte, error)) error {
-	if sval := expr.GetSval(); sval != nil {
+	if expr.GetSval() != nil || expr.GetVal() != nil || expr.GetBoolval() != nil || expr.GetFval() != nil {
 		rawData, err := coder.Decode(expr, setting)
 		if err != nil {
 			if err == utils.ErrDecodeOctalString || err == base.ErrUnsupportedExpression {
@@ -566,12 +569,107 @@ func UpdateExpressionValue(ctx context.Context, expr *pg_query.A_Const, coder *P
 		if len(newData) == len(rawData) && bytes.Equal(newData, rawData) {
 			return ErrUpdateLeaveDataUnchanged
 		}
-		coded, err := coder.Encode(expr, newData, setting)
-		if err != nil {
+
+		if err = coder.Encode(expr, newData, setting); err != nil {
 			return err
 		}
-		sval.Sval = string(coded)
 	}
 
 	return nil
+}
+
+// GetWhereStatements parse all Where expressions
+func GetWhereStatements(parseResult *pg_query.ParseResult) ([]*pg_query.Node, error) {
+	var whereStatements []*pg_query.Node
+	err := pg_query.Walk(func(node *pg_query.Node) (kontinue bool, err error) {
+		if expr := node.GetAExpr(); expr != nil {
+			whereStatements = append(whereStatements, &pg_query.Node{
+				Node: &pg_query.Node_AExpr{
+					AExpr: expr,
+				},
+			})
+		}
+		return true, nil
+	}, parseResult.Stmts[0].Stmt)
+	return whereStatements, err
+}
+
+// GetColumnSetting get ColumnEncryptionSetting from schemaStore based on tableName and column
+func GetColumnSetting(column *pg_query.ColumnRef, tableName string, schemaStore config.TableSchemaStore) config.ColumnEncryptionSetting {
+	schema := schemaStore.GetTableSchema(tableName)
+	if schema == nil {
+		return nil
+	}
+
+	// Also leave out those columns which are not searchable.
+	columnName := column.GetFields()[0].GetString_().GetSval()
+	if len(column.GetFields()) == 2 {
+		columnName = column.GetFields()[1].GetString_().GetSval()
+	}
+
+	return schema.GetColumnEncryptionSettings(columnName)
+}
+
+// ParseSearchQueryPlaceholdersSettings parse encryption settings of statement with placeholders
+func ParseSearchQueryPlaceholdersSettings(statement *pg_query.ParseResult, schemaStore config.TableSchemaStore) map[int]config.ColumnEncryptionSetting {
+	tableExps, err := filterTableExpressions(statement)
+	if err != nil {
+		logrus.Debugln("Unsupported search query")
+		return nil
+	}
+
+	// Walk through WHERE clauses of a SELECT statements...
+	whereExprs, err := GetWhereStatements(statement)
+	if err != nil {
+		logrus.WithError(err).Debugln("Failed to extract WHERE clauses")
+		return nil
+	}
+
+	placeHolderSettings := make(map[int]config.ColumnEncryptionSetting)
+	for _, whereExpr := range whereExprs {
+		expr := whereExpr.GetAExpr()
+		if expr == nil {
+			continue
+		}
+
+		var lColumn = expr.Lexpr.GetColumnRef()
+		if expr.Lexpr.GetColumnRef() == nil {
+			//handle case if query was processed by searchable encryptor
+			if funcCall := expr.Lexpr.GetFuncCall(); funcCall != nil {
+				funcName := funcCall.GetFuncname()
+				if len(funcName) == 1 && funcName[0].GetString_().GetSval() == "substring" {
+					lColumn = funcCall.GetArgs()[0].GetColumnRef()
+				} else {
+					continue
+				}
+			} else {
+				continue
+			}
+		}
+
+		columnInfo, err := FindColumnInfo(tableExps, lColumn, schemaStore)
+		if err != nil {
+			continue
+		}
+
+		lColumnSetting := GetColumnSetting(lColumn, columnInfo.Table, schemaStore)
+		if lColumnSetting == nil {
+			continue
+		}
+
+		if !lColumnSetting.IsSearchable() && !lColumnSetting.IsConsistentTokenization() {
+			continue
+		}
+
+		if expr.Rexpr.GetParamRef() != nil {
+			if len(expr.Name) == 1 {
+				if val := expr.Name[0].GetString_(); val != nil && (val.GetSval() == "=" || val.GetSval() == "<>") {
+					placeholderIndex := int(expr.Rexpr.GetParamRef().GetNumber() - 1)
+					placeHolderSettings[placeholderIndex] = lColumnSetting
+				}
+			}
+		}
+	}
+
+	return placeHolderSettings
 }

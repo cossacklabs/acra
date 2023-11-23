@@ -18,14 +18,13 @@ package decryptor
 
 import (
 	"context"
-	"fmt"
 
+	pg_query "github.com/Zhaars/pg_query_go/v4"
 	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	queryEncryptor "github.com/cossacklabs/acra/encryptor/base"
 	"github.com/cossacklabs/acra/encryptor/base/config"
-	"github.com/cossacklabs/acra/encryptor/mysql"
 	"github.com/cossacklabs/acra/encryptor/postgresql"
 	"github.com/cossacklabs/acra/hmac"
 	"github.com/cossacklabs/acra/keystore"
@@ -42,23 +41,17 @@ type HashDecryptStore interface {
 // HashQuery calculate hmac for data inside AcraStruct and change WHERE conditions to support searchable encryption
 type HashQuery struct {
 	keystore              HashDecryptStore
-	searchableQueryFilter *queryEncryptor.SearchableQueryFilter
-	coder                 queryEncryptor.DBDataCoder
+	searchableQueryFilter *postgresql.SearchableQueryFilter
+	coder                 *postgresql.PostgresqlPgQueryDBDataCoder
 	decryptor             base.ExtendedDataProcessor
 	parser                *sqlparser.Parser
 	schemaStore           config.TableSchemaStore
 }
 
-// NewPostgresqlHashQuery return HashQuery with coder for postgresql
-func NewPostgresqlHashQuery(keystore HashDecryptStore, schemaStore config.TableSchemaStore, processor base.ExtendedDataProcessor) *HashQuery {
-	searchableQueryFilter := queryEncryptor.NewSearchableQueryFilter(schemaStore, queryEncryptor.QueryFilterModeSearchableEncryption)
-	return &HashQuery{keystore: keystore, coder: &postgresql.PostgresqlDBDataCoder{}, searchableQueryFilter: searchableQueryFilter, decryptor: processor, schemaStore: schemaStore}
-}
-
-// NewMysqlHashQuery return HashQuery with coder for mysql
-func NewMysqlHashQuery(keystore HashDecryptStore, schemaStore config.TableSchemaStore, processor base.ExtendedDataProcessor) *HashQuery {
-	searchableQueryFilter := queryEncryptor.NewSearchableQueryFilter(schemaStore, queryEncryptor.QueryFilterModeSearchableEncryption)
-	return &HashQuery{keystore: keystore, coder: &mysql.MysqlDBDataCoder{}, searchableQueryFilter: searchableQueryFilter, decryptor: processor, schemaStore: schemaStore}
+// NewHashQuery return HashQuery with coder for postgresql
+func NewHashQuery(keystore HashDecryptStore, schemaStore config.TableSchemaStore, processor base.ExtendedDataProcessor) *HashQuery {
+	searchableQueryFilter := postgresql.NewSearchableQueryFilter(schemaStore)
+	return &HashQuery{keystore: keystore, coder: &postgresql.PostgresqlPgQueryDBDataCoder{}, searchableQueryFilter: searchableQueryFilter, decryptor: processor, schemaStore: schemaStore}
 }
 
 // ID returns name of this QueryObserver.
@@ -79,86 +72,102 @@ func (encryptor *HashQuery) ID() string {
 // and actual "value" is passed via parameters later. See OnBind() for details.
 func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObject) (base.OnQueryObject, bool, error) {
 	logrus.Debugln("HashQuery.OnQuery")
-	stmt, err := query.Statement()
-	if err != nil {
-		logrus.WithError(err).Debugln("Can't parse SQL statement")
-		return query, false, err
+
+	parseResult, err := pg_query.Parse(query.Query())
+	if err != nil || len(parseResult.Stmts) == 0 {
+		logrus.Debugln("Failed to parse incoming query", err)
+		return query, false, nil
 	}
+
 	// Extract the subexpressions that we are interested in for searchable encryption.
 	// The list might be empty for non-SELECT queries or for non-eligible SELECTs.
 	// In that case we don't have any more work to do here.
-	items := encryptor.searchableQueryFilter.FilterSearchableComparisons(stmt)
+	items := encryptor.searchableQueryFilter.FilterSearchableComparisons(parseResult)
 	if len(items) == 0 {
 		return query, false, nil
 	}
 	clientSession := base.ClientSessionFromContext(ctx)
 	bindSettings := queryEncryptor.PlaceholderSettingsFromClientSession(clientSession)
 	// Now that we have condition expressions, perform rewriting in them.
-	hashSize := []byte(fmt.Sprintf("%d", hmac.GetDefaultHashSize()))
 	for _, item := range items {
 		if !item.Setting.IsSearchable() {
 			continue
 		}
 
 		// column = 'value' ===> substring(column, 1, <HMAC_size>) = 'value'
-		item.Expr.Left = &sqlparser.SubstrExpr{
-			Name: item.Expr.Left.(*sqlparser.ColName),
-			From: sqlparser.NewIntVal([]byte{'1'}),
-			To:   sqlparser.NewIntVal(hashSize),
-		}
+		item.Expr.Lexpr = getSubstrFuncNode(item.Expr.Lexpr)
 
 		encryptor.searchableQueryFilter.ChangeSearchableOperator(item.Expr)
 
-		if rColName, ok := item.Expr.Right.(*sqlparser.ColName); ok {
-			item.Expr.Right = &sqlparser.SubstrExpr{
-				Name: rColName,
-				From: sqlparser.NewIntVal([]byte{'1'}),
-				To:   sqlparser.NewIntVal(hashSize),
-			}
-			continue
-		}
-
-		// MySQL have ambiguous behaviour with filtering over search data
-		// query like `select table1.value, table2.value from table1 join table2 on substr(table1.searchable, 1, 33) = substr(table2.searchable, 1, 33)
-		// where substr(table1.searchable, 1, 33) = X'7f6002a9335e723661b917736c3d253c07c65750839b9952801ab7f6e2a4982792'`
-		// doesn't return any record, but it does work separately (with just single where search or with join over search data)
-		// to escape from this ambiguity added explicit casting search hash to bytes;
-		// the result expression will look like `convert(substr(searchable_column, ...), binary) = 0xFFFFF`
-		// but previously we had `substr(searchable_column, ...) = X'some_value'`
-		if _, ok := encryptor.coder.(*mysql.MysqlDBDataCoder); ok {
-			if rVal, ok := item.Expr.Right.(*sqlparser.SQLVal); ok && rVal.Type != sqlparser.ValArg {
-				item.Expr.Left = &sqlparser.ConvertExpr{
-					Expr: item.Expr.Left,
-					Type: &sqlparser.ConvertType{
-						Type: "binary",
-					},
-				}
-
-				rVal.Type = sqlparser.HexNum
-			}
+		if item.Expr.Rexpr.GetColumnRef() != nil {
+			item.Expr.Rexpr = getSubstrFuncNode(item.Expr.Rexpr)
 		}
 
 		// substring(column, 1, <HMAC_size>) = 'value' ===> substring(column, 1, <HMAC_size>) = <HMAC('value')>
 		// substring(column, 1, <HMAC_size>) = $1      ===> no changes
-		err := queryEncryptor.UpdateExpressionValue(ctx, item.Expr.Right, encryptor.coder, item.Setting, encryptor.calculateHmac)
+		err := postgresql.UpdateExpressionValue(ctx, item.Expr.Rexpr.GetAConst(), encryptor.coder, item.Setting, encryptor.calculateHmac)
 		if err != nil {
 			logrus.WithError(err).Debugln("Failed to update expression")
 			return query, false, err
 		}
-		sqlVal, ok := item.Expr.Right.(*sqlparser.SQLVal)
-		if !ok {
+		paramRef := item.Expr.Rexpr.GetParamRef()
+		if paramRef == nil {
 			continue
 		}
-		placeholderIndex, err := queryEncryptor.ParsePlaceholderIndex(sqlVal)
-		if err == queryEncryptor.ErrInvalidPlaceholder {
-			continue
-		} else if err != nil {
-			return query, false, err
-		}
-		bindSettings[placeholderIndex] = item.Setting
+		placeholderIndex := paramRef.GetNumber() - 1
+		bindSettings[int(placeholderIndex)] = item.Setting
 	}
 	logrus.Debugln("HashQuery.OnQuery changed query")
-	return base.NewOnQueryObjectFromStatement(stmt, encryptor.parser), true, nil
+
+	stmt, err := pg_query.Deparse(parseResult)
+	if err != nil {
+		return nil, false, err
+	}
+	return base.NewOnQueryObjectFromQuery(stmt, encryptor.parser), true, nil
+}
+
+func getSubstrFuncNode(column *pg_query.Node) *pg_query.Node {
+	return &pg_query.Node{
+		Node: &pg_query.Node_FuncCall{
+			FuncCall: &pg_query.FuncCall{
+				Funcname: []*pg_query.Node{
+					{
+						Node: &pg_query.Node_String_{
+							String_: &pg_query.String{
+								Sval: postgresql.SubstrFuncName,
+							},
+						},
+					},
+				},
+				Args: []*pg_query.Node{
+					&*column,
+					{
+						Node: &pg_query.Node_AConst{
+							AConst: &pg_query.A_Const{
+								Val: &pg_query.A_Const_Ival{
+									Ival: &pg_query.Integer{
+										Ival: 1,
+									},
+								},
+							},
+						},
+					},
+					{
+						Node: &pg_query.Node_AConst{
+							AConst: &pg_query.A_Const{
+								Val: &pg_query.A_Const_Ival{
+									Ival: &pg_query.Integer{
+										Ival: int32(hmac.GetDefaultHashSize()),
+									},
+								},
+							},
+						},
+					},
+				},
+				Funcformat: pg_query.CoercionForm_COERCE_EXPLICIT_CALL,
+			},
+		},
+	}
 }
 
 // OnBind processes bound values for prepared statements.
@@ -173,12 +182,20 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObjec
 //
 // and actual "value" is passed via parameters, visible here in OnBind().
 // If that's the case, HMAC computation should be performed for relevant values.
-func (encryptor *HashQuery) OnBind(ctx context.Context, statement sqlparser.Statement, values []base.BoundValue) ([]base.BoundValue, bool, error) {
+func (e *HashQuery) OnBind(ctx context.Context, statement sqlparser.Statement, values []base.BoundValue) ([]base.BoundValue, bool, error) {
 	logrus.Debugln("HashQuery.OnBind")
+
+	// TODO: use pg_query.ParseResult instead of sqlparser.Statement
+	parseResult, err := pg_query.Parse(sqlparser.String(statement))
+	if err != nil || len(parseResult.Stmts) == 0 {
+		logrus.Debugln("Failed to parse incoming query", err)
+		return values, false, err
+	}
+
 	// Extract the subexpressions that we are interested in for searchable encryption.
 	// The list might be empty for non-SELECT queries or for non-eligible SELECTs.
 	// In that case we don't have any more work to do here.
-	items := encryptor.searchableQueryFilter.FilterSearchableComparisons(statement)
+	items := e.searchableQueryFilter.FilterSearchableComparisons(parseResult)
 	if len(items) == 0 {
 		return values, false, nil
 	}
@@ -190,29 +207,26 @@ func (encryptor *HashQuery) OnBind(ctx context.Context, statement sqlparser.Stat
 			continue
 		}
 
-		switch value := item.Expr.Right.(type) {
-		case *sqlparser.SQLVal:
-			var err error
-			index, err := queryEncryptor.ParsePlaceholderIndex(value)
-			if err != nil {
-				return values, false, err
-			}
-			if index >= len(values) {
-				logrus.WithFields(logrus.Fields{"placeholder": value.Val, "index": index, "values": len(values)}).
-					Warning("Invalid placeholder index")
-				return values, false, queryEncryptor.ErrInvalidPlaceholder
-			}
-			indexes = append(indexes, index)
+		paramRef := item.Expr.Rexpr.GetParamRef()
+		if paramRef == nil {
+			continue
 		}
+		index := int(paramRef.GetNumber() - 1)
+		if index >= len(values) {
+			logrus.WithFields(logrus.Fields{"placeholder": paramRef.GetNumber(), "index": index, "values": len(values)}).
+				Warning("Invalid placeholder index")
+			return values, false, queryEncryptor.ErrInvalidPlaceholder
+		}
+		indexes = append(indexes, index)
 	}
 
-	bindData := queryEncryptor.ParseSearchQueryPlaceholdersSettings(statement, encryptor.schemaStore)
+	bindData := postgresql.ParseSearchQueryPlaceholdersSettings(parseResult, e.schemaStore)
 	if len(bindData) > len(indexes) {
 		return values, false, nil
 	}
 
 	// Finally, once we know which values to replace with HMACs, do this replacement.
-	return encryptor.replaceValuesWithHMACs(ctx, values, indexes, bindData)
+	return e.replaceValuesWithHMACs(ctx, values, indexes, bindData)
 }
 
 func (encryptor *HashQuery) replaceValuesWithHMACs(ctx context.Context, values []base.BoundValue, placeholders []int, bindData map[int]config.ColumnEncryptionSetting) ([]base.BoundValue, bool, error) {

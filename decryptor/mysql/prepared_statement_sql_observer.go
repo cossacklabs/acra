@@ -327,7 +327,7 @@ func (e *PreparedStatementsQuery) onQuery(ctx context.Context, preparedStatement
 	var querySetting []*encryptor.QueryDataItem
 	switch query := stmt.(type) {
 	case *sqlparser.Select:
-		querySetting, err = encryptor.ParseQuerySettings(ctx, query, e.schemaStore)
+		querySetting, err = mysql.ParseQuerySettings(ctx, query, e.schemaStore)
 		if err != nil {
 			logrus.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptQueryData).Errorln("Failed to parse querySettings for select in Prepare")
 			return nil, false, err
@@ -375,21 +375,21 @@ func (e *PreparedStatementsQuery) updateChangedQuery(changedObject base.OnQueryO
 	return nil
 }
 
-func (e *PreparedStatementsQuery) filterSearchableComparisons(statement sqlparser.Statement) []encryptor.SearchableExprItem {
-	tableExps, err := encryptor.FilterTableExpressions(statement)
+func (e *PreparedStatementsQuery) filterSearchableComparisons(statement sqlparser.Statement) []mysql.SearchableExprItem {
+	tableExps, err := mysql.FilterTableExpressions(statement)
 	if err != nil {
 		logrus.Debugln("Unsupported search query")
 		return nil
 	}
 
 	// Walk through WHERE clauses of a SELECT statements...
-	whereExprs, err := encryptor.GetWhereStatements(statement)
+	whereExprs, err := mysql.GetWhereStatements(statement)
 	if err != nil {
 		logrus.WithError(err).Debugln("Failed to extract WHERE clauses")
 		return nil
 	}
 
-	var searchableExprs []encryptor.SearchableExprItem
+	var searchableExprs []mysql.SearchableExprItem
 	for _, whereExpr := range whereExprs {
 		comparisonExprs, err := e.filterColumnEqualComparisonExprs(whereExpr, tableExps)
 		if err != nil {
@@ -403,8 +403,8 @@ func (e *PreparedStatementsQuery) filterSearchableComparisons(statement sqlparse
 }
 
 // filterColumnEqualComparisonExprs return only <ColName> = <VALUE> or <ColName> != <VALUE> or <ColName> <=> <VALUE> expressions
-func (e *PreparedStatementsQuery) filterColumnEqualComparisonExprs(stmt sqlparser.SQLNode, tableExpr sqlparser.TableExprs) ([]encryptor.SearchableExprItem, error) {
-	var exprs []encryptor.SearchableExprItem
+func (e *PreparedStatementsQuery) filterColumnEqualComparisonExprs(stmt sqlparser.SQLNode, tableExpr sqlparser.TableExprs) ([]mysql.SearchableExprItem, error) {
+	var exprs []mysql.SearchableExprItem
 
 	err := sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
 		comparisonExpr, ok := node.(*sqlparser.ComparisonExpr)
@@ -426,12 +426,12 @@ func (e *PreparedStatementsQuery) filterColumnEqualComparisonExprs(stmt sqlparse
 			return true, nil
 		}
 
-		columnInfo, err := encryptor.FindColumnInfo(tableExpr, lColumn.Name, e.schemaStore)
+		columnInfo, err := mysql.FindColumnInfo(tableExpr, lColumn.Name, e.schemaStore)
 		if err != nil {
 			return true, nil
 		}
 
-		lColumnSetting := encryptor.GetColumnSetting(lColumn.Name, columnInfo.Table, e.schemaStore)
+		lColumnSetting := mysql.GetColumnSetting(lColumn.Name, columnInfo.Table, e.schemaStore)
 		if lColumnSetting == nil {
 			return true, nil
 		}
@@ -440,7 +440,7 @@ func (e *PreparedStatementsQuery) filterColumnEqualComparisonExprs(stmt sqlparse
 			return true, nil
 		}
 
-		exprs = append(exprs, encryptor.SearchableExprItem{
+		exprs = append(exprs, mysql.SearchableExprItem{
 			Expr:    comparisonExpr,
 			Setting: lColumnSetting,
 		})

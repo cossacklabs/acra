@@ -6,14 +6,16 @@ import (
 	"fmt"
 	"testing"
 
+	pg_query "github.com/Zhaars/pg_query_go/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
 	"github.com/cossacklabs/acra/crypto"
-	"github.com/cossacklabs/acra/decryptor/base"
+	decryptor "github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/mocks"
-	encryptor2 "github.com/cossacklabs/acra/encryptor/base"
+	"github.com/cossacklabs/acra/encryptor/base"
 	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/encryptor/postgresql"
 	mocks2 "github.com/cossacklabs/acra/keystore/mocks"
 	"github.com/cossacklabs/acra/sqlparser"
 )
@@ -48,16 +50,16 @@ func TestSearchablePreparedStatementsWithTextFormat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := base.SetClientSessionToContext(context.Background(), clientSession)
+	ctx := decryptor.SetClientSessionToContext(context.Background(), clientSession)
 	parser := sqlparser.New(sqlparser.ModeDefault)
 	keyStore := &mocks2.ServerKeyStore{}
 	keyStore.On("GetHMACSecretKey", mock.Anything).Return([]byte(`some key`), nil)
 	registryHandler := crypto.NewRegistryHandler(nil)
-	encryptor := NewPostgresqlHashQuery(keyStore, schema, registryHandler)
+	encryptor := NewHashQuery(keyStore, schema, registryHandler)
 	sourceBindValue := []byte{0, 1, 2, 3}
 	boundValue := &mocks.BoundValue{}
 	bindValue := sourceBindValue
-	boundValue.On("Format").Return(base.TextFormat)
+	boundValue.On("Format").Return(decryptor.TextFormat)
 	boundValue.On("GetData", mock.Anything).Return(func(config.ColumnEncryptionSetting) []byte {
 		return bindValue
 	}, nil)
@@ -78,21 +80,21 @@ func TestSearchablePreparedStatementsWithTextFormat(t *testing.T) {
 		{Query: "DELETE FROM test_table WHERE data1=$1 OR data2=$2"},
 	}
 	for _, testcase := range testcases {
-		queryObj := base.NewOnQueryObjectFromQuery(testcase.Query, parser)
+		queryObj := decryptor.NewOnQueryObjectFromQuery(testcase.Query, parser)
 		queryObj, _, err = encryptor.OnQuery(ctx, queryObj)
 		if err != nil {
 			t.Fatal(err)
 		}
-		bindPlaceholders := encryptor2.PlaceholderSettingsFromClientSession(clientSession)
+		bindPlaceholders := base.PlaceholderSettingsFromClientSession(clientSession)
 		if len(bindPlaceholders) != 1 {
 			t.Fatal("Not found expected amount of placeholders")
 		}
-		queryObj = base.NewOnQueryObjectFromQuery(testcase.Query, parser)
+		queryObj = decryptor.NewOnQueryObjectFromQuery(testcase.Query, parser)
 		statement, err := queryObj.Statement()
 		if err != nil {
 			t.Fatal(err)
 		}
-		newVals, ok, err := encryptor.OnBind(ctx, statement, []base.BoundValue{boundValue})
+		newVals, ok, err := encryptor.OnBind(ctx, statement, []decryptor.BoundValue{boundValue})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -130,26 +132,26 @@ func TestSearchableWithTextFormat(t *testing.T) {
 		sessionData[args[0].(string)] = args[1]
 	})
 	schemaConfig := `schemas:
-  - table: test_table
-    columns:
-      - data1
-      - data2
-    encrypted:
-      - column: data1
-        searchable: true`
+ - table: test_table
+   columns:
+     - data1
+     - data2
+   encrypted:
+     - column: data1
+       searchable: true`
 
 	schema, err := config.MapTableSchemaStoreFromConfig([]byte(schemaConfig), config.UseMySQL)
 	assert.NoError(t, err)
 
-	ctx := base.SetClientSessionToContext(context.Background(), clientSession)
+	ctx := decryptor.SetClientSessionToContext(context.Background(), clientSession)
 	parser := sqlparser.New(sqlparser.ModeDefault)
 	keyStore := &mocks2.ServerKeyStore{}
 	keyStore.On("GetHMACSecretKey", mock.Anything).Return([]byte(`some key`), nil)
 	registryHandler := crypto.NewRegistryHandler(nil)
-	encryptor := NewPostgresqlHashQuery(keyStore, schema, registryHandler)
+	encryptor := NewHashQuery(keyStore, schema, registryHandler)
 	dataQueryPart := "test-data"
 
-	coder := &encryptor2.PostgresqlDBDataCoder{}
+	coder := &postgresql.PostgresqlPgQueryDBDataCoder{}
 
 	type testcase struct {
 		Query string
@@ -164,46 +166,33 @@ func TestSearchableWithTextFormat(t *testing.T) {
 	for _, testcase := range testcases {
 		query := fmt.Sprintf(testcase.Query, dataQueryPart)
 
-		queryObj := base.NewOnQueryObjectFromQuery(query, parser)
+		queryObj := decryptor.NewOnQueryObjectFromQuery(query, parser)
 		queryObj, _, err = encryptor.OnQuery(ctx, queryObj)
 		assert.NoError(t, err)
 
-		stmt, err := queryObj.Statement()
+		parseResult, err := pg_query.Parse(queryObj.Query())
 		assert.NoError(t, err)
 
-		var whereStatements []*sqlparser.Where
-		err = sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
-			where, ok := node.(*sqlparser.Where)
-			if ok {
-				whereStatements = append(whereStatements, where)
-			}
-			return true, nil
-		}, stmt)
+		whereStatements, err := postgresql.GetWhereStatements(parseResult)
 		assert.NoError(t, err)
 		assert.True(t, len(whereStatements) > 0)
 
-		var comparisonExpr *sqlparser.ComparisonExpr
-		switch node := whereStatements[0].Expr.(type) {
-		case *sqlparser.ComparisonExpr:
-			comparisonExpr = node
-		case *sqlparser.AndExpr:
-			comparisonExpr = node.Left.(*sqlparser.ComparisonExpr)
-		case *sqlparser.OrExpr:
-			comparisonExpr = node.Left.(*sqlparser.ComparisonExpr)
+		var aExpr *pg_query.A_Expr
+		if whereStatements[0].GetAExpr() != nil {
+			aExpr = whereStatements[0].GetAExpr()
 		}
+		assert.NotNil(t, aExpr.Lexpr.GetFuncCall())
 
-		_, isSubstrExpr := comparisonExpr.Left.(*sqlparser.SubstrExpr)
-		assert.True(t, isSubstrExpr)
-
-		rightVal := comparisonExpr.Right.(*sqlparser.SQLVal)
-		assert.NotEqual(t, dataQueryPart, string(rightVal.Val))
+		aConst := aExpr.Rexpr.GetAConst()
+		rightVal := aExpr.Rexpr.GetAConst().GetSval().GetSval()
+		assert.NotEqual(t, dataQueryPart, rightVal)
 
 		hmacValue, err := encryptor.calculateHmac(ctx, []byte(dataQueryPart))
 		assert.NoError(t, err)
 
-		newData, err := coder.Encode(rightVal, hmacValue, &config.BasicColumnEncryptionSetting{})
+		err = coder.Encode(aConst, hmacValue, &config.BasicColumnEncryptionSetting{})
 		assert.NoError(t, err)
-		assert.Equal(t, len(rightVal.Val), len(newData))
+		assert.Equal(t, len(rightVal), len(aConst.GetSval().Sval))
 	}
 }
 
@@ -226,22 +215,22 @@ func TestSearchableWithJoinsWithTextFormat(t *testing.T) {
 	})
 
 	schemaConfig := `schemas:
-  - table: test_table
-    columns:
-      - data1
-    encrypted:
-      - column: data1
-        searchable: true
+ - table: test_table
+   columns:
+     - data1
+   encrypted:
+     - column: data1
+       searchable: true
 
-  - table: test_table_2
-    columns:
-      - data1
-      - data2
-    encrypted:
-      - column: data1
-        searchable: true
-      - column: data2
-        searchable: true
+ - table: test_table_2
+   columns:
+     - data1
+     - data2
+   encrypted:
+     - column: data1
+       searchable: true
+     - column: data2
+       searchable: true
 `
 
 	keyStore := &mocks2.ServerKeyStore{}
@@ -258,10 +247,10 @@ func TestSearchableWithJoinsWithTextFormat(t *testing.T) {
 	}
 
 	testcases := []testcase{
-		{Query: "SELECT * FROM table1 t1 inner join test_table t2 inner join test_table_2 t3 on t2.data1=t3.data1"},
-		{Query: "SELECT * FROM table1 inner join test_table inner join test_table_2 on test_table.data1=test_table_2.data1"},
-		{Query: "SELECT * FROM table1 inner join test_table t1 inner join test_table_2 on t1.data1=test_table_2.data1"},
-		{Query: "SELECT * FROM test_table as t1 join some_table_1 join some_table_2 join test_table_2 on t1.data1=test_table_2.data1"},
+		{Query: "SELECT * FROM table1 t1 inner join test_table t2 on t2.test= t1.test inner join test_table_2 t3 on t2.data1=t3.data1"},
+		{Query: "SELECT * FROM table1 inner join test_table on table1.test = test_table.test  inner join test_table_2 on test_table.data1=test_table_2.data1"},
+		{Query: "SELECT * FROM table1 inner join test_table t1 on t1.test = table1.test inner join test_table_2 on t1.data1=test_table_2.data1"},
+		{Query: "SELECT * FROM test_table as t1 join some_table_1 on some_table_1.test = test_table.test join some_table_2 on some_table_2.test = some_table_1.test join test_table_2 on t1.data1=test_table_2.data1"},
 		{Query: "SELECT * FROM table1 t1 inner join test_table_2 t3 on t3.data1='some_data'"},
 		{Query: "SELECT * FROM test_table_2 inner join table1 t2 on data2='some_data'"},
 		{Query: "SELECT * FROM test_table inner join test_table_2 t2 on data1='some_data'"},
@@ -269,55 +258,41 @@ func TestSearchableWithJoinsWithTextFormat(t *testing.T) {
 		{Query: "SELECT value1 FROM test as tt, test_table_2 t2, test_table where data2='some_data'"},
 	}
 
-	encryptors := []*HashQuery{NewMysqlHashQuery(keyStore, schema, registryHandler)}
+	encryptors := []*HashQuery{NewHashQuery(keyStore, schema, registryHandler)}
 	for _, encryptor := range encryptors {
 		for _, tcase := range testcases {
-			ctx := base.SetClientSessionToContext(context.Background(), clientSession)
+			ctx := decryptor.SetClientSessionToContext(context.Background(), clientSession)
 			parser := sqlparser.New(sqlparser.ModeDefault)
 
-			queryObj := base.NewOnQueryObjectFromQuery(tcase.Query, parser)
+			queryObj := decryptor.NewOnQueryObjectFromQuery(tcase.Query, parser)
 			queryObj, _, err = encryptor.OnQuery(ctx, queryObj)
 			assert.NoError(t, err)
 
-			stmt, err := queryObj.Statement()
+			parseResult, err := pg_query.Parse(queryObj.Query())
 			assert.NoError(t, err)
 
-			var whereExps = make([]*sqlparser.Where, 0)
-			err = sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
-				switch nodeType := node.(type) {
-				case *sqlparser.Where:
-					whereExps = append(whereExps, nodeType)
-				case sqlparser.JoinCondition:
-					whereExps = append(whereExps, &sqlparser.Where{
-						Type: "on",
-						Expr: nodeType.On,
-					})
-				}
-				return true, nil
-			}, stmt)
+			whereStatements, err := postgresql.GetWhereStatements(parseResult)
+			assert.NoError(t, err)
+			assert.True(t, len(whereStatements) > 0)
 
-			for _, whereExp := range whereExps {
+			for _, whereExp := range whereStatements {
 				if whereExp == nil {
 					continue
 				}
 
-				switch expr := whereExp.Expr.(type) {
-				case *sqlparser.ComparisonExpr:
+				if expr := whereExp.GetAExpr(); expr != nil {
+					if funcCall := expr.Rexpr.GetFuncCall(); funcCall != nil {
+						assert.Equal(t, funcCall.GetFuncname()[0].GetString_().GetSval(), postgresql.SubstrFuncName)
 
-					if _, ok := encryptor.coder.(*encryptor2.MysqlDBDataCoder); ok && whereExp.Type == sqlparser.WhereStr {
-						convertExpr, ok := expr.Left.(*sqlparser.ConvertExpr)
-						assert.True(t, ok)
-
-						_, ok = convertExpr.Expr.(*sqlparser.SubstrExpr)
-						assert.True(t, ok)
+						columnName := funcCall.GetArgs()[0].GetColumnRef().GetFields()[0].GetString_().GetSval()
+						if len(funcCall.GetArgs()[0].GetColumnRef().GetFields()) == 2 {
+							columnName = funcCall.GetArgs()[0].GetColumnRef().GetFields()[1].GetString_().GetSval()
+						}
+						assert.Equal(t, columnName, "data1")
 					}
 
-					switch expr := expr.Right.(type) {
-					case *sqlparser.SQLVal:
-						// if RightExpr is SQLVal check weather its hash
-						assert.True(t, len(expr.Val) == 68, "expect replacing value on substring with hash `%s`", queryObj.Query())
-					case *sqlparser.SubstrExpr:
-						assert.Equal(t, sqlparser.String(expr.Name.Name), "data1")
+					if aConst := expr.Rexpr.GetAConst(); aConst != nil {
+						assert.True(t, len(aConst.GetSval().GetSval()) == 68, "expect replacing value on substring with hash `%s`", queryObj.Query())
 					}
 				}
 			}

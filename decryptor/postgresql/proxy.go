@@ -20,7 +20,7 @@ import (
 	"github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/encryptor/postgresql"
 	"github.com/cossacklabs/acra/hmac"
-	hashDecryptor "github.com/cossacklabs/acra/hmac/decryptor"
+	postgresql_decryptor "github.com/cossacklabs/acra/hmac/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/masking"
 	"github.com/cossacklabs/acra/pseudonymization"
@@ -124,7 +124,7 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 			return nil, err
 		}
 		chainEncryptors = append(chainEncryptors, searchableAcrawriterEncryptor)
-		acraBlockStructHashEncryptor := hashDecryptor.NewPostgresqlHashQuery(factory.keystore, schemaStore, registryHandler)
+		acraBlockStructHashEncryptor := postgresql_decryptor.NewHashQuery(factory.keystore, schemaStore, registryHandler)
 		observerManager.AddQueryObserver(acraBlockStructHashEncryptor)
 	}
 

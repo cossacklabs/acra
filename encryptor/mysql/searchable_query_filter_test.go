@@ -1,10 +1,10 @@
-package base
+package mysql
 
 import (
 	"testing"
 
+	"github.com/cossacklabs/acra/encryptor/base"
 	"github.com/cossacklabs/acra/encryptor/base/config"
-
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
 )
@@ -41,12 +41,12 @@ schemas:
 
 		selectQuery := stmt.(*sqlparser.Select)
 		leftExpr := selectQuery.Where.Expr.(*sqlparser.ComparisonExpr).Left
-		var columnInfo ColumnInfo
+		var columnInfo base.ColumnInfo
 		switch val := leftExpr.(type) {
 		case *sqlparser.ColName:
-			columnInfo, err = FindColumnInfo(selectQuery.From, val, schemaStore)
+			columnInfo, err = base.FindColumnInfo(selectQuery.From, val, schemaStore)
 		case *sqlparser.SubstrExpr:
-			columnInfo, err = FindColumnInfo(selectQuery.From, val.Name, schemaStore)
+			columnInfo, err = base.FindColumnInfo(selectQuery.From, val.Name, schemaStore)
 		default:
 			t.Fatal("Unexpected type of expr")
 		}
@@ -54,7 +54,7 @@ schemas:
 			t.Fatalf("Can't find column info: %s", err.Error())
 		}
 
-		schemaTable := GetColumnSetting(&sqlparser.ColName{
+		schemaTable := base.GetColumnSetting(&sqlparser.ColName{
 			Name: sqlparser.NewColIdent("default_client_id"),
 		}, columnInfo.Table, schemaStore)
 
@@ -93,7 +93,7 @@ schemas:
 			t.Fatal(err)
 		}
 
-		whereStatements, err := GetWhereStatements(statement)
+		whereStatements, err := base.GetWhereStatements(statement)
 		if err != nil {
 			t.Fatalf("expected no error on parsing valid WHERE clause query - %s", err.Error())
 		}

@@ -20,7 +20,7 @@ import (
 	"context"
 	"errors"
 
-	pg_query "github.com/pganalyze/pg_query_go/v4"
+	pg_query "github.com/Zhaars/pg_query_go/v4"
 	"github.com/sirupsen/logrus"
 
 	decryptor "github.com/cossacklabs/acra/decryptor/base"

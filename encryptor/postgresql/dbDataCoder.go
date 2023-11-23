@@ -21,8 +21,8 @@ import (
 	"strconv"
 	"strings"
 
+	pg_query "github.com/Zhaars/pg_query_go/v4"
 	"github.com/jackc/pgx/v5/pgtype"
-	pg_query "github.com/pganalyze/pg_query_go/v4"
 	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/encryptor/base"
@@ -210,6 +210,15 @@ func (*PostgresqlPgQueryDBDataCoder) Decode(aConst *pg_query.A_Const, setting co
 		return binValue, nil
 	}
 
+	if iVal := aConst.GetIval(); iVal != nil {
+		val := int(aConst.GetIval().GetIval())
+		return []byte(strconv.Itoa(val)), nil
+	}
+
+	if fVal := aConst.GetFval(); fVal != nil {
+		return []byte(fVal.GetFval()), nil
+	}
+
 	//switch val := expr.(type) {
 	//case *sqlparser.SQLVal:
 	//	switch val.Type {
@@ -268,7 +277,7 @@ func (*PostgresqlPgQueryDBDataCoder) Decode(aConst *pg_query.A_Const, setting co
 }
 
 // Encode data to correct literal from binary data for this expression
-func (*PostgresqlPgQueryDBDataCoder) Encode(aConst *pg_query.A_Const, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
+func (*PostgresqlPgQueryDBDataCoder) Encode(aConst *pg_query.A_Const, data []byte, setting config.ColumnEncryptionSetting) error {
 	//switch val := expr.(type) {
 	//case *sqlparser.SQLVal:
 	//	switch val.Type {
@@ -312,18 +321,32 @@ func (*PostgresqlPgQueryDBDataCoder) Encode(aConst *pg_query.A_Const, data []byt
 	//	}
 	//}
 
+	if fVal := aConst.GetFval(); fVal != nil {
+		fVal.Fval = string(data)
+		return nil
+	}
+
+	if iVal := aConst.GetIval(); iVal != nil {
+		if idata, err := strconv.Atoi(string(data)); err == nil {
+			iVal.Ival = int32(idata)
+			return nil
+		}
+	}
+
 	if sval := aConst.GetSval(); sval != nil {
 		if setting.GetDBDataTypeID() != 0 && setting.GetDBDataTypeID() != pgtype.ByteaOID {
 			// valid strings we pass as is without extra encoding
 			if utils.IsPrintablePostgresqlString(data) {
-				return data, nil
+				sval.Sval = string(data)
+				return nil
 			}
 		}
 		// byte array can be valid hex/octal encoded value, eventually we should encode it as binary data
-		return PgEncodeToHexString(data), nil
+		sval.Sval = string(PgEncodeToHexString(data))
+		return nil
 	}
 
 	// if type is not byte array, then it probably string or int and we pass printable strings
 
-	return nil, base.ErrUnsupportedExpression
+	return base.ErrUnsupportedExpression
 }
