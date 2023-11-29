@@ -421,7 +421,13 @@ func TestMultiplePrepareAtOnceWithError(t *testing.T) {
 		}
 		_, err = proxy.handleClientPacket(ctx, clientPacketHandler, logger)
 		if err != nil {
-			t.Fatal(err)
+			pendingParse, err := clientPacketHandler.GetParseData()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if pendingParse.Name() != failName {
+				t.Fatal(err)
+			}
 		}
 	}
 
@@ -451,11 +457,10 @@ func TestMultiplePrepareAtOnceWithError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// TODO: uncomment when handling of error packets is fixed
-	// _, err = registry.StatementByName(failName)
-	// if err == nil {
-	// 	t.Fatalf("%q exists but shouldn't", failName)
-	// }
+	_, err = registry.StatementByName(failName)
+	if err == nil {
+		t.Fatalf("%q exists but shouldn't", failName)
+	}
 
 	if beginSQL != beginStmt.QueryText() {
 		t.Fatalf("%q != %q\n", beginSQL, beginStmt.QueryText())

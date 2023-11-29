@@ -31,7 +31,7 @@ import (
 
 func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 	testData := []byte("some data")
-	coder := &PostgresqlDBDataCoder{}
+	coder := &DBDataCoder{}
 	testCases := []sqlparser.Expr{
 		sqlparser.NewHexVal([]byte(hex.EncodeToString(testData))),
 		sqlparser.NewPgEscapeString([]byte(fmt.Sprintf("%s", utils.EncodeToOctal(testData)))),
@@ -92,7 +92,7 @@ func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 func TestPostgresqlDBDataCoder_Encode(t *testing.T) {
 	testData := make([]byte, 100)
 	rand.Read(testData)
-	coder := &PostgresqlDBDataCoder{}
+	coder := &DBDataCoder{}
 	testCases := []struct {
 		Expr   sqlparser.Expr
 		Output []byte

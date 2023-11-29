@@ -33,11 +33,11 @@ import (
 
 var hexNumPrefix = []byte{48, 120}
 
-// MysqlDBDataCoder implement DBDataCoder for MySQL
-type MysqlDBDataCoder struct{}
+// DBDataCoder implement DBDataCoder for MySQL
+type DBDataCoder struct{}
 
 // Decode decode literals from string to byte slice
-func (*MysqlDBDataCoder) Decode(expr sqlparser.Expr, _ config.ColumnEncryptionSetting) ([]byte, error) {
+func (*DBDataCoder) Decode(expr sqlparser.Expr, _ config.ColumnEncryptionSetting) ([]byte, error) {
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
 		switch val.Type {
@@ -68,7 +68,7 @@ func (*MysqlDBDataCoder) Decode(expr sqlparser.Expr, _ config.ColumnEncryptionSe
 }
 
 // Encode data to correct literal from binary data for this expression
-func (*MysqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte, _ config.ColumnEncryptionSetting) ([]byte, error) {
+func (*DBDataCoder) Encode(expr sqlparser.Expr, data []byte, _ config.ColumnEncryptionSetting) ([]byte, error) {
 	encodeDataToHex := func(val *sqlparser.SQLVal, data []byte) ([]byte, error) {
 		output := make([]byte, hex.EncodedLen(len(data)))
 		hex.Encode(output, data)

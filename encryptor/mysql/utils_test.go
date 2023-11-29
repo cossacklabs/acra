@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/cossacklabs/acra/decryptor/base/mocks"
+	"github.com/cossacklabs/acra/encryptor/base"
 	"github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/sqlparser/dialect"
@@ -84,7 +85,7 @@ inner join table3 t3 on t3.col1=t1.col1
 inner join table4 as t4 on t4.col4=t1.col4
 inner join table6 on table6.col1=t1.col1
 `
-		expectedValues := []ColumnInfo{
+		expectedValues := []base.ColumnInfo{
 			// column's alias is subquery alias with column and table without aliases in subquery
 			{Alias: "t1", Table: "table1", Name: "col1"},
 			// column's alias is subquery alias with column with AS expression and table without alias
@@ -163,11 +164,11 @@ schemas:
 		testcases := []struct {
 			query          string
 			dialect        dialect.Dialect
-			expectedValues []*ColumnInfo
+			expectedValues []*base.ColumnInfo
 		}{
 			{
 				query: `SELECT "id", "email", "mobile_number" AS "mobileNumber" FROM "users" AS "User" where "User"."is_active"`,
-				expectedValues: []*ColumnInfo{
+				expectedValues: []*base.ColumnInfo{
 					{Alias: "User", Table: "users", Name: "id"},
 					{Alias: "User", Table: "users", Name: "email"},
 					{Alias: "User", Table: "users", Name: "mobile_number"},
@@ -175,7 +176,7 @@ schemas:
 			},
 			{
 				query: `SELECT "id", "email", "mobile_number" AS "mobileNumber" FROM "users" AS "User", "table1" as "test_table"`,
-				expectedValues: []*ColumnInfo{
+				expectedValues: []*base.ColumnInfo{
 					{Alias: "User", Table: "users", Name: "id"},
 					{Alias: "User", Table: "users", Name: "email"},
 					{Alias: "User", Table: "users", Name: "mobile_number"},
@@ -183,13 +184,13 @@ schemas:
 			},
 			{
 				query: `SELECT "id", "email", "mobile_number" AS "mobileNumber" FROM "users" AS "User", "users_duplicate" as "User2"`,
-				expectedValues: []*ColumnInfo{
+				expectedValues: []*base.ColumnInfo{
 					nil, nil, nil,
 				},
 			},
 			{
 				query: `SELECT "id", "email", "mobile_number", "id_tmp", "email_tmp", "mobile_number_tmp"  AS "mobileNumber" FROM "users" AS "User", "users_temp" as "temp"`,
-				expectedValues: []*ColumnInfo{
+				expectedValues: []*base.ColumnInfo{
 					{Alias: "User", Table: "users", Name: "id"},
 					{Alias: "User", Table: "users", Name: "email"},
 					{Alias: "User", Table: "users", Name: "mobile_number"},
@@ -201,7 +202,7 @@ schemas:
 			{
 				query:   `SELECT id, email, mobile_number FROM users AS alias where alias.is_active`,
 				dialect: mysql.NewMySQLDialect(),
-				expectedValues: []*ColumnInfo{
+				expectedValues: []*base.ColumnInfo{
 					{Alias: "alias", Table: "users", Name: "id"},
 					{Alias: "alias", Table: "users", Name: "email"},
 					{Alias: "alias", Table: "users", Name: "mobile_number"},
@@ -211,7 +212,7 @@ schemas:
 				// should return nil, nil, nil as all the columns present in both tables which is invalid
 				query:   `SELECT id, email, mobile_number FROM users, users_duplicate`,
 				dialect: mysql.NewMySQLDialect(),
-				expectedValues: []*ColumnInfo{
+				expectedValues: []*base.ColumnInfo{
 					nil, nil, nil,
 				},
 			},
@@ -276,7 +277,7 @@ schemas:
 			              t1.version_id`,
 		}
 
-		expectedValues := [][]ColumnInfo{
+		expectedValues := [][]base.ColumnInfo{
 			{
 				{Alias: "table1", Table: "table1", Name: "number"},
 				{Alias: "table1", Table: "table1", Name: "from_number"},
@@ -345,7 +346,7 @@ schemas:
 			`select t2.*, t3.*, *  from  test_table join test_table2 t2 join test_table3 t3 on t2.id = t3.id join test_table4 t4 on t3.id = t4.id`,
 		}
 
-		expectedValues := [][]ColumnInfo{
+		expectedValues := [][]base.ColumnInfo{
 			{
 				{Alias: allColumnsName, Table: "test_table", Name: allColumnsName},
 				{Alias: allColumnsName, Table: "test_table2", Name: allColumnsName},
@@ -409,7 +410,7 @@ schemas:
 			t.Fatal("Test query should be Select expression")
 		}
 
-		expectedValue := ColumnInfo{Alias: "*", Table: "test_table", Name: "*"}
+		expectedValue := base.ColumnInfo{Alias: "*", Table: "test_table", Name: "*"}
 
 		columns, err := MapColumnsToAliases(selectExpr, &config.MapTableSchemaStore{})
 		if err != nil {
@@ -458,7 +459,7 @@ schemas:
 		// TODO: consider tracking queries with asterisk from sub-queries as we need to map it via encryptor config
 		// e.g select anon.value_table1, anon.value_table2 from (select * from table1 as tb1 JOIN table2 AS tb2 ON tb1.id = tb2.id) as anon;
 
-		expectedValues := [][]ColumnInfo{
+		expectedValues := [][]base.ColumnInfo{
 			{
 				{Alias: "table2", Table: "table2", Name: "value"},
 				{Alias: "table3", Table: "table3", Name: "value"},
@@ -509,7 +510,7 @@ schemas:
 			t.Fatal("Test query should be Select expression")
 		}
 
-		expectedValue := []ColumnInfo{
+		expectedValue := []base.ColumnInfo{
 			{Alias: allColumnsName, Table: "test_table", Name: allColumnsName},
 			{Alias: allColumnsName, Table: "test_table", Name: allColumnsName},
 		}
@@ -547,29 +548,29 @@ func TestPlaceholderSettings(t *testing.T) {
 		sessionData[args[0].(string)] = args[1]
 	})
 
-	sessionData[placeholdersSettingKey] = "trash"
+	sessionData[base.PlaceholdersSettingKey] = "trash"
 
-	data := PlaceholderSettingsFromClientSession(clientSession)
+	data := base.PlaceholderSettingsFromClientSession(clientSession)
 	if data != nil {
 		t.Fatal("Expect nil for value with invalid type")
 	}
-	DeletePlaceholderSettingsFromClientSession(clientSession)
+	base.DeletePlaceholderSettingsFromClientSession(clientSession)
 
 	// get new initialized map
-	data = PlaceholderSettingsFromClientSession(clientSession)
+	data = base.PlaceholderSettingsFromClientSession(clientSession)
 	// set some data
 	data[0] = &config.BasicColumnEncryptionSetting{}
 	data[1] = &config.BasicColumnEncryptionSetting{}
 
-	newData := PlaceholderSettingsFromClientSession(clientSession)
+	newData := base.PlaceholderSettingsFromClientSession(clientSession)
 	if len(newData) != len(data) {
 		t.Fatal("Unexpected map with different size")
 	}
 	// clear data, force to return map to the pool cleared from data
-	DeletePlaceholderSettingsFromClientSession(clientSession)
+	base.DeletePlaceholderSettingsFromClientSession(clientSession)
 
 	// we expect that will be returned same value from sync.Pool and check that it's cleared
-	newData = PlaceholderSettingsFromClientSession(clientSession)
+	newData = base.PlaceholderSettingsFromClientSession(clientSession)
 	if len(newData) != 0 {
 		t.Fatal("Map's data wasn't cleared")
 	}

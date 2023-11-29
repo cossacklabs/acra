@@ -17,10 +17,9 @@
 package postgresql
 
 import (
-	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/sqlparser"
-	"github.com/cossacklabs/acra/sqlparser/dependency/querypb"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/decryptor/base"
 )
 
 type queryPacket struct {
@@ -61,15 +60,14 @@ func (queryPacket queryPacket) zeroize() {
 		queryPacket.executePacket.Zeroize()
 		queryPacket.bindPacket.Zeroize()
 		queryPacket.preparedStatement.text = ""
-		bv := map[string]*querypb.BindVariable{}
-		sqlparser.Normalize(queryPacket.preparedStatement.sql, bv, sqlparser.ValueMask)
+		// TODO: fixme
+		//bv := map[string]*querypb.BindVariable{}
+		//sqlparser.Normalize(queryPacket.preparedStatement.sql, bv, sqlparser.ValueMask)
 	}
 }
 
 // PgProtocolState keeps track of PostgreSQL protocol state.
 type PgProtocolState struct {
-	parser *sqlparser.Parser
-
 	lastPacketType PacketType
 	// collect queries from the application that waiting DataRows from the database to correctly map settings of
 	// transparent encryption and type awareness to the result rows
@@ -96,9 +94,8 @@ const (
 )
 
 // NewPgProtocolState makes an initial PostgreSQL state, awaiting for queries.
-func NewPgProtocolState(parser *sqlparser.Parser, registry base.PreparedStatementRegistry) *PgProtocolState {
-	return &PgProtocolState{lastPacketType: OtherPacket, parser: parser,
-		pendingQueryPackets: newPendingPacketsList(), registry: registry}
+func NewPgProtocolState(registry base.PreparedStatementRegistry) *PgProtocolState {
+	return &PgProtocolState{lastPacketType: OtherPacket, pendingQueryPackets: newPendingPacketsList(), registry: registry}
 }
 
 // LastPacketType returns type of the last seen packet.

@@ -51,7 +51,7 @@ type HashQuery struct {
 // NewHashQuery return HashQuery with coder for mysql
 func NewHashQuery(keystore HashDecryptStore, schemaStore config.TableSchemaStore, processor base.ExtendedDataProcessor) *HashQuery {
 	searchableQueryFilter := mysql.NewSearchableQueryFilter(schemaStore, mysql.QueryFilterModeSearchableEncryption)
-	return &HashQuery{keystore: keystore, coder: &mysql.MysqlDBDataCoder{}, searchableQueryFilter: searchableQueryFilter, decryptor: processor, schemaStore: schemaStore}
+	return &HashQuery{keystore: keystore, coder: &mysql.DBDataCoder{}, searchableQueryFilter: searchableQueryFilter, decryptor: processor, schemaStore: schemaStore}
 }
 
 // ID returns name of this QueryObserver.

@@ -44,19 +44,19 @@ func PgEncodeToHexString(data []byte) []byte {
 	return newVal
 }
 
-// PostgresqlDBDataCoder responsible to handle decoding/encoding SQL literals before/after QueryEncryptor handlers
+// DBDataCoder responsible to handle decoding/encoding SQL literals before/after QueryEncryptor handlers
 //
 // Acra captures SQL queries like `INSERT INTO users (age, username, email, photo) VALUES (123, 'john_wick', 'johnwick@mail.com', '\xaabbcc');`
 // and manipulates with SQL values `123`, `'john_wick'`, `'johnwick@mail.com'`, `'\xaabbcc'`. On first stage Acra
 // decodes with Decode method values from SQL literals into binary or leave as is. For example hex encoded values decoded into binary"
 // `'\xaabbcc'` decoded into []byte{170,187,204} and passed to QueryEncryptor's callbacks `EncryptWithClientID`
 // After that it should be encoded with Encode method from binary form into SQL to replace values in the query.
-type PostgresqlDBDataCoder struct{}
+type DBDataCoder struct{}
 
 // Decode hex/escaped literals to raw binary values for encryption/decryption. String values left as is because it
 // doesn't need any decoding. Historically Int values had support only for tokenization and operated over string SQL
 // literals.
-func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr, setting config.ColumnEncryptionSetting) ([]byte, error) {
+func (*DBDataCoder) Decode(expr sqlparser.Expr, setting config.ColumnEncryptionSetting) ([]byte, error) {
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
 		switch val.Type {
@@ -115,7 +115,7 @@ func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr, setting config.ColumnE
 }
 
 // Encode data to correct literal from binary data for this expression
-func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
+func (*DBDataCoder) Encode(expr sqlparser.Expr, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
 		switch val.Type {
@@ -161,6 +161,7 @@ func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte, setting c
 	return nil, base.ErrUnsupportedExpression
 }
 
+// PostgresqlPgQueryDBDataCoder implementation of DBDataCoder with pg_query Encoding/Decoding
 type PostgresqlPgQueryDBDataCoder struct{}
 
 // Decode hex/escaped literals to raw binary values for encryption/decryption. String values left as is because it

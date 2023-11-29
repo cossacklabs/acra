@@ -93,12 +93,14 @@ func MapColumnsToAliases(selectQuery *pg_query.SelectStmt, tableSchemaStore conf
 	var joinTables []string
 	var joinAliases map[string]string
 
-	if joinExp := selectQuery.FromClause[0].GetJoinExpr(); joinExp != nil {
-		joinTables = make([]string, 0)
-		joinAliases = make(map[string]string)
+	if len(selectQuery.FromClause) > 0 {
+		if joinExp := selectQuery.FromClause[0].GetJoinExpr(); joinExp != nil {
+			joinTables = make([]string, 0)
+			joinAliases = make(map[string]string)
 
-		if ok := parseJoinTablesInfo(joinExp, &joinTables, joinAliases); !ok {
-			return nil, base.ErrUnsupportedExpression
+			if ok := parseJoinTablesInfo(joinExp, &joinTables, joinAliases); !ok {
+				return nil, base.ErrUnsupportedExpression
+			}
 		}
 	}
 

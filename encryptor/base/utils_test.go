@@ -25,7 +25,7 @@ func TestPlaceholderSettings(t *testing.T) {
 		sessionData[args[0].(string)] = args[1]
 	})
 
-	sessionData[placeholdersSettingKey] = "trash"
+	sessionData[PlaceholdersSettingKey] = "trash"
 
 	data := PlaceholderSettingsFromClientSession(clientSession)
 	if data != nil {

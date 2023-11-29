@@ -42,7 +42,7 @@ type QueryDataEncryptor struct {
 	parser              *sqlparser.Parser
 }
 
-// NewQueryEncryptor create QueryDataEncryptor with PostgresqlDBDataCoder
+// NewQueryEncryptor create QueryDataEncryptor with DBDataCoder
 func NewQueryEncryptor(schema config.TableSchemaStore, parser *sqlparser.Parser, dataEncryptor base.DataEncryptor) (*QueryDataEncryptor, error) {
 	return &QueryDataEncryptor{schemaStore: schema, parser: parser, encryptor: dataEncryptor, dataCoder: &PostgresqlPgQueryDBDataCoder{}}, nil
 }
@@ -407,12 +407,7 @@ func (encryptor *QueryDataEncryptor) OnQuery(ctx context.Context, query decrypto
 		if err != nil {
 			return query, false, err
 		}
-
-		newStmt, err := encryptor.parser.Parse(changedQuery)
-		if err != nil {
-			return query, false, err
-		}
-		return decryptor.NewOnQueryObjectFromStatement(newStmt, encryptor.parser), true, nil
+		return decryptor.NewOnQueryObjectFromQuery(changedQuery, encryptor.parser), true, nil
 	}
 	return query, false, nil
 }

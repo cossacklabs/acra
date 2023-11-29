@@ -210,7 +210,7 @@ func TestSearchableWithJoinsWithTextFormat(t *testing.T) {
 				switch expr := whereExp.Expr.(type) {
 				case *sqlparser.ComparisonExpr:
 
-					if _, ok := encryptor.coder.(*mysql.MysqlDBDataCoder); ok && whereExp.Type == sqlparser.WhereStr {
+					if _, ok := encryptor.coder.(*mysql.DBDataCoder); ok && whereExp.Type == sqlparser.WhereStr {
 						convertExpr, ok := expr.Left.(*sqlparser.ConvertExpr)
 						assert.True(t, ok)
 

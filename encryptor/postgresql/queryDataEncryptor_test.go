@@ -434,7 +434,7 @@ func testParsing(t *testing.T, testData []parserTestData, encryptedValue, defaul
 //				Normalized:        true,
 //				Changed:           true,
 //				ExpectedIDS:       [][]byte{specifiedClientID, defaultClientID},
-//				DataCoder:         &PostgresqlDBDataCoder{},
+//				DataCoder:         &DBDataCoder{},
 //				dialect:           postgresql.NewPostgreSQLDialect(),
 //			},
 //			// 28. update with data as simple string for postgresql
@@ -445,7 +445,7 @@ func testParsing(t *testing.T, testData []parserTestData, encryptedValue, defaul
 //				Normalized:        true,
 //				Changed:           true,
 //				ExpectedIDS:       [][]byte{specifiedClientID, defaultClientID},
-//				DataCoder:         &PostgresqlDBDataCoder{},
+//				DataCoder:         &DBDataCoder{},
 //				dialect:           postgresql.NewPostgreSQLDialect(),
 //			},
 //		}
@@ -494,28 +494,25 @@ schemas:
 		// 0. should match, lowercase config identifier == lowercase SQL identifier
 		// update lowercasetable set other_column = 'string data', specified_client_id = E'\\x656e63727970746564', "DEFAULT_client_id" = E'\\x656e63727970746564'
 		{
-			Query:             `UPDATE lowercasetable set other_column='%s', specified_client_id=E'%s', "DEFAULT_client_id"=E'%s'`,
+			Query:             `UPDATE lowercasetable SET other_column = '%s', specified_client_id = E'\%s', "DEFAULT_client_id" = E'\%s'`,
 			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData},
 			ExpectedQueryData: []interface{}{simpleStringData, PgEncodeToHexString(encryptedValue), PgEncodeToHexString(encryptedValue)},
-			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{specifiedClientID, defaultClientID},
 		},
 		// 1. should partially match, like #0 but DEFAULT_client_id is not quoted and is processed as lowercase
 		{
-			Query:             `UPDATE lowercasetable set other_column='%s', specified_client_id=E'%s', default_client_id='%s'`,
+			Query:             `UPDATE lowercasetable SET other_column = '%s', specified_client_id = E'\%s', default_client_id = '%s'`,
 			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData},
 			ExpectedQueryData: []interface{}{simpleStringData, PgEncodeToHexString(encryptedValue), simpleStringData},
-			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{specifiedClientID},
 		},
 		// 2. should match, lowercase config identifier == lowercase SQL identifier
 		{
-			Query:             `UPDATE lowercasetable set other_column='%s', specified_client_id=E'%s', "DEFAULT_client_id"=E'%s'`,
+			Query:             `UPDATE lowercasetable SET other_column = '%s', specified_client_id = E'\%s', "DEFAULT_client_id" = E'\%s'`,
 			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData},
 			ExpectedQueryData: []interface{}{simpleStringData, PgEncodeToHexString(encryptedValue), PgEncodeToHexString(encryptedValue)},
-			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{specifiedClientID, defaultClientID},
 		},
@@ -536,7 +533,7 @@ schemas:
 		//	Normalized:        false,
 		//	Changed:           false,
 		//	ExpectedIDS:       [][]byte{},
-		//	DataCoder:         &PostgresqlDBDataCoder{},
+		//	DataCoder:         &DBDataCoder{},
 		//	dialect:           postgresql.NewPostgreSQLDialect(),
 		//},
 		//// 5. should NOT match, uppercase config identifier != lowercase SQL identifier
@@ -547,7 +544,7 @@ schemas:
 		//	Normalized:        false,
 		//	Changed:           false,
 		//	ExpectedIDS:       [][]byte{},
-		//	DataCoder:         &PostgresqlDBDataCoder{},
+		//	DataCoder:         &DBDataCoder{},
 		//	dialect:           postgresql.NewPostgreSQLDialect(),
 		//},
 		//// 6. should NOT match, uppercase config identifier != lowercase SQL identifier
@@ -558,7 +555,7 @@ schemas:
 		//	Normalized:        false,
 		//	Changed:           false,
 		//	ExpectedIDS:       [][]byte{},
-		//	DataCoder:         &PostgresqlDBDataCoder{},
+		//	DataCoder:         &DBDataCoder{},
 		//	dialect:           postgresql.NewPostgreSQLDialect(),
 		//},
 		//// 7. should NOT match, uppercase config identifier != lowercase SQL identifier (converted)
@@ -569,7 +566,7 @@ schemas:
 		//	Normalized:        false,
 		//	Changed:           false,
 		//	ExpectedIDS:       [][]byte{},
-		//	DataCoder:         &PostgresqlDBDataCoder{},
+		//	DataCoder:         &DBDataCoder{},
 		//	dialect:           postgresql.NewPostgreSQLDialect(),
 		//},
 		//// 8. should match, uppercase config identifier == uppercase SQL identifier
@@ -580,7 +577,7 @@ schemas:
 		//	Normalized:        true,
 		//	Changed:           true,
 		//	ExpectedIDS:       [][]byte{specifiedClientID, defaultClientID},
-		//	DataCoder:         &PostgresqlDBDataCoder{},
+		//	DataCoder:         &DBDataCoder{},
 		//	dialect:           postgresql.NewPostgreSQLDialect(),
 		//},
 	}

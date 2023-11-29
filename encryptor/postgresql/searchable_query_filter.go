@@ -38,6 +38,7 @@ const (
 	QueryFilterModeConsistentTokenization
 )
 
+// SubstrFuncName substr function name
 const SubstrFuncName = "substr"
 
 // SearchableExprItem represent the filtered value found by SearchableQueryFilter

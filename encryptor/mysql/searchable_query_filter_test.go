@@ -44,9 +44,9 @@ schemas:
 		var columnInfo base.ColumnInfo
 		switch val := leftExpr.(type) {
 		case *sqlparser.ColName:
-			columnInfo, err = base.FindColumnInfo(selectQuery.From, val, schemaStore)
+			columnInfo, err = FindColumnInfo(selectQuery.From, val, schemaStore)
 		case *sqlparser.SubstrExpr:
-			columnInfo, err = base.FindColumnInfo(selectQuery.From, val.Name, schemaStore)
+			columnInfo, err = FindColumnInfo(selectQuery.From, val.Name, schemaStore)
 		default:
 			t.Fatal("Unexpected type of expr")
 		}
@@ -54,7 +54,7 @@ schemas:
 			t.Fatalf("Can't find column info: %s", err.Error())
 		}
 
-		schemaTable := base.GetColumnSetting(&sqlparser.ColName{
+		schemaTable := GetColumnSetting(&sqlparser.ColName{
 			Name: sqlparser.NewColIdent("default_client_id"),
 		}, columnInfo.Table, schemaStore)
 
@@ -93,7 +93,7 @@ schemas:
 			t.Fatal(err)
 		}
 
-		whereStatements, err := base.GetWhereStatements(statement)
+		whereStatements, err := GetWhereStatements(statement)
 		if err != nil {
 			t.Fatalf("expected no error on parsing valid WHERE clause query - %s", err.Error())
 		}

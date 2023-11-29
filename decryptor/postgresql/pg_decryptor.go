@@ -25,6 +25,7 @@ import (
 	"net"
 	"time"
 
+	pg_query "github.com/Zhaars/pg_query_go/v4"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	encryptor "github.com/cossacklabs/acra/encryptor/base"
@@ -196,7 +197,7 @@ func NewPgProxy(session base.ClientSession, parser *sqlparser.Parser, setting ba
 			return nil, ErrInvalidProtocolState
 		}
 	} else {
-		protocolState = NewPgProtocolState(parser, session.PreparedStatementRegistry())
+		protocolState = NewPgProtocolState(session.PreparedStatementRegistry())
 		session.SetProtocolState(protocolState)
 	}
 	settingExtractor, err := NewEncryptionSettingExtractor(session.Context(), setting.TableSchemaStore(), setting.SQLParser())
@@ -510,9 +511,17 @@ func (proxy *PgProxy) handleBindPacket(ctx context.Context, packet *PacketHandle
 		logger.WithError(err).Error("Failed to handle Bind packet: can't extract parameters")
 		return false, nil
 	}
+
+	// TODO: fixme when adjust interfaces
+	stmt, err := proxy.parser.Parse(statement.QueryText())
+	if err != nil {
+		logger.WithError(err).Error("Failed to handle Bind packet: can't extract statement")
+		return false, nil
+	}
+
 	// Process parameter values. If we can't -- you guessed it -- leave the packet unchanged.
 	// Note that the new parameter set might have different number of items.
-	newParameters, changed, err := proxy.queryObserverManager.OnBind(ctx, statement.Query(), parameters)
+	newParameters, changed, err := proxy.queryObserverManager.OnBind(ctx, stmt, parameters)
 	if err != nil {
 		if filesystem.IsKeyReadError(err) {
 			return false, err
@@ -1053,13 +1062,13 @@ func (proxy *PgProxy) registerPreparedStatement(packet *PacketHandler, preparedS
 	name := preparedStatement.Name()
 	queryText := preparedStatement.QueryString()
 	// This should be always successful since the database filters invalid queries.
-	query, err := proxy.parser.Parse(queryText)
+	query, err := pg_query.Parse(queryText)
 	if err != nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 			WithError(err).Errorln("Can't parse SQL from Parse packet")
 		return err
 	}
-	statement := NewPreparedStatement(name, queryText, query)
+	statement := NewPreparedStatement(name, queryText, query.Stmts[0].Stmt)
 	registry := proxy.session.PreparedStatementRegistry()
 	err = registry.AddStatement(statement)
 	if err != nil {

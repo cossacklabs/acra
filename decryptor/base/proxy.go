@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"net"
 
+	pg_query "github.com/Zhaars/pg_query_go/v4"
+
 	"github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/network"
 
@@ -142,9 +144,9 @@ type ProxyFactory interface {
 
 // PreparedStatementRegistry keeps track of active prepared statements and cursors within a ClientSession.
 type PreparedStatementRegistry interface {
-	AddStatement(statement PreparedStatement) error
+	AddStatement(statement PgPreparedStatement) error
 	DeleteStatement(name string) error
-	StatementByName(name string) (PreparedStatement, error)
+	StatementByName(name string) (PgPreparedStatement, error)
 
 	AddCursor(cursor Cursor) error
 	DeleteCursor(name string) error
@@ -160,11 +162,20 @@ type PreparedStatement interface {
 	ParamsNum() int
 }
 
+// PgPreparedStatement is a prepared statement, ready to be executed.
+// It can be either a textual SQL statement from "PREPARE", or a database protocol equivalent.
+type PgPreparedStatement interface {
+	Name() string
+	Query() *pg_query.Node
+	QueryText() string
+	ParamsNum() int
+}
+
 // Cursor is used to iterate over a prepared statement.
 // It can be either a textual SQL statement from "DEFINE CURSOR", or a database protocol equivalent.
 type Cursor interface {
 	Name() string
-	PreparedStatement() PreparedStatement
+	PreparedStatement() PgPreparedStatement
 }
 
 const (

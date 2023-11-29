@@ -42,7 +42,7 @@ type QueryDataEncryptor struct {
 
 // NewQueryEncryptor create QueryDataEncryptor with MySQLDBDataCoder
 func NewQueryEncryptor(schema config.TableSchemaStore, parser *sqlparser.Parser, dataEncryptor base.DataEncryptor) (*QueryDataEncryptor, error) {
-	return &QueryDataEncryptor{schemaStore: schema, parser: parser, encryptor: dataEncryptor, dataCoder: &MysqlDBDataCoder{}}, nil
+	return &QueryDataEncryptor{schemaStore: schema, parser: parser, encryptor: dataEncryptor, dataCoder: &DBDataCoder{}}, nil
 }
 
 // ID returns name of this QueryObserver.

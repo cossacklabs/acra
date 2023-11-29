@@ -12,7 +12,7 @@ import (
 	"github.com/cossacklabs/acra/sqlparser"
 )
 
-// PostgreSQLTokenizeQuery replace tokenized data inside AcraStruct/AcraBlocks and change WHERE conditions to support searchable tokenization
+// MySQLTokenizeQuery replace tokenized data inside AcraStruct/AcraBlocks and change WHERE conditions to support searchable tokenization
 type MySQLTokenizeQuery struct {
 	coder                 encryptor_base.DBDataCoder
 	tokenEncryptor        *TokenEncryptor
@@ -25,7 +25,7 @@ func NewMySQLTokenizeQuery(schemaStore config.TableSchemaStore, tokenEncryptor *
 	return &MySQLTokenizeQuery{
 		searchableQueryFilter: mysql.NewSearchableQueryFilter(schemaStore, mysql.QueryFilterModeConsistentTokenization),
 		tokenEncryptor:        tokenEncryptor,
-		coder:                 &mysql.MysqlDBDataCoder{},
+		coder:                 &mysql.DBDataCoder{},
 		schemaStore:           schemaStore,
 	}
 }

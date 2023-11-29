@@ -50,13 +50,6 @@ var (
 	errEmptyTableExprs        = errors.New("empty table exprs")
 )
 
-// ColumnInfo info object that represent column data
-type ColumnInfo struct {
-	Name  string
-	Table string
-	Alias string
-}
-
 // ParseQuerySettings parse list of select query settings based on schemaStore
 func ParseQuerySettings(ctx context.Context, statement *sqlparser.Select, schemaStore config.TableSchemaStore) ([]*base.QueryDataItem, error) {
 	columns, err := MapColumnsToAliases(statement, schemaStore)
@@ -141,21 +134,21 @@ func GetWhereStatements(stmt sqlparser.Statement) ([]*sqlparser.Where, error) {
 }
 
 // FindColumnInfo get ColumnInfo from TableExprs, ColName  and  TableSchemaStore
-func FindColumnInfo(fromExpr sqlparser.TableExprs, colName *sqlparser.ColName, schemaStore config.TableSchemaStore) (ColumnInfo, error) {
+func FindColumnInfo(fromExpr sqlparser.TableExprs, colName *sqlparser.ColName, schemaStore config.TableSchemaStore) (base.ColumnInfo, error) {
 	var alias = colName.Qualifier.Name.RawValue()
 	var columnName = colName.Name.ValueForConfig()
 
 	if alias == "" {
 		columnTable, err := getMatchedTable(fromExpr, colName, schemaStore)
 		if err != nil {
-			return ColumnInfo{}, err
+			return base.ColumnInfo{}, err
 		}
 		alias = columnTable
 	}
 
 	info, err := findTableName(alias, columnName, fromExpr)
 	if err != nil {
-		return ColumnInfo{}, err
+		return base.ColumnInfo{}, err
 	}
 	info.Alias = alias
 
@@ -163,8 +156,8 @@ func FindColumnInfo(fromExpr sqlparser.TableExprs, colName *sqlparser.ColName, s
 }
 
 // MapColumnsToAliases parse slice of ColumnInfo from sqlparser.Select and config.TableSchemaStore
-func MapColumnsToAliases(selectQuery *sqlparser.Select, tableSchemaStore config.TableSchemaStore) ([]*ColumnInfo, error) {
-	out := make([]*ColumnInfo, 0, len(selectQuery.SelectExprs))
+func MapColumnsToAliases(selectQuery *sqlparser.Select, tableSchemaStore config.TableSchemaStore) ([]*base.ColumnInfo, error) {
+	out := make([]*base.ColumnInfo, 0, len(selectQuery.SelectExprs))
 	var joinTables []string
 	var joinAliases map[string]string
 
@@ -219,33 +212,33 @@ func MapColumnsToAliases(selectQuery *sqlparser.Select, tableSchemaStore config.
 					if !ok {
 						return nil, base.ErrUnsupportedExpression
 					}
-					out = append(out, &ColumnInfo{Table: joinTable, Name: allColumnsName, Alias: allColumnsName})
+					out = append(out, &base.ColumnInfo{Table: joinTable, Name: allColumnsName, Alias: allColumnsName})
 					continue
 				}
 
 				for i := len(joinTables) - 1; i >= 0; i-- {
-					out = append(out, &ColumnInfo{Table: joinTables[i], Name: allColumnsName, Alias: allColumnsName})
+					out = append(out, &base.ColumnInfo{Table: joinTables[i], Name: allColumnsName, Alias: allColumnsName})
 				}
 				continue
 			}
 
 			tableName, err := getFirstTableWithoutAlias(selectQuery.From)
 			if err == nil {
-				out = append(out, &ColumnInfo{Table: tableName, Name: allColumnsName, Alias: allColumnsName})
+				out = append(out, &base.ColumnInfo{Table: tableName, Name: allColumnsName, Alias: allColumnsName})
 			} else {
 				if len(selectQuery.From) == 1 {
 					tableNameStr, err := getTableNameWithoutAliases(selectQuery.From[0])
 					if err != nil {
 						return nil, err
 					}
-					out = append(out, &ColumnInfo{Table: tableNameStr, Name: allColumnsName, Alias: allColumnsName})
+					out = append(out, &base.ColumnInfo{Table: tableNameStr, Name: allColumnsName, Alias: allColumnsName})
 					continue
 				}
 				tableNameStr, err := findTableName(starExpr.TableName.Name.RawValue(), starExpr.TableName.Name.RawValue(), selectQuery.From)
 				if err != nil {
 					return nil, err
 				}
-				out = append(out, &ColumnInfo{Table: tableNameStr.Table, Name: allColumnsName, Alias: allColumnsName})
+				out = append(out, &base.ColumnInfo{Table: tableNameStr.Table, Name: allColumnsName, Alias: allColumnsName})
 			}
 			continue
 		}
@@ -517,7 +510,7 @@ func getTableNameWithoutAliases(expr sqlparser.TableExpr) (string, error) {
 	return tableName.Name.RawValue(), nil
 }
 
-func findTableName(alias, columnName string, expr sqlparser.SQLNode) (ColumnInfo, error) {
+func findTableName(alias, columnName string, expr sqlparser.SQLNode) (base.ColumnInfo, error) {
 	switch val := expr.(type) {
 	case sqlparser.TableExprs:
 		// FROM table1, table2, join ....
@@ -528,13 +521,13 @@ func findTableName(alias, columnName string, expr sqlparser.SQLNode) (ColumnInfo
 				return result, nil
 			}
 		}
-		return ColumnInfo{}, errNotFoundtable
+		return base.ColumnInfo{}, errNotFoundtable
 	case sqlparser.TableName:
 		// table1, should be equal to end alias value
 		if alias == val.Name.ValueForConfig() {
-			return ColumnInfo{Name: columnName, Table: alias}, nil
+			return base.ColumnInfo{Name: columnName, Table: alias}, nil
 		}
-		return ColumnInfo{}, errNotFoundtable
+		return base.ColumnInfo{}, errNotFoundtable
 	case *sqlparser.AliasedTableExpr:
 		if val.As.IsEmpty() {
 			return findTableName(alias, columnName, val.Expr)
@@ -562,7 +555,7 @@ func findTableName(alias, columnName string, expr sqlparser.SQLNode) (ColumnInfo
 								if err != nil {
 									continue
 								}
-								return ColumnInfo{Name: columnName, Table: firstTable}, nil
+								return base.ColumnInfo{Name: columnName, Table: firstTable}, nil
 							}
 						} else {
 							// t1.col1 == col1 so we should find source name of t1.
@@ -579,7 +572,7 @@ func findTableName(alias, columnName string, expr sqlparser.SQLNode) (ColumnInfo
 						if aliasVal.Qualifier.Name.RawValue() == "" {
 							firstTable, err := getFirstTableWithoutAlias(val.From)
 							if err != nil {
-								return ColumnInfo{}, err
+								return base.ColumnInfo{}, err
 							}
 							return findTableName(firstTable, aliasVal.Name.String(), val.From)
 						}
@@ -596,7 +589,7 @@ func findTableName(alias, columnName string, expr sqlparser.SQLNode) (ColumnInfo
 		return result, err
 	case *sqlparser.Union:
 		// may be different pairs of table + column at same position of result row
-		return ColumnInfo{}, errNotSupported
+		return base.ColumnInfo{}, errNotSupported
 	case *sqlparser.ParenSelect:
 		return findTableName(alias, columnName, val.Select)
 	case *sqlparser.ParenTableExpr:
@@ -606,9 +599,9 @@ func findTableName(alias, columnName string, expr sqlparser.SQLNode) (ColumnInfo
 				return result, nil
 			}
 		}
-		return ColumnInfo{}, errNotFoundtable
+		return base.ColumnInfo{}, errNotFoundtable
 	}
-	return ColumnInfo{}, errNotFoundtable
+	return base.ColumnInfo{}, errNotFoundtable
 }
 
 // UpdateUnaryExpressionValue updates supported unary expression

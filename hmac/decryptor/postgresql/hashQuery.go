@@ -182,7 +182,7 @@ func getSubstrFuncNode(column *pg_query.Node) *pg_query.Node {
 //
 // and actual "value" is passed via parameters, visible here in OnBind().
 // If that's the case, HMAC computation should be performed for relevant values.
-func (e *HashQuery) OnBind(ctx context.Context, statement sqlparser.Statement, values []base.BoundValue) ([]base.BoundValue, bool, error) {
+func (encryptor *HashQuery) OnBind(ctx context.Context, statement sqlparser.Statement, values []base.BoundValue) ([]base.BoundValue, bool, error) {
 	logrus.Debugln("HashQuery.OnBind")
 
 	// TODO: use pg_query.ParseResult instead of sqlparser.Statement
@@ -195,7 +195,7 @@ func (e *HashQuery) OnBind(ctx context.Context, statement sqlparser.Statement, v
 	// Extract the subexpressions that we are interested in for searchable encryption.
 	// The list might be empty for non-SELECT queries or for non-eligible SELECTs.
 	// In that case we don't have any more work to do here.
-	items := e.searchableQueryFilter.FilterSearchableComparisons(parseResult)
+	items := encryptor.searchableQueryFilter.FilterSearchableComparisons(parseResult)
 	if len(items) == 0 {
 		return values, false, nil
 	}
@@ -220,13 +220,13 @@ func (e *HashQuery) OnBind(ctx context.Context, statement sqlparser.Statement, v
 		indexes = append(indexes, index)
 	}
 
-	bindData := postgresql.ParseSearchQueryPlaceholdersSettings(parseResult, e.schemaStore)
+	bindData := postgresql.ParseSearchQueryPlaceholdersSettings(parseResult, encryptor.schemaStore)
 	if len(bindData) > len(indexes) {
 		return values, false, nil
 	}
 
 	// Finally, once we know which values to replace with HMACs, do this replacement.
-	return e.replaceValuesWithHMACs(ctx, values, indexes, bindData)
+	return encryptor.replaceValuesWithHMACs(ctx, values, indexes, bindData)
 }
 
 func (encryptor *HashQuery) replaceValuesWithHMACs(ctx context.Context, values []base.BoundValue, placeholders []int, bindData map[int]config.ColumnEncryptionSetting) ([]base.BoundValue, bool, error) {

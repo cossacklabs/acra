@@ -40,7 +40,7 @@ func NewMySQLPreparedStatementsQuery(proxyHandler *Handler, parser *sqlparser.Pa
 		parser,
 		nil,
 		schemaStore,
-		&mysql.MysqlDBDataCoder{},
+		&mysql.DBDataCoder{},
 		nil,
 	}
 }

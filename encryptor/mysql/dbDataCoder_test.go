@@ -27,7 +27,7 @@ import (
 )
 
 func TestMysqlDBDataCoder_Decode(t *testing.T) {
-	coder := &MysqlDBDataCoder{}
+	coder := &DBDataCoder{}
 	testCases := []struct {
 		Input  sqlparser.Expr
 		Output []byte
@@ -64,7 +64,7 @@ func TestMysqlDBDataCoder_Decode(t *testing.T) {
 }
 
 func TestMysqlDBDataCoder_Encode(t *testing.T) {
-	coder := &MysqlDBDataCoder{}
+	coder := &DBDataCoder{}
 	testCases := []struct {
 		Expr   sqlparser.Expr
 		Output []byte

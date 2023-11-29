@@ -23,7 +23,7 @@ import (
 	"github.com/cossacklabs/acra/sqlparser"
 )
 
-// errUnsupportedExpression unsupported type of literal to binary encode/decode
+// ErrUnsupportedExpression unsupported type of literal to binary encode/decode
 var ErrUnsupportedExpression = errors.New("unsupported expression")
 
 // DBDataCoder encode/decode binary data to correct string form for specific db

@@ -68,17 +68,18 @@ var bindPlaceholdersPool = sync.Pool{New: func() interface{} {
 	return make(map[int]config.ColumnEncryptionSetting, 32)
 }}
 
-const placeholdersSettingKey = "bind_encryption_settings"
+// PlaceholdersSettingKey represent a key for storing placeholders in session
+const PlaceholdersSettingKey = "bind_encryption_settings"
 
 // PlaceholderSettingsFromClientSession return stored in client session ColumnEncryptionSettings related to placeholders
 // or create new and save in session
 func PlaceholderSettingsFromClientSession(session decryptor.ClientSession) map[int]config.ColumnEncryptionSetting {
-	data, ok := session.GetData(placeholdersSettingKey)
+	data, ok := session.GetData(PlaceholdersSettingKey)
 	if !ok {
 		//logger := logging.GetLoggerFromContext(session.Context())
 		value := bindPlaceholdersPool.Get().(map[int]config.ColumnEncryptionSetting)
 		//logger.WithField("session", session).WithField("value", value).Debugln("Create placeholders")
-		session.SetData(placeholdersSettingKey, value)
+		session.SetData(PlaceholdersSettingKey, value)
 		return value
 	}
 	items, ok := data.(map[int]config.ColumnEncryptionSetting)
@@ -93,7 +94,7 @@ func DeletePlaceholderSettingsFromClientSession(session decryptor.ClientSession)
 	data := PlaceholderSettingsFromClientSession(session)
 	if data == nil {
 		logrus.Warningln("Invalid type of PlaceholderSettings")
-		session.DeleteData(placeholdersSettingKey)
+		session.DeleteData(PlaceholdersSettingKey)
 		// do nothing because it's invalid
 		return
 	}
@@ -101,5 +102,5 @@ func DeletePlaceholderSettingsFromClientSession(session decryptor.ClientSession)
 		delete(data, key)
 	}
 	bindPlaceholdersPool.Put(data)
-	session.DeleteData(placeholdersSettingKey)
+	session.DeleteData(PlaceholdersSettingKey)
 }
