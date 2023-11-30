@@ -5,13 +5,9 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/keystore/filesystem"
-	"github.com/cossacklabs/acra/utils/args"
-	log "github.com/sirupsen/logrus"
-
 	encryptor "github.com/cossacklabs/acra/encryptor/base"
 	"github.com/cossacklabs/acra/keystore/filesystem"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // StorageCreator implement config_loader.EncryptorConfigStorage via filesystem

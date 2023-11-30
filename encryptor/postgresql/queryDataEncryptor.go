@@ -99,7 +99,12 @@ func (encryptor *QueryDataEncryptor) encryptInsertQuery(ctx context.Context, ins
 
 					for j, value := range items {
 						columnName := columnsName[j]
-						if changedValue, err := encryptor.encryptExpression(ctx, value.GetAConst(), schema, columnName, bindPlaceholders); err != nil {
+						expr := value.GetAConst()
+						if value.GetTypeCast() != nil {
+							expr = value.GetTypeCast().GetArg().GetAConst()
+						}
+
+						if changedValue, err := encryptor.encryptExpression(ctx, expr, schema, columnName, bindPlaceholders); err != nil {
 							logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptorCantEncryptExpression).WithError(err).Errorln("Can't encrypt expression")
 							return changed, err
 						} else if changedValue {

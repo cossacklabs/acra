@@ -26,8 +26,6 @@ import (
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils/args"
 
-	"github.com/cossacklabs/acra/network"
-
 	goRedis "github.com/go-redis/redis/v7"
 	log "github.com/sirupsen/logrus"
 
