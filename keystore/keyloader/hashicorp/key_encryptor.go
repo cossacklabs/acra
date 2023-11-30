@@ -3,19 +3,21 @@ package hashicorp
 import (
 	"flag"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/keystore"
 	baseKMS "github.com/cossacklabs/acra/keystore/kms/base"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
-	log "github.com/sirupsen/logrus"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // KeyEncryptorFabric implementation of keyloader.KeyEncryptorFabric for `vault_master_key` strategy
 type KeyEncryptorFabric struct{}
 
 // NewKeyEncryptor fabric of keystore.KeyEncryptor for for `vault_master_key` strategy
-func (k KeyEncryptorFabric) NewKeyEncryptor(flags *flag.FlagSet, prefix string) (keystore.KeyEncryptor, error) {
-	loader, err := NewMasterKeyLoader(flags, prefix)
+func (k KeyEncryptorFabric) NewKeyEncryptor(extractor *args.ServiceExtractor, prefix string) (keystore.KeyEncryptor, error) {
+	loader, err := NewMasterKeyLoader(extractor, prefix)
 	if err != nil {
 		return nil, err
 	}
@@ -28,8 +30,8 @@ func (k KeyEncryptorFabric) NewKeyEncryptor(flags *flag.FlagSet, prefix string) 
 }
 
 // NewKeyEncryptorSuite fabric of crypto.KeyStoreSuite for `vault_master_key` strategy
-func (k KeyEncryptorFabric) NewKeyEncryptorSuite(flags *flag.FlagSet, prefix string) (*crypto.KeyStoreSuite, error) {
-	loader, err := NewMasterKeyLoader(flags, prefix)
+func (k KeyEncryptorFabric) NewKeyEncryptorSuite(extractor *args.ServiceExtractor, prefix string) (*crypto.KeyStoreSuite, error) {
+	loader, err := NewMasterKeyLoader(extractor, prefix)
 	if err != nil {
 		return nil, err
 	}

@@ -29,6 +29,7 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // GenerateKeyParams are parameters of "acra-keys generate" subcommand.
@@ -59,7 +60,8 @@ var (
 
 // GenerateKeySubcommand is the "acra-keys generate" subcommand.
 type GenerateKeySubcommand struct {
-	flagSet *flag.FlagSet
+	flagSet   *flag.FlagSet
+	extractor *args.ServiceExtractor
 
 	CommonExtractClientIDParameters
 	CommonKeyStoreParameters
@@ -75,6 +77,11 @@ type GenerateKeySubcommand struct {
 	auditLog        bool
 	searchHMAC      bool
 	poisonRecord    bool
+}
+
+// GetParamsExtractor return service params extractor
+func (g *GenerateKeySubcommand) GetExtractor() *args.ServiceExtractor {
+	return g.extractor
 }
 
 // GenerateAuditLog get auditLog flag
@@ -163,10 +170,17 @@ func (g *GenerateKeySubcommand) RegisterFlags() {
 
 // Parse command-line parameters of the subcommand.
 func (g *GenerateKeySubcommand) Parse(arguments []string) error {
-	err := cmd.ParseFlagsWithConfig(g.flagSet, arguments, DefaultConfigPath, ServiceName)
+	err := cmd.ParseFlags(g.flagSet, arguments)
 	if err != nil {
 		return err
 	}
+
+	serviceConfig, err := cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		return err
+	}
+
+	g.extractor = args.NewServiceExtractor(g.flagSet, serviceConfig)
 	err = ValidateClientID(g)
 	if err != nil {
 		return err

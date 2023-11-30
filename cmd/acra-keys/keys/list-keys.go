@@ -28,6 +28,7 @@ import (
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // ListKeysParams ara parameters of "acra-keys list" subcommand.
@@ -61,7 +62,13 @@ func (p *CommonKeyListingParameters) Register(flags *flag.FlagSet) {
 type ListKeySubcommand struct {
 	CommonKeyStoreParameters
 	CommonKeyListingParameters
-	FlagSet *flag.FlagSet
+	FlagSet   *flag.FlagSet
+	extractor *args.ServiceExtractor
+}
+
+// GetExtractor return ServiceParamsExtractor
+func (p *ListKeySubcommand) GetExtractor() *args.ServiceExtractor {
+	return p.extractor
 }
 
 // Name returns the same of this subcommand.
@@ -91,7 +98,17 @@ func (p *ListKeySubcommand) RegisterFlags() {
 
 // Parse command-line parameters of the subcommand.
 func (p *ListKeySubcommand) Parse(arguments []string) error {
-	return cmd.ParseFlagsWithConfig(p.FlagSet, arguments, DefaultConfigPath, ServiceName)
+	if err := cmd.ParseFlags(p.FlagSet, arguments); err != nil {
+		return err
+	}
+
+	serviceConfig, err := cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		return err
+	}
+
+	p.extractor = args.NewServiceExtractor(p.FlagSet, serviceConfig)
+	return nil
 }
 
 // Execute this subcommand.

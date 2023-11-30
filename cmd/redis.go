@@ -24,6 +24,9 @@ import (
 	"strconv"
 
 	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/utils/args"
+
+	"github.com/cossacklabs/acra/network"
 
 	goRedis "github.com/go-redis/redis/v7"
 	log "github.com/sirupsen/logrus"
@@ -57,8 +60,8 @@ func RegisterRedisKeystoreParameters() {
 }
 
 // ParseRedisCLIParameters parse RedisOptions from CommandLine flags
-func ParseRedisCLIParameters() *RedisOptions {
-	return ParseRedisCLIParametersFromFlags(flag.CommandLine, "")
+func ParseRedisCLIParameters(extractor *args.ServiceExtractor) *RedisOptions {
+	return ParseRedisCLIParametersFromFlags(extractor, "")
 }
 
 // RegisterRedisTokenStoreParameters registers Redis TokenStore parameters with given CommandLine flags and empty prefix
@@ -115,47 +118,14 @@ func checkBothKeyAndToken(flags *flag.FlagSet, prefix string) {
 }
 
 // ParseRedisCLIParametersFromFlags parse CLI args from FlagSet
-func ParseRedisCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *RedisOptions {
-	redisOptions := RedisOptions{}
-
-	if f := flags.Lookup(prefix + "redis_host_port"); f != nil {
-		redisOptions.HostPort = f.Value.String()
+func ParseRedisCLIParametersFromFlags(extractor *args.ServiceExtractor, prefix string) *RedisOptions {
+	return &RedisOptions{
+		HostPort:  extractor.GetString(prefix+"redis_host_port", ""),
+		Password:  extractor.GetString(prefix+"redis_password", ""),
+		DBTokens:  extractor.GetInt(prefix+"redis_db_tokens", ""),
+		TLSEnable: extractor.GetBool(prefix+"redis_tls_enable", ""),
+		DBKeys:    extractor.GetInt(prefix+"redis_db_keys", ""),
 	}
-	if f := flags.Lookup(prefix + "redis_password"); f != nil {
-		redisOptions.Password = f.Value.String()
-	}
-	if f := flags.Lookup(prefix + "redis_db_tokens"); f != nil {
-		getter, ok := f.Value.(flag.Getter)
-		if !ok {
-			log.Fatal("Can't cast flag's Value to Getter")
-		}
-		val, ok := getter.Get().(int)
-		if !ok {
-			log.WithField("value", getter.Get()).Fatalf("Can't cast %s to integer value", prefix+"redis_db_tokens")
-		}
-		redisOptions.DBTokens = val
-	}
-
-	if f := flags.Lookup(prefix + "redis_tls_enable"); f != nil {
-		v, err := strconv.ParseBool(f.Value.String())
-		if err != nil {
-			log.WithField("value", f.Value.String).Fatalf("Can't cast %s to boolean value", prefix+"redis_tls_enable")
-		}
-		redisOptions.TLSEnable = v
-	}
-	if f := flags.Lookup(prefix + "redis_db_keys"); f != nil {
-		getter, ok := f.Value.(flag.Getter)
-		if !ok {
-			log.Fatal("Can't cast flag's Value to Getter")
-		}
-		val, ok := getter.Get().(int)
-		if !ok {
-			log.WithField("value", getter.Get()).Fatalf("Can't cast %s to integer value", prefix+"redis_db_keys")
-		}
-		redisOptions.DBKeys = val
-	}
-
-	return &redisOptions
 }
 
 // ValidateRedisCLIOptions validate Redis CLI options.
@@ -190,11 +160,11 @@ func (redis *RedisOptions) TokensConfigured() bool {
 }
 
 // KeysOptions returns Redis connection configuration for key storage.
-func (redis *RedisOptions) KeysOptions(flags *flag.FlagSet) (*goRedis.Options, error) {
+func (redis *RedisOptions) KeysOptions(extractor *args.ServiceExtractor) (*goRedis.Options, error) {
 	var tlsConfig *tls.Config
 	var err error
 	if redis.TLSEnable {
-		tlsConfig, err = network.NewTLSConfigByName(flags, "redis", redis.HostPort, network.ClientNameConstructorFunc())
+		tlsConfig, err = network.NewTLSConfigByName(extractor, "redis", redis.HostPort, network.ClientNameConstructorFunc())
 		if err != nil {
 			return nil, err
 		}

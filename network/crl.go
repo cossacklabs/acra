@@ -21,17 +21,17 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
-	"flag"
 	"io/ioutil"
 	"net/http"
 	url_ "net/url"
-	"strconv"
 	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 
 	"github.com/golang/groupcache/lru"
+
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // Errors returned by CRL verifier
@@ -130,53 +130,15 @@ func (e CRLError) Unwrap() error {
 }
 
 // NewCRLConfigByName return initialized CRLConfig config using flags registered with RegisterCertVerifierArgsForService
-func NewCRLConfigByName(flags *flag.FlagSet, name string, namerFunc CLIParamNameConstructorFunc) (*CRLConfig, error) {
-	var crlURL, crlFromCert string
-	var crlCheckOnlyLeafCertificate bool
-	var crlCacheSize, crlCacheTime uint
+func NewCRLConfigByName(extractor *args.ServiceExtractor, name string, namerFunc CLIParamNameConstructorFunc) (*CRLConfig, error) {
+	var (
+		crlURL                      = extractor.GetString(namerFunc(name, "url", "crl"), "tls_crl_url")
+		crlFromCert                 = extractor.GetString(namerFunc(name, "from_cert", "crl"), "tls_crl_from_cert")
+		crlCheckOnlyLeafCertificate = extractor.GetBool(namerFunc(name, "check_only_leaf_certificate", "crl"), "tls_crl_check_only_leaf_certificate")
+		crlCacheSize                = uint(extractor.GetInt(namerFunc(name, "cache_size", "crl"), "tls_crl_cache_size"))
+		crlCacheTime                = uint(extractor.GetInt(namerFunc(name, "cache_time", "crl"), "tls_crl_cache_item"))
+	)
 
-	crlURL = tlsCrlURL
-	if isFlagSet(namerFunc(name, "url", "crl"), flags) {
-		f := flags.Lookup(namerFunc(name, "url", "crl"))
-		crlURL = f.Value.String()
-	}
-
-	crlFromCert = tlsCrlFromCert
-	if isFlagSet(namerFunc(name, "from_cert", "crl"), flags) {
-		f := flags.Lookup(namerFunc(name, "from_cert", "crl"))
-		crlFromCert = f.Value.String()
-	}
-
-	// use common flag if named option not set
-	crlCheckOnlyLeafCertificate = tlsCrlCheckOnlyLeafCertificate
-	if isFlagSet(namerFunc(name, "check_only_leaf_certificate", "crl"), flags) {
-		f := flags.Lookup(namerFunc(name, "check_only_leaf_certificate", "crl"))
-		v, err := strconv.ParseBool(f.Value.String())
-		if err != nil {
-			log.WithField("value", f.Value.String).Fatalf("Can't cast %s to boolean value", namerFunc(name, "check_only_leaf_certificate", "crl"))
-		}
-		crlCheckOnlyLeafCertificate = v
-	}
-
-	crlCacheSize = tlsCrlCacheSize
-	if isFlagSet(namerFunc(name, "cache_size", "crl"), flags) {
-		f := flags.Lookup(namerFunc(name, "cache_size", "crl"))
-		size, err := strconv.ParseUint(f.Value.String(), 10, 64)
-		if err != nil {
-			log.WithField("value", f.Value.String).Fatalf("Can't cast %s to integer value", namerFunc(name, "cache_size", "crl"))
-		}
-		crlCacheSize = uint(size)
-	}
-
-	crlCacheTime = tlsCrlCacheTime
-	if isFlagSet(namerFunc(name, "cache_time", "crl"), flags) {
-		f := flags.Lookup(namerFunc(name, "cache_time", "crl"))
-		cacheTime, err := strconv.ParseUint(f.Value.String(), 10, 64)
-		if err != nil {
-			log.WithField("value", f.Value.String).Fatalf("Can't cast %s to integer value", namerFunc(name, "cache_time", "crl"))
-		}
-		crlCacheTime = uint(cacheTime)
-	}
 	return NewCRLConfig(crlURL, crlFromCert, crlCheckOnlyLeafCertificate, crlCacheSize, crlCacheTime)
 }
 

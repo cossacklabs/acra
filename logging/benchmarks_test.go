@@ -1,12 +1,13 @@
 package logging
 
 import (
-	log "github.com/sirupsen/logrus"
 	"os"
 	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const numberOfChains = 10
@@ -108,7 +109,7 @@ func generateEntries(b *testing.B, format, path string, numberOfChains, numberOf
 }
 
 func setupAuditLogHandler(b *testing.B, format string) (*AuditLogHandler, func()) {
-	writer, logFinalize, err := NewWriter()
+	writer, logFinalize, err := NewWriter(logToConsole, logToFile)
 	if err != nil {
 		b.Fatal(err)
 	}

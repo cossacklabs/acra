@@ -85,7 +85,7 @@ func (p *ExtractClientIDSubcommand) RegisterFlags() {
 
 // Parse command-line parameters of the subcommand.
 func (p *ExtractClientIDSubcommand) Parse(arguments []string) error {
-	err := cmd.ParseFlagsWithConfig(p.flagSet, arguments, DefaultConfigPath, ServiceName)
+	err := cmd.ParseFlags(p.flagSet, arguments)
 	if err != nil {
 		return err
 	}

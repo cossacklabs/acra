@@ -29,6 +29,7 @@ import (
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/utils/args"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -49,31 +50,55 @@ const (
 // DefaultConfigPath relative path to config which will be parsed as default
 var DefaultConfigPath = utils.GetConfigPathByName(ServiceName)
 
-func main() {
-	log.Warn("acra-backup tool is DEPRECATED since 0.96.0 and will be removed in 0.97.0. Use acra-keys instead.")
-	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
-	outputDir := flag.String("keys_private_dir", keystore.DefaultKeyDirShort, "Folder with private keys")
-	outputPublicKey := flag.String("keys_public_dir", "", "Folder with public keys. Leave empty if keys stored in same folder as keys_private_dir")
-	action := flag.String("action", "", fmt.Sprintf("%s|%s values are accepted", actionImport, actionExport))
-	file := flag.String("file", "", fmt.Sprintf("path to file which will be used for %s|%s action", actionImport, actionExport))
+func registerFlags(flagSet *flag.FlagSet) {
+	flagSet.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
+	flagSet.String("keys_private_dir", keystore.DefaultKeyDirShort, "Folder with private keys")
+	flagSet.String("keys_public_dir", "", "Folder with public keys. Leave empty if keys stored in same folder as keys_private_dir")
+	flagSet.String("action", "", fmt.Sprintf("%s|%s values are accepted", actionImport, actionExport))
+	flagSet.String("file", "", fmt.Sprintf("path to file which will be used for %s|%s action", actionImport, actionExport))
 
-	network.RegisterTLSBaseArgs(flag.CommandLine)
+	network.RegisterTLSBaseArgs(flagSet)
 	cmd.RegisterRedisKeystoreParameters()
 	keyloader.RegisterKeyStoreStrategyParameters()
+}
 
-	err := cmd.Parse(DefaultConfigPath, ServiceName)
-	if err != nil {
+func main() {
+	log.Warn("acra-backup tool is DEPRECATED since 0.96.0 and will be removed in 0.97.0. Use acra-keys instead.")
+	registerFlags(flag.CommandLine)
+
+	if err := cmd.ParseFlags(flag.CommandLine, os.Args[1:]); err != nil {
+		if err == cmd.ErrDumpRequested {
+			cmd.DumpConfig(DefaultConfigPath, ServiceName, true)
+			os.Exit(0)
+		}
+
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse args")
 		os.Exit(1)
 	}
-	formatter := logging.CreateFormatter(*loggingFormat)
+
+	serviceConfig, err := cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
+			Errorln("Can't parse config")
+		os.Exit(1)
+	}
+
+	extractor := args.NewServiceExtractor(flag.CommandLine, serviceConfig)
+
+	loggingFormat := extractor.GetString("logging_format", "")
+	outputDir := extractor.GetString("keys_private_dir", "")
+	outputPublicKey := extractor.GetString("keys_public_dir", "")
+	action := extractor.GetString("action", "")
+	file := extractor.GetString("file", "")
+
+	formatter := logging.CreateFormatter(loggingFormat)
 	formatter.SetServiceName(ServiceName)
 	log.SetOutput(os.Stderr)
 
 	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
 	var storage filesystem.Storage
-	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
+	if redis := cmd.ParseRedisCLIParameters(extractor); redis.KeysConfigured() {
 		storage, err = filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize redis storage")
@@ -83,18 +108,18 @@ func main() {
 		storage = &filesystem.DummyStorage{}
 	}
 
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(flag.CommandLine, "")
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		os.Exit(1)
 	}
 
-	backuper, err := filesystem.NewKeyBackuper(*outputDir, *outputPublicKey, storage, keyStoreEncryptor, nil)
+	backuper, err := filesystem.NewKeyBackuper(outputDir, outputPublicKey, storage, keyStoreEncryptor, nil)
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize backuper")
 		os.Exit(1)
 	}
-	switch *action {
+	switch action {
 	case actionImport:
 		b64value := os.Getenv(BackupMasterKeyVarName)
 		if len(b64value) == 0 {
@@ -111,7 +136,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		keysContent, err := os.ReadFile(*file)
+		keysContent, err := os.ReadFile(file)
 		if err != nil {
 			log.WithError(err).Errorln("Can't read file with exported keys")
 			os.Exit(1)
@@ -129,11 +154,11 @@ func main() {
 		}
 		base64MasterKey := base64.StdEncoding.EncodeToString(backup.Keys)
 		utils.ZeroizeSymmetricKey(backup.Keys)
-		if err := os.WriteFile(*file, backup.Keys, filesystem.PrivateFileMode); err != nil {
-			log.WithError(err).Errorf("Can't write backup to file %s", *file)
+		if err := os.WriteFile(file, backup.Keys, filesystem.PrivateFileMode); err != nil {
+			log.WithError(err).Errorf("Can't write backup to file %s", file)
 			os.Exit(1)
 		}
-		log.Infof("Backup master key: %s\n Backup saved to file: %s", base64MasterKey, *file)
+		log.Infof("Backup master key: %s\n Backup saved to file: %s", base64MasterKey, file)
 	default:
 		log.Errorln("Invalid value for --action parameter")
 		os.Exit(1)

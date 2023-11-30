@@ -26,13 +26,15 @@ import (
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/network"
 	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // EnableSubcommand is the "acra-tokens enable" subcommand.
 type EnableSubcommand struct {
-	flagSet *flag.FlagSet
-	storage CommonTokenStorageParameters
-	limits  CommonDateParameters
+	flagSet   *flag.FlagSet
+	extractor *args.ServiceExtractor
+	storage   CommonTokenStorageParameters
+	limits    CommonDateParameters
 }
 
 // CmdTokenEnable is the name of "acra-tokens enable" subcommand.
@@ -65,11 +67,18 @@ func (s *EnableSubcommand) RegisterFlags() {
 
 // Parse command-line parameters of the subcommand.
 func (s *EnableSubcommand) Parse(arguments []string) error {
-	err := cmd.ParseFlagsWithConfig(s.flagSet, arguments, DefaultConfigPath, ServiceName)
+	err := cmd.ParseFlags(s.flagSet, arguments)
 	if err != nil {
 		return err
 	}
-	err = s.storage.Validate(s.flagSet)
+
+	serviceConfig, err := cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		return err
+	}
+	s.extractor = args.NewServiceExtractor(s.flagSet, serviceConfig)
+
+	err = s.storage.Validate(s.extractor)
 	if err != nil {
 		return err
 	}
@@ -82,7 +91,7 @@ func (s *EnableSubcommand) Parse(arguments []string) error {
 
 // Execute this subcommand.
 func (s *EnableSubcommand) Execute() {
-	tokens, err := s.storage.Open(s.flagSet)
+	tokens, err := s.storage.Open(s.extractor)
 	if err != nil {
 		log.WithError(err).Fatal("Cannot open token storage")
 	}

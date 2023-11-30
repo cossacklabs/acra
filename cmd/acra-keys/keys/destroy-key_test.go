@@ -14,6 +14,7 @@ import (
 	"github.com/cossacklabs/acra/keystore/keyloader/env_loader"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 func TestDestroyCMD_FS_V2(t *testing.T) {
@@ -37,6 +38,8 @@ func TestDestroyCMD_FS_V2(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	extractor := args.NewServiceExtractor(flagSet, map[string]string{})
+
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
 	t.Run("read storage-public key", func(t *testing.T) {
@@ -46,6 +49,7 @@ func TestDestroyCMD_FS_V2(t *testing.T) {
 			},
 			contextID:      clientID,
 			destroyKeyKind: keystore.KeyStorageKeypair,
+			extractor:      extractor,
 			FlagSet:        flagSet,
 		}
 
@@ -82,6 +86,7 @@ func TestDestroyCMD_FS_V2(t *testing.T) {
 			},
 			contextID:      clientID,
 			destroyKeyKind: keystore.KeySymmetric,
+			extractor:      extractor,
 			FlagSet:        flagSet,
 		}
 
@@ -118,6 +123,7 @@ func TestDestroyCMD_FS_V2(t *testing.T) {
 			},
 			contextID:      clientID,
 			destroyKeyKind: keystore.KeyPoisonKeypair,
+			extractor:      extractor,
 			FlagSet:        flagSet,
 		}
 
@@ -149,6 +155,7 @@ func TestDestroyCMD_FS_V2(t *testing.T) {
 			},
 			contextID:      clientID,
 			destroyKeyKind: keystore.KeyPoisonSymmetric,
+			extractor:      extractor,
 			FlagSet:        flagSet,
 		}
 
@@ -185,6 +192,7 @@ func TestDestroyCMD_FS_V2(t *testing.T) {
 			},
 			contextID:      clientID,
 			destroyKeyKind: keystore.KeySearch,
+			extractor:      extractor,
 			FlagSet:        flagSet,
 		}
 
@@ -234,6 +242,8 @@ func TestDestroyCMD_FS_V1(t *testing.T) {
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
+	extractor := args.NewServiceExtractor(flagSet, map[string]string{})
+
 	dirName := t.TempDir()
 	if err := os.Chmod(dirName, 0700); err != nil {
 		t.Fatal(err)
@@ -247,6 +257,7 @@ func TestDestroyCMD_FS_V1(t *testing.T) {
 			contextID:      clientID,
 			destroyKeyKind: keystore.KeyStorageKeypair,
 			FlagSet:        flagSet,
+			extractor:      extractor,
 		}
 
 		store, err := openKeyStoreV1(destroyCMD)
@@ -278,6 +289,7 @@ func TestDestroyCMD_FS_V1(t *testing.T) {
 			contextID:      clientID,
 			destroyKeyKind: keystore.KeySymmetric,
 			FlagSet:        flagSet,
+			extractor:      extractor,
 		}
 
 		store, err := openKeyStoreV1(destroyCMD)
@@ -309,6 +321,7 @@ func TestDestroyCMD_FS_V1(t *testing.T) {
 			contextID:      clientID,
 			destroyKeyKind: keystore.KeyPoisonKeypair,
 			FlagSet:        flagSet,
+			extractor:      extractor,
 		}
 
 		store, err := openKeyStoreV1(destroyCMD)
@@ -340,6 +353,7 @@ func TestDestroyCMD_FS_V1(t *testing.T) {
 			contextID:      clientID,
 			destroyKeyKind: keystore.KeyPoisonSymmetric,
 			FlagSet:        flagSet,
+			extractor:      extractor,
 		}
 
 		store, err := openKeyStoreV1(destroyCMD)
@@ -371,6 +385,7 @@ func TestDestroyCMD_FS_V1(t *testing.T) {
 			contextID:      clientID,
 			destroyKeyKind: keystore.KeySearch,
 			FlagSet:        flagSet,
+			extractor:      extractor,
 		}
 
 		store, err := openKeyStoreV1(destroyCMD)
@@ -415,6 +430,8 @@ func TestDestroyRotatedCMD_FS_V1(t *testing.T) {
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
+	extractor := args.NewServiceExtractor(flagSet, map[string]string{})
+
 	tcasesWithSymmetricKeys := []struct {
 		destroyKeyKind  string
 		generateKeyFunc func(store *filesystem.KeyStore) error
@@ -453,6 +470,7 @@ func TestDestroyRotatedCMD_FS_V1(t *testing.T) {
 			contextID:      clientID,
 			destroyKeyKind: tcase.destroyKeyKind,
 			FlagSet:        flagSet,
+			extractor:      extractor,
 		}
 
 		store, err := openKeyStoreV1(destroyCMD)
@@ -535,6 +553,7 @@ func TestDestroyRotatedCMD_FS_V1(t *testing.T) {
 			contextID:      clientID,
 			destroyKeyKind: tcase.destroyKeyKind,
 			FlagSet:        flagSet,
+			extractor:      extractor,
 		}
 
 		store, err := openKeyStoreV1(destroyCMD)
@@ -609,6 +628,8 @@ func TestDestroyRotatedCMD_FS_V2(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	extractor := args.NewServiceExtractor(flagSet, map[string]string{})
+
 	tcases := []struct {
 		destroyKeyKind  string
 		generateKeyFunc func(store *keystoreV2.ServerKeyStore) error
@@ -664,6 +685,7 @@ func TestDestroyRotatedCMD_FS_V2(t *testing.T) {
 				contextID:      clientID,
 				destroyKeyKind: tcase.destroyKeyKind,
 				FlagSet:        flagSet,
+				extractor:      extractor,
 			}
 
 			store, err := openKeyStoreV2(destroyCMD)
@@ -728,6 +750,7 @@ func TestDestroyRotatedCMD_FS_V2(t *testing.T) {
 				contextID:      clientID,
 				destroyKeyKind: tcase.destroyKeyKind,
 				FlagSet:        flagSet,
+				extractor:      extractor,
 			}
 
 			store, err := openKeyStoreV2(destroyCMD)

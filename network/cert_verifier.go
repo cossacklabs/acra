@@ -21,8 +21,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // Errors common for OCSP and CRL verifiers
@@ -33,14 +34,10 @@ var (
 
 var (
 	tlsOcspURL                      string
-	tlsOcspClientURL                string
-	tlsOcspDbURL                    string
 	tlsOcspRequired                 string
 	tlsOcspFromCert                 string
 	tlsOcspCheckOnlyLeafCertificate bool
 	tlsCrlURL                       string
-	tlsCrlClientURL                 string
-	tlsCrlDbURL                     string
 	tlsCrlFromCert                  string
 	tlsCrlCheckOnlyLeafCertificate  bool
 	tlsCrlCacheSize                 uint
