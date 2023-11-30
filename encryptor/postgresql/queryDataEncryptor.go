@@ -27,7 +27,6 @@ import (
 	"github.com/cossacklabs/acra/encryptor/base"
 	"github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/sqlparser"
 )
 
 // ErrUpdateLeaveDataUnchanged show that data wasn't changed in UpdateExpressionValue with updateFunc
@@ -39,12 +38,11 @@ type QueryDataEncryptor struct {
 	encryptor           base.DataEncryptor
 	dataCoder           *PostgresqlPgQueryDBDataCoder
 	querySelectSettings []*base.QueryDataItem
-	parser              *sqlparser.Parser
 }
 
 // NewQueryEncryptor create QueryDataEncryptor with DBDataCoder
-func NewQueryEncryptor(schema config.TableSchemaStore, parser *sqlparser.Parser, dataEncryptor base.DataEncryptor) (*QueryDataEncryptor, error) {
-	return &QueryDataEncryptor{schemaStore: schema, parser: parser, encryptor: dataEncryptor, dataCoder: &PostgresqlPgQueryDBDataCoder{}}, nil
+func NewQueryEncryptor(schema config.TableSchemaStore, dataEncryptor base.DataEncryptor) (*QueryDataEncryptor, error) {
+	return &QueryDataEncryptor{schemaStore: schema, encryptor: dataEncryptor, dataCoder: &PostgresqlPgQueryDBDataCoder{}}, nil
 }
 
 // ID returns name of this QueryObserver.
@@ -375,9 +373,9 @@ func (encryptor *QueryDataEncryptor) onReturning(ctx context.Context, returning 
 }
 
 // OnQuery raw data in query according to TableSchemaStore
-func (encryptor *QueryDataEncryptor) OnQuery(ctx context.Context, query decryptor.OnQueryObject) (decryptor.OnQueryObject, bool, error) {
+func (encryptor *QueryDataEncryptor) OnQuery(ctx context.Context, query OnQueryObject) (OnQueryObject, bool, error) {
 	encryptor.querySelectSettings = nil
-	parseResult, err := pg_query.Parse(query.Query())
+	parseResult, err := query.Statement()
 	if err != nil || len(parseResult.Stmts) == 0 {
 		logrus.Debugln("Failed to parse incoming query", err)
 		return query, false, nil
@@ -403,30 +401,19 @@ func (encryptor *QueryDataEncryptor) OnQuery(ctx context.Context, query decrypto
 	}
 
 	if changed {
-		changedQuery, err := pg_query.Deparse(parseResult)
-		if err != nil {
-			return query, false, err
-		}
-		return decryptor.NewOnQueryObjectFromQuery(changedQuery, encryptor.parser), true, nil
+		return NewOnQueryObjectFromStatement(parseResult), true, nil
 	}
 	return query, false, nil
 }
 
 // OnBind process bound values for prepared statement based on TableSchemaStore.
-func (encryptor *QueryDataEncryptor) OnBind(ctx context.Context, statement sqlparser.Statement, values []decryptor.BoundValue) ([]decryptor.BoundValue, bool, error) {
+func (encryptor *QueryDataEncryptor) OnBind(ctx context.Context, parseResult *pg_query.ParseResult, values []decryptor.BoundValue) ([]decryptor.BoundValue, bool, error) {
 	if encryptor.encryptor == nil {
 		return values, false, nil
 	}
-
-	// TODO: use pg_query.ParseResult instead of sqlparser.Statement
-	parseResult, err := pg_query.Parse(sqlparser.String(statement))
-	if err != nil || len(parseResult.Stmts) == 0 {
-		logrus.Debugln("Failed to parse incoming query", err)
-		return values, false, err
-	}
-
-	newValues := values
-	changed := false
+	var newValues = values
+	var changed bool
+	var err error
 
 	switch {
 	case parseResult.Stmts[0].Stmt.GetInsertStmt() != nil:

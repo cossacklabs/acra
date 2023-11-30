@@ -113,7 +113,7 @@ func testParsing(t *testing.T, testData []parserTestData, encryptedValue, defaul
 			sessionData[args[0].(string)] = args[1]
 		})
 		ctx = decryptor.SetClientSessionToContext(ctx, clientSession)
-		data, changed, err := queryEncryptor.OnQuery(ctx, decryptor.NewOnQueryObjectFromQuery(query, parser))
+		data, changed, err := queryEncryptor.OnQuery(ctx, NewOnQueryObjectFromQuery(query, parser))
 		if err != nil {
 			t.Fatalf("%v. %s", i, err.Error())
 		}
@@ -653,7 +653,7 @@ schemas:
 	t.Run("RETURNING *", func(t *testing.T) {
 		query := `INSERT INTO TableWithColumnSchema ('specified_client_id', 'other_column', 'default_client_id') VALUES (1, 1, 1) RETURNING *`
 
-		_, _, err := encryptor.OnQuery(ctx, decryptor.NewOnQueryObjectFromQuery(query, parser))
+		_, _, err := encryptor.OnQuery(ctx, NewOnQueryObjectFromQuery(query, parser))
 		if err != nil {
 			t.Fatalf("%s", err.Error())
 		}
@@ -683,7 +683,7 @@ schemas:
 		query := fmt.Sprintf(`INSERT INTO TableWithColumnSchema
 ('specified_client_id', 'other_column', 'default_client_id') VALUES (1, 1, 1) RETURNING %s`, returning)
 
-		_, _, err := encryptor.OnQuery(ctx, decryptor.NewOnQueryObjectFromQuery(query, parser))
+		_, _, err := encryptor.OnQuery(ctx, NewOnQueryObjectFromQuery(query, parser))
 		if err != nil {
 			t.Fatalf("%s", err.Error())
 		}
@@ -723,7 +723,7 @@ schemas:
 		for _, template := range queryTemplates {
 			query := fmt.Sprintf(template, returning)
 
-			_, _, err := encryptor.OnQuery(ctx, decryptor.NewOnQueryObjectFromQuery(query, parser))
+			_, _, err := encryptor.OnQuery(ctx, NewOnQueryObjectFromQuery(query, parser))
 			if err != nil {
 				t.Fatalf("%s", err.Error())
 			}
@@ -813,7 +813,7 @@ schemas:
 		for _, tcase := range testCases {
 			query := fmt.Sprintf(tcase.template, tcase.returning)
 
-			_, _, err := encryptor.OnQuery(ctx, decryptor.NewOnQueryObjectFromQuery(query, parser))
+			_, _, err := encryptor.OnQuery(ctx, NewOnQueryObjectFromQuery(query, parser))
 			if err != nil {
 				t.Fatalf("%s", err.Error())
 			}
@@ -850,7 +850,7 @@ schemas:
 		for _, template := range queryTemplates {
 			query := fmt.Sprintf(template, returning)
 
-			_, _, err := encryptor.OnQuery(ctx, decryptor.NewOnQueryObjectFromQuery(query, parser))
+			_, _, err := encryptor.OnQuery(ctx, NewOnQueryObjectFromQuery(query, parser))
 			if err != nil {
 				t.Fatalf("%s", err.Error())
 			}
@@ -905,7 +905,7 @@ schemas:
 		for _, template := range queryTemplates {
 			query := fmt.Sprintf(template, returning)
 
-			_, _, err := encryptor.OnQuery(ctx, decryptor.NewOnQueryObjectFromQuery(query, parser))
+			_, _, err := encryptor.OnQuery(ctx, NewOnQueryObjectFromQuery(query, parser))
 			if err != nil {
 				t.Fatalf("%s", err.Error())
 			}

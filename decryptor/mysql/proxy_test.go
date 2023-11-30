@@ -176,7 +176,7 @@ func TestEncryptorTurnOnOff(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if proxy.RegisteredObserversCount() > 2 {
+	if proxy.(*Handler).RegisteredObserversCount() > 2 {
 		t.Fatal("Unexpected observers count")
 	}
 
@@ -189,7 +189,7 @@ func TestEncryptorTurnOnOff(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if proxy.RegisteredObserversCount() != 2 {
+	if proxy.(*Handler).RegisteredObserversCount() != 2 {
 		t.Fatal("Unexpected observers count")
 	}
 }

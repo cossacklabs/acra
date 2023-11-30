@@ -11,12 +11,14 @@ import (
 	"testing"
 	"time"
 
+	pg_query "github.com/Zhaars/pg_query_go/v4"
 	"github.com/sirupsen/logrus"
 
 	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/cmd/acra-server/common"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/encryptor/postgresql"
 	"github.com/cossacklabs/acra/sqlparser"
 )
 
@@ -97,14 +99,16 @@ func (t *testOnBindHandler) ID() string {
 	panic("implement me")
 }
 
-func (t *testOnBindHandler) OnQuery(ctx context.Context, data base.OnQueryObject) (base.OnQueryObject, bool, error) {
-	t.query = data.Query()
-	return data, false, nil
+func (t *testOnBindHandler) OnQuery(ctx context.Context, data postgresql.OnQueryObject) (postgresql.OnQueryObject, bool, error) {
+	var err error
+	t.query, err = data.Query()
+	return data, false, err
 }
 
-func (t *testOnBindHandler) OnBind(ctx context.Context, statement sqlparser.Statement, values []base.BoundValue) ([]base.BoundValue, bool, error) {
-	t.bind = sqlparser.String(statement)
-	return values, false, nil
+func (t *testOnBindHandler) OnBind(ctx context.Context, statement *pg_query.ParseResult, values []base.BoundValue) ([]base.BoundValue, bool, error) {
+	var err error
+	t.bind, err = pg_query.Deparse(statement)
+	return values, false, err
 }
 
 func TestPreparedStatementRegistering(t *testing.T) {
@@ -112,7 +116,7 @@ func TestPreparedStatementRegistering(t *testing.T) {
 	ctx := context.Background()
 	// this query encoded in parsePacket below
 	parseQuery := "SELECT t.*, CTID\nFROM public.bla t\nLIMIT 501"
-	parseQueryStatement, err := parser.Parse(parseQuery)
+	parseQueryStatement, err := pg_query.Parse(parseQuery)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +182,13 @@ func TestPreparedStatementRegistering(t *testing.T) {
 		t.Fatal(err)
 	}
 	// check that same statement was passed as onbind query
-	if queryObserver.bind != sqlparser.String(parseQueryStatement) {
+
+	resultQuery, err := pg_query.Deparse(parseQueryStatement)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if queryObserver.bind != resultQuery {
 		t.Fatalf("'%s' != '%s'\n", parseQuery, statement.QueryText())
 	}
 }

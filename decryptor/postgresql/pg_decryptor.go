@@ -140,7 +140,7 @@ type EncryptionSettingExtractor struct {
 
 // NewEncryptionSettingExtractor returns new initialized EncryptionSettingExtractor
 func NewEncryptionSettingExtractor(ctx context.Context, schema config.TableSchemaStore, parser *sqlparser.Parser) (EncryptionSettingExtractor, error) {
-	queryEncryptor, err := postgresql.NewQueryEncryptor(schema, parser, nil)
+	queryEncryptor, err := postgresql.NewQueryEncryptor(schema, nil)
 	if err != nil {
 		return EncryptionSettingExtractor{}, err
 	}
@@ -149,7 +149,7 @@ func NewEncryptionSettingExtractor(ctx context.Context, schema config.TableSchem
 
 // GetEncryptorSettingsForQuery walk through the query and match result columns in SELECT and INSERT/DELETE + RETURNING
 // statements to the ColumnEncryptionSetting
-func (extractor EncryptionSettingExtractor) GetEncryptorSettingsForQuery(object base.OnQueryObject) ([]*encryptor.QueryDataItem, error) {
+func (extractor EncryptionSettingExtractor) GetEncryptorSettingsForQuery(object postgresql.OnQueryObject) ([]*encryptor.QueryDataItem, error) {
 	_, _, err := extractor.encryptor.OnQuery(extractor.ctx, object)
 	if err != nil {
 		return nil, err
@@ -166,7 +166,7 @@ type PgProxy struct {
 	stopClient              bool
 	ClientStopResponse      chan bool
 	ctx                     context.Context
-	queryObserverManager    base.QueryObserverManager
+	queryObserverManager    postgresql.QueryObserverManager
 	censor                  acracensor.AcraCensorInterface
 	decryptionObserver      base.ColumnDecryptionObserver
 	protocolState           *PgProtocolState
@@ -178,7 +178,7 @@ type PgProxy struct {
 
 // NewPgProxy returns new PgProxy
 func NewPgProxy(session base.ClientSession, parser *sqlparser.Parser, setting base.ProxySetting) (*PgProxy, error) {
-	observerManager, err := base.NewArrayQueryObservableManager(session.Context())
+	observerManager, err := postgresql.NewArrayQueryObservableManager(session.Context())
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +242,7 @@ func (proxy *PgProxy) onColumnDecryption(parentCtx context.Context, i int, data 
 }
 
 // AddQueryObserver implement QueryObservable interface and proxy call to ObserverManager
-func (proxy *PgProxy) AddQueryObserver(obs base.QueryObserver) {
+func (proxy *PgProxy) AddQueryObserver(obs postgresql.QueryObserver) {
 	proxy.queryObserverManager.AddQueryObserver(obs)
 }
 
@@ -466,7 +466,7 @@ func (proxy *PgProxy) handleQueryPacket(ctx context.Context, packet *PacketHandl
 	}
 
 	// Let the registered observers observe the query, potentially modifying it (e.g., transparent encryption).
-	queryObj := base.NewOnQueryObjectFromQuery(query, proxy.parser)
+	queryObj := postgresql.NewOnQueryObjectFromQuery(query)
 	newQuery, changed, err := proxy.queryObserverManager.OnQuery(ctx, queryObj)
 	if err != nil {
 		if filesystem.IsKeyReadError(err) {
@@ -477,7 +477,13 @@ func (proxy *PgProxy) handleQueryPacket(ctx context.Context, packet *PacketHandl
 			Errorln("Error occurred on query handler")
 	}
 	if changed {
-		packet.ReplaceQuery(newQuery.Query())
+		querySQL, err := newQuery.Query()
+		if err != nil {
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptQueryData).
+				Errorln("Error get raw SQLQuery")
+		}
+
+		packet.ReplaceQuery(querySQL)
 	}
 	return false, nil
 }
@@ -512,16 +518,9 @@ func (proxy *PgProxy) handleBindPacket(ctx context.Context, packet *PacketHandle
 		return false, nil
 	}
 
-	// TODO: fixme when adjust interfaces
-	stmt, err := proxy.parser.Parse(statement.QueryText())
-	if err != nil {
-		logger.WithError(err).Error("Failed to handle Bind packet: can't extract statement")
-		return false, nil
-	}
-
 	// Process parameter values. If we can't -- you guessed it -- leave the packet unchanged.
 	// Note that the new parameter set might have different number of items.
-	newParameters, changed, err := proxy.queryObserverManager.OnBind(ctx, stmt, parameters)
+	newParameters, changed, err := proxy.queryObserverManager.OnBind(ctx, statement.Query(), parameters)
 	if err != nil {
 		if filesystem.IsKeyReadError(err) {
 			return false, err
@@ -988,7 +987,7 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 	}
 	sqlQuery := pendingPacket.(queryPacket).GetSQLQuery()
 
-	sqlOnQuery := base.NewOnQueryObjectFromQuery(sqlQuery, proxy.parser)
+	sqlOnQuery := postgresql.NewOnQueryObjectFromQuery(sqlQuery)
 	sqlStmt, err := proxy.parser.Parse(sqlQuery)
 	if err != nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
@@ -1009,7 +1008,7 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 				WithError(err).Errorln("No prepared statement in registry on execute query")
 			return err
 		}
-		sqlOnQuery = base.NewOnQueryObjectFromQuery(storedStatement.QueryText(), proxy.parser)
+		sqlOnQuery = postgresql.NewOnQueryObjectFromQuery(storedStatement.QueryText())
 	}
 
 	encryptionSettings, err := proxy.settingExtractor.GetEncryptorSettingsForQuery(sqlOnQuery)
@@ -1068,7 +1067,13 @@ func (proxy *PgProxy) registerPreparedStatement(packet *PacketHandler, preparedS
 			WithError(err).Errorln("Can't parse SQL from Parse packet")
 		return err
 	}
-	statement := NewPreparedStatement(name, queryText, query.Stmts[0].Stmt)
+	statement := NewPreparedStatement(name, queryText, &pg_query.ParseResult{
+		Stmts: []*pg_query.RawStmt{
+			{
+				Stmt: query.Stmts[0].Stmt,
+			},
+		},
+	})
 	registry := proxy.session.PreparedStatementRegistry()
 	err = registry.AddStatement(statement)
 	if err != nil {

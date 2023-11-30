@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"testing"
 
-	pg_query "github.com/Zhaars/pg_query_go/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -17,7 +16,6 @@ import (
 	"github.com/cossacklabs/acra/encryptor/postgresql"
 	"github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/pseudonymization/storage"
-	"github.com/cossacklabs/acra/sqlparser"
 )
 
 // TestMySQLSearchableTokenizationWithTextFormat process searchable SELECT query with placeholder for prepared statement
@@ -80,8 +78,6 @@ schemas:
 	accessContext := base.NewAccessContext(base.WithClientID(clientID))
 	ctx = base.SetAccessContextToContext(ctx, accessContext)
 
-	parser := sqlparser.New(sqlparser.ModeDefault)
-
 	randomBytes := make([]byte, 10)
 	randomRead(randomBytes)
 
@@ -125,11 +121,11 @@ schemas:
 		anonymized, err := tokenizer.Tokenize(tcase.Value, common.TokenContext{ClientID: clientID}, &setting)
 		assert.NoError(t, err)
 
-		newQuery, ok, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(tcase.Query, parser))
+		newQuery, ok, err := encryptor.OnQuery(ctx, postgresql.NewOnQueryObjectFromQuery(tcase.Query))
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		parseResult, err := pg_query.Parse(newQuery.Query())
+		parseResult, err := newQuery.Statement()
 		assert.NoError(t, err)
 
 		whereExps, err := postgresql.GetWhereStatements(parseResult)
@@ -231,8 +227,6 @@ func TestPostgreSQLSearchableTokenizationWithDefaultTablesTextFormat(t *testing.
 		{ClientID: clientIDTestTable2, Query: "SELECT value1 FROM test as tt, test_table_2 t2, test_table where t2.data1='%s'"},
 	}
 
-	parser := sqlparser.New(sqlparser.ModeDefault)
-
 	for _, tcase := range testcases {
 		schema, err := config.MapTableSchemaStoreFromConfig([]byte(schemaConfig), config.UseMySQL)
 		assert.NoError(t, err)
@@ -247,11 +241,11 @@ func TestPostgreSQLSearchableTokenizationWithDefaultTablesTextFormat(t *testing.
 		anonymized, err := tokenizer.Tokenize(dataToTokenize, common.TokenContext{ClientID: tcase.ClientID}, &setting)
 		assert.NoError(t, err)
 
-		newQuery, ok, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(fmt.Sprintf(tcase.Query, dataToTokenize), parser))
+		newQuery, ok, err := encryptor.OnQuery(ctx, postgresql.NewOnQueryObjectFromQuery(fmt.Sprintf(tcase.Query, dataToTokenize)))
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		parseResult, err := pg_query.Parse(newQuery.Query())
+		parseResult, err := newQuery.Statement()
 		assert.NoError(t, err)
 
 		whereExps, err := postgresql.GetWhereStatements(parseResult)
@@ -344,8 +338,6 @@ schemas:
 	accessContext := base.NewAccessContext(base.WithClientID(clientID))
 	ctx = base.SetAccessContextToContext(ctx, accessContext)
 
-	parser := sqlparser.New(sqlparser.ModeDefault)
-
 	randomBytes := make([]byte, 10)
 	randomRead(randomBytes)
 
@@ -369,11 +361,11 @@ schemas:
 
 		encryptor := NewPostgresqlTokenizeQuery(schema, tokenEncryptor)
 
-		newQuery, ok, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(tcase.Query, parser))
+		newQuery, ok, err := encryptor.OnQuery(ctx, postgresql.NewOnQueryObjectFromQuery(tcase.Query))
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		parseResult, err := pg_query.Parse(newQuery.Query())
+		parseResult, err := newQuery.Statement()
 		assert.NoError(t, err)
 
 		whereExps, err := postgresql.GetWhereStatements(parseResult)

@@ -46,7 +46,7 @@ func (encryptor *MySQLTokenizeQuery) ID() string {
 //	WHERE column = $1        ===>   WHERE column = tokenize($1)
 //
 // and actual "value" is passed via parameters later. See OnBind() for details.
-func (encryptor *MySQLTokenizeQuery) OnQuery(ctx context.Context, query base.OnQueryObject) (base.OnQueryObject, bool, error) {
+func (encryptor *MySQLTokenizeQuery) OnQuery(ctx context.Context, query mysql.OnQueryObject) (mysql.OnQueryObject, bool, error) {
 	logrus.Debugln("PostgreSQLTokenizeQuery.OnQuery")
 	stmt, err := query.Statement()
 	if err != nil {
@@ -91,7 +91,7 @@ func (encryptor *MySQLTokenizeQuery) OnQuery(ctx context.Context, query base.OnQ
 		bindSettings[placeholderIndex] = item.Setting
 	}
 	logrus.Debugln("PostgreSQLTokenizeQuery.OnQuery changed query")
-	return base.NewOnQueryObjectFromStatement(stmt, nil), true, nil
+	return mysql.NewOnQueryObjectFromStatement(stmt, nil), true, nil
 }
 
 // OnBind processes bound values for prepared statements.

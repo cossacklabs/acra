@@ -28,7 +28,6 @@ import (
 	"github.com/cossacklabs/acra/encryptor/postgresql"
 	"github.com/cossacklabs/acra/hmac"
 	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
 )
 
@@ -44,7 +43,6 @@ type HashQuery struct {
 	searchableQueryFilter *postgresql.SearchableQueryFilter
 	coder                 *postgresql.PostgresqlPgQueryDBDataCoder
 	decryptor             base.ExtendedDataProcessor
-	parser                *sqlparser.Parser
 	schemaStore           config.TableSchemaStore
 }
 
@@ -70,10 +68,10 @@ func (encryptor *HashQuery) ID() string {
 //	WHERE column = $1        ===>   WHERE substring(column, 1, <HMAC_size>) = $1
 //
 // and actual "value" is passed via parameters later. See OnBind() for details.
-func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObject) (base.OnQueryObject, bool, error) {
+func (encryptor *HashQuery) OnQuery(ctx context.Context, query postgresql.OnQueryObject) (postgresql.OnQueryObject, bool, error) {
 	logrus.Debugln("HashQuery.OnQuery")
 
-	parseResult, err := pg_query.Parse(query.Query())
+	parseResult, err := query.Statement()
 	if err != nil || len(parseResult.Stmts) == 0 {
 		logrus.Debugln("Failed to parse incoming query", err)
 		return query, false, nil
@@ -118,12 +116,7 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObjec
 		bindSettings[int(placeholderIndex)] = item.Setting
 	}
 	logrus.Debugln("HashQuery.OnQuery changed query")
-
-	stmt, err := pg_query.Deparse(parseResult)
-	if err != nil {
-		return nil, false, err
-	}
-	return base.NewOnQueryObjectFromQuery(stmt, encryptor.parser), true, nil
+	return postgresql.NewOnQueryObjectFromStatement(parseResult), true, nil
 }
 
 func getSubstrFuncNode(column *pg_query.Node) *pg_query.Node {
@@ -182,15 +175,8 @@ func getSubstrFuncNode(column *pg_query.Node) *pg_query.Node {
 //
 // and actual "value" is passed via parameters, visible here in OnBind().
 // If that's the case, HMAC computation should be performed for relevant values.
-func (encryptor *HashQuery) OnBind(ctx context.Context, statement sqlparser.Statement, values []base.BoundValue) ([]base.BoundValue, bool, error) {
+func (encryptor *HashQuery) OnBind(ctx context.Context, parseResult *pg_query.ParseResult, values []base.BoundValue) ([]base.BoundValue, bool, error) {
 	logrus.Debugln("HashQuery.OnBind")
-
-	// TODO: use pg_query.ParseResult instead of sqlparser.Statement
-	parseResult, err := pg_query.Parse(sqlparser.String(statement))
-	if err != nil || len(parseResult.Stmts) == 0 {
-		logrus.Debugln("Failed to parse incoming query", err)
-		return values, false, err
-	}
 
 	// Extract the subexpressions that we are interested in for searchable encryption.
 	// The list might be empty for non-SELECT queries or for non-eligible SELECTs.

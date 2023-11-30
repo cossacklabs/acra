@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package base
+package postgresql
 
 import (
 	"context"
@@ -22,79 +22,46 @@ import (
 	pg_query "github.com/Zhaars/pg_query_go/v4"
 	"github.com/sirupsen/logrus"
 
-	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/sqlparser"
 )
 
 // OnQueryObject interface for result of OnQuery call
 type OnQueryObject interface {
-	Statement() (sqlparser.Statement, error)
-	// PgStatement temporal method not to break the interface
-	PgStatement() (*pg_query.ParseResult, error)
-	Query() string
+	Statement() (*pg_query.ParseResult, error)
+	Query() (string, error)
 }
 
 // onQueryObject store result of QueryObserver.OnQuery call to reuse statements/queries between calls and do not parse/encode queries/statements
 type onQueryObject struct {
-	statement   sqlparser.Statement
-	pgStatement *pg_query.ParseResult
-	parser      *sqlparser.Parser
-	query       string
+	statement *pg_query.ParseResult
+	query     string
 }
 
-func (obj *onQueryObject) PgStatement() (*pg_query.ParseResult, error) {
-	if obj.pgStatement != nil {
-		return obj.pgStatement, nil
+func (obj *onQueryObject) Statement() (*pg_query.ParseResult, error) {
+	if obj.statement != nil {
+		return obj.statement, nil
 	}
 	return pg_query.Parse(obj.query)
 }
 
-// Statement return stored statement or parse query
-func (obj *onQueryObject) Statement() (sqlparser.Statement, error) {
-	if obj.statement != nil {
-		return obj.statement, nil
-	}
-	return obj.parser.Parse(obj.query)
-}
-
 // Query return stored query or encode statement to string
-func (obj *onQueryObject) Query() string {
+func (obj *onQueryObject) Query() (string, error) {
 	if obj.query == "" {
-		return sqlparser.String(obj.statement)
+		return pg_query.Deparse(obj.statement)
 	}
-	return obj.query
+	return obj.query, nil
 }
 
 // NewOnQueryObjectFromStatement return OnQueryObject with Statement as value
-func NewOnQueryObjectFromStatement(stmt sqlparser.Statement, parser *sqlparser.Parser) OnQueryObject {
-	return &onQueryObject{statement: stmt, parser: parser}
+func NewOnQueryObjectFromStatement(stmt *pg_query.ParseResult) OnQueryObject {
+	return &onQueryObject{statement: stmt}
 }
 
 // NewOnQueryObjectFromQuery return OnQueryObject with query string as value
-func NewOnQueryObjectFromQuery(query string, parser *sqlparser.Parser) OnQueryObject {
-	return &onQueryObject{query: query, parser: parser}
+func NewOnQueryObjectFromQuery(query string) OnQueryObject {
+	return &onQueryObject{query: query}
 }
-
-// BoundValue is a value provided for prepared statement execution.
-// Its exact type and meaning depends on the corresponding query.
-type BoundValue interface {
-	Format() BoundValueFormat
-	Copy() BoundValue
-	SetData(newData []byte, setting config.ColumnEncryptionSetting) error
-	GetData(setting config.ColumnEncryptionSetting) ([]byte, error)
-	Encode() ([]byte, error)
-	GetType() byte
-}
-
-// BoundValueFormat specifies how to interpret the bound data.
-type BoundValueFormat uint16
-
-// Supported values of BoundValueFormat.
-const (
-	TextFormat BoundValueFormat = iota
-	BinaryFormat
-)
 
 // QueryObserver observes database queries and is able to modify them.
 // Methods should return "true" as their second bool result if the data has been modified.
@@ -103,7 +70,7 @@ type QueryObserver interface {
 	// Simple queries and prepared statements during preparation stage. SQL is modifiable.
 	OnQuery(ctx context.Context, data OnQueryObject) (OnQueryObject, bool, error)
 	// Prepared statement parameters during execution stage. Parameter values are modifiable.
-	OnBind(ctx context.Context, statement sqlparser.Statement, values []BoundValue) ([]BoundValue, bool, error)
+	OnBind(ctx context.Context, statement *pg_query.ParseResult, values []base.BoundValue) ([]base.BoundValue, bool, error)
 }
 
 // QueryObservable used to handle subscribers for new incoming queries
@@ -163,7 +130,7 @@ func (manager *ArrayQueryObservableManager) OnQuery(ctx context.Context, query O
 }
 
 // OnBind would be called for each added observer to manager.
-func (manager *ArrayQueryObservableManager) OnBind(ctx context.Context, statement sqlparser.Statement, values []BoundValue) ([]BoundValue, bool, error) {
+func (manager *ArrayQueryObservableManager) OnBind(ctx context.Context, statement *pg_query.ParseResult, values []base.BoundValue) ([]base.BoundValue, bool, error) {
 	currentValues := values
 	changedValues := false
 	for _, observer := range manager.subscribers {

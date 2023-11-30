@@ -9,9 +9,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	encryptor_base "github.com/cossacklabs/acra/encryptor/base"
 	"github.com/cossacklabs/acra/encryptor/base/config"
-	"github.com/cossacklabs/acra/encryptor/mysql"
 	"github.com/cossacklabs/acra/encryptor/postgresql"
-	"github.com/cossacklabs/acra/sqlparser"
 )
 
 // PostgreSQLTokenizeQuery replace tokenized data inside AcraStruct/AcraBlocks and change WHERE conditions to support searchable tokenization
@@ -48,10 +46,10 @@ func (encryptor *PostgreSQLTokenizeQuery) ID() string {
 //	WHERE column = $1        ===>   WHERE column = tokenize($1)
 //
 // and actual "value" is passed via parameters later. See OnBind() for details.
-func (encryptor *PostgreSQLTokenizeQuery) OnQuery(ctx context.Context, query base.OnQueryObject) (base.OnQueryObject, bool, error) {
+func (encryptor *PostgreSQLTokenizeQuery) OnQuery(ctx context.Context, query postgresql.OnQueryObject) (postgresql.OnQueryObject, bool, error) {
 	logrus.Debugln("PostgreSQLTokenizeQuery.OnQuery")
 
-	parseResult, err := pg_query.Parse(query.Query())
+	parseResult, err := query.Statement()
 	if err != nil || len(parseResult.Stmts) == 0 {
 		logrus.Debugln("Failed to parse incoming query", err)
 		return query, false, nil
@@ -94,11 +92,7 @@ func (encryptor *PostgreSQLTokenizeQuery) OnQuery(ctx context.Context, query bas
 	}
 
 	logrus.Debugln("PostgreSQLTokenizeQuery.OnQuery changed query")
-	stmt, err := pg_query.Deparse(parseResult)
-	if err != nil {
-		return nil, false, err
-	}
-	return base.NewOnQueryObjectFromQuery(stmt, nil), true, nil
+	return postgresql.NewOnQueryObjectFromStatement(parseResult), true, nil
 }
 
 // OnBind processes bound values for prepared statements.
@@ -112,15 +106,8 @@ func (encryptor *PostgreSQLTokenizeQuery) OnQuery(ctx context.Context, query bas
 //	WHERE column = $1        ===>   WHERE column = tokenize($1)
 //
 // and actual "value" is passed via parameters, visible here in OnBind().
-func (encryptor *PostgreSQLTokenizeQuery) OnBind(ctx context.Context, statement sqlparser.Statement, values []base.BoundValue) ([]base.BoundValue, bool, error) {
+func (encryptor *PostgreSQLTokenizeQuery) OnBind(ctx context.Context, parseResult *pg_query.ParseResult, values []base.BoundValue) ([]base.BoundValue, bool, error) {
 	logrus.Debugln("PostgreSQLTokenizeQuery.OnBind")
-
-	// TODO: use pg_query.ParseResult instead of sqlparser.Statement
-	parseResult, err := pg_query.Parse(sqlparser.String(statement))
-	if err != nil || len(parseResult.Stmts) == 0 {
-		logrus.Debugln("Failed to parse incoming query", err)
-		return values, false, err
-	}
 
 	// Extract the subexpressions that we are interested in for searchable encryption.
 	// The list might be empty for non-SELECT queries or for non-eligible SELECTs.
@@ -150,7 +137,7 @@ func (encryptor *PostgreSQLTokenizeQuery) OnBind(ctx context.Context, statement 
 		indexes = append(indexes, index)
 	}
 
-	bindData := mysql.ParseSearchQueryPlaceholdersSettings(statement, encryptor.schemaStore)
+	bindData := postgresql.ParseSearchQueryPlaceholdersSettings(parseResult, encryptor.schemaStore)
 	if len(bindData) > len(indexes) {
 		return values, false, nil
 	}

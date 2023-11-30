@@ -78,7 +78,7 @@ func TestSearchablePreparedStatementsWithTextFormat(t *testing.T) {
 		{Query: "DELETE FROM test_table WHERE data1=? OR data2=?"},
 	}
 	for _, testcase := range testcases {
-		queryObj := base.NewOnQueryObjectFromQuery(testcase.Query, parser)
+		queryObj := mysql.NewOnQueryObjectFromQuery(testcase.Query, parser)
 		queryObj, _, err = encryptor.OnQuery(ctx, queryObj)
 		if err != nil {
 			t.Fatal(err)
@@ -87,7 +87,7 @@ func TestSearchablePreparedStatementsWithTextFormat(t *testing.T) {
 		if len(bindPlaceholders) != 1 {
 			t.Fatal("Not found expected amount of placeholders")
 		}
-		queryObj = base.NewOnQueryObjectFromQuery(testcase.Query, parser)
+		queryObj = mysql.NewOnQueryObjectFromQuery(testcase.Query, parser)
 		statement, err := queryObj.Statement()
 		if err != nil {
 			t.Fatal(err)
@@ -181,7 +181,7 @@ func TestSearchableWithJoinsWithTextFormat(t *testing.T) {
 			ctx := base.SetClientSessionToContext(context.Background(), clientSession)
 			parser := sqlparser.New(sqlparser.ModeDefault)
 
-			queryObj := base.NewOnQueryObjectFromQuery(tcase.Query, parser)
+			queryObj := mysql.NewOnQueryObjectFromQuery(tcase.Query, parser)
 			queryObj, _, err = encryptor.OnQuery(ctx, queryObj)
 			assert.NoError(t, err)
 

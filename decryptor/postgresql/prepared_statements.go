@@ -160,13 +160,13 @@ func (r *PgPreparedStatementRegistry) DeleteCursor(name string) error {
 type PgPreparedStatement struct {
 	name string
 	text string
-	stmt *pg_query.Node
+	stmt *pg_query.ParseResult
 
 	cursors map[string]base.Cursor
 }
 
 // NewPreparedStatement makes a new prepared statement.
-func NewPreparedStatement(name string, text string, stmt *pg_query.Node) *PgPreparedStatement {
+func NewPreparedStatement(name string, text string, stmt *pg_query.ParseResult) *PgPreparedStatement {
 	return &PgPreparedStatement{
 		name:    name,
 		text:    text,
@@ -181,7 +181,7 @@ func (s *PgPreparedStatement) Name() string {
 }
 
 // Query returns the prepared query, in its parsed form.
-func (s *PgPreparedStatement) Query() *pg_query.Node {
+func (s *PgPreparedStatement) Query() *pg_query.ParseResult {
 	return s.stmt
 }
 

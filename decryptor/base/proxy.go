@@ -22,14 +22,20 @@ import (
 	"net"
 
 	pg_query "github.com/Zhaars/pg_query_go/v4"
+	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 
 	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/sqlparser"
 )
+
+// AcraCensorBlockedThisQuery is an error message, that is sent to the user in case of
+// query blockage
+const AcraCensorBlockedThisQuery = "AcraCensor blocked this query"
 
 // Callback represents function to call on detecting poison record
 type Callback interface {
@@ -103,7 +109,6 @@ func NewProxySetting(parser *sqlparser.Parser, tableSchema config.TableSchemaSto
 
 // Proxy interface to process client's requests to database and responses
 type Proxy interface {
-	QueryObservable
 	ClientIDObservable
 	ProxyClientConnection(context.Context, chan<- ProxyError)
 	ProxyDatabaseConnection(context.Context, chan<- ProxyError)
@@ -166,7 +171,7 @@ type PreparedStatement interface {
 // It can be either a textual SQL statement from "PREPARE", or a database protocol equivalent.
 type PgPreparedStatement interface {
 	Name() string
-	Query() *pg_query.Node
+	Query() *pg_query.ParseResult
 	QueryText() string
 	ParamsNum() int
 }
@@ -229,6 +234,41 @@ func OnlyDefaultEncryptorSettings(store config.TableSchemaStore) bool {
 		config.SettingDataTypeFlag) == 0
 }
 
-// AcraCensorBlockedThisQuery is an error message, that is sent to the user in case of
-// query blockage
-const AcraCensorBlockedThisQuery = "AcraCensor blocked this query"
+// ClientIDObserver used to notify subscribers about changed ClientID in encryption/decryption context
+type ClientIDObserver interface {
+	OnNewClientID(clientID []byte)
+}
+
+// ClientIDObservable used to subscribe for clientID changes
+type ClientIDObservable interface {
+	AddClientIDObserver(ClientIDObserver)
+}
+
+// ClientIDObservableManager used to subscribe for clientID changes and notify about changes
+type ClientIDObservableManager interface {
+	ClientIDObservable
+	ClientIDObserver
+}
+
+// ArrayClientIDObservableManager store all subscribed observes and call sequentially OnQuery on each observer
+type ArrayClientIDObservableManager struct {
+	subscribers []ClientIDObserver
+	logger      *logrus.Entry
+}
+
+// NewArrayClientIDObservableManager create new ArrayClientIDObservableManager
+func NewArrayClientIDObservableManager(ctx context.Context) (*ArrayClientIDObservableManager, error) {
+	return &ArrayClientIDObservableManager{logger: logging.GetLoggerFromContext(ctx)}, nil
+}
+
+// AddClientIDObserver add new subscriber for clientID changes
+func (manager *ArrayClientIDObservableManager) AddClientIDObserver(observer ClientIDObserver) {
+	manager.subscribers = append(manager.subscribers, observer)
+}
+
+// OnNewClientID pass clientID to subscribers
+func (manager *ArrayClientIDObservableManager) OnNewClientID(clientID []byte) {
+	for _, subscriber := range manager.subscribers {
+		subscriber.OnNewClientID(clientID)
+	}
+}

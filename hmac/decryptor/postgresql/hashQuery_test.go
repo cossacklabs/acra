@@ -17,7 +17,6 @@ import (
 	"github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/encryptor/postgresql"
 	mocks2 "github.com/cossacklabs/acra/keystore/mocks"
-	"github.com/cossacklabs/acra/sqlparser"
 )
 
 // TestSearchablePreparedStatementsWithTextFormat process searchable SELECT query with placeholder for prepared statement
@@ -51,7 +50,6 @@ func TestSearchablePreparedStatementsWithTextFormat(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := decryptor.SetClientSessionToContext(context.Background(), clientSession)
-	parser := sqlparser.New(sqlparser.ModeDefault)
 	keyStore := &mocks2.ServerKeyStore{}
 	keyStore.On("GetHMACSecretKey", mock.Anything).Return([]byte(`some key`), nil)
 	registryHandler := crypto.NewRegistryHandler(nil)
@@ -80,7 +78,7 @@ func TestSearchablePreparedStatementsWithTextFormat(t *testing.T) {
 		{Query: "DELETE FROM test_table WHERE data1=$1 OR data2=$2"},
 	}
 	for _, testcase := range testcases {
-		queryObj := decryptor.NewOnQueryObjectFromQuery(testcase.Query, parser)
+		queryObj := postgresql.NewOnQueryObjectFromQuery(testcase.Query)
 		queryObj, _, err = encryptor.OnQuery(ctx, queryObj)
 		if err != nil {
 			t.Fatal(err)
@@ -89,7 +87,7 @@ func TestSearchablePreparedStatementsWithTextFormat(t *testing.T) {
 		if len(bindPlaceholders) != 1 {
 			t.Fatal("Not found expected amount of placeholders")
 		}
-		queryObj = decryptor.NewOnQueryObjectFromQuery(testcase.Query, parser)
+		queryObj = postgresql.NewOnQueryObjectFromQuery(testcase.Query)
 		statement, err := queryObj.Statement()
 		if err != nil {
 			t.Fatal(err)
@@ -144,7 +142,6 @@ func TestSearchableWithTextFormat(t *testing.T) {
 	assert.NoError(t, err)
 
 	ctx := decryptor.SetClientSessionToContext(context.Background(), clientSession)
-	parser := sqlparser.New(sqlparser.ModeDefault)
 	keyStore := &mocks2.ServerKeyStore{}
 	keyStore.On("GetHMACSecretKey", mock.Anything).Return([]byte(`some key`), nil)
 	registryHandler := crypto.NewRegistryHandler(nil)
@@ -166,11 +163,11 @@ func TestSearchableWithTextFormat(t *testing.T) {
 	for _, testcase := range testcases {
 		query := fmt.Sprintf(testcase.Query, dataQueryPart)
 
-		queryObj := decryptor.NewOnQueryObjectFromQuery(query, parser)
+		queryObj := postgresql.NewOnQueryObjectFromQuery(query)
 		queryObj, _, err = encryptor.OnQuery(ctx, queryObj)
 		assert.NoError(t, err)
 
-		parseResult, err := pg_query.Parse(queryObj.Query())
+		parseResult, err := queryObj.Statement()
 		assert.NoError(t, err)
 
 		whereStatements, err := postgresql.GetWhereStatements(parseResult)
@@ -262,13 +259,12 @@ func TestSearchableWithJoinsWithTextFormat(t *testing.T) {
 	for _, encryptor := range encryptors {
 		for _, tcase := range testcases {
 			ctx := decryptor.SetClientSessionToContext(context.Background(), clientSession)
-			parser := sqlparser.New(sqlparser.ModeDefault)
 
-			queryObj := decryptor.NewOnQueryObjectFromQuery(tcase.Query, parser)
+			queryObj := postgresql.NewOnQueryObjectFromQuery(tcase.Query)
 			queryObj, _, err = encryptor.OnQuery(ctx, queryObj)
 			assert.NoError(t, err)
 
-			parseResult, err := pg_query.Parse(queryObj.Query())
+			parseResult, err := queryObj.Statement()
 			assert.NoError(t, err)
 
 			whereStatements, err := postgresql.GetWhereStatements(parseResult)
@@ -291,8 +287,9 @@ func TestSearchableWithJoinsWithTextFormat(t *testing.T) {
 						assert.Equal(t, columnName, "data1")
 					}
 
+					query, _ := queryObj.Query()
 					if aConst := expr.Rexpr.GetAConst(); aConst != nil {
-						assert.True(t, len(aConst.GetSval().GetSval()) == 68, "expect replacing value on substring with hash `%s`", queryObj.Query())
+						assert.True(t, len(aConst.GetSval().GetSval()) == 68, "expect replacing value on substring with hash `%s`", query)
 					}
 				}
 			}

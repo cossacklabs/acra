@@ -70,7 +70,7 @@ func (encryptor *HashQuery) ID() string {
 //	WHERE column = $1        ===>   WHERE substring(column, 1, <HMAC_size>) = $1
 //
 // and actual "value" is passed via parameters later. See OnBind() for details.
-func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObject) (base.OnQueryObject, bool, error) {
+func (encryptor *HashQuery) OnQuery(ctx context.Context, query mysql.OnQueryObject) (mysql.OnQueryObject, bool, error) {
 	logrus.Debugln("HashQuery.OnQuery")
 	stmt, err := query.Statement()
 	if err != nil {
@@ -149,7 +149,7 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObjec
 		bindSettings[placeholderIndex] = item.Setting
 	}
 	logrus.Debugln("HashQuery.OnQuery changed query")
-	return base.NewOnQueryObjectFromStatement(stmt, encryptor.parser), true, nil
+	return mysql.NewOnQueryObjectFromStatement(stmt, encryptor.parser), true, nil
 }
 
 // OnBind processes bound values for prepared statements.

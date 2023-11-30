@@ -12,6 +12,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/mocks"
 	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/encryptor/mysql"
 	"github.com/cossacklabs/acra/encryptor/postgresql"
 	"github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/pseudonymization/storage"
@@ -121,7 +122,7 @@ schemas:
 		anonymized, err := tokenizer.Tokenize(tcase.Value, common.TokenContext{ClientID: clientID}, &setting)
 		assert.NoError(t, err)
 
-		newQuery, ok, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(tcase.Query, parser))
+		newQuery, ok, err := encryptor.OnQuery(ctx, mysql.NewOnQueryObjectFromQuery(tcase.Query, parser))
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -263,7 +264,7 @@ func TestSearchableTokenizationWithDefaultTablesTextFormat(t *testing.T) {
 		anonymized, err := tokenizer.Tokenize(dataToTokenize, common.TokenContext{ClientID: tcase.ClientID}, &setting)
 		assert.NoError(t, err)
 
-		newQuery, ok, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(fmt.Sprintf(tcase.Query, dataToTokenize), parser))
+		newQuery, ok, err := encryptor.OnQuery(ctx, mysql.NewOnQueryObjectFromQuery(fmt.Sprintf(tcase.Query, dataToTokenize), parser))
 		assert.NoError(t, err)
 		assert.True(t, ok)
 

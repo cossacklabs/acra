@@ -86,7 +86,7 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 		envelopeDetector.AddCallback(poisonDetector)
 	}
 
-	observerManager, err := base.NewArrayQueryObservableManager(proxy.session.Context())
+	observerManager, err := postgresql.NewArrayQueryObservableManager(proxy.session.Context())
 	if err != nil {
 		return nil, err
 	}
@@ -156,13 +156,13 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 
 	// register query processors/encryptors only if have some
 	queryDataEncryptor := encryptor.NewChainDataEncryptor(chainEncryptors...)
-	queryEncryptor, err := postgresql.NewQueryEncryptor(factory.setting.TableSchemaStore(), sqlParser, queryDataEncryptor)
+	queryEncryptor, err := postgresql.NewQueryEncryptor(factory.setting.TableSchemaStore(), queryDataEncryptor)
 	if err != nil {
 		return nil, err
 	}
 
 	observerManager.AddQueryObserver(queryEncryptor)
-	preparedStatementsEncryptor := NewPostgresqlPreparedStatementsQuery(proxy.session, proxy.parser, observerManager)
+	preparedStatementsEncryptor := NewPostgresqlPreparedStatementsQuery(proxy.session, observerManager)
 
 	proxy.AddQueryObserver(preparedStatementsEncryptor)
 	proxy.AddQueryObserver(observerManager)

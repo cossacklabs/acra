@@ -75,8 +75,7 @@ type parserTestData struct {
 
 func testParsing(t *testing.T, testData []parserTestData, encryptedValue, defaultClientID []byte, schemaStore *config.MapTableSchemaStore) {
 	encryptor := &testEncryptor{value: encryptedValue}
-	parser := sqlparser.New(sqlparser.ModeStrict)
-	queryEncryptor, err := NewQueryEncryptor(schemaStore, parser, encryptor)
+	queryEncryptor, err := NewQueryEncryptor(schemaStore, encryptor)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,12 +101,18 @@ func testParsing(t *testing.T, testData []parserTestData, encryptedValue, defaul
 			sessionData[args[0].(string)] = args[1]
 		})
 		ctx = decryptor.SetClientSessionToContext(ctx, clientSession)
-		data, changed, err := queryEncryptor.OnQuery(ctx, decryptor.NewOnQueryObjectFromQuery(query, parser))
+		data, changed, err := queryEncryptor.OnQuery(ctx, NewOnQueryObjectFromQuery(query))
 		if err != nil {
 			t.Fatalf("%v. %s", i, err.Error())
 		}
-		if data.Query() != expectedQuery {
-			t.Fatalf("%v. Incorrect value\nTook:\n%s\nExpected:\n%s;", i, data.Query(), expectedQuery)
+
+		dataQuery, err := data.Query()
+		if err != nil {
+			t.Fatalf("%v. %s", i, err.Error())
+		}
+
+		if dataQuery != expectedQuery {
+			t.Fatalf("%v. Incorrect value\nTook:\n%s\nExpected:\n%s;", i, dataQuery, expectedQuery)
 		}
 		if testCase.Changed != changed {
 			t.Fatalf("%v. Incorrect <changed> value. Took - %t; Expected - %t", i, changed, testCase.Changed)
@@ -613,8 +618,7 @@ schemas:
 		t.Fatalf("Can't parse config: %s", err.Error())
 	}
 
-	parser := sqlparser.New(sqlparser.ModeStrict)
-	encryptor, err := NewQueryEncryptor(schemaStore, parser, nil)
+	encryptor, err := NewQueryEncryptor(schemaStore, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -630,7 +634,7 @@ schemas:
 	t.Run("RETURNING *", func(t *testing.T) {
 		query := `INSERT INTO TableWithColumnSchema (specified_client_id, other_column, default_client_id) VALUES (1, 1, 1) RETURNING *`
 
-		_, _, err := encryptor.OnQuery(ctx, decryptor.NewOnQueryObjectFromQuery(query, parser))
+		_, _, err := encryptor.OnQuery(ctx, NewOnQueryObjectFromQuery(query))
 		if err != nil {
 			t.Fatalf("%s", err.Error())
 		}
@@ -659,7 +663,7 @@ schemas:
 		returning := "specified_client_id, other_column, default_client_id"
 		query := fmt.Sprintf(`INSERT INTO TableWithColumnSchema (specified_client_id, other_column, default_client_id) VALUES (1, 1, 1) RETURNING %s`, returning)
 
-		_, _, err := encryptor.OnQuery(ctx, decryptor.NewOnQueryObjectFromQuery(query, parser))
+		_, _, err := encryptor.OnQuery(ctx, NewOnQueryObjectFromQuery(query))
 		if err != nil {
 			t.Fatalf("%s", err.Error())
 		}
@@ -699,7 +703,7 @@ schemas:
 		for _, template := range queryTemplates {
 			query := fmt.Sprintf(template, returning)
 
-			_, _, err := encryptor.OnQuery(ctx, decryptor.NewOnQueryObjectFromQuery(query, parser))
+			_, _, err := encryptor.OnQuery(ctx, NewOnQueryObjectFromQuery(query))
 			if err != nil {
 				t.Fatalf("%s", err.Error())
 			}
@@ -789,7 +793,7 @@ schemas:
 		for _, tcase := range testCases {
 			query := fmt.Sprintf(tcase.template, tcase.returning)
 
-			_, _, err := encryptor.OnQuery(ctx, decryptor.NewOnQueryObjectFromQuery(query, parser))
+			_, _, err := encryptor.OnQuery(ctx, NewOnQueryObjectFromQuery(query))
 			if err != nil {
 				t.Fatalf("%s", err.Error())
 			}
@@ -826,7 +830,7 @@ schemas:
 		for _, template := range queryTemplates {
 			query := fmt.Sprintf(template, returning)
 
-			_, _, err := encryptor.OnQuery(ctx, decryptor.NewOnQueryObjectFromQuery(query, parser))
+			_, _, err := encryptor.OnQuery(ctx, NewOnQueryObjectFromQuery(query))
 			if err != nil {
 				t.Fatalf("%s", err.Error())
 			}
@@ -881,7 +885,7 @@ schemas:
 		for _, template := range queryTemplates {
 			query := fmt.Sprintf(template, returning)
 
-			_, _, err := encryptor.OnQuery(ctx, decryptor.NewOnQueryObjectFromQuery(query, parser))
+			_, _, err := encryptor.OnQuery(ctx, NewOnQueryObjectFromQuery(query))
 			if err != nil {
 				t.Fatalf("%s", err.Error())
 			}
@@ -1052,8 +1056,7 @@ func TestEncryptionSettingCollection(t *testing.T) {
 			},
 		},
 	}
-	parser := sqlparser.New(sqlparser.ModeDefault)
-	encryptor, err := NewQueryEncryptor(nil, parser, nil)
+	encryptor, err := NewQueryEncryptor(nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1127,7 +1130,7 @@ func TestEncryptionSettingCollectionFailures(t *testing.T) {
 			err:   errNotFoundtable,
 		},
 	}
-	encryptor, err := NewQueryEncryptor(nil, nil, nil)
+	encryptor, err := NewQueryEncryptor(nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1180,9 +1183,8 @@ func TestInsertWithIncorrectPlaceholdersAmount(t *testing.T) {
 			expectedLog: "Amount of values in INSERT bigger than column count",
 		},
 	}
-	parser := sqlparser.New(sqlparser.ModeDefault)
 
-	encryptor, err := NewQueryEncryptor(nil, parser, base.NewChainDataEncryptor())
+	encryptor, err := NewQueryEncryptor(nil, base.NewChainDataEncryptor())
 	if err != nil {
 		t.Fatal(err)
 	}
