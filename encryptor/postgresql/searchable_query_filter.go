@@ -90,10 +90,11 @@ func (filter *SearchableQueryFilter) FilterSearchableComparisons(result *pg_quer
 // ChangeSearchableOperator change the operator of ComparisonExpr to EqualStr|NotEqualStr depending on expr.Operator
 func (filter *SearchableQueryFilter) ChangeSearchableOperator(expr *pg_query.A_Expr) {
 	switch expr.Name[0].GetString_().GetSval() {
-	//case sqlparser.EqualStr, sqlparser.NullSafeEqualStr, sqlparser.LikeStr, sqlparser.ILikeStr:
-	//	expr.Operator = sqlparser.EqualStr
-	//case sqlparser.NotEqualStr, sqlparser.NotLikeStr, sqlparser.NotILikeStr:
-	//	expr.Operator = sqlparser.NotEqualStr
+	// sqlparser.NullSafeEqualStr, sqlparser.LikeStr, sqlparser.ILikeStr
+	case "=":
+		expr.Name[0].GetString_().Sval = "="
+		//case sqlparser.NotEqualStr, sqlparser.NotLikeStr, sqlparser.NotILikeStr:
+		//	expr.Operator = sqlparser.NotEqualStr
 	}
 }
 
@@ -191,7 +192,7 @@ func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(whereNode 
 			logrus.Infoln("Searchable encryption/tokenization support equal comparison only by SQLVal but not by ColName")
 		}
 
-		if expr.Rexpr.GetAConst() != nil || expr.Rexpr.GetParamRef() != nil {
+		if expr.Rexpr.GetAConst() != nil || expr.Rexpr.GetParamRef() != nil || expr.Rexpr.GetTypeCast() != nil {
 			if len(expr.Name) == 1 {
 				if val := expr.Name[0].GetString_(); val != nil && (val.GetSval() == "=" || val.GetSval() == "<>") {
 					exprs = append(exprs, SearchableExprItem{

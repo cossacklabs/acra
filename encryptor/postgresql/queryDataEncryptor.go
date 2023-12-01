@@ -189,7 +189,13 @@ func (encryptor *QueryDataEncryptor) encryptUpdateExpressions(ctx context.Contex
 		if schema == nil {
 			continue
 		}
-		if changedExpr, err := encryptor.encryptExpression(ctx, resTarget.GetVal().GetAConst(), schema, columnName, bindPlaceholders); err != nil {
+
+		aConst := resTarget.GetVal().GetAConst()
+		if resTarget.GetVal().GetTypeCast() != nil {
+			aConst = resTarget.GetVal().GetTypeCast().GetArg().GetAConst()
+		}
+
+		if changedExpr, err := encryptor.encryptExpression(ctx, aConst, schema, columnName, bindPlaceholders); err != nil {
 			logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptorCantEncryptExpression).WithError(err).Errorln("Can't update expression with encrypted sql value")
 			return changed, err
 		} else if changedExpr {

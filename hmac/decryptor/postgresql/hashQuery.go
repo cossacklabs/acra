@@ -103,7 +103,12 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query postgresql.OnQuer
 
 		// substring(column, 1, <HMAC_size>) = 'value' ===> substring(column, 1, <HMAC_size>) = <HMAC('value')>
 		// substring(column, 1, <HMAC_size>) = $1      ===> no changes
-		err := postgresql.UpdateExpressionValue(ctx, item.Expr.Rexpr.GetAConst(), encryptor.coder, item.Setting, encryptor.calculateHmac)
+		aConst := item.Expr.Rexpr.GetAConst()
+		if typeCast := item.Expr.Rexpr.GetTypeCast(); typeCast != nil {
+			aConst = typeCast.GetArg().GetAConst()
+		}
+
+		err := postgresql.UpdateExpressionValue(ctx, aConst, encryptor.coder, item.Setting, encryptor.calculateHmac)
 		if err != nil {
 			logrus.WithError(err).Debugln("Failed to update expression")
 			return query, false, err

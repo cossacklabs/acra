@@ -279,71 +279,64 @@ func (*PostgresqlPgQueryDBDataCoder) Decode(aConst *pg_query.A_Const, setting co
 
 // Encode data to correct literal from binary data for this expression
 func (*PostgresqlPgQueryDBDataCoder) Encode(aConst *pg_query.A_Const, data []byte, setting config.ColumnEncryptionSetting) error {
-	//switch val := expr.(type) {
-	//case *sqlparser.SQLVal:
-	//	switch val.Type {
-	//	case sqlparser.HexVal:
-	//		output := make([]byte, hex.EncodedLen(len(data)))
-	//		hex.Encode(output, data)
-	//		return output, nil
-	//	case sqlparser.IntVal:
-	//		// QueryDataEncryptor can tokenize INT SQL literal and we should not do anything because it is still valid
-	//		// INT literal. Also, handler can encrypt data and replace SQL literal with encrypted data as []byte result.
-	//		// Due to invalid format for INT literals, we should encode it as valid hex encoded binary value and change
-	//		// type of SQL token for sqlparser that encoded into final SQL string
-	//
-	//		// if data was just tokenized, so we return it as is because it is valid int literal
-	//		if _, err := strconv.Atoi(string(data)); err == nil {
-	//			return data, nil
-	//		}
-	//		// otherwise change type and pass it below for hex encoding
-	//		val.Type = sqlparser.PgEscapeString
-	//		fallthrough
-	//	case sqlparser.PgEscapeString:
-	//		// if type is not byte array, then it probably string or int and we pass printable strings
-	//		if setting.GetDBDataTypeID() != 0 && setting.GetDBDataTypeID() != pgtype.ByteaOID {
-	//			// valid strings we pass as is without extra encoding
-	//			if utils.IsPrintablePostgresqlString(data) {
-	//				return data, nil
-	//			}
-	//		}
-	//		// valid string can contain escaped symbols, or tokenizer may generate string with symbols that should be escaped
-	//		return utils.EncodeToOctal(data), nil
-	//	case sqlparser.StrVal:
-	//		// if type is not byte array, then it probably string or int and we pass printable strings
-	//		if setting.GetDBDataTypeID() != 0 && setting.GetDBDataTypeID() != pgtype.ByteaOID {
-	//			// valid strings we pass as is without extra encoding
-	//			if utils.IsPrintablePostgresqlString(data) {
-	//				return data, nil
-	//			}
-	//		}
-	//		// byte array can be valid hex/octal encoded value, eventually we should encode it as binary data
-	//		return PgEncodeToHexString(data), nil
-	//	}
-	//}
-
-	if fVal := aConst.GetFval(); fVal != nil {
-		fVal.Fval = string(data)
-		return nil
-	}
-
-	if iVal := aConst.GetIval(); iVal != nil {
-		if idata, err := strconv.Atoi(string(data)); err == nil {
-			iVal.Ival = int32(idata)
-			return nil
-		}
-	}
-
-	if sval := aConst.GetSval(); sval != nil {
+	switch {
+	case aConst.GetFval() != nil:
+		// if type is not byte array, then it probably string or int and we pass printable strings
 		if setting.GetDBDataTypeID() != 0 && setting.GetDBDataTypeID() != pgtype.ByteaOID {
 			// valid strings we pass as is without extra encoding
 			if utils.IsPrintablePostgresqlString(data) {
-				sval.Sval = string(data)
+				aConst.GetFval().Fval = string(data)
+				return nil
+			}
+		}
+
+		*aConst = pg_query.A_Const{
+			Val: &pg_query.A_Const_Sval{
+				Sval: &pg_query.String{
+					Sval: "",
+				},
+			},
+		}
+
+		// valid string can contain escaped symbols, or tokenizer may generate string with symbols that should be escaped
+		aConst.GetSval().Sval = string(PgEncodeToHexString(data))
+		return nil
+	case aConst.GetIval() != nil || aConst.GetFval() != nil:
+		if idata, err := strconv.Atoi(string(data)); err == nil {
+			aConst.GetIval().Ival = int32(idata)
+			return nil
+		}
+
+		*aConst = pg_query.A_Const{
+			Val: &pg_query.A_Const_Sval{
+				Sval: &pg_query.String{
+					Sval: "",
+				},
+			},
+		}
+
+		// else try to format it as string data
+		// if type is not byte array, then it probably string or int and we pass printable strings
+		if setting.GetDBDataTypeID() != 0 && setting.GetDBDataTypeID() != pgtype.ByteaOID {
+			// valid strings we pass as is without extra encoding
+			if utils.IsPrintablePostgresqlString(data) {
+				aConst.GetSval().Sval = string(data)
+				return nil
+			}
+		}
+		// valid string can contain escaped symbols, or tokenizer may generate string with symbols that should be escaped
+		aConst.GetSval().Sval = string(PgEncodeToHexString(data))
+		return nil
+	case aConst.GetSval() != nil:
+		if setting.GetDBDataTypeID() != 0 && setting.GetDBDataTypeID() != pgtype.ByteaOID {
+			// valid strings we pass as is without extra encoding
+			if utils.IsPrintablePostgresqlString(data) {
+				aConst.GetSval().Sval = string(data)
 				return nil
 			}
 		}
 		// byte array can be valid hex/octal encoded value, eventually we should encode it as binary data
-		sval.Sval = string(PgEncodeToHexString(data))
+		aConst.GetSval().Sval = string(PgEncodeToHexString(data))
 		return nil
 	}
 

@@ -79,7 +79,7 @@ type GenerateKeySubcommand struct {
 	poisonRecord    bool
 }
 
-// GetParamsExtractor return service params extractor
+// GetExtractor return service params extractor
 func (g *GenerateKeySubcommand) GetExtractor() *args.ServiceExtractor {
 	return g.extractor
 }
