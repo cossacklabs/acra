@@ -481,6 +481,7 @@ func (proxy *PgProxy) handleQueryPacket(ctx context.Context, packet *PacketHandl
 		if err != nil {
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptQueryData).
 				Errorln("Error get raw SQLQuery")
+			return false, err
 		}
 
 		packet.ReplaceQuery(querySQL)
@@ -1067,10 +1068,16 @@ func (proxy *PgProxy) registerPreparedStatement(packet *PacketHandler, preparedS
 			WithError(err).Errorln("Can't parse SQL from Parse packet")
 		return err
 	}
+
+	var stmt *pg_query.Node
+	if len(query.Stmts) > 0 {
+		stmt = query.Stmts[0].Stmt
+	}
+
 	statement := NewPreparedStatement(name, queryText, &pg_query.ParseResult{
 		Stmts: []*pg_query.RawStmt{
 			{
-				Stmt: query.Stmts[0].Stmt,
+				Stmt: stmt,
 			},
 		},
 	})

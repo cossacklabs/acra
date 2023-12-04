@@ -48,7 +48,7 @@ type HashQuery struct {
 
 // NewHashQuery return HashQuery with coder for postgresql
 func NewHashQuery(keystore HashDecryptStore, schemaStore config.TableSchemaStore, processor base.ExtendedDataProcessor) *HashQuery {
-	searchableQueryFilter := postgresql.NewSearchableQueryFilter(schemaStore)
+	searchableQueryFilter := postgresql.NewSearchableQueryFilter(schemaStore, queryEncryptor.QueryFilterModeSearchableEncryption)
 	return &HashQuery{keystore: keystore, coder: &postgresql.PostgresqlPgQueryDBDataCoder{}, searchableQueryFilter: searchableQueryFilter, decryptor: processor, schemaStore: schemaStore}
 }
 

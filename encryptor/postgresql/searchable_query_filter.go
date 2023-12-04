@@ -23,20 +23,12 @@ import (
 	pg_query "github.com/Zhaars/pg_query_go/v4"
 	"github.com/sirupsen/logrus"
 
+	"github.com/cossacklabs/acra/encryptor/base"
 	"github.com/cossacklabs/acra/encryptor/base/config"
 )
 
 // ErrUnsupportedQueryType represent error related unsupported Query type
 var ErrUnsupportedQueryType = errors.New("unsupported Query type")
-
-// SearchableQueryFilterMode represent the mode work of SearchableQueryFilter
-type SearchableQueryFilterMode int
-
-// QueryFilterModeSearchableEncryption list of supported modes for filtering comparisons for searchable and tokenized values
-const (
-	QueryFilterModeSearchableEncryption = iota
-	QueryFilterModeConsistentTokenization
-)
 
 // SubstrFuncName substr function name
 const SubstrFuncName = "substr"
@@ -49,12 +41,14 @@ type SearchableExprItem struct {
 
 // SearchableQueryFilter filter searchable expression based on SearchableQueryFilterMode
 type SearchableQueryFilter struct {
+	mode        base.SearchableQueryFilterMode
 	schemaStore config.TableSchemaStore
 }
 
 // NewSearchableQueryFilter create new SearchableQueryFilter from schemaStore and SearchableQueryFilterMode
-func NewSearchableQueryFilter(schemaStore config.TableSchemaStore) *SearchableQueryFilter {
+func NewSearchableQueryFilter(schemaStore config.TableSchemaStore, mode base.SearchableQueryFilterMode) *SearchableQueryFilter {
 	return &SearchableQueryFilter{
+		mode:        mode,
 		schemaStore: schemaStore,
 	}
 }
@@ -140,13 +134,15 @@ func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(whereNode 
 
 		var lColumn = expr.Lexpr.GetColumnRef()
 		if expr.Lexpr.GetColumnRef() == nil {
-			//handle case if query was processed by searchable encryptor
-			if funcCall := expr.Lexpr.GetFuncCall(); funcCall != nil {
-				funcName := funcCall.GetFuncname()
-				if len(funcName) == 1 && strings.HasPrefix(funcName[0].GetString_().GetSval(), SubstrFuncName) {
-					lColumn = funcCall.GetArgs()[0].GetColumnRef()
-				} else {
-					return true, nil
+			if filter.mode == base.QueryFilterModeSearchableEncryption {
+				//handle case if query was processed by searchable encryptor
+				if funcCall := expr.Lexpr.GetFuncCall(); funcCall != nil {
+					funcName := funcCall.GetFuncname()
+					if len(funcName) == 1 && strings.HasPrefix(funcName[0].GetString_().GetSval(), SubstrFuncName) {
+						lColumn = funcCall.GetArgs()[0].GetColumnRef()
+					} else {
+						return true, nil
+					}
 				}
 			} else {
 				return true, nil

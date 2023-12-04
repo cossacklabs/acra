@@ -23,7 +23,7 @@ type PostgreSQLTokenizeQuery struct {
 // NewPostgresqlTokenizeQuery return PostgreSQLTokenizeQuery with coder for postgresql
 func NewPostgresqlTokenizeQuery(schemaStore config.TableSchemaStore, tokenEncryptor *TokenEncryptor) *PostgreSQLTokenizeQuery {
 	return &PostgreSQLTokenizeQuery{
-		searchableQueryFilter: postgresql.NewSearchableQueryFilter(schemaStore),
+		searchableQueryFilter: postgresql.NewSearchableQueryFilter(schemaStore, encryptor_base.QueryFilterModeConsistentTokenization),
 		tokenEncryptor:        tokenEncryptor,
 		coder:                 &postgresql.PostgresqlPgQueryDBDataCoder{},
 		schemaStore:           schemaStore,
@@ -70,14 +70,19 @@ func (encryptor *PostgreSQLTokenizeQuery) OnQuery(ctx context.Context, query pos
 			continue
 		}
 
-		if item.Expr.Rexpr.GetAConst() == nil {
+		rExpr := item.Expr.Rexpr.GetAConst()
+		if typeCast := item.Expr.Rexpr.GetTypeCast(); typeCast != nil {
+			rExpr = typeCast.GetArg().GetAConst()
+		}
+
+		if rExpr == nil {
 			logrus.Debugln("expect SQLVal as Right expression for searchable consistent tokenization")
 			continue
 		}
 
 		encryptor.searchableQueryFilter.ChangeSearchableOperator(item.Expr)
 
-		err = postgresql.UpdateExpressionValue(ctx, item.Expr.Rexpr.GetAConst(), encryptor.coder, item.Setting, encryptor.getTokenizerDataWithSetting(item.Setting))
+		err = postgresql.UpdateExpressionValue(ctx, rExpr, encryptor.coder, item.Setting, encryptor.getTokenizerDataWithSetting(item.Setting))
 		if err != nil {
 			logrus.WithError(err).Debugln("Failed to update expression")
 			return query, false, err

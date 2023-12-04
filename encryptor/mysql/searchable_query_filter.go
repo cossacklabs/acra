@@ -29,15 +29,6 @@ import (
 // ErrUnsupportedQueryType represent error related unsupported Query type
 var ErrUnsupportedQueryType = errors.New("unsupported Query type")
 
-// SearchableQueryFilterMode represent the mode work of SearchableQueryFilter
-type SearchableQueryFilterMode int
-
-// QueryFilterModeSearchableEncryption list of supported modes for filtering comparisons for searchable and tokenized values
-const (
-	QueryFilterModeSearchableEncryption = iota
-	QueryFilterModeConsistentTokenization
-)
-
 // SearchableExprItem represent the filtered value found by SearchableQueryFilter
 type SearchableExprItem struct {
 	Expr    *sqlparser.ComparisonExpr
@@ -46,12 +37,12 @@ type SearchableExprItem struct {
 
 // SearchableQueryFilter filter searchable expression based on SearchableQueryFilterMode
 type SearchableQueryFilter struct {
-	mode        SearchableQueryFilterMode
+	mode        base.SearchableQueryFilterMode
 	schemaStore config.TableSchemaStore
 }
 
 // NewSearchableQueryFilter create new SearchableQueryFilter from schemaStore and SearchableQueryFilterMode
-func NewSearchableQueryFilter(schemaStore config.TableSchemaStore, mode SearchableQueryFilterMode) *SearchableQueryFilter {
+func NewSearchableQueryFilter(schemaStore config.TableSchemaStore, mode base.SearchableQueryFilterMode) *SearchableQueryFilter {
 	return &SearchableQueryFilter{
 		schemaStore: schemaStore,
 		mode:        mode,
@@ -135,7 +126,7 @@ func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(stmt sqlpa
 
 		lColumn, ok := comparisonExpr.Left.(*sqlparser.ColName)
 		if !ok {
-			if filter.mode == QueryFilterModeSearchableEncryption {
+			if filter.mode == base.QueryFilterModeSearchableEncryption {
 				// handle case if query was processed by searchable encryptor
 				substrExpr, ok := comparisonExpr.Left.(*sqlparser.SubstrExpr)
 				if !ok {

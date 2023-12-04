@@ -3,13 +3,13 @@ package postgresql
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 
 	pg_query "github.com/Zhaars/pg_query_go/v4"
 	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/decryptor/base"
-	queryEncryptor "github.com/cossacklabs/acra/encryptor/base"
 	"github.com/cossacklabs/acra/encryptor/postgresql"
 	"github.com/cossacklabs/acra/logging"
 )
@@ -24,13 +24,12 @@ var (
 type PreparedStatementsQuery struct {
 	session       base.ClientSession
 	queryObserver postgresql.QueryObserver
-	coder         queryEncryptor.DBDataCoder
 }
 
 // NewPostgresqlPreparedStatementsQuery create new QueryDataEncryptor to handle SQL PreparedStatement in the following format
 // `prepare {prepare_statement_name} (params...) as the sql-query` and `execute  (values...) {prepare_statement_name}`
 func NewPostgresqlPreparedStatementsQuery(session base.ClientSession, queryObserver postgresql.QueryObserver) *PreparedStatementsQuery {
-	return &PreparedStatementsQuery{session: session, queryObserver: queryObserver, coder: &postgresql.DBDataCoder{}}
+	return &PreparedStatementsQuery{session: session, queryObserver: queryObserver}
 }
 
 // ID returns name of this QueryObserver.
@@ -45,6 +44,10 @@ func (encryptor *PreparedStatementsQuery) OnQuery(ctx context.Context, query pos
 	if err != nil {
 		logrus.WithError(err).Debugln("Can't parse SQL statement")
 		return query, false, nil
+	}
+
+	if len(parseResult.Stmts) == 0 {
+		return nil, false, err
 	}
 
 	switch {
@@ -165,22 +168,34 @@ func (encryptor *PreparedStatementsQuery) onExecute(ctx context.Context, parseRe
 				return nil, false, err
 			}
 
-			// TODO: after encryption its possible we need to change a AConst
+			// TODO: potentially we can move this logic to encoder
 			switch {
 			case param.GetAConst().GetSval() != nil:
 				param.GetAConst().GetSval().Sval = string(newValueData)
 			case param.GetAConst().GetIval() != nil:
-				iVal, err := strconv.Atoi(string(newValueData))
-				if err != nil {
-					return nil, false, err
+				if iVal, err := strconv.ParseInt(string(newValueData), 10, 32); err == nil {
+					param.GetAConst().GetIval().Ival = int32(iVal)
+					continue
 				}
-				param.GetAConst().GetIval().Ival = int32(iVal)
+
+				fmt.Println("-----------------------------------========================================")
+				// during tokenization data can come as int32 but with token_type: int64 and after tokenization we should switch the AConst type
+				if _, err := strconv.ParseInt(string(newValueData), 10, 64); err == nil {
+					*param.GetAConst() = pg_query.A_Const{
+						Val: &pg_query.A_Const_Fval{
+							Fval: &pg_query.Float{
+								Fval: string(newValueData),
+							},
+						},
+					}
+				}
 			case param.GetAConst().GetFval() != nil:
 				param.GetAConst().GetFval().Fval = string(newValueData)
 			}
 		}
 	}
 
+	fmt.Println(postgresql.NewOnQueryObjectFromStatement(parseResult).Query())
 	return postgresql.NewOnQueryObjectFromStatement(parseResult), true, nil
 }
 

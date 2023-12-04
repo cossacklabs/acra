@@ -23,7 +23,7 @@ type MySQLTokenizeQuery struct {
 // NewMySQLTokenizeQuery return PostgreSQLTokenizeQuery with coder for mysql
 func NewMySQLTokenizeQuery(schemaStore config.TableSchemaStore, tokenEncryptor *TokenEncryptor) *MySQLTokenizeQuery {
 	return &MySQLTokenizeQuery{
-		searchableQueryFilter: mysql.NewSearchableQueryFilter(schemaStore, mysql.QueryFilterModeConsistentTokenization),
+		searchableQueryFilter: mysql.NewSearchableQueryFilter(schemaStore, encryptor_base.QueryFilterModeConsistentTokenization),
 		tokenEncryptor:        tokenEncryptor,
 		coder:                 &mysql.DBDataCoder{},
 		schemaStore:           schemaStore,

@@ -24,6 +24,15 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 )
 
+// SearchableQueryFilterMode represent the mode work of SearchableQueryFilter
+type SearchableQueryFilterMode int
+
+// QueryFilterModeSearchableEncryption list of supported modes for filtering comparisons for searchable and tokenized values
+const (
+	QueryFilterModeSearchableEncryption = iota
+	QueryFilterModeConsistentTokenization
+)
+
 // DataEncryptorContext store data for DataEncryptor
 type DataEncryptorContext struct {
 	Keystore keystore.DataEncryptorKeyStore

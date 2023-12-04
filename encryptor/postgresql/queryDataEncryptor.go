@@ -104,7 +104,14 @@ func (encryptor *QueryDataEncryptor) encryptInsertQuery(ctx context.Context, ins
 							expr = value.GetTypeCast().GetArg().GetAConst()
 						}
 
-						if changedValue, err := encryptor.encryptExpression(ctx, expr, schema, columnName, bindPlaceholders); err != nil {
+						if value.GetParamRef() != nil && schema.NeedToEncrypt(columnName) {
+							setting := schema.GetColumnEncryptionSettings(columnName)
+							bindPlaceholders[int(value.GetParamRef().GetNumber()-1)] = setting
+							changed = true
+							continue
+						}
+
+						if changedValue, err := encryptor.encryptExpression(ctx, expr, schema, columnName); err != nil {
 							logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptorCantEncryptExpression).WithError(err).Errorln("Can't encrypt expression")
 							return changed, err
 						} else if changedValue {
@@ -133,15 +140,9 @@ func (encryptor *QueryDataEncryptor) encryptInsertQuery(ctx context.Context, ins
 }
 
 // encryptExpression check that expr is SQLVal and has Hexval then try to encrypt
-func (encryptor *QueryDataEncryptor) encryptExpression(ctx context.Context, expr *pg_query.A_Const, schema config.TableSchema, columnName string, bindPlaceholder map[int]config.ColumnEncryptionSetting) (bool, error) {
+func (encryptor *QueryDataEncryptor) encryptExpression(ctx context.Context, expr *pg_query.A_Const, schema config.TableSchema, columnName string) (bool, error) {
 	if schema.NeedToEncrypt(columnName) {
 		setting := schema.GetColumnEncryptionSettings(columnName)
-		//if sqlVal, ok := expr.(*sqlparser.SQLVal); ok {
-		//	placeholderIndex, err := base.ParsePlaceholderIndex(sqlVal)
-		//	if err == nil {
-		//		bindPlaceholder[placeholderIndex] = setting
-		//	}
-		//}
 		err := UpdateExpressionValue(ctx, expr, encryptor.dataCoder, setting, func(ctx context.Context, data []byte) ([]byte, error) {
 			if len(data) == 0 {
 				return data, nil
@@ -195,7 +196,7 @@ func (encryptor *QueryDataEncryptor) encryptUpdateExpressions(ctx context.Contex
 			aConst = resTarget.GetVal().GetTypeCast().GetArg().GetAConst()
 		}
 
-		if changedExpr, err := encryptor.encryptExpression(ctx, aConst, schema, columnName, bindPlaceholders); err != nil {
+		if changedExpr, err := encryptor.encryptExpression(ctx, aConst, schema, columnName); err != nil {
 			logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptorCantEncryptExpression).WithError(err).Errorln("Can't update expression with encrypted sql value")
 			return changed, err
 		} else if changedExpr {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 
 	pg_query "github.com/Zhaars/pg_query_go/v4"
 	"github.com/sirupsen/logrus"
@@ -639,7 +640,7 @@ func ParseSearchQueryPlaceholdersSettings(statement *pg_query.ParseResult, schem
 			//handle case if query was processed by searchable encryptor
 			if funcCall := expr.Lexpr.GetFuncCall(); funcCall != nil {
 				funcName := funcCall.GetFuncname()
-				if len(funcName) == 1 && funcName[0].GetString_().GetSval() == "substring" {
+				if len(funcName) == 1 && strings.HasPrefix(funcName[0].GetString_().GetSval(), SubstrFuncName) {
 					lColumn = funcCall.GetArgs()[0].GetColumnRef()
 				} else {
 					continue
