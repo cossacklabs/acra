@@ -1009,7 +1009,7 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 				WithError(err).Errorln("No prepared statement in registry on execute query")
 			return err
 		}
-		sqlOnQuery = postgresql.NewOnQueryObjectFromQuery(storedStatement.QueryText())
+		sqlOnQuery = postgresql.NewOnQueryObjectFromStatement(storedStatement.Query())
 	}
 
 	encryptionSettings, err := proxy.settingExtractor.GetEncryptorSettingsForQuery(sqlOnQuery)

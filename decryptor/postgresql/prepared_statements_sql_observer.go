@@ -138,11 +138,14 @@ func (encryptor *PreparedStatementsQuery) onExecute(ctx context.Context, parseRe
 		}
 
 		switch {
+		// Sval - represents all strings values on the parser level: string, hex values etc;
 		case param.GetAConst().GetSval() != nil:
 			values = append(values, NewPgBoundValue([]byte(param.GetAConst().GetSval().GetSval()), bindFormatText))
+			// Ival - represents integer values on the parser level but only as int32
 		case param.GetAConst().GetIval() != nil:
 			val := param.GetAConst().GetIval().GetIval()
 			values = append(values, NewPgBoundValue([]byte(strconv.Itoa(int(val))), bindFormatText))
+			// Fval - represents floating values on the parser level, also used for representing big numbers as int64
 		case param.GetAConst().GetFval() != nil:
 			values = append(values, NewPgBoundValue([]byte(param.GetAConst().GetFval().GetFval()), bindFormatText))
 		case param.GetAConst().GetIsnull():
@@ -177,8 +180,6 @@ func (encryptor *PreparedStatementsQuery) onExecute(ctx context.Context, parseRe
 					param.GetAConst().GetIval().Ival = int32(iVal)
 					continue
 				}
-
-				fmt.Println("-----------------------------------========================================")
 				// during tokenization data can come as int32 but with token_type: int64 and after tokenization we should switch the AConst type
 				if _, err := strconv.ParseInt(string(newValueData), 10, 64); err == nil {
 					*param.GetAConst() = pg_query.A_Const{
