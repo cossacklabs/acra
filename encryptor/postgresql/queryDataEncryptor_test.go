@@ -79,7 +79,7 @@ func testParsing(t *testing.T, testData []parserTestData, encryptedValue, defaul
 	if err != nil {
 		t.Fatal(err)
 	}
-	queryEncryptor.dataCoder = &PostgresqlPgQueryDBDataCoder{}
+	queryEncryptor.dataCoder = &PgQueryDBDataCoder{}
 	var dialect dialect.Dialect = postgresql.NewPostgreSQLDialect()
 
 	for i, testCase := range testData {

@@ -38,7 +38,7 @@ var (
 	ErrCursorNotFound    = errors.New("no cursor with given name")
 )
 
-// PgPreparedStatement is a prepared statement, ready to be executed.
+// PreparedStatement is a prepared statement, ready to be executed.
 // It can be either a textual SQL statement from "PREPARE", or a database protocol equivalent.
 type PreparedStatement interface {
 	Name() string

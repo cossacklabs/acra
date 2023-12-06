@@ -14,7 +14,7 @@ import (
 
 // PostgreSQLTokenizeQuery replace tokenized data inside AcraStruct/AcraBlocks and change WHERE conditions to support searchable tokenization
 type PostgreSQLTokenizeQuery struct {
-	coder                 *postgresql.PostgresqlPgQueryDBDataCoder
+	coder                 *postgresql.PgQueryDBDataCoder
 	tokenEncryptor        *TokenEncryptor
 	searchableQueryFilter *postgresql.SearchableQueryFilter
 	schemaStore           config.TableSchemaStore
@@ -25,7 +25,7 @@ func NewPostgresqlTokenizeQuery(schemaStore config.TableSchemaStore, tokenEncryp
 	return &PostgreSQLTokenizeQuery{
 		searchableQueryFilter: postgresql.NewSearchableQueryFilter(schemaStore, encryptor_base.QueryFilterModeConsistentTokenization),
 		tokenEncryptor:        tokenEncryptor,
-		coder:                 &postgresql.PostgresqlPgQueryDBDataCoder{},
+		coder:                 &postgresql.PgQueryDBDataCoder{},
 		schemaStore:           schemaStore,
 	}
 }

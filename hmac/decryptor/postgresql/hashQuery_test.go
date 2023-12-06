@@ -148,7 +148,7 @@ func TestSearchableWithTextFormat(t *testing.T) {
 	encryptor := NewHashQuery(keyStore, schema, registryHandler)
 	dataQueryPart := "test-data"
 
-	coder := &postgresql.PostgresqlPgQueryDBDataCoder{}
+	coder := &postgresql.PgQueryDBDataCoder{}
 
 	type testcase struct {
 		Query string

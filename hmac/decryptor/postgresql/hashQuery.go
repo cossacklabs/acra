@@ -41,7 +41,7 @@ type HashDecryptStore interface {
 type HashQuery struct {
 	keystore              HashDecryptStore
 	searchableQueryFilter *postgresql.SearchableQueryFilter
-	coder                 *postgresql.PostgresqlPgQueryDBDataCoder
+	coder                 *postgresql.PgQueryDBDataCoder
 	decryptor             base.ExtendedDataProcessor
 	schemaStore           config.TableSchemaStore
 }
@@ -49,7 +49,7 @@ type HashQuery struct {
 // NewHashQuery return HashQuery with coder for postgresql
 func NewHashQuery(keystore HashDecryptStore, schemaStore config.TableSchemaStore, processor base.ExtendedDataProcessor) *HashQuery {
 	searchableQueryFilter := postgresql.NewSearchableQueryFilter(schemaStore, queryEncryptor.QueryFilterModeSearchableEncryption)
-	return &HashQuery{keystore: keystore, coder: &postgresql.PostgresqlPgQueryDBDataCoder{}, searchableQueryFilter: searchableQueryFilter, decryptor: processor, schemaStore: schemaStore}
+	return &HashQuery{keystore: keystore, coder: &postgresql.PgQueryDBDataCoder{}, searchableQueryFilter: searchableQueryFilter, decryptor: processor, schemaStore: schemaStore}
 }
 
 // ID returns name of this QueryObserver.

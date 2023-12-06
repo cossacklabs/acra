@@ -43,19 +43,19 @@ func PgEncodeToHexString(data []byte) []byte {
 	return newVal
 }
 
-// PostgresqlPgQueryDBDataCoder responsible to handle decoding/encoding SQL literals before/after QueryEncryptor handlers
+// PgQueryDBDataCoder responsible to handle decoding/encoding SQL literals before/after QueryEncryptor handlers
 //
 // Acra captures SQL queries like `INSERT INTO users (age, username, email, photo) VALUES (123, 'john_wick', 'johnwick@mail.com', '\xaabbcc');`
 // and manipulates with SQL values `123`, `'john_wick'`, `'johnwick@mail.com'`, `'\xaabbcc'`. On first stage Acra
 // decodes with Decode method values from SQL literals into binary or leave as is. For example hex encoded values decoded into binary"
 // `'\xaabbcc'` decoded into []byte{170,187,204} and passed to QueryEncryptor's callbacks `EncryptWithClientID`
 // After that it should be encoded with Encode method from binary form into SQL to replace values in the query.
-type PostgresqlPgQueryDBDataCoder struct{}
+type PgQueryDBDataCoder struct{}
 
 // Decode hex/escaped literals to raw binary values for encryption/decryption. String values left as is because it
 // doesn't need any decoding. Historically Int values had support only for tokenization and operated over string SQL
 // literals.
-func (*PostgresqlPgQueryDBDataCoder) Decode(aConst *pg_query.A_Const, setting config.ColumnEncryptionSetting) ([]byte, error) {
+func (*PgQueryDBDataCoder) Decode(aConst *pg_query.A_Const, setting config.ColumnEncryptionSetting) ([]byte, error) {
 	if sval := aConst.GetSval(); sval != nil {
 		if strings.HasPrefix(sval.GetSval(), "\\x") {
 			// try to decode hex/octal encoding
@@ -112,7 +112,7 @@ func (*PostgresqlPgQueryDBDataCoder) Decode(aConst *pg_query.A_Const, setting co
 }
 
 // Encode data to correct literal from binary data for this expression
-func (*PostgresqlPgQueryDBDataCoder) Encode(aConst *pg_query.A_Const, data []byte, setting config.ColumnEncryptionSetting) error {
+func (*PgQueryDBDataCoder) Encode(aConst *pg_query.A_Const, data []byte, setting config.ColumnEncryptionSetting) error {
 	switch {
 	case aConst.GetFval() != nil:
 		// if type is not byte array, then it probably string or int and we pass printable strings

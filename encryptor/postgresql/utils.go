@@ -552,7 +552,7 @@ func GetTablesWithAliases(tables []*pg_query.Node) []*AliasedTableName {
 }
 
 // UpdateExpressionValue decode value from DB related string to binary format, call updateFunc, encode to DB string format and replace value in expression with new
-func UpdateExpressionValue(ctx context.Context, expr *pg_query.A_Const, coder *PostgresqlPgQueryDBDataCoder, setting config.ColumnEncryptionSetting, updateFunc func(context.Context, []byte) ([]byte, error)) error {
+func UpdateExpressionValue(ctx context.Context, expr *pg_query.A_Const, coder *PgQueryDBDataCoder, setting config.ColumnEncryptionSetting, updateFunc func(context.Context, []byte) ([]byte, error)) error {
 	if expr.GetSval() != nil || expr.GetVal() != nil || expr.GetBoolval() != nil || expr.GetFval() != nil {
 		rawData, err := coder.Decode(expr, setting)
 		if err != nil {

@@ -36,13 +36,13 @@ var ErrUpdateLeaveDataUnchanged = errors.New("updateFunc didn't change data")
 type QueryDataEncryptor struct {
 	schemaStore         config.TableSchemaStore
 	encryptor           base.DataEncryptor
-	dataCoder           *PostgresqlPgQueryDBDataCoder
+	dataCoder           *PgQueryDBDataCoder
 	querySelectSettings []*base.QueryDataItem
 }
 
 // NewQueryEncryptor create QueryDataEncryptor with DBDataCoder
 func NewQueryEncryptor(schema config.TableSchemaStore, dataEncryptor base.DataEncryptor) (*QueryDataEncryptor, error) {
-	return &QueryDataEncryptor{schemaStore: schema, encryptor: dataEncryptor, dataCoder: &PostgresqlPgQueryDBDataCoder{}}, nil
+	return &QueryDataEncryptor{schemaStore: schema, encryptor: dataEncryptor, dataCoder: &PgQueryDBDataCoder{}}, nil
 }
 
 // ID returns name of this QueryObserver.

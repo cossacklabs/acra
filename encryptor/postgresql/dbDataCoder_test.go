@@ -31,7 +31,7 @@ import (
 
 func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 	testData := []byte("some data")
-	coder := &PostgresqlPgQueryDBDataCoder{}
+	coder := &PgQueryDBDataCoder{}
 	testCases := []*pg_query.A_Const{
 		{
 			Val: &pg_query.A_Const_Sval{
@@ -130,7 +130,7 @@ func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 func TestPostgresqlDBDataCoder_Encode(t *testing.T) {
 	testData := make([]byte, 100)
 	rand.Read(testData)
-	coder := &PostgresqlPgQueryDBDataCoder{}
+	coder := &PgQueryDBDataCoder{}
 	testCases := []struct {
 		Expr   *pg_query.A_Const
 		Output []byte
