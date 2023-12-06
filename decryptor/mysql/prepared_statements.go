@@ -19,17 +19,26 @@ import (
 	"github.com/cossacklabs/acra/utils"
 )
 
+// PreparedStatement is a prepared statement, ready to be executed.
+// It can be either a textual SQL statement from "PREPARE", or a database protocol equivalent.
+type PreparedStatement interface {
+	Name() string
+	Query() sqlparser.Statement
+	QueryText() string
+	ParamsNum() int
+}
+
 // ErrStatementNotFound Err returned by prepared statement registry.
 var ErrStatementNotFound = errors.New("no prepared statement with given statement-id")
 
 // PreparedStatementItem represent an item to store in PreparedStatementRegistry
 type PreparedStatementItem struct {
-	stmt                base.PreparedStatement
+	stmt                PreparedStatement
 	querySelectSettings []*encryptor.QueryDataItem
 }
 
 // NewPreparedStatementItem create a new PreparedStatementItem
-func NewPreparedStatementItem(stmt base.PreparedStatement, querySelectSettings []*encryptor.QueryDataItem) PreparedStatementItem {
+func NewPreparedStatementItem(stmt PreparedStatement, querySelectSettings []*encryptor.QueryDataItem) PreparedStatementItem {
 	return PreparedStatementItem{
 		stmt:                stmt,
 		querySelectSettings: querySelectSettings,
@@ -42,7 +51,7 @@ func (r *PreparedStatementItem) Name() string {
 }
 
 // Statement return PreparedStatementItem statememt
-func (r *PreparedStatementItem) Statement() base.PreparedStatement {
+func (r *PreparedStatementItem) Statement() PreparedStatement {
 	return r.stmt
 }
 
@@ -86,8 +95,8 @@ func (r *PreparedStatementRegistry) AddStatement(statement PreparedStatementItem
 	r.statements[statement.Name()] = statement
 }
 
-// PreparedStatement is a MySQL PreparedStatement.
-type PreparedStatement struct {
+// MySQLPreparedStatement is a MySQL PreparedStatement.
+type MySQLPreparedStatement struct {
 	name         string
 	sqlString    string
 	paramsNum    int
@@ -95,8 +104,8 @@ type PreparedStatement struct {
 }
 
 // NewPreparedStatement makes a new prepared statement.
-func NewPreparedStatement(statementID uint32, paramsNum uint16, sqlString string, sqlStatement sqlparser.Statement) *PreparedStatement {
-	return &PreparedStatement{
+func NewPreparedStatement(statementID uint32, paramsNum uint16, sqlString string, sqlStatement sqlparser.Statement) *MySQLPreparedStatement {
+	return &MySQLPreparedStatement{
 		name:         strconv.FormatUint(uint64(statementID), 10),
 		sqlString:    sqlString,
 		sqlStatement: sqlStatement,
@@ -105,8 +114,8 @@ func NewPreparedStatement(statementID uint32, paramsNum uint16, sqlString string
 }
 
 // NewPreparedStatementWithName makes a new prepared statement with name and zero paramsNum
-func NewPreparedStatementWithName(name string, sqlString string, sqlStatement sqlparser.Statement) *PreparedStatement {
-	return &PreparedStatement{
+func NewPreparedStatementWithName(name string, sqlString string, sqlStatement sqlparser.Statement) *MySQLPreparedStatement {
+	return &MySQLPreparedStatement{
 		name:         name,
 		sqlString:    sqlString,
 		sqlStatement: sqlStatement,
@@ -114,22 +123,22 @@ func NewPreparedStatementWithName(name string, sqlString string, sqlStatement sq
 }
 
 // Name return prepared statement name
-func (s *PreparedStatement) Name() string {
+func (s *MySQLPreparedStatement) Name() string {
 	return s.name
 }
 
 // ParamsNum return number of prepared statements params
-func (s *PreparedStatement) ParamsNum() int {
+func (s *MySQLPreparedStatement) ParamsNum() int {
 	return s.paramsNum
 }
 
 // Query returns the prepared query, in its parsed form.
-func (s *PreparedStatement) Query() sqlparser.Statement {
+func (s *MySQLPreparedStatement) Query() sqlparser.Statement {
 	return s.sqlStatement
 }
 
 // QueryText returns sqlString of the prepared query, as provided by the client.
-func (s *PreparedStatement) QueryText() string {
+func (s *MySQLPreparedStatement) QueryText() string {
 	return s.sqlString
 }
 

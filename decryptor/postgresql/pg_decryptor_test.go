@@ -138,11 +138,7 @@ func TestPreparedStatementRegistering(t *testing.T) {
 	}
 	queryObserver := &testOnBindHandler{}
 	proxy.AddQueryObserver(queryObserver)
-	pgRegistry, ok := proxy.session.PreparedStatementRegistry().(*PgPreparedStatementRegistry)
-	if !ok {
-		t.Fatal("Unexpected type of registry")
-	}
-	if len(pgRegistry.statements) != 0 {
+	if len(proxy.registry.statements) != 0 {
 		t.Fatal("Invalid length of registered statements")
 	}
 	logger := logrus.NewEntry(logrus.New())
@@ -159,7 +155,7 @@ func TestPreparedStatementRegistering(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	statement, err := proxy.session.PreparedStatementRegistry().StatementByName("")
+	statement, err := proxy.registry.StatementByName("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +166,7 @@ func TestPreparedStatementRegistering(t *testing.T) {
 		t.Fatalf("'%s' != '%s'\n", parseQuery, statement.QueryText())
 	}
 	// check that after ParsePacket without ParseComplete query already registered
-	if len(pgRegistry.statements) != 1 {
+	if len(proxy.registry.statements) != 1 {
 		t.Fatal("Invalid length of registered statements")
 	}
 
@@ -231,7 +227,7 @@ func TestCorrectColumnToSettingMapping(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	settingExtractor, err := NewEncryptionSettingExtractor(ctx, &config.MapTableSchemaStore{}, parser)
+	settingExtractor, err := NewEncryptionSettingExtractor(ctx, &config.MapTableSchemaStore{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,14 +331,12 @@ func TestMultiplePrepareAtOnce(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-
-	registry := proxy.session.PreparedStatementRegistry()
-	beginStmt, err := registry.StatementByName(beginName)
+	beginStmt, err := proxy.registry.StatementByName(beginName)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	selectStmt, err := registry.StatementByName(selectName)
+	selectStmt, err := proxy.registry.StatementByName(selectName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -456,18 +450,17 @@ func TestMultiplePrepareAtOnceWithError(t *testing.T) {
 		}
 	}
 
-	registry := proxy.session.PreparedStatementRegistry()
-	beginStmt, err := registry.StatementByName(beginName)
+	beginStmt, err := proxy.registry.StatementByName(beginName)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	selectStmt, err := registry.StatementByName(selectName)
+	selectStmt, err := proxy.registry.StatementByName(selectName)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = registry.StatementByName(failName)
+	_, err = proxy.registry.StatementByName(failName)
 	if err == nil {
 		t.Fatalf("%q exists but shouldn't", failName)
 	}

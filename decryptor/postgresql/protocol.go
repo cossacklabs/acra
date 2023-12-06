@@ -18,8 +18,6 @@ package postgresql
 
 import (
 	log "github.com/sirupsen/logrus"
-
-	"github.com/cossacklabs/acra/decryptor/base"
 )
 
 type queryPacket struct {
@@ -72,7 +70,7 @@ type PgProtocolState struct {
 	// collect queries from the application that waiting DataRows from the database to correctly map settings of
 	// transparent encryption and type awareness to the result rows
 	pendingQueryPackets *pendingPacketsList
-	registry            base.PreparedStatementRegistry
+	registry            *PgPreparedStatementRegistry
 }
 
 // PacketType describes how to handle a message packet.
@@ -94,7 +92,7 @@ const (
 )
 
 // NewPgProtocolState makes an initial PostgreSQL state, awaiting for queries.
-func NewPgProtocolState(registry base.PreparedStatementRegistry) *PgProtocolState {
+func NewPgProtocolState(registry *PgPreparedStatementRegistry) *PgProtocolState {
 	return &PgProtocolState{lastPacketType: OtherPacket, pendingQueryPackets: newPendingPacketsList(), registry: registry}
 }
 

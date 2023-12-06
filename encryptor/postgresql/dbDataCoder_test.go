@@ -18,6 +18,7 @@ package postgresql
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"testing"
@@ -126,38 +127,62 @@ func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 	}
 }
 
-//
-//func TestPostgresqlDBDataCoder_Encode(t *testing.T) {
-//	testData := make([]byte, 100)
-//	rand.Read(testData)
-//	coder := &PostgresqlPgQueryDBDataCoder{}
-//	testCases := []struct {
-//		Expr   sqlparser.Expr
-//		Output []byte
-//	}{
-//		{
-//			Output: []byte(hex.EncodeToString(testData)),
-//			Expr:   sqlparser.NewHexVal([]byte(hex.EncodeToString(testData))),
-//		},
-//		{
-//			Output: []byte(fmt.Sprintf("\\x%s", hex.EncodeToString(testData))),
-//			Expr:   sqlparser.NewStrVal(testData),
-//		},
-//		{
-//			Output: utils.EncodeToOctal(testData),
-//			Expr:   sqlparser.NewPgEscapeString(utils.EncodeToOctal(testData)),
-//		},
-//	}
-//	for _, testCase := range testCases {
-//		coded, err := coder.Encode(testCase.Expr, testData, &config.BasicColumnEncryptionSetting{})
-//		if err != nil {
-//			t.Fatal(err)
-//		}
-//		if !bytes.Equal(coded, testCase.Output) {
-//			t.Fatalf("Expr: %s\nTook: %s\nExpected: %s", sqlparser.String(testCase.Expr), string(coded), string(testCase.Output))
-//		}
-//	}
-//	if _, err := coder.Encode(sqlparser.NewFloatVal([]byte{1}), testData, &config.BasicColumnEncryptionSetting{}); err != base.ErrUnsupportedExpression {
-//		t.Fatalf("Incorrect error. Took: %s; Expected: %s", err.Error(), base.ErrUnsupportedExpression.Error())
-//	}
-//}
+func TestPostgresqlDBDataCoder_Encode(t *testing.T) {
+	testData := make([]byte, 100)
+	rand.Read(testData)
+	coder := &PostgresqlPgQueryDBDataCoder{}
+	testCases := []struct {
+		Expr   *pg_query.A_Const
+		Output []byte
+	}{
+		{
+			Output: PgEncodeToHexString(testData),
+			Expr: &pg_query.A_Const{
+				Val: &pg_query.A_Const_Sval{
+					Sval: &pg_query.String{
+						Sval: hex.EncodeToString(testData),
+					},
+				},
+			},
+		},
+		{
+			Output: []byte(fmt.Sprintf("\\x%s", hex.EncodeToString(testData))),
+			Expr: &pg_query.A_Const{
+				Val: &pg_query.A_Const_Sval{
+					Sval: &pg_query.String{
+						Sval: string(testData),
+					},
+				},
+			},
+		},
+		{
+			Output: []byte(fmt.Sprintf("\\x%s", hex.EncodeToString(testData))),
+			Expr: &pg_query.A_Const{
+				Val: &pg_query.A_Const_Sval{
+					Sval: &pg_query.String{
+						Sval: string(testData),
+					},
+				},
+			},
+		},
+		{
+			Output: []byte(fmt.Sprintf("\\x%s", hex.EncodeToString(testData))),
+			Expr: &pg_query.A_Const{
+				Val: &pg_query.A_Const_Fval{
+					Fval: &pg_query.Float{
+						Fval: string([]byte{1}),
+					},
+				},
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		err := coder.Encode(testCase.Expr, testData, &config.BasicColumnEncryptionSetting{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal([]byte(testCase.Expr.GetSval().Sval), testCase.Output) {
+			t.Fatalf("Expr: %s\nTook: %s\nExpected: %s", testCase.Expr.String(), string(testData), string(testCase.Output))
+		}
+	}
+}

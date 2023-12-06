@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"net"
 
-	pg_query "github.com/Zhaars/pg_query_go/v4"
 	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/encryptor/base/config"
@@ -107,6 +106,11 @@ func NewProxySetting(parser *sqlparser.Parser, tableSchema config.TableSchemaSto
 	}
 }
 
+// ProxyFactory create new Proxy for specific database
+type ProxyFactory interface {
+	New(clientID []byte, clientSession ClientSession) (Proxy, error)
+}
+
 // Proxy interface to process client's requests to database and responses
 type Proxy interface {
 	ClientIDObservable
@@ -140,47 +144,6 @@ func (wrapper *proxyTLSConnectionWrapper) WrapClientConnection(ctx context.Conte
 }
 func (wrapper *proxyTLSConnectionWrapper) UseConnectionClientID() bool {
 	return wrapper.useConnectionClientID
-}
-
-// ProxyFactory create new Proxy for specific database
-type ProxyFactory interface {
-	New(clientID []byte, clientSession ClientSession) (Proxy, error)
-}
-
-// PreparedStatementRegistry keeps track of active prepared statements and cursors within a ClientSession.
-type PreparedStatementRegistry interface {
-	AddStatement(statement PgPreparedStatement) error
-	DeleteStatement(name string) error
-	StatementByName(name string) (PgPreparedStatement, error)
-
-	AddCursor(cursor Cursor) error
-	DeleteCursor(name string) error
-	CursorByName(name string) (Cursor, error)
-}
-
-// PreparedStatement is a prepared statement, ready to be executed.
-// It can be either a textual SQL statement from "PREPARE", or a database protocol equivalent.
-type PreparedStatement interface {
-	Name() string
-	Query() sqlparser.Statement
-	QueryText() string
-	ParamsNum() int
-}
-
-// PgPreparedStatement is a prepared statement, ready to be executed.
-// It can be either a textual SQL statement from "PREPARE", or a database protocol equivalent.
-type PgPreparedStatement interface {
-	Name() string
-	Query() *pg_query.ParseResult
-	QueryText() string
-	ParamsNum() int
-}
-
-// Cursor is used to iterate over a prepared statement.
-// It can be either a textual SQL statement from "DEFINE CURSOR", or a database protocol equivalent.
-type Cursor interface {
-	Name() string
-	PreparedStatement() PgPreparedStatement
 }
 
 const (

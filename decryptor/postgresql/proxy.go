@@ -162,7 +162,7 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 	}
 
 	observerManager.AddQueryObserver(queryEncryptor)
-	preparedStatementsEncryptor := NewPostgresqlPreparedStatementsQuery(proxy.session, observerManager)
+	preparedStatementsEncryptor := NewPostgresqlPreparedStatementsQuery(proxy.registry, observerManager)
 
 	proxy.AddQueryObserver(preparedStatementsEncryptor)
 	proxy.AddQueryObserver(observerManager)
@@ -170,6 +170,5 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 	// register last to encode all data into correct format according to client/database requested formats
 	// and ColumnEncryptionSetting
 	proxy.SubscribeOnAllColumnsDecryption(encoderProcessor)
-
 	return proxy, nil
 }

@@ -139,7 +139,7 @@ type EncryptionSettingExtractor struct {
 }
 
 // NewEncryptionSettingExtractor returns new initialized EncryptionSettingExtractor
-func NewEncryptionSettingExtractor(ctx context.Context, schema config.TableSchemaStore, parser *sqlparser.Parser) (EncryptionSettingExtractor, error) {
+func NewEncryptionSettingExtractor(ctx context.Context, schema config.TableSchemaStore) (EncryptionSettingExtractor, error) {
 	queryEncryptor, err := postgresql.NewQueryEncryptor(schema, nil)
 	if err != nil {
 		return EncryptionSettingExtractor{}, err
@@ -174,6 +174,7 @@ type PgProxy struct {
 	clientIDObserverManager base.ClientIDObservableManager
 	parser                  *sqlparser.Parser
 	settingExtractor        EncryptionSettingExtractor
+	registry                *PgPreparedStatementRegistry
 }
 
 // NewPgProxy returns new PgProxy
@@ -186,10 +187,9 @@ func NewPgProxy(session base.ClientSession, parser *sqlparser.Parser, setting ba
 	if err != nil {
 		return nil, err
 	}
-	if session.PreparedStatementRegistry() == nil {
-		session.SetPreparedStatementRegistry(NewPreparedStatementRegistry())
-	}
+	var preparedStatementRegistry = NewPreparedStatementRegistry()
 	var protocolState *PgProtocolState
+
 	if session.ProtocolState() != nil {
 		var ok bool
 		protocolState, ok = session.ProtocolState().(*PgProtocolState)
@@ -197,10 +197,10 @@ func NewPgProxy(session base.ClientSession, parser *sqlparser.Parser, setting ba
 			return nil, ErrInvalidProtocolState
 		}
 	} else {
-		protocolState = NewPgProtocolState(session.PreparedStatementRegistry())
+		protocolState = NewPgProtocolState(preparedStatementRegistry)
 		session.SetProtocolState(protocolState)
 	}
-	settingExtractor, err := NewEncryptionSettingExtractor(session.Context(), setting.TableSchemaStore(), setting.SQLParser())
+	settingExtractor, err := NewEncryptionSettingExtractor(session.Context(), setting.TableSchemaStore())
 	if err != nil {
 		return nil, err
 	}
@@ -218,6 +218,7 @@ func NewPgProxy(session base.ClientSession, parser *sqlparser.Parser, setting ba
 		clientIDObserverManager: clientIDObserverManager,
 		parser:                  parser,
 		settingExtractor:        settingExtractor,
+		registry:                preparedStatementRegistry,
 	}, nil
 }
 
@@ -506,8 +507,7 @@ func (proxy *PgProxy) handleBindPacket(ctx context.Context, packet *PacketHandle
 	// There must be previously registered prepared statement with requested name. If there isn't
 	// it's likely due to a client error. Print a warning and let the packet through as is.
 	// We can't do anything with it and the database should respond with an error.
-	registry := proxy.session.PreparedStatementRegistry()
-	statement, err := registry.StatementByName(bind.StatementName())
+	statement, err := proxy.registry.StatementByName(bind.StatementName())
 	if err != nil {
 		logger.WithError(err).Error("Failed to handle Bind packet: can't find prepared statement")
 		return false, nil
@@ -989,7 +989,7 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 	sqlQuery := pendingPacket.(queryPacket).GetSQLQuery()
 
 	sqlOnQuery := postgresql.NewOnQueryObjectFromQuery(sqlQuery)
-	sqlStmt, err := proxy.parser.Parse(sqlQuery)
+	sqlStmt, err := pg_query.Parse(sqlQuery)
 	if err != nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
 			WithError(err).Errorln("Failed to parse SQL query")
@@ -1000,10 +1000,9 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 	// prepare some_name (params...) as insert into some_table(id, ...) values($1,...)
 	// so we need to read prepared statement from registry and use its inner query (insert into some_table(id, ...) values($1,...))
 	// for processing in `onColumnDecryption`
-	if executeStmt, ok := sqlStmt.(*sqlparser.Execute); ok {
-		preparedStatementRegistry := proxy.session.PreparedStatementRegistry()
-
-		storedStatement, err := preparedStatementRegistry.StatementByName(executeStmt.PreparedStatementName.String())
+	if len(sqlStmt.Stmts) > 0 && sqlStmt.Stmts[0].Stmt.GetExecuteStmt() != nil {
+		var executeQuery = sqlStmt.Stmts[0].Stmt.GetExecuteStmt()
+		storedStatement, err := proxy.registry.StatementByName(executeQuery.GetName())
 		if err != nil {
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
 				WithError(err).Errorln("No prepared statement in registry on execute query")
@@ -1011,7 +1010,6 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 		}
 		sqlOnQuery = postgresql.NewOnQueryObjectFromStatement(storedStatement.Query())
 	}
-
 	encryptionSettings, err := proxy.settingExtractor.GetEncryptorSettingsForQuery(sqlOnQuery)
 	if err != nil {
 		logger.WithError(err).Warningln("Can't extract encryption settings from the query")
@@ -1081,8 +1079,7 @@ func (proxy *PgProxy) registerPreparedStatement(packet *PacketHandler, preparedS
 			},
 		},
 	})
-	registry := proxy.session.PreparedStatementRegistry()
-	err = registry.AddStatement(statement)
+	err = proxy.registry.AddStatement(statement)
 	if err != nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 			WithError(err).Errorln("Failed to add prepared statement")
@@ -1129,10 +1126,9 @@ func replaceOIDsInParsePackets(ctx context.Context, packet *PacketHandler, prepa
 }
 
 func (proxy *PgProxy) registerCursor(bindPacket *BindPacket, logger *log.Entry) error {
-	registry := proxy.session.PreparedStatementRegistry()
 	// There should be a statement with the specified name, the database confirmed it.
 	statementName := bindPacket.StatementName()
-	preparedStatement, err := registry.StatementByName(statementName)
+	preparedStatement, err := proxy.registry.StatementByName(statementName)
 	if err != nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 			WithError(err).Errorln("Failed to add cursor")
@@ -1140,7 +1136,7 @@ func (proxy *PgProxy) registerCursor(bindPacket *BindPacket, logger *log.Entry) 
 	}
 	// Cursors are called portals in PostgreSQL.
 	cursor := NewPortal(bindPacket, preparedStatement)
-	err = registry.AddCursor(cursor)
+	err = proxy.registry.AddCursor(cursor)
 	if err != nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 			WithError(err).Errorln("Failed to add cursor")

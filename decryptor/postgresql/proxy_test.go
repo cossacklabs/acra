@@ -149,11 +149,11 @@ func (stubSession) DatabaseConnection() net.Conn {
 	return nil
 }
 
-func (stubSession) PreparedStatementRegistry() base.PreparedStatementRegistry {
+func (stubSession) PreparedStatementRegistry() *PgPreparedStatementRegistry {
 	return nil
 }
 
-func (stubSession) SetPreparedStatementRegistry(registry base.PreparedStatementRegistry) {
+func (stubSession) SetPreparedStatementRegistry(registry *PgPreparedStatementRegistry) {
 }
 
 func (stubSession) ProtocolState() interface{} {

@@ -22,14 +22,14 @@ var (
 
 // PreparedStatementsQuery QueryDataEncryptor process PostgreSQL SQL PreparedStatement
 type PreparedStatementsQuery struct {
-	session       base.ClientSession
+	registry      *PgPreparedStatementRegistry
 	queryObserver postgresql.QueryObserver
 }
 
 // NewPostgresqlPreparedStatementsQuery create new QueryDataEncryptor to handle SQL PreparedStatement in the following format
 // `prepare {prepare_statement_name} (params...) as the sql-query` and `execute  (values...) {prepare_statement_name}`
-func NewPostgresqlPreparedStatementsQuery(session base.ClientSession, queryObserver postgresql.QueryObserver) *PreparedStatementsQuery {
-	return &PreparedStatementsQuery{session: session, queryObserver: queryObserver}
+func NewPostgresqlPreparedStatementsQuery(registry *PgPreparedStatementRegistry, queryObserver postgresql.QueryObserver) *PreparedStatementsQuery {
+	return &PreparedStatementsQuery{registry: registry, queryObserver: queryObserver}
 }
 
 // ID returns name of this QueryObserver.
@@ -67,10 +67,9 @@ func (encryptor *PreparedStatementsQuery) onPrepare(ctx context.Context, parseRe
 
 	var prepareQuery = parseResult.Stmts[0].Stmt.GetPrepareStmt()
 	var preparedStatementName = prepareQuery.GetName()
-	var registry = encryptor.session.PreparedStatementRegistry()
 
 	// PostgreSQL allows create statement only once during the session
-	if _, err := registry.StatementByName(preparedStatementName); err == nil {
+	if _, err := encryptor.registry.StatementByName(preparedStatementName); err == nil {
 		logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 			WithError(err).Errorln("PreparedStatement already stored in registry")
 		return nil, false, ErrStatementAlreadyInRegistry
@@ -91,7 +90,7 @@ func (encryptor *PreparedStatementsQuery) onPrepare(ctx context.Context, parseRe
 
 	var preparedStatement = NewPreparedStatement(preparedStatementName, stmtText, prepareParseResult)
 
-	if err := registry.AddStatement(preparedStatement); err != nil {
+	if err := encryptor.registry.AddStatement(preparedStatement); err != nil {
 		logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 			WithError(err).Errorln("Failed to add prepared statement")
 		return nil, false, err
@@ -121,9 +120,8 @@ func (encryptor *PreparedStatementsQuery) onExecute(ctx context.Context, parseRe
 
 	var executeQuery = parseResult.Stmts[0].Stmt.GetExecuteStmt()
 	var preparedStatementName = executeQuery.GetName()
-	var registry = encryptor.session.PreparedStatementRegistry()
 
-	preparedStatement, err := registry.StatementByName(preparedStatementName)
+	preparedStatement, err := encryptor.registry.StatementByName(preparedStatementName)
 	if err != nil {
 		logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 			WithError(err).Errorln("PreparedStatement not present in registry")
@@ -201,16 +199,15 @@ func (encryptor *PreparedStatementsQuery) onExecute(ctx context.Context, parseRe
 }
 
 func (encryptor *PreparedStatementsQuery) onDeallocate(ctx context.Context, parseResult *pg_query.ParseResult) (postgresql.OnQueryObject, bool, error) {
-	var registry = encryptor.session.PreparedStatementRegistry()
 	var preparedStatementName = parseResult.Stmts[0].Stmt.GetDeallocateStmt().GetName()
 
-	if _, err := registry.StatementByName(preparedStatementName); err != nil {
+	if _, err := encryptor.registry.StatementByName(preparedStatementName); err != nil {
 		logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 			WithError(err).Errorln("PreparedStatement not present in registry")
 		return nil, false, ErrStatementNotPresentInRegistry
 	}
 
-	return nil, false, registry.DeleteStatement(preparedStatementName)
+	return nil, false, encryptor.registry.DeleteStatement(preparedStatementName)
 }
 
 // OnBind just a stub method of QueryObserver of  PreparedStatementsQuery
