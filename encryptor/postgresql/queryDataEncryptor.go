@@ -191,12 +191,12 @@ func (encryptor *QueryDataEncryptor) encryptUpdateExpressions(ctx context.Contex
 			continue
 		}
 
-		aConst := resTarget.GetVal().GetAConst()
+		colValue := resTarget.GetVal().GetAConst()
 		if resTarget.GetVal().GetTypeCast() != nil {
-			aConst = resTarget.GetVal().GetTypeCast().GetArg().GetAConst()
+			colValue = resTarget.GetVal().GetTypeCast().GetArg().GetAConst()
 		}
 
-		if changedExpr, err := encryptor.encryptExpression(ctx, aConst, schema, columnName); err != nil {
+		if changedExpr, err := encryptor.encryptExpression(ctx, colValue, schema, columnName); err != nil {
 			logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptorCantEncryptExpression).WithError(err).Errorln("Can't update expression with encrypted sql value")
 			return changed, err
 		} else if changedExpr {
@@ -231,8 +231,7 @@ func (encryptor *QueryDataEncryptor) encryptUpdateQuery(ctx context.Context, upd
 	qualifierMap := NewAliasToTableMapFromTables(tables)
 	firstTable := tables[0].TableName
 
-	// MySQL/MariaDB don`t support returning after update statements
-	// Postgres doest but expect only one table in tables expression, but also can have more tables in FROM statement
+	// it is expected only one table in returning tables expression, but also can have more tables in FROM statement
 	if encryptor.encryptor == nil && len(update.ReturningList) > 0 {
 		return false, encryptor.onReturning(ctx, update.ReturningList, append(update.FromClause, &pg_query.Node{
 			Node: &pg_query.Node_RangeVar{
@@ -267,7 +266,7 @@ func (encryptor *QueryDataEncryptor) onSelect(ctx context.Context, statement *pg
 	if err != nil {
 		return false, err
 	}
-	//
+
 	clientSession := decryptor.ClientSessionFromContext(ctx)
 	base.SaveQueryDataItemsToClientSession(clientSession, querySelectSettings)
 
@@ -345,7 +344,7 @@ func (encryptor *QueryDataEncryptor) onReturning(ctx context.Context, returning 
 				tableName := table.GetRangeVar().GetRelname()
 				// if the Returning is star and we have more than one table in the query e.g.
 				// update table1 set did = tt.did from table2 as tt returning *
-				// and the table is not in the encryptor config we cant collect corresponding querySettings as we dont actual table representation
+				// and the table is not in the encryptor config we cant collect corresponding querySettings as we don't have actual table representation
 				tableSchema := encryptor.schemaStore.GetTableSchema(tableName)
 				if tableSchema == nil {
 					logrus.WithField("table", tableName).Info("Unable to collect querySettings for table not in encryptor config")
@@ -545,9 +544,9 @@ func (encryptor *QueryDataEncryptor) encryptInsertValues(ctx context.Context, in
 	// These clauses are handled for textual queries. It would be nice to encrypt
 	// any prepared statement parameters that are used there as well.
 	// See "encryptInsertQuery" for reference.
-	//if len(insert.OnDup) > 0 {
-	//	logrus.Warning("ON DUPLICATE KEY UPDATE is not supported in prepared statements")
-	//}
+	if insert.OnConflictClause != nil {
+		logrus.Warning("ON CONFLICT DO UPDATE is not supported in prepared statements")
+	}
 
 	// Now that we know the placeholder mapping,
 	// encrypt the values inserted into encrypted columns.

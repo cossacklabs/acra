@@ -3,7 +3,6 @@ package postgresql
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strconv"
 
 	pg_query "github.com/Zhaars/pg_query_go/v4"
@@ -169,7 +168,6 @@ func (encryptor *PreparedStatementsQuery) onExecute(ctx context.Context, parseRe
 				return nil, false, err
 			}
 
-			// TODO: potentially we can move this logic to encoder
 			switch {
 			case param.GetAConst().GetSval() != nil:
 				param.GetAConst().GetSval().Sval = string(newValueData)
@@ -194,7 +192,6 @@ func (encryptor *PreparedStatementsQuery) onExecute(ctx context.Context, parseRe
 		}
 	}
 
-	fmt.Println(postgresql.NewOnQueryObjectFromStatement(parseResult).Query())
 	return postgresql.NewOnQueryObjectFromStatement(parseResult), true, nil
 }
 

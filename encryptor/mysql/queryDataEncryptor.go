@@ -291,7 +291,7 @@ func (encryptor *QueryDataEncryptor) onReturning(ctx context.Context, returning 
 
 			// if the Returning is star and we have more than one table in the query e.g.
 			// update table1 set did = tt.did from table2 as tt returning *
-			// and the table is not in the encryptor config we cant collect corresponding querySettings as we dont actual table representation
+			// and the table is not in the encryptor config we cant collect corresponding querySettings as we don't have actual table representation
 			tableSchema := encryptor.schemaStore.GetTableSchema(tableName.Name.ValueForConfig())
 			if tableSchema == nil {
 				logrus.WithField("table", tableName.Name.ValueForConfig()).Info("Unable to collect querySettings for table not in encryptor config")

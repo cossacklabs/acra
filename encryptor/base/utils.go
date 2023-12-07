@@ -76,9 +76,7 @@ const PlaceholdersSettingKey = "bind_encryption_settings"
 func PlaceholderSettingsFromClientSession(session decryptor.ClientSession) map[int]config.ColumnEncryptionSetting {
 	data, ok := session.GetData(PlaceholdersSettingKey)
 	if !ok {
-		//logger := logging.GetLoggerFromContext(session.Context())
 		value := bindPlaceholdersPool.Get().(map[int]config.ColumnEncryptionSetting)
-		//logger.WithField("session", session).WithField("value", value).Debugln("Create placeholders")
 		session.SetData(PlaceholdersSettingKey, value)
 		return value
 	}

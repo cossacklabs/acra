@@ -58,9 +58,6 @@ func (queryPacket queryPacket) zeroize() {
 		queryPacket.executePacket.Zeroize()
 		queryPacket.bindPacket.Zeroize()
 		queryPacket.preparedStatement.text = ""
-		// TODO: fixme
-		//bv := map[string]*querypb.BindVariable{}
-		//sqlparser.Normalize(queryPacket.preparedStatement.sql, bv, sqlparser.ValueMask)
 	}
 }
 

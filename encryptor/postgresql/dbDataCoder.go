@@ -19,7 +19,6 @@ package postgresql
 import (
 	"encoding/hex"
 	"strconv"
-	"strings"
 
 	pg_query "github.com/Zhaars/pg_query_go/v4"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -57,24 +56,6 @@ type PgQueryDBDataCoder struct{}
 // literals.
 func (*PgQueryDBDataCoder) Decode(aConst *pg_query.A_Const, setting config.ColumnEncryptionSetting) ([]byte, error) {
 	if sval := aConst.GetSval(); sval != nil {
-		if strings.HasPrefix(sval.GetSval(), "\\x") {
-			// try to decode hex/octal encoding
-			binValue, err := utils.DecodeEscaped([]byte(sval.GetSval()))
-			if err != nil && err != utils.ErrDecodeOctalString {
-				// return error on hex decode
-				if _, ok := err.(hex.InvalidByteError); err == hex.ErrLength || ok {
-					return nil, err
-				} else if err == utils.ErrDecodeOctalString {
-					return nil, err
-				}
-
-				logrus.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeSQLValue).Warningln("Can't decode value, process as unescaped string")
-				// return value as is because it may be string with printable characters that wasn't encoded on client
-				return []byte(sval.GetSval()), nil
-			}
-			return binValue, nil
-		}
-
 		// simple strings should be handled as is
 		typeID := setting.GetDBDataTypeID()
 		if typeID != 0 && typeID != pgtype.ByteaOID {
