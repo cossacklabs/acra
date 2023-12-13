@@ -46,7 +46,7 @@ schemas:
 		}
 
 		var lColumn = expr.Lexpr.GetColumnRef()
-		if expr.Lexpr.GetColumnRef() == nil {
+		if lColumn == nil {
 			//handle case if query was processed by searchable encryptor
 			if funcCall := expr.Lexpr.GetFuncCall(); funcCall != nil {
 				funcName := funcCall.GetFuncname()

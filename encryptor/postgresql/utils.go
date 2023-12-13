@@ -96,7 +96,7 @@ func MapColumnsToAliases(selectQuery *pg_query.SelectStmt, tableSchemaStore conf
 
 	if len(selectQuery.FromClause) > 0 {
 		if joinExp := selectQuery.FromClause[0].GetJoinExpr(); joinExp != nil {
-			joinTables = make([]string, 0)
+			joinTables = make([]string, 0, 1)
 			joinAliases = make(map[string]string)
 
 			if ok := parseJoinTablesInfo(joinExp, &joinTables, joinAliases); !ok {
@@ -424,12 +424,6 @@ func parseJoinTablesInfo(joinExp *pg_query.JoinExpr, tables *[]string, aliases m
 			return false
 		}
 
-		//	_, ok = aliased.Expr.(*sqlparser.Subquery)
-		//	if ok {
-		//		//  add subquery processing if needed
-		//		return true
-		//	}
-
 		var tableName = larg.GetRangeVar().GetRelname()
 		var alias = tableName
 
@@ -553,7 +547,7 @@ func GetTablesWithAliases(tables []*pg_query.Node) []*AliasedTableName {
 
 // UpdateExpressionValue decode value from DB related string to binary format, call updateFunc, encode to DB string format and replace value in expression with new
 func UpdateExpressionValue(ctx context.Context, expr *pg_query.A_Const, coder *PgQueryDBDataCoder, setting config.ColumnEncryptionSetting, updateFunc func(context.Context, []byte) ([]byte, error)) error {
-	if expr.GetSval() != nil || expr.GetVal() != nil || expr.GetBoolval() != nil || expr.GetFval() != nil {
+	if expr.GetSval() != nil || expr.GetVal() != nil || expr.GetFval() != nil {
 		rawData, err := coder.Decode(expr, setting)
 		if err != nil {
 			if err == utils.ErrDecodeOctalString || err == base.ErrUnsupportedExpression {
@@ -636,7 +630,7 @@ func ParseSearchQueryPlaceholdersSettings(statement *pg_query.ParseResult, schem
 		}
 
 		var lColumn = expr.Lexpr.GetColumnRef()
-		if expr.Lexpr.GetColumnRef() == nil {
+		if lColumn == nil {
 			//handle case if query was processed by searchable encryptor
 			if funcCall := expr.Lexpr.GetFuncCall(); funcCall != nil {
 				funcName := funcCall.GetFuncname()

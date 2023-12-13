@@ -241,18 +241,20 @@ func TestSearchableWithJoinsWithTextFormat(t *testing.T) {
 
 	type testcase struct {
 		Query string
+		// count of WHERE statements, each JOIN ON represent the WHERE statement as well
+		WhereCount int
 	}
 
 	testcases := []testcase{
-		{Query: "SELECT * FROM table1 t1 inner join test_table t2 on t2.test= t1.test inner join test_table_2 t3 on t2.data1=t3.data1"},
-		{Query: "SELECT * FROM table1 inner join test_table on table1.test = test_table.test  inner join test_table_2 on test_table.data1=test_table_2.data1"},
-		{Query: "SELECT * FROM table1 inner join test_table t1 on t1.test = table1.test inner join test_table_2 on t1.data1=test_table_2.data1"},
-		{Query: "SELECT * FROM test_table as t1 join some_table_1 on some_table_1.test = test_table.test join some_table_2 on some_table_2.test = some_table_1.test join test_table_2 on t1.data1=test_table_2.data1"},
-		{Query: "SELECT * FROM table1 t1 inner join test_table_2 t3 on t3.data1='some_data'"},
-		{Query: "SELECT * FROM test_table_2 inner join table1 t2 on data2='some_data'"},
-		{Query: "SELECT * FROM test_table inner join test_table_2 t2 on data1='some_data'"},
-		{Query: "SELECT value1 FROM test_table t1, test_table_2 where t1.data1='some_data'"},
-		{Query: "SELECT value1 FROM test as tt, test_table_2 t2, test_table where data2='some_data'"},
+		{Query: "SELECT * FROM table1 t1 inner join test_table t2 on t2.test= t1.test inner join test_table_2 t3 on t2.data1=t3.data1", WhereCount: 2},
+		{Query: "SELECT * FROM table1 inner join test_table on table1.test = test_table.test  inner join test_table_2 on test_table.data1=test_table_2.data1", WhereCount: 2},
+		{Query: "SELECT * FROM table1 inner join test_table t1 on t1.test = table1.test inner join test_table_2 on t1.data1=test_table_2.data1", WhereCount: 2},
+		{Query: "SELECT * FROM test_table as t1 join some_table_1 on some_table_1.test = test_table.test join some_table_2 on some_table_2.test = some_table_1.test join test_table_2 on t1.data1=test_table_2.data1", WhereCount: 3},
+		{Query: "SELECT * FROM table1 t1 inner join test_table_2 t3 on t3.data1='some_data'", WhereCount: 1},
+		{Query: "SELECT * FROM test_table_2 inner join table1 t2 on data2='some_data'", WhereCount: 1},
+		{Query: "SELECT * FROM test_table inner join test_table_2 t2 on data1='some_data'", WhereCount: 1},
+		{Query: "SELECT value1 FROM test_table t1, test_table_2 where t1.data1='some_data'", WhereCount: 1},
+		{Query: "SELECT value1 FROM test as tt, test_table_2 t2, test_table where data2='some_data'", WhereCount: 1},
 	}
 
 	encryptors := []*HashQuery{NewHashQuery(keyStore, schema, registryHandler)}
@@ -269,7 +271,7 @@ func TestSearchableWithJoinsWithTextFormat(t *testing.T) {
 
 			whereStatements, err := postgresql.GetWhereStatements(parseResult)
 			assert.NoError(t, err)
-			assert.True(t, len(whereStatements) > 0)
+			assert.Equal(t, len(whereStatements), tcase.WhereCount)
 
 			for _, whereExp := range whereStatements {
 				if whereExp == nil {

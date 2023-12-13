@@ -162,7 +162,7 @@ func MapColumnsToAliases(selectQuery *sqlparser.Select, tableSchemaStore config.
 	var joinAliases map[string]string
 
 	if joinExp, ok := selectQuery.From[0].(*sqlparser.JoinTableExpr); ok {
-		joinTables = make([]string, 0)
+		joinTables = make([]string, 0, 1)
 		joinAliases = make(map[string]string)
 
 		if ok := parseJoinTablesInfo(joinExp, &joinTables, joinAliases); !ok {

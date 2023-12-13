@@ -242,11 +242,6 @@ schemas:
 			`select t1.number AS t1_number, t2.number, t3.number, t4.number from (select * from tablex) AS t JOIN (table1 AS t1 JOIN table2 AS t2 ON t1.id = t2.exam_type_id)  ON t.version_id =
 				             t1.version_id JOIN (table3 AS t3 JOIN table4 AS t4 ON t3.id = t4.exam_type_id) ON t.version_id =
 				             t3.version_id`,
-
-			// case with multiple table JOIN block with more tables inside
-			// not valid PostgreSQL query
-			//`select t1.number AS t1_number, t2.number, t3.number, t4.number from (select * from tablex) AS t JOIN (table1 AS t1 JOIN table2 AS t2 JOIN table3 as t3 JOIN table4 as t4 ON t1.id = t2.exam_type_id)  ON t.version_id =
-			//              t1.version_id`,
 		}
 
 		expectedValues := [][]base.ColumnInfo{

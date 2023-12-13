@@ -84,11 +84,14 @@ func (filter *SearchableQueryFilter) FilterSearchableComparisons(result *pg_quer
 // ChangeSearchableOperator change the operator of ComparisonExpr to EqualStr|NotEqualStr depending on expr.Operator
 func (filter *SearchableQueryFilter) ChangeSearchableOperator(expr *pg_query.A_Expr) {
 	switch expr.Name[0].GetString_().GetSval() {
-	// sqlparser.NullSafeEqualStr, sqlparser.LikeStr, sqlparser.ILikeStr
-	case "=":
+	// ~~ - Like
+	// ~~* - ILike
+	case "=", "~~", "~~*":
 		expr.Name[0].GetString_().Sval = "="
-		//case sqlparser.NotEqualStr, sqlparser.NotLikeStr, sqlparser.NotILikeStr:
-		//	expr.Operator = sqlparser.NotEqualStr
+	// !~~ - NOT Like
+	// !~~* - NOT ILike
+	case "<>", "!~~", "!~~*":
+		expr.Name[0].GetString_().Sval = "<>"
 	}
 }
 
@@ -133,7 +136,7 @@ func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(whereNode 
 		}
 
 		var lColumn = expr.Lexpr.GetColumnRef()
-		if expr.Lexpr.GetColumnRef() == nil {
+		if lColumn == nil {
 			if filter.mode == base.QueryFilterModeSearchableEncryption {
 				//handle case if query was processed by searchable encryptor
 				if funcCall := expr.Lexpr.GetFuncCall(); funcCall != nil {
