@@ -22,13 +22,15 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
+	"testing"
+
 	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/cmd/acra-server/common"
 	"github.com/cossacklabs/acra/sqlparser"
-	"testing"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/sirupsen/logrus"
 )
 
 func TestClientOneLetterCommands(t *testing.T) {

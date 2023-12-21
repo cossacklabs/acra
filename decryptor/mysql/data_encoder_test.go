@@ -9,12 +9,13 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
 	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
-	"github.com/cossacklabs/acra/encryptor/config"
-	"github.com/cossacklabs/acra/encryptor/config/common"
-	"github.com/sirupsen/logrus"
+	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/encryptor/base/config/common"
 )
 
 const binaryFormat = true

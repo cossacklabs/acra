@@ -2,13 +2,15 @@ package crypto
 
 import (
 	"bytes"
-	"github.com/cossacklabs/acra/acrablock"
-	"github.com/cossacklabs/acra/acrastruct"
 	"testing"
 
-	"github.com/cossacklabs/acra/encryptor/config"
-	"github.com/cossacklabs/acra/keystore/mocks"
+	"github.com/cossacklabs/acra/acrablock"
+	"github.com/cossacklabs/acra/acrastruct"
+
 	"github.com/cossacklabs/themis/gothemis/keys"
+
+	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/keystore/mocks"
 )
 
 func TestReEncryptHandler(t *testing.T) {

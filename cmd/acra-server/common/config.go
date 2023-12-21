@@ -24,9 +24,9 @@ import (
 	"go.opencensus.io/trace"
 
 	acracensor "github.com/cossacklabs/acra/acra-censor"
-	"github.com/cossacklabs/acra/encryptor"
-	encryptorConfig "github.com/cossacklabs/acra/encryptor/config"
-	"github.com/cossacklabs/acra/encryptor/config_loader"
+	"github.com/cossacklabs/acra/encryptor/base"
+	encryptorConfig "github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/encryptor/base/config_loader"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
@@ -56,7 +56,7 @@ type Config struct {
 	censor                     acracensor.AcraCensorInterface
 	TraceToLog                 bool
 	tableSchema                encryptorConfig.TableSchemaStore
-	dataEncryptor              encryptor.DataEncryptor
+	dataEncryptor              base.DataEncryptor
 	keystore                   keystore.ServerKeyStore
 	traceOptions               []trace.StartOption
 	serviceName                string

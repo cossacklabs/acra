@@ -22,8 +22,9 @@ import (
 	"errors"
 	"strconv"
 
-	"github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/pseudonymization/common"
 )
 
 type anonymizer struct{}

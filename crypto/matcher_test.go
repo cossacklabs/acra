@@ -3,13 +3,15 @@ package crypto
 import (
 	"context"
 	"crypto/rand"
+	"testing"
+
+	"github.com/cossacklabs/themis/gothemis/keys"
+
 	acrablock2 "github.com/cossacklabs/acra/acrablock"
 	acrastruct2 "github.com/cossacklabs/acra/acrastruct"
-	"github.com/cossacklabs/acra/encryptor"
+	encryptor "github.com/cossacklabs/acra/encryptor/base"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/mocks"
-	"github.com/cossacklabs/themis/gothemis/keys"
-	"testing"
 )
 
 func TestEnvelopeMatcher(t *testing.T) {

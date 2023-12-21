@@ -3,8 +3,8 @@ package postgresql
 import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
-	"github.com/cossacklabs/acra/encryptor/config"
-	"github.com/cossacklabs/acra/encryptor/config/common"
+	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/encryptor/base/config/common"
 )
 
 // DataTypeFormat implementation of type_awareness.DataTypeFormat for PostgreSQL

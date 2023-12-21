@@ -2,10 +2,11 @@ package acrablock
 
 import (
 	"context"
+
 	"github.com/cossacklabs/acra/acrastruct"
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/encryptor/config"
+	encryptor "github.com/cossacklabs/acra/encryptor/base"
+	"github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/keystore"
 )
 

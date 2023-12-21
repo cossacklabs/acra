@@ -2,7 +2,7 @@ package crypto
 
 import (
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/encryptor"
+	encryptor "github.com/cossacklabs/acra/encryptor/base"
 )
 
 // PrometheusContainerHandlerWrapper wraps ContainerHandler with adding prometheus metrics logic

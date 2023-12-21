@@ -2,13 +2,15 @@ package crypto
 
 import (
 	"fmt"
+
+	"github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/acrablock"
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/encryptor/config"
+	encryptor "github.com/cossacklabs/acra/encryptor/base"
+	"github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/sirupsen/logrus"
 )
 
 // AcraBlockEnvelopeID represent AcraBlock EnvelopeID will be serialized inside CryptoContainer

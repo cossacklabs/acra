@@ -10,13 +10,14 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
 	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
+	"github.com/sirupsen/logrus"
+
 	// explicitly import types package to force calls of init functions to register supported types
 	_ "github.com/cossacklabs/acra/decryptor/mysql/types"
-	"github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/encryptor/config"
+	encryptor "github.com/cossacklabs/acra/encryptor/base"
+	"github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/sirupsen/logrus"
 )
 
 // BaseMySQLDataProcessor implements processor and encode/decode binary intX values to text format which acceptable by Tokenizer

@@ -19,9 +19,10 @@ package pseudonymization
 import (
 	"strconv"
 
-	"github.com/cossacklabs/acra/encryptor/config"
-	"github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/pseudonymization/common"
 )
 
 // DataTokenizer tokenizes and detokenizes data buffers.

@@ -10,7 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/encryptor/config"
+	"github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/sqlparser"
 )
@@ -149,11 +149,11 @@ func (stubSession) DatabaseConnection() net.Conn {
 	return nil
 }
 
-func (stubSession) PreparedStatementRegistry() base.PreparedStatementRegistry {
+func (stubSession) PreparedStatementRegistry() *PgPreparedStatementRegistry {
 	return nil
 }
 
-func (stubSession) SetPreparedStatementRegistry(registry base.PreparedStatementRegistry) {
+func (stubSession) SetPreparedStatementRegistry(registry *PgPreparedStatementRegistry) {
 }
 
 func (stubSession) ProtocolState() interface{} {
@@ -176,7 +176,7 @@ func TestEncryptorTurnOnOff(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if proxy.RegisteredObserversCount() > 2 {
+	if proxy.(*PgProxy).RegisteredObserversCount() > 2 {
 		t.Fatal("Unexpected observers count")
 	}
 
@@ -189,7 +189,7 @@ func TestEncryptorTurnOnOff(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if proxy.RegisteredObserversCount() != 2 {
+	if proxy.(*PgProxy).RegisteredObserversCount() != 2 {
 		t.Fatal("Unexpected observers count")
 	}
 }

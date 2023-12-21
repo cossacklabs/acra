@@ -3,12 +3,14 @@ package acrablock
 import (
 	"bytes"
 	"errors"
+	"testing"
+
+	"github.com/cossacklabs/themis/gothemis/keys"
+
 	"github.com/cossacklabs/acra/acrastruct"
-	"github.com/cossacklabs/acra/encryptor/config"
+	"github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/mocks"
-	"github.com/cossacklabs/themis/gothemis/keys"
-	"testing"
 )
 
 func TestSuccessDataEncryptionWithClientID(t *testing.T) {

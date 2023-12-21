@@ -1,10 +1,10 @@
 package mysql
 
-import "github.com/cossacklabs/acra/decryptor/base"
+import "github.com/cossacklabs/acra/encryptor/mysql"
 
 // ProtocolState keeps track of MySQL protocol state.
 type ProtocolState struct {
-	pendingParse base.OnQueryObject
+	pendingParse mysql.OnQueryObject
 	stmtID       uint32
 	fields       []*ColumnDescription
 }
@@ -17,12 +17,12 @@ func NewProtocolState() *ProtocolState {
 }
 
 // PendingParse returns the pending prepared statement, if any.
-func (p *ProtocolState) PendingParse() base.OnQueryObject {
+func (p *ProtocolState) PendingParse() mysql.OnQueryObject {
 	return p.pendingParse
 }
 
 // SetPendingParse set pendingParse value
-func (p *ProtocolState) SetPendingParse(obj base.OnQueryObject) {
+func (p *ProtocolState) SetPendingParse(obj mysql.OnQueryObject) {
 	p.pendingParse = obj
 }
 

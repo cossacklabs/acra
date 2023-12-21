@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
-	"github.com/cossacklabs/acra/encryptor/config/common"
-	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/utils"
 	"github.com/jackc/pgx/v5/pgtype"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
+	"github.com/cossacklabs/acra/encryptor/base/config/common"
+	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/utils"
 )
 
 // Int4DataTypeEncoder is encoder of int4OID type in PostgreSQL

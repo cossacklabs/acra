@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"unicode/utf8"
 
-	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
-	"github.com/cossacklabs/acra/encryptor/config/common"
-	"github.com/cossacklabs/acra/utils"
 	"github.com/jackc/pgx/v5/pgtype"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
+	"github.com/cossacklabs/acra/encryptor/base/config/common"
+	"github.com/cossacklabs/acra/utils"
 )
 
 // TextDataType is encoder of textOID type in PostgreSQL

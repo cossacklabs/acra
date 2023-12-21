@@ -4,13 +4,15 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
-	"github.com/cossacklabs/acra/encryptor/config/common"
-	"github.com/cossacklabs/acra/utils"
+	"strconv"
+
 	"github.com/jackc/pgx/v5/pgtype"
 	log "github.com/sirupsen/logrus"
-	"strconv"
+
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
+	"github.com/cossacklabs/acra/encryptor/base/config/common"
+	"github.com/cossacklabs/acra/utils"
 )
 
 // Int8DataTypeEncoder is encoder of int8OID type in PostgreSQL

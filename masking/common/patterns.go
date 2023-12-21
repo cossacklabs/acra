@@ -20,7 +20,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/cossacklabs/acra/encryptor/config/common"
+	"github.com/cossacklabs/acra/encryptor/base/config/common"
 )
 
 // PlainTextSide defines which side of data is left untouched (in plain), and which is masked with a pattern.

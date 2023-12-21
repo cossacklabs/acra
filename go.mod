@@ -4,6 +4,7 @@ go 1.21.0
 
 require (
 	contrib.go.opencensus.io/exporter/jaeger v0.2.1
+	github.com/Zhaars/pg_query_go/v4 v4.2.7
 	github.com/aws/aws-sdk-go-v2 v1.16.6
 	github.com/aws/aws-sdk-go-v2/config v1.15.12
 	github.com/aws/aws-sdk-go-v2/credentials v1.12.7
@@ -18,6 +19,7 @@ require (
 	github.com/hashicorp/consul/api v1.18.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/vault/api v1.3.0
+	github.com/jackc/pgx/v5 v5.4.3
 	github.com/lib/pq v1.10.4
 	github.com/onsi/ginkgo v1.10.2 // indirect
 	github.com/prometheus/client_golang v1.11.1
@@ -121,8 +123,6 @@ require (
 	gopkg.in/square/go-jose.v2 v2.5.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-require github.com/jackc/pgx/v5 v5.4.3
 
 require (
 	github.com/bytedance/sonic v1.9.1 // indirect

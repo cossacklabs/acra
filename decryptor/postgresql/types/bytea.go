@@ -4,13 +4,15 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
-	"github.com/cossacklabs/acra/encryptor/config/common"
-	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/utils"
+
 	"github.com/jackc/pgx/v5/pgtype"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
+	"github.com/cossacklabs/acra/encryptor/base/config/common"
+	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/utils"
 )
 
 // ByteaDataTypeEncoder is encoder of byteaOID type in PostgreSQL
