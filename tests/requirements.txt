@@ -5,7 +5,7 @@ psycopg2==2.9.7
 psycopg==3.1.10
 asyncpg==0.28.0
 SQLAlchemy==1.4.15
-PyMySQL==1.0.2
+PyMySQL==1.1.1
 ddt==1.4.2
 semver==2.13.0
 requests==2.31.0
