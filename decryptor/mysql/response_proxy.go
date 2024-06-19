@@ -334,7 +334,7 @@ func (handler *Handler) ProxyClientConnection(ctx context.Context, errCh chan<- 
 					return
 				}
 				if handler.setting.TLSConnectionWrapper().UseConnectionClientID() {
-					handler.logger.WithField("client_id", clientID).Debugln("Set new clientID")
+					handler.logger.WithField("client_id", string(clientID)).Debugln("Set new clientID")
 					handler.clientIDObserverManager.OnNewClientID(clientID)
 				}
 				handler.logger.Debugln("Switched to tls with client. wait switching with db")
@@ -896,7 +896,7 @@ func (handler *Handler) PreparedStatementResponseHandler(ctx context.Context, pa
 	handler.registry.AddStatement(NewPreparedStatementItem(preparedStmt, nil))
 
 	// proxy output
-	handler.logger.Debugln("Proxy output")
+	handler.logger.Debugln("PreparedStatementResponseHandler.Proxy output")
 	if _, err := clientConnection.Write(packet.Dump()); err != nil {
 		handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
 			Debugln("Can't proxy output")

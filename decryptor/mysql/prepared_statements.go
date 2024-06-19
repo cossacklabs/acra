@@ -362,17 +362,15 @@ func (p *PreparedStatementFieldTracker) ParamsTrackHandler(ctx context.Context, 
 		p.proxyHandler.logger.Debugln("Packet with registered recognized encryption settings")
 	}
 
-	p.proxyHandler.logger.Debugln("Parse param ColumnDefinition")
 	if packet.IsEOF() {
-		p.proxyHandler.resetQueryHandler()
+		p.proxyHandler.logger.Debugln("ParamsTrackHandler EOF", "column_num", p.columnsNum, "stmt_id", p.proxyHandler.protocolState.GetStmtID())
+
 		// if columns_num > 0 column definition block will follow
 		// https://dev.mysql.com/doc/internals/en/com-stmt-prepare-response.html
 		if p.columnsNum > 0 {
 			p.proxyHandler.setQueryHandler(p.ColumnsTrackHandler)
 		} else {
-			if p.proxyHandler.protocolState.GetStmtID() == MariaDBDirectStatementID {
-				p.proxyHandler.setQueryHandler(p.proxyHandler.QueryResponseHandler)
-			}
+			p.proxyHandler.setQueryHandler(p.proxyHandler.QueryResponseHandler)
 		}
 
 		if _, err := clientConnection.Write(packet.Dump()); err != nil {
@@ -412,11 +410,7 @@ func (p *PreparedStatementFieldTracker) ParamsTrackHandler(ctx context.Context, 
 func (p *PreparedStatementFieldTracker) ColumnsTrackHandler(ctx context.Context, packet *Packet, _, clientConnection net.Conn) error {
 	p.proxyHandler.logger.Debugln("Parse column ColumnDefinition")
 	if packet.IsEOF() {
-		p.proxyHandler.resetQueryHandler()
-
-		if p.proxyHandler.protocolState.GetStmtID() == MariaDBDirectStatementID {
-			p.proxyHandler.setQueryHandler(p.proxyHandler.QueryResponseHandler)
-		}
+		p.proxyHandler.setQueryHandler(p.proxyHandler.QueryResponseHandler)
 
 		if _, err := clientConnection.Write(packet.Dump()); err != nil {
 			p.proxyHandler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
