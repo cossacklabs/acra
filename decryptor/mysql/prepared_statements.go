@@ -410,6 +410,14 @@ func (p *PreparedStatementFieldTracker) ParamsTrackHandler(ctx context.Context, 
 func (p *PreparedStatementFieldTracker) ColumnsTrackHandler(ctx context.Context, packet *Packet, _, clientConnection net.Conn) error {
 	p.proxyHandler.logger.Debugln("Parse column ColumnDefinition")
 	if packet.IsEOF() {
+		// There are different behaviour for prepared statements processing for MariaDB and MySQL
+		// For MySQL, we should process PreparedStatements response and then
+		// switch QueryHandler to QueryResponseHandler on receiving Execute packet from client.
+		// For MariaDB we can receive Execute packet without finishing the Prepare packet response processing.
+		// (https://mariadb.com/kb/en/com_stmt_execute/#specific-1-statement-id-value)
+		// So we switch QueryHandler to QueryResponseHandler as data should be followed next
+		// It`s safe to switch QueryHandler to QueryResponseHandler here as in case of any new packet type received from client
+		// QueryHandler will be switched to the appropriate one from ProxyClient goroutine.
 		p.proxyHandler.setQueryHandler(p.proxyHandler.QueryResponseHandler)
 
 		if _, err := clientConnection.Write(packet.Dump()); err != nil {

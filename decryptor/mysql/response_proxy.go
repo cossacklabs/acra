@@ -439,6 +439,10 @@ func (handler *Handler) ProxyClientConnection(ctx context.Context, errCh chan<- 
 			}
 
 			handler.protocolState.SetStmtID(stmtID)
+			// When we know actual stmtID we should switch QueryHandler to QueryResponseHandler
+			// as data rows should be followed next from DB
+			// But if the stmtID equals MariaDBDirectStatementID(-1) we still could be in processing of Prepare response from DB
+			// and handler should be switched in after processing of Prepare response
 			if stmtID != MariaDBDirectStatementID {
 				handler.setQueryHandler(handler.QueryResponseHandler)
 			}
