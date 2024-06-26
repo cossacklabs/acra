@@ -4396,8 +4396,13 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
             config['incoming_connection_string'] = connection_string
             dump_yaml_config(config, temp_config.name)
             acra.send_signal(signal.SIGHUP)
+            # signal again, Acra should handle it safely
+            acra.send_signal(signal.SIGHUP)
             # close current connections
             test_engine.dispose()
+
+            # signal SIGTERM after SIGHUP, Acra should handle it safely
+            acra.send_signal(signal.SIGTERM)
 
             connect_str = get_engine_connection_string(
                 self.get_acraserver_connection_string(self.ACRASERVER_PORT), DB_NAME)
