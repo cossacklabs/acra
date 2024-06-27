@@ -4356,6 +4356,23 @@ class TestSigTERMHandler(BaseTestCase):
 
 
 class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
+    def setUp(self):
+        pass
+
+    def copy_keystore(self):
+        new_keystore = tempfile.mkdtemp()
+        # we don't use shutil.copytree(..., dirs_exist_ok=True) due to unsupported in default python on centos 7, 8
+        # so we remove folder and then copy
+        shutil.rmtree(new_keystore)
+        return shutil.copytree(base.KEYS_FOLDER.name, new_keystore)
+
+    def find_forked_pid(self, filepath):
+        with open(filepath, 'r') as f:
+            for line in f:
+                # CEF:0|cossacklabs|acra-translator|0.93.0|100|acra-translator process forked to PID: 914350|1|unixTime=1659577578.966
+                if 'process forked to PID' in line:
+                    pid = re.search(r'PID: (\d+)', line).group(1)
+                    return int(pid)
 
     def testAcraServerReload(self):
         '''verify keys_dir changing on SIGHUP after changing config file and keep PORT same due to re-use of socket
