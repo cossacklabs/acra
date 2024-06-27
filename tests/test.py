@@ -22,6 +22,7 @@ import asyncpg.exceptions
 import mysql.connector
 import psycopg2.errors
 import psycopg2.extras
+import threading
 from ddt import ddt, data
 from prometheus_client.parser import text_string_to_metric_families
 from sqlalchemy.exc import DatabaseError, OperationalError
@@ -1429,7 +1430,7 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
                                   'read',
                                   '--public',
                                   '--redis_host_port=' + redis_hostport,
-                              ] + tls_args + ['client/keypair1/storage'],
+                                  ] + tls_args + ['client/keypair1/storage'],
                               env={ACRA_MASTER_KEY_VAR_NAME: master_key},
                               timeout=PROCESS_CALL_TIMEOUT)
 
@@ -1437,7 +1438,7 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
                                   os.path.join(BINARY_OUTPUT_FOLDER, 'acra-keys'),
                                   'read',
                                   '--redis_host_port=' + redis_hostport,
-                              ] + tls_args + ['client/keypair1/symmetric'],
+                                  ] + tls_args + ['client/keypair1/symmetric'],
                               env={ACRA_MASTER_KEY_VAR_NAME: master_key},
                               timeout=PROCESS_CALL_TIMEOUT)
 
@@ -1446,7 +1447,7 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
                                   'read',
                                   '--private',
                                   '--redis_host_port=' + redis_hostport,
-                              ] + tls_args + ['client/keypair1/storage'],
+                                  ] + tls_args + ['client/keypair1/storage'],
                               env={ACRA_MASTER_KEY_VAR_NAME: master_key},
                               timeout=PROCESS_CALL_TIMEOUT)
 
@@ -4350,6 +4351,59 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
                     pid = re.search(r'PID: (\d+)', line).group(1)
                     return int(pid)
 
+    def testAcraServerTerminate(self):
+        acra_args = self.get_acra_cli_args({})
+        temp_keystore = self.copy_keystore()
+        config = load_yaml_config('configs/acra-server.yaml')
+        config.update(acra_args)
+        config['keys_dir'] = temp_keystore
+        config['log_to_file'] = tempfile.NamedTemporaryFile().name
+        temp_config = tempfile.NamedTemporaryFile()
+        dump_yaml_config(config, temp_config.name)
+
+        acra = fork(lambda: subprocess.Popen([
+            self.get_acraserver_bin_path(), '--config_file={}'.format(temp_config.name)]))
+        try:
+            self.wait_acraserver_connection(config['incoming_connection_string'])
+        except:
+            stop_process(acra)
+            shutil.rmtree(temp_keystore)
+            raise
+        test_engine = None
+        try:
+            # copied from BaseTestCase._fork_acra
+            base_args = get_connect_args(port=self.ACRASERVER_PORT, sslmode=SSLMODE)
+            tls_args = base_args.copy()
+            if TEST_WITH_TLS:
+                tls_args.update(get_tls_connection_args(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT))
+            connect_str = get_engine_connection_string(
+                self.get_acraserver_connection_string(self.ACRASERVER_PORT), DB_NAME)
+            test_engine = sa.create_engine(connect_str, connect_args=tls_args)
+
+            result = test_engine.execute('select 1').fetchone()
+            self.assertEqual(1, result[0])
+
+            def send_signals_in_background():
+                time.sleep(1)
+                acra.send_signal(signal.SIGTERM)
+                acra.send_signal(signal.SIGTERM)
+
+            signals_thread = threading.Thread(target=send_signals_in_background)
+            signals_thread.start()
+
+            # wait for child acra process to finish with exit(0)
+            pid, status = os.waitpid(acra.pid, 0)
+            exit_code = os.WEXITSTATUS(status)
+            self.assertEqual(exit_code, 0)
+        finally:
+            pid = self.find_forked_pid(config['log_to_file'])
+            if pid:
+                os.kill(pid, signal.SIGKILL)
+            os.remove(config['log_to_file'])
+            if test_engine:
+                test_engine.dispose()
+            stop_process(acra)
+
     def testAcraServerReload(self):
         '''verify keys_dir changing on SIGHUP after changing config file and keep PORT same due to re-use of socket
         descriptors
@@ -4395,6 +4449,8 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
             connection_string = self.get_acraserver_connection_string(test_port)
             config['incoming_connection_string'] = connection_string
             dump_yaml_config(config, temp_config.name)
+            acra.send_signal(signal.SIGHUP)
+            # signal again, Acra should handle it safely
             acra.send_signal(signal.SIGHUP)
             # close current connections
             test_engine.dispose()
