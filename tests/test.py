@@ -4333,13 +4333,6 @@ class TestDifferentCaseTableIdentifiersMySQL(BaseTransparentEncryption):
 
 
 class TestSigTERMHandler(BaseTestCase):
-    def setUp(self):
-        super().setUp()
-
-    def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
-        self.acra = super().fork_acra(popen_kwargs, **acra_kwargs)
-        return self.acra
-
     def testAcraServerTerminate(self):
         def send_signals_in_background():
             time.sleep(1)
