@@ -22,6 +22,7 @@ import asyncpg.exceptions
 import mysql.connector
 import psycopg2.errors
 import psycopg2.extras
+import threading
 from ddt import ddt, data
 from prometheus_client.parser import text_string_to_metric_families
 from sqlalchemy.exc import DatabaseError, OperationalError
@@ -4329,6 +4330,22 @@ class TestDifferentCaseTableIdentifiersMySQL(BaseTransparentEncryption):
         QUOTED, NOT_QUOTED = (True, False)
         SHOULD_MATCH, SHOULD_NOT_MATCH = (True, False)
         self.runTestCase("UPPERCASE_TABLE", NOT_QUOTED, "data", NOT_QUOTED, SHOULD_MATCH)
+
+
+class TestSigTERMHandler(BaseTestCase):
+    def testAcraServerTerminate(self):
+        def send_signals_in_background():
+            time.sleep(1)
+            self.acra.send_signal(signal.SIGTERM)
+            self.acra.send_signal(signal.SIGTERM)
+
+        signals_thread = threading.Thread(target=send_signals_in_background)
+        signals_thread.start()
+
+        # wait for child acra process to finish with exit(0)
+        pid, status = os.waitpid(self.acra.pid, 0)
+        exit_code = os.WEXITSTATUS(status)
+        self.assertEqual(exit_code, 0)
 
 
 class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
