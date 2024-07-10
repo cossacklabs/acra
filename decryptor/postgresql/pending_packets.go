@@ -107,7 +107,7 @@ func (packets *pendingPacketsList) RemoveAll(packet interface{}) error {
 func (packets *pendingPacketsList) GetPendingPacket(packet interface{}) (interface{}, error) {
 	packets.mutex.RLock()
 	defer packets.mutex.RUnlock()
-	
+
 	switch packet.(type) {
 	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription, queryPacket:
 		packetType := reflect.TypeOf(packet)
