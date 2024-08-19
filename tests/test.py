@@ -15,6 +15,7 @@
 import collections.abc
 import os.path
 import stat
+import time
 from tempfile import NamedTemporaryFile
 from urllib.request import urlopen
 
@@ -4372,6 +4373,7 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
         descriptors
         '''
         acra_args = self.get_acra_cli_args({})
+        # acra_args['incoming_connection_close_timeout'] = 10
         temp_keystore = self.copy_keystore()
         config = load_yaml_config('configs/acra-server.yaml')
         config.update(acra_args)
@@ -4412,11 +4414,31 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
             connection_string = self.get_acraserver_connection_string(test_port)
             config['incoming_connection_string'] = connection_string
             dump_yaml_config(config, temp_config.name)
+
             acra.send_signal(signal.SIGHUP)
             # signal again, Acra should handle it safely
             acra.send_signal(signal.SIGHUP)
+
             # close current connections
             test_engine.dispose()
+
+            def wait_forked_pid(count=100, sleep=0.1):
+                """
+                Wait for the process with the specified PID to become active.
+                """
+                while count:
+                    pid = self.find_forked_pid(config['log_to_file'])
+                    if pid:
+                        return
+                    count -= 1
+                    time.sleep(sleep)
+
+                raise Exception("Forked process did not become active in the expected time.")
+
+            # explicitly wait for the forked PID to become active. Without this wait,
+            # the next connection might be handled by the parent process instead of
+            # the forked process, which could cause the connection to drop and the test to fail.
+            wait_forked_pid(count=10, sleep=0.2)
 
             # signal SIGTERM after SIGHUP, Acra should handle it safely
             acra.send_signal(signal.SIGTERM)
