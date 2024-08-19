@@ -1,0 +1,29 @@
+pythemis
+psycopg2==2.9.7
+# only this supported on centos 7 due to problems with version of libpq
+# psycopg[binary]==3.0.18
+psycopg==3.1.10
+asyncpg==0.28.0
+SQLAlchemy==1.4.15
+PyMySQL==1.0.2
+ddt==1.4.2
+semver==2.13.0
+requests==2.31.0
+# driver with binary prepared statements support
+#mysql-connector-python==8.0.11
+pyyaml==6.0.1
+hvac==0.10.11
+# https://grpc.io/docs/quickstart/python.html
+grpcio==1.65.5
+grpcio-tools==1.65.5
+googleapis-common-protos==1.53.0
+prometheus_client==0.10.1
+unittest-xml-reporting==3.2.0
+cryptography==41.0.4
+redis==4.4.4
+hiredis==2.3.2
+# don't upgrade until stop supporting Centos 7 with python3.6
+# this version is last supported for python3.6
+boto3==1.23.10
+python-consul==1.1.0
+mariadb==1.1.6
