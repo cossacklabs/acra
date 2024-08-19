@@ -4373,7 +4373,6 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
         descriptors
         '''
         acra_args = self.get_acra_cli_args({})
-        # acra_args['incoming_connection_close_timeout'] = 10
         temp_keystore = self.copy_keystore()
         config = load_yaml_config('configs/acra-server.yaml')
         config.update(acra_args)
