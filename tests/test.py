@@ -15,6 +15,7 @@
 import collections.abc
 import os.path
 import stat
+import time
 from tempfile import NamedTemporaryFile
 from urllib.request import urlopen
 
@@ -1088,12 +1089,12 @@ class TestKeyStoreMigration(BaseTestCase):
 
             # Check that we're able to put and get data via AcraServer.
             selected = self.select_as_client(row_id_1)
-            self.assertEquals(selected['data'], data_1.encode('ascii'))
-            self.assertEquals(selected['raw_data'], data_1)
+            self.assertEqual(selected['data'], data_1.encode('ascii'))
+            self.assertEqual(selected['raw_data'], data_1)
 
             # Get encrypted data. It should really be encrypted.
             encrypted_1 = self.select_directly(row_id_1)
-            self.assertNotEquals(encrypted_1['data'], data_1.encode('ascii'))
+            self.assertNotEqual(encrypted_1['data'], data_1.encode('ascii'))
 
         self.migrate_key_store('v2')
 
@@ -1101,19 +1102,19 @@ class TestKeyStoreMigration(BaseTestCase):
         with self.running_services():
             # Old data should still be there, accessible via AcraServer.
             selected = self.select_as_client(row_id_1)
-            self.assertEquals(selected['data'], data_1.encode('ascii'))
-            self.assertEquals(selected['raw_data'], data_1)
+            self.assertEqual(selected['data'], data_1.encode('ascii'))
+            self.assertEqual(selected['raw_data'], data_1)
 
             # Key migration does not change encrypted data.
             encrypted_1_migrated = self.select_directly(row_id_1)
-            self.assertEquals(encrypted_1_migrated['data'],
+            self.assertEqual(encrypted_1_migrated['data'],
                               encrypted_1['data'])
 
             # We're able to put some new data into the table and get it back.
             row_id_2 = self.insert_as_client(data_2)
             selected = self.select_as_client(row_id_2)
-            self.assertEquals(selected['data'], data_2.encode('ascii'))
-            self.assertEquals(selected['raw_data'], data_2)
+            self.assertEqual(selected['data'], data_2.encode('ascii'))
+            self.assertEqual(selected['raw_data'], data_2)
 
     def test_moved_key_store(self):
         """Verify that keystore can be moved to a different absolute path."""
@@ -1124,7 +1125,7 @@ class TestKeyStoreMigration(BaseTestCase):
         with self.running_services():
             row_id = self.insert_as_client(data)
             selected = self.select_as_client(row_id)
-            self.assertEquals(selected['data'], data.encode('ascii'))
+            self.assertEqual(selected['data'], data.encode('ascii'))
 
         # Move the keystore to a different (still temporary) location.
         self.change_key_store_path()
@@ -1134,7 +1135,7 @@ class TestKeyStoreMigration(BaseTestCase):
         # but located at different path.
         with self.running_services():
             selected = self.select_as_client(row_id)
-            self.assertEquals(selected['data'], data.encode('ascii'))
+            self.assertEqual(selected['data'], data.encode('ascii'))
 
 
 class TestAcraKeysWithRotatedKeys(unittest.TestCase):
@@ -2834,7 +2835,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
                 args = [os.path.join(BINARY_OUTPUT_FOLDER, service), config_param] + default_args.get(service, [])
                 stderr = self.getOutputFromProcess(args)
-                self.assertRegexpMatches(stderr,
+                self.assertRegex(stderr,
                                          r'code=508 error="config version \\"0.0.0\\" is not supported, expects \\"[\d.]+\\" version')
 
     def testStartupWithDifferentConfigsPatchVersion(self):
@@ -4412,11 +4413,31 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
             connection_string = self.get_acraserver_connection_string(test_port)
             config['incoming_connection_string'] = connection_string
             dump_yaml_config(config, temp_config.name)
+
             acra.send_signal(signal.SIGHUP)
             # signal again, Acra should handle it safely
             acra.send_signal(signal.SIGHUP)
+
             # close current connections
             test_engine.dispose()
+
+            def wait_forked_pid(count=100, sleep=0.1):
+                """
+                Wait for the process with the specified PID to become active.
+                """
+                while count:
+                    pid = self.find_forked_pid(config['log_to_file'])
+                    if pid:
+                        return
+                    count -= 1
+                    time.sleep(sleep)
+
+                raise Exception("Forked process did not become active in the expected time.")
+
+            # explicitly wait for the forked PID to become active. Without this wait,
+            # the next connection might be handled by the parent process instead of
+            # the forked process, which could cause the connection to drop and the test to fail.
+            wait_forked_pid(count=10, sleep=0.2)
 
             # signal SIGTERM after SIGHUP, Acra should handle it safely
             acra.send_signal(signal.SIGTERM)
