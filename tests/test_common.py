@@ -640,7 +640,7 @@ class RedisMixin:
         super().tearDown()
 
 
-class BaseBinaryPostgreSQLTestCase(AsyncpgExecutorMixin, BaseTestCase):
+class BaseBinaryPostgreSQLMixin(AsyncpgExecutorMixin):
     """Setup test fixture for testing PostgreSQL extended protocol."""
 
     def checkSkip(self):

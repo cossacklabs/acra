@@ -306,7 +306,7 @@ class TestTransparentEncryptionWithNoEncryptionKey(TransparentEncryptionNoKeyMix
     pass
 
 
-class TestPostgresqlBinaryPreparedTransparentEncryption(test_common.BaseBinaryPostgreSQLTestCase,
+class TestPostgresqlBinaryPreparedTransparentEncryption(test_common.BaseBinaryPostgreSQLMixin,
                                                         TestTransparentEncryption):
     """Testing transparent encryption of prepared statements in PostgreSQL (binary format)."""
     FORMAT = base.AsyncpgExecutor.BinaryFormat
@@ -463,8 +463,7 @@ class BaseSearchableTransparentEncryption(TestTransparentEncryption):
         return self.engine2.execute(query.values(values))
 
 
-class BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin(test_common.BaseBinaryPostgreSQLTestCase,
-                                                               test_common.BaseTestCase):
+class BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin(test_common.BaseBinaryPostgreSQLMixin):
     def executeSelect2(self, query, parameters):
         query, parameters = self.compileQuery(query, parameters)
         return self.executor2.execute_prepared_statement(query, parameters)

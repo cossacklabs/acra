@@ -2147,7 +2147,7 @@ class TestPostgresqlTextPreparedStatementWholeCell(TestPostgresqlTextPreparedSta
     WHOLECELL_MODE = True
 
 
-class TestPostgresqlBinaryPreparedStatement(BaseBinaryPostgreSQLTestCase, BasePrepareStatementMixin):
+class TestPostgresqlBinaryPreparedStatement(BaseBinaryPostgreSQLMixin, BasePrepareStatementMixin):
 
     def executePreparedStatement(self, query):
         return self.executor1.execute_prepared_statement(query)
