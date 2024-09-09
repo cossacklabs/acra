@@ -5,9 +5,9 @@
 _Core_:
 
 - **AcraServer**:
-  - Fixed panic with simultaneous signals processing [#707](https://github.com/cossacklabs/acra/pull/707)
+  - Fixed panic with simultaneous signals handling [#707](https://github.com/cossacklabs/acra/pull/707)
   - Improved encryptor config parsing logic [#676](https://github.com/cossacklabs/acra/pull/676), [#715](https://github.com/cossacklabs/acra/pull/665)
-  - Implemented MySQL PreparedStatements from SQL support [#665](https://github.com/cossacklabs/acra/pull/665)
+  - Added support of Prepared Statements through text protocol in MySQL [#665](https://github.com/cossacklabs/acra/pull/665)
   - Improved unicode characters support for PostgreSQL [#663](https://github.com/cossacklabs/acra/pull/663)
   - Improved MariaDB protocol handling [#662](https://github.com/cossacklabs/acra/pull/662)
   - Fixed panic with handling multi-statement queries: Acra still doesn`t support MS queries, but will log a warning about potential usage of it [#661](https://github.com/cossacklabs/acra/pull/661)
