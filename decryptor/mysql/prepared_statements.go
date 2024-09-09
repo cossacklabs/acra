@@ -22,29 +22,67 @@ import (
 // ErrStatementNotFound Err returned by prepared statement registry.
 var ErrStatementNotFound = errors.New("no prepared statement with given statement-id")
 
+// PreparedStatementItem represent an item to store in PreparedStatementRegistry
+type PreparedStatementItem struct {
+	stmt                base.PreparedStatement
+	querySelectSettings []*encryptor.QueryDataItem
+}
+
+// NewPreparedStatementItem create a new PreparedStatementItem
+func NewPreparedStatementItem(stmt base.PreparedStatement, querySelectSettings []*encryptor.QueryDataItem) PreparedStatementItem {
+	return PreparedStatementItem{
+		stmt:                stmt,
+		querySelectSettings: querySelectSettings,
+	}
+}
+
+// Name return PreparedStatementItem name
+func (r *PreparedStatementItem) Name() string {
+	return r.stmt.Name()
+}
+
+// Statement return PreparedStatementItem statememt
+func (r *PreparedStatementItem) Statement() base.PreparedStatement {
+	return r.stmt
+}
+
+// QuerySettings return PreparedStatementItem querySettings
+func (r *PreparedStatementItem) QuerySettings() []*encryptor.QueryDataItem {
+	return r.querySelectSettings
+}
+
 // PreparedStatementRegistry is a MySQL PreparedStatementRegistry.
 type PreparedStatementRegistry struct {
-	statements map[string]base.PreparedStatement
+	statements map[string]PreparedStatementItem
 }
 
 // NewPreparedStatementRegistry makes a new empty prepared statement registry.
 func NewPreparedStatementRegistry() *PreparedStatementRegistry {
 	return &PreparedStatementRegistry{
-		statements: make(map[string]base.PreparedStatement),
+		statements: make(map[string]PreparedStatementItem),
 	}
 }
 
 // StatementByID returns a prepared statement from the registry by its id, if it exists.
-func (r *PreparedStatementRegistry) StatementByID(stmtID string) (base.PreparedStatement, error) {
+func (r *PreparedStatementRegistry) StatementByID(stmtID string) (PreparedStatementItem, error) {
 	if s, ok := r.statements[stmtID]; ok {
 		return s, nil
 	}
-	return nil, ErrStatementNotFound
+	return PreparedStatementItem{}, ErrStatementNotFound
+}
+
+// DeleteStatementByID returns a prepared statement from the registry by its id, if it exists.
+func (r *PreparedStatementRegistry) DeleteStatementByID(stmtID string) bool {
+	if _, ok := r.statements[stmtID]; ok {
+		delete(r.statements, stmtID)
+		return ok
+	}
+	return false
 }
 
 // AddStatement adds a prepared statement to the registry.
 // If an existing statement with the same name exists, it is replaced with the new one.
-func (r *PreparedStatementRegistry) AddStatement(statement base.PreparedStatement) {
+func (r *PreparedStatementRegistry) AddStatement(statement PreparedStatementItem) {
 	r.statements[statement.Name()] = statement
 }
 
@@ -57,12 +95,21 @@ type PreparedStatement struct {
 }
 
 // NewPreparedStatement makes a new prepared statement.
-func NewPreparedStatement(response *PrepareStatementResponse, sqlString string, sqlStatement sqlparser.Statement) *PreparedStatement {
+func NewPreparedStatement(statementID uint32, paramsNum uint16, sqlString string, sqlStatement sqlparser.Statement) *PreparedStatement {
 	return &PreparedStatement{
-		name:         strconv.FormatUint(uint64(response.StatementID), 10),
+		name:         strconv.FormatUint(uint64(statementID), 10),
 		sqlString:    sqlString,
 		sqlStatement: sqlStatement,
-		paramsNum:    int(response.ParamsNum),
+		paramsNum:    int(paramsNum),
+	}
+}
+
+// NewPreparedStatementWithName makes a new prepared statement with name and zero paramsNum
+func NewPreparedStatementWithName(name string, sqlString string, sqlStatement sqlparser.Statement) *PreparedStatement {
+	return &PreparedStatement{
+		name:         name,
+		sqlString:    sqlString,
+		sqlStatement: sqlStatement,
 	}
 }
 
@@ -315,13 +362,15 @@ func (p *PreparedStatementFieldTracker) ParamsTrackHandler(ctx context.Context, 
 		p.proxyHandler.logger.Debugln("Packet with registered recognized encryption settings")
 	}
 
-	p.proxyHandler.logger.Debugln("Parse param ColumnDefinition")
 	if packet.IsEOF() {
-		p.proxyHandler.resetQueryHandler()
+		p.proxyHandler.logger.Debugln("ParamsTrackHandler EOF", "column_num", p.columnsNum, "stmt_id", p.proxyHandler.protocolState.GetStmtID())
+
 		// if columns_num > 0 column definition block will follow
 		// https://dev.mysql.com/doc/internals/en/com-stmt-prepare-response.html
 		if p.columnsNum > 0 {
 			p.proxyHandler.setQueryHandler(p.ColumnsTrackHandler)
+		} else {
+			p.proxyHandler.setQueryHandler(p.proxyHandler.QueryResponseHandler)
 		}
 
 		if _, err := clientConnection.Write(packet.Dump()); err != nil {
@@ -331,7 +380,7 @@ func (p *PreparedStatementFieldTracker) ParamsTrackHandler(ctx context.Context, 
 		return nil
 	}
 
-	field, err := ParseResultField(packet)
+	field, err := ParseResultField(packet, p.proxyHandler.Capabilities.IsSetMariaDBClientExtendedTypeInfo())
 	if err != nil {
 		p.proxyHandler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't parse result field")
 		return err
@@ -361,7 +410,15 @@ func (p *PreparedStatementFieldTracker) ParamsTrackHandler(ctx context.Context, 
 func (p *PreparedStatementFieldTracker) ColumnsTrackHandler(ctx context.Context, packet *Packet, _, clientConnection net.Conn) error {
 	p.proxyHandler.logger.Debugln("Parse column ColumnDefinition")
 	if packet.IsEOF() {
-		p.proxyHandler.resetQueryHandler()
+		// There are different behaviour for prepared statements processing for MariaDB and MySQL
+		// For MySQL, we should process PreparedStatements response and then
+		// switch QueryHandler to QueryResponseHandler on receiving Execute packet from client.
+		// For MariaDB we can receive Execute packet without finishing the Prepare packet response processing.
+		// (https://mariadb.com/kb/en/com_stmt_execute/#specific-1-statement-id-value)
+		// So we switch QueryHandler to QueryResponseHandler as data should be followed next
+		// It`s safe to switch QueryHandler to QueryResponseHandler here as in case of any new packet type received from client
+		// QueryHandler will be switched to the appropriate one from ProxyClient goroutine.
+		p.proxyHandler.setQueryHandler(p.proxyHandler.QueryResponseHandler)
 
 		if _, err := clientConnection.Write(packet.Dump()); err != nil {
 			p.proxyHandler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
@@ -370,7 +427,7 @@ func (p *PreparedStatementFieldTracker) ColumnsTrackHandler(ctx context.Context,
 		return nil
 	}
 
-	field, err := ParseResultField(packet)
+	field, err := ParseResultField(packet, p.proxyHandler.Capabilities.IsSetMariaDBClientExtendedTypeInfo())
 	if err != nil {
 		p.proxyHandler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't parse result field")
 		return err
@@ -378,6 +435,8 @@ func (p *PreparedStatementFieldTracker) ColumnsTrackHandler(ctx context.Context,
 
 	// updating field type according to DataType provided in schemaStore
 	updateFieldEncodedType(field, p.proxyHandler.setting.TableSchemaStore())
+
+	p.proxyHandler.protocolState.AddColumnDescription(field)
 
 	if _, err := clientConnection.Write(field.Dump()); err != nil {
 		p.proxyHandler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).

@@ -19,7 +19,6 @@ package filesystem
 import (
 	"context"
 	"errors"
-	"flag"
 	"runtime"
 	"strings"
 	"time"
@@ -28,6 +27,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/utils/args"
 
 	keystoreV1 "github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
@@ -79,8 +79,8 @@ func OpenDirectoryRW(rootDir string, cryptosuite *crypto.KeyStoreSuite) (api.Mut
 // That is, positive return value does not mean that the directory contains *a valid* keystore.
 // However, false value means that the directory is definitely not a valid keystore.
 // In particular, false is returned if the directory does not exists or cannot be opened.
-func IsKeyDirectory(keyDirPath string) bool {
-	redisParams := cmd.ParseRedisCLIParametersFromFlags(flag.CommandLine, "")
+func IsKeyDirectory(keyDirPath string, extractor *args.ServiceExtractor) bool {
+	redisParams := cmd.ParseRedisCLIParametersFromFlags(extractor, "")
 	if redisParams.KeysConfigured() {
 		redisClient, err := backend.OpenRedisBackend(&backend.RedisConfig{
 			RootDir: keyDirPath,

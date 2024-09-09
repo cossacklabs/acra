@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -25,13 +24,16 @@ type ExtractClientIDParams interface {
 
 // CommonExtractClientIDParameters is a mix-in of command line parameters for extracting clientID from TLS certificate.
 type CommonExtractClientIDParameters struct {
-	tlsClientCert, tlsIdentifierExtractorType string
-	printJSON                                 bool
+	tlsClientCertOld, tlsClientCertNew, tlsIdentifierExtractorType string
+	printJSON                                                      bool
 }
 
 // TLSClientCert returns path to TLS certificate path file to extract ID from.
 func (p *CommonExtractClientIDParameters) TLSClientCert() string {
-	return p.tlsClientCert
+	if p.tlsClientCertOld != "" {
+		return p.tlsClientCertOld
+	}
+	return p.tlsClientCertNew
 }
 
 // TLSIdentifierExtractorType returns TLS identifier extractor type based on which ID will be extracted.
@@ -47,7 +49,8 @@ func (p *CommonExtractClientIDParameters) PrintJSON() bool {
 // Register registers key formatting flags with the given flag set.
 func (p *CommonExtractClientIDParameters) Register(flags *flag.FlagSet) {
 	flags.BoolVar(&p.printJSON, "print_json", false, "use machine-readable JSON output")
-	flags.StringVar(&p.tlsClientCert, "tls_cert", "", "Path to TLS certificate to use as client_id identifier")
+	flags.StringVar(&p.tlsClientCertOld, "tls_cert", "", "Path to TLS certificate to use as client_id identifier. Deprecated since 0.96.0 use --tls_client_id_cert")
+	flags.StringVar(&p.tlsClientCertNew, "tls_client_id_cert", "", "Path to TLS certificate to use as client_id identifier.")
 	flags.StringVar(&p.tlsIdentifierExtractorType, "tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName,
 		fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
 }
@@ -82,14 +85,20 @@ func (p *ExtractClientIDSubcommand) RegisterFlags() {
 
 // Parse command-line parameters of the subcommand.
 func (p *ExtractClientIDSubcommand) Parse(arguments []string) error {
-	err := cmd.ParseFlagsWithConfig(p.flagSet, arguments, DefaultConfigPath, ServiceName)
+	err := cmd.ParseFlags(p.flagSet, arguments)
 	if err != nil {
 		return err
 	}
 
-	if p.tlsClientCert == "" {
+	// TODO: use just tlsClientCertNew in 0.97.0
+	if p.tlsClientCertOld == "" && p.tlsClientCertNew == "" {
 		return ErrMissingTLSCertPath
 	}
+
+	if p.tlsClientCertNew != "" && p.tlsClientCertOld != "" {
+		return ErrDuplicatedTLSCertPathFlags
+	}
+
 	return nil
 }
 
@@ -122,7 +131,7 @@ func ExtractClientID(params ExtractClientIDParams) (string, error) {
 		log.WithError(err).Errorln("Can't initialize clientID extractor")
 		return "", err
 	}
-	pemCertificateFile, err := ioutil.ReadFile(params.TLSClientCert())
+	pemCertificateFile, err := os.ReadFile(params.TLSClientCert())
 	if err != nil {
 		log.WithError(err).Errorln("Can't read TLS certificate")
 		return "", err

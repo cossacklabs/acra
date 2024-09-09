@@ -22,6 +22,10 @@ type testKeystore struct {
 	UsedID            []byte
 }
 
+func (keystore *testKeystore) GenerateHmacKey(id []byte) error {
+	panic("implement me")
+}
+
 func (keystore *testKeystore) ListRotatedKeys() ([]keystore.KeyDescription, error) {
 	panic("implement me")
 }

@@ -17,15 +17,15 @@ limitations under the License.
 package network
 
 import (
-	"flag"
 	"fmt"
-	"github.com/go-sql-driver/mysql"
 	"net"
 	url_ "net/url"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/go-sql-driver/mysql"
 
 	"github.com/cossacklabs/themis/gothemis/errors"
 	log "github.com/sirupsen/logrus"
@@ -230,18 +230,6 @@ func SplitConnectionString(connectionString string) (string, int, error) {
 		return "", 0, err
 	}
 	return url.Hostname(), port, nil
-}
-
-// IsFlagSet returns true if flag explicitly set via CLI arguments
-// Don't move it to the cmd package due to import cycle
-func isFlagSet(name string, flagset *flag.FlagSet) bool {
-	set := false
-	flagset.Visit(func(f *flag.Flag) {
-		if f.Name == name {
-			set = true
-		}
-	})
-	return set
 }
 
 // GetDriverConnectionStringHost parses MySQL/PostgreSQL driver specific connection string to use as SNI

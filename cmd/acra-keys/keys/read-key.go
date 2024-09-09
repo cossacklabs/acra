@@ -27,7 +27,9 @@ import (
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // SupportedReadKeyKinds is a list of keys supported by `read-key` subcommand.
@@ -46,6 +48,7 @@ var (
 	ErrMissingKeyPart              = errors.New("key part not specified")
 	ErrExtraKeyPart                = errors.New("both key parts specified")
 	ErrMissingTLSCertPath          = errors.New("TLS certificate path not specified")
+	ErrDuplicatedTLSCertPathFlags  = errors.New("passed --tls_cert (deprecated since 0.96.0) and --tls_client_id_cert simultaneously")
 	ErrClientIDWithTLSCertProvided = errors.New("client ID and TLS certificate path are both provided")
 )
 
@@ -58,7 +61,8 @@ type ReadKeyParams interface {
 // ReadKeySubcommand is the "acra-keys read" subcommand.
 type ReadKeySubcommand struct {
 	CommonKeyStoreParameters
-	FlagSet *flag.FlagSet
+	FlagSet   *flag.FlagSet
+	extractor *args.ServiceExtractor
 
 	public, private bool
 
@@ -67,7 +71,12 @@ type ReadKeySubcommand struct {
 	outWriter   io.Writer
 }
 
-// Name returns the same of this subcommand.
+// GetExtractor returns ServiceParamsExtractor extractor
+func (p *ReadKeySubcommand) GetExtractor() *args.ServiceExtractor {
+	return p.extractor
+}
+
+// Name returns the name of this subcommand.
 func (p *ReadKeySubcommand) Name() string {
 	return CmdReadKey
 }
@@ -81,6 +90,7 @@ func (p *ReadKeySubcommand) GetFlagSet() *flag.FlagSet {
 func (p *ReadKeySubcommand) RegisterFlags() {
 	p.FlagSet = flag.NewFlagSet(CmdReadKey, flag.ContinueOnError)
 	p.CommonKeyStoreParameters.Register(p.FlagSet)
+	network.RegisterTLSBaseArgs(p.FlagSet)
 	p.FlagSet.BoolVar(&p.public, "public", false, "read public key of the keypair")
 	p.FlagSet.BoolVar(&p.private, "private", false, "read private key of the keypair")
 	p.FlagSet.Usage = func() {
@@ -93,10 +103,17 @@ func (p *ReadKeySubcommand) RegisterFlags() {
 
 // Parse command-line parameters of the subcommand.
 func (p *ReadKeySubcommand) Parse(arguments []string) error {
-	err := cmd.ParseFlagsWithConfig(p.FlagSet, arguments, DefaultConfigPath, ServiceName)
+	err := cmd.ParseFlags(p.FlagSet, arguments)
 	if err != nil {
 		return err
 	}
+
+	serviceConfig, err := cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		return err
+	}
+	p.extractor = args.NewServiceExtractor(p.FlagSet, serviceConfig)
+
 	args := p.FlagSet.Args()
 	if len(args) < 1 {
 		log.Errorf("\"%s\" command requires key kind", CmdReadKey)

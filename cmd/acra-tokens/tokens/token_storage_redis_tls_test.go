@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/utils/args"
 	"github.com/cossacklabs/acra/utils/tests"
 )
 
@@ -57,8 +58,10 @@ func TestTokensStatusWithTLSRedis(t *testing.T) {
 		}
 	}
 
+	extractor := args.NewServiceExtractor(flagSet, map[string]string{})
 	statusSubCommand := &StatusSubcommand{
-		flagSet: flagSet,
+		flagSet:   flagSet,
+		extractor: extractor,
 	}
 
 	statusSubCommand.Execute()

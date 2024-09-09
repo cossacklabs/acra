@@ -1,15 +1,17 @@
 package encryptor
 
 import (
-	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
 	"testing"
+
+	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
+
+	"github.com/stretchr/testify/mock"
 
 	"github.com/cossacklabs/acra/decryptor/base/mocks"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/sqlparser/dialect"
 	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
-	"github.com/stretchr/testify/mock"
 )
 
 func TestGetFirstTableWithoutAlias(t *testing.T) {
@@ -83,7 +85,7 @@ inner join table3 t3 on t3.col1=t1.col1
 inner join table4 as t4 on t4.col4=t1.col4
 inner join table6 on table6.col1=t1.col1
 `
-		expectedValues := []columnInfo{
+		expectedValues := []ColumnInfo{
 			// column's alias is subquery alias with column and table without aliases in subquery
 			{Alias: "t1", Table: "table1", Name: "col1"},
 			// column's alias is subquery alias with column with AS expression and table without alias
@@ -109,7 +111,7 @@ inner join table6 on table6.col1=t1.col1
 		if !ok {
 			t.Fatal("Test query should be Select expression")
 		}
-		columns, err := mapColumnsToAliases(selectExpr, schemaStore)
+		columns, err := MapColumnsToAliases(selectExpr, schemaStore)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -162,11 +164,11 @@ schemas:
 		testcases := []struct {
 			query          string
 			dialect        dialect.Dialect
-			expectedValues []*columnInfo
+			expectedValues []*ColumnInfo
 		}{
 			{
 				query: `SELECT "id", "email", "mobile_number" AS "mobileNumber" FROM "users" AS "User" where "User"."is_active"`,
-				expectedValues: []*columnInfo{
+				expectedValues: []*ColumnInfo{
 					{Alias: "User", Table: "users", Name: "id"},
 					{Alias: "User", Table: "users", Name: "email"},
 					{Alias: "User", Table: "users", Name: "mobile_number"},
@@ -174,7 +176,7 @@ schemas:
 			},
 			{
 				query: `SELECT "id", "email", "mobile_number" AS "mobileNumber" FROM "users" AS "User", "table1" as "test_table"`,
-				expectedValues: []*columnInfo{
+				expectedValues: []*ColumnInfo{
 					{Alias: "User", Table: "users", Name: "id"},
 					{Alias: "User", Table: "users", Name: "email"},
 					{Alias: "User", Table: "users", Name: "mobile_number"},
@@ -182,13 +184,13 @@ schemas:
 			},
 			{
 				query: `SELECT "id", "email", "mobile_number" AS "mobileNumber" FROM "users" AS "User", "users_duplicate" as "User2"`,
-				expectedValues: []*columnInfo{
+				expectedValues: []*ColumnInfo{
 					nil, nil, nil,
 				},
 			},
 			{
 				query: `SELECT "id", "email", "mobile_number", "id_tmp", "email_tmp", "mobile_number_tmp"  AS "mobileNumber" FROM "users" AS "User", "users_temp" as "temp"`,
-				expectedValues: []*columnInfo{
+				expectedValues: []*ColumnInfo{
 					{Alias: "User", Table: "users", Name: "id"},
 					{Alias: "User", Table: "users", Name: "email"},
 					{Alias: "User", Table: "users", Name: "mobile_number"},
@@ -200,7 +202,7 @@ schemas:
 			{
 				query:   `SELECT id, email, mobile_number FROM users AS alias where alias.is_active`,
 				dialect: mysql.NewMySQLDialect(),
-				expectedValues: []*columnInfo{
+				expectedValues: []*ColumnInfo{
 					{Alias: "alias", Table: "users", Name: "id"},
 					{Alias: "alias", Table: "users", Name: "email"},
 					{Alias: "alias", Table: "users", Name: "mobile_number"},
@@ -210,7 +212,7 @@ schemas:
 				// should return nil, nil, nil as all the columns present in both tables which is invalid
 				query:   `SELECT id, email, mobile_number FROM users, users_duplicate`,
 				dialect: mysql.NewMySQLDialect(),
-				expectedValues: []*columnInfo{
+				expectedValues: []*ColumnInfo{
 					nil, nil, nil,
 				},
 			},
@@ -230,7 +232,7 @@ schemas:
 			if !ok {
 				t.Fatal("Test query should be Select expression")
 			}
-			columns, err := mapColumnsToAliases(selectExpr, schemaStore)
+			columns, err := MapColumnsToAliases(selectExpr, schemaStore)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -275,7 +277,7 @@ schemas:
 			              t1.version_id`,
 		}
 
-		expectedValues := [][]columnInfo{
+		expectedValues := [][]ColumnInfo{
 			{
 				{Alias: "table1", Table: "table1", Name: "number"},
 				{Alias: "table1", Table: "table1", Name: "from_number"},
@@ -317,7 +319,7 @@ schemas:
 				t.Fatal("Test query should be Select expression")
 			}
 
-			columns, err := mapColumnsToAliases(selectExpr, &config.MapTableSchemaStore{})
+			columns, err := MapColumnsToAliases(selectExpr, &config.MapTableSchemaStore{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -344,7 +346,7 @@ schemas:
 			`select t2.*, t3.*, *  from  test_table join test_table2 t2 join test_table3 t3 on t2.id = t3.id join test_table4 t4 on t3.id = t4.id`,
 		}
 
-		expectedValues := [][]columnInfo{
+		expectedValues := [][]ColumnInfo{
 			{
 				{Alias: allColumnsName, Table: "test_table", Name: allColumnsName},
 				{Alias: allColumnsName, Table: "test_table2", Name: allColumnsName},
@@ -375,7 +377,7 @@ schemas:
 				t.Fatal("Test query should be Select expression")
 			}
 
-			columns, err := mapColumnsToAliases(selectExpr, &config.MapTableSchemaStore{})
+			columns, err := MapColumnsToAliases(selectExpr, &config.MapTableSchemaStore{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -408,9 +410,9 @@ schemas:
 			t.Fatal("Test query should be Select expression")
 		}
 
-		expectedValue := columnInfo{Alias: "*", Table: "test_table", Name: "*"}
+		expectedValue := ColumnInfo{Alias: "*", Table: "test_table", Name: "*"}
 
-		columns, err := mapColumnsToAliases(selectExpr, &config.MapTableSchemaStore{})
+		columns, err := MapColumnsToAliases(selectExpr, &config.MapTableSchemaStore{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -457,7 +459,7 @@ schemas:
 		// TODO: consider tracking queries with asterisk from sub-queries as we need to map it via encryptor config
 		// e.g select anon.value_table1, anon.value_table2 from (select * from table1 as tb1 JOIN table2 AS tb2 ON tb1.id = tb2.id) as anon;
 
-		expectedValues := [][]columnInfo{
+		expectedValues := [][]ColumnInfo{
 			{
 				{Alias: "table2", Table: "table2", Name: "value"},
 				{Alias: "table3", Table: "table3", Name: "value"},
@@ -475,7 +477,7 @@ schemas:
 				t.Fatal("Test query should be Select expression")
 			}
 
-			columns, err := mapColumnsToAliases(selectExpr, schemaStore)
+			columns, err := MapColumnsToAliases(selectExpr, schemaStore)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -508,12 +510,12 @@ schemas:
 			t.Fatal("Test query should be Select expression")
 		}
 
-		expectedValue := []columnInfo{
+		expectedValue := []ColumnInfo{
 			{Alias: allColumnsName, Table: "test_table", Name: allColumnsName},
 			{Alias: allColumnsName, Table: "test_table", Name: allColumnsName},
 		}
 
-		columns, err := mapColumnsToAliases(selectExpr, &config.MapTableSchemaStore{})
+		columns, err := MapColumnsToAliases(selectExpr, &config.MapTableSchemaStore{})
 		if err != nil {
 			t.Fatal(err)
 		}

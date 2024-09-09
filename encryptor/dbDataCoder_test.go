@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
 	"testing"
@@ -51,7 +52,7 @@ func TestMysqlDBDataCoder_Decode(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		data, err := coder.Decode(testCase.Input)
+		data, err := coder.Decode(testCase.Input, &config.BasicColumnEncryptionSetting{})
 		if err != testCase.Err {
 			t.Errorf("Expr: %s\nUnexpected error\nExpected: %v\nActual: %v", sqlparser.String(testCase.Input), testCase.Err, err)
 			continue
@@ -93,7 +94,7 @@ func TestMysqlDBDataCoder_Encode(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		coded, err := coder.Encode(testCase.Expr, testCase.Input)
+		coded, err := coder.Encode(testCase.Expr, testCase.Input, &config.BasicColumnEncryptionSetting{})
 		if err != testCase.Err {
 			t.Errorf("Expr: %s\nUnexpected error\nExpected: %v\nActual: %v", sqlparser.String(testCase.Expr), testCase.Err, err)
 			continue
@@ -114,7 +115,7 @@ func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 		sqlparser.NewStrVal([]byte(fmt.Sprintf("\\x%s", hex.EncodeToString(testData)))),
 	}
 	for _, expr := range testCases {
-		data, err := coder.Decode(expr)
+		data, err := coder.Decode(expr, &config.BasicColumnEncryptionSetting{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -158,7 +159,7 @@ func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 		},
 	}
 	for i, testCase := range errTestCases {
-		_, err := coder.Decode(testCase.Expr)
+		_, err := coder.Decode(testCase.Expr, &config.BasicColumnEncryptionSetting{})
 		if err != testCase.Err {
 			t.Fatalf("[%d] Incorrect error. Took: %s; Expected: %s", i, err, testCase.Err.Error())
 		}
@@ -182,12 +183,12 @@ func TestPostgresqlDBDataCoder_Encode(t *testing.T) {
 			Expr:   sqlparser.NewStrVal(testData),
 		},
 		{
-			Output: []byte(fmt.Sprintf("\\x%s", hex.EncodeToString(testData))),
-			Expr:   sqlparser.NewPgEscapeString(testData),
+			Output: utils.EncodeToOctal(testData),
+			Expr:   sqlparser.NewPgEscapeString(utils.EncodeToOctal(testData)),
 		},
 	}
 	for _, testCase := range testCases {
-		coded, err := coder.Encode(testCase.Expr, testData)
+		coded, err := coder.Encode(testCase.Expr, testData, &config.BasicColumnEncryptionSetting{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -195,7 +196,7 @@ func TestPostgresqlDBDataCoder_Encode(t *testing.T) {
 			t.Fatalf("Expr: %s\nTook: %s\nExpected: %s", sqlparser.String(testCase.Expr), string(coded), string(testCase.Output))
 		}
 	}
-	if _, err := coder.Encode(sqlparser.NewFloatVal([]byte{1}), testData); err != errUnsupportedExpression {
+	if _, err := coder.Encode(sqlparser.NewFloatVal([]byte{1}), testData, &config.BasicColumnEncryptionSetting{}); err != errUnsupportedExpression {
 		t.Fatalf("Incorrect error. Took: %s; Expected: %s", err.Error(), errUnsupportedExpression.Error())
 	}
 }

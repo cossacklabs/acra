@@ -1,0 +1,594 @@
+| FlagName                       |    |   |   |   |   |
+|--------------------------------|----|---|---|---|---|
+| acracensor_config_file         |    |   |   |   |   |
+| acrastruct_injectedcell_enable |    |   |   |   |   |
+| acrastruct_wholecell_enable    |    |   |   |   |   |
+| audit_log_enable               |    |   |   |   |   |
+| client_id                      |    |   |   |   |   |
+| config_file                    |    |   |   |   |   |
+| db_host                        |    |   |   |   |   |
+| db_port                        |    |   |   |   |   |
+| ds                             |    |   |   |   |   |
+| dump_config                    |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+|                                |    |   |   |   |   |
+
+# Connection string (http://x.x.x.x:yyyy)for loading encryptor config from HashiCorp Consul
+
+consul_connection_api_string:
+
+# KV Encryptor Config Path (acra/encryptor_config) for loading encryptor config from HashiCorp Consul
+
+consul_kv_config_path: acra/encryptor_config
+
+# Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is -1 which means NotSpecified and will be used value from tls_auth.
+
+consul_tls_client_auth: -1
+
+# Path to root certificate which will be used with system root certificates to validate peer's certificate. Uses --tls_ca value if not specified.
+
+consul_tls_client_ca:
+
+# Path to certificate. Uses --tls_cert value if not specified.
+
+consul_tls_client_cert:
+
+# Path to private key that will be used for TLS connections. Uses --tls_key value if not specified.
+
+consul_tls_client_key:
+
+# Expected Server Name (SNI) from the service's side.
+
+consul_tls_client_sni:
+
+# How many CRLs to cache in memory (use 0 to disable caching)
+
+consul_tls_crl_client_cache_size: 16
+
+# How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: 300 s)
+
+consul_tls_crl_client_cache_time: 0
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using CRL
+
+consul_tls_crl_client_check_only_leaf_certificate: false
+
+# How to treat CRL URL described in certificate itself: <use|trust|prefer|ignore>
+
+consul_tls_crl_client_from_cert: prefer
+
+# URL of the Certificate Revocation List (CRL) to use
+
+consul_tls_crl_client_url:
+
+# Use TLS to encrypt transport with HashiCorp Consul
+
+consul_tls_enable: false
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using OCSP
+
+consul_tls_ocsp_client_check_only_leaf_certificate: false
+
+# How to treat OCSP server described in certificate itself: <use|trust|prefer|ignore>
+
+consul_tls_ocsp_client_from_cert: prefer
+
+# How to treat certificates unknown to OCSP: <denyUnknown|allowUnknown|requireGood>
+
+consul_tls_ocsp_client_required: denyUnknown
+
+# OCSP service URL
+
+consul_tls_ocsp_client_url:
+
+# Log everything to stderr
+
+d: false
+
+# Host to db
+
+dump_config: false
+
+# Path to Encryptor configuration file
+
+encryptor_config_file:
+
+# Encryptor configuration file storage types: <consul|filesystem
+
+encryptor_config_storage_type: filesystem
+
+# Generate with yaml config markdown text file with descriptions of all args
+
+generate_markdown_args_table: false
+
+# Enable HTTP API. Use together with --http_api_tls_transport_enable whenever possible.
+
+http_api_enable: false
+
+# Enable HTTPS support for the API. Use together with the --http_api_enable. TLS configuration is the same as in the Acra Proxy. Starting from 0.96.0 the flag value will be true by default.
+
+http_api_tls_transport_enable: false
+
+# Port for AcraServer for HTTP API
+
+incoming_connection_api_port: 9090
+
+# Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket
+
+incoming_connection_api_string: tcp://0.0.0.0:9090/
+
+# Time that AcraServer will wait (in seconds) on restart before closing all connections
+
+incoming_connection_close_timeout: 10
+
+# Host for AcraServer
+
+incoming_connection_host: 0.0.0.0
+
+# Port for AcraServer
+
+incoming_connection_port: 9393
+
+# URL (tcp://host:port) which will be used to expose Prometheus metrics (<URL>/metrics address to pull metrics)
+
+incoming_connection_prometheus_metrics_string:
+
+# Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket
+
+incoming_connection_string: tcp://0.0.0.0:9393/
+
+# Jaeger agent endpoint (for example, localhost:6831) that will be used to export trace data
+
+jaeger_agent_endpoint:
+
+# Password used for basic auth (optional) to jaeger
+
+jaeger_basic_auth_password:
+
+# Username used for basic auth (optional) to jaeger
+
+jaeger_basic_auth_username:
+
+# Jaeger endpoint (for example, http://localhost:14268/api/traces) that will be used to export trace data
+
+jaeger_collector_endpoint:
+
+# Folder from which will be loaded keys
+
+keys_dir: .acrakeys
+
+# Load all keys to cache on start
+
+keystore_cache_on_start_enable: true
+
+# Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache. Default is 1000
+
+keystore_cache_size: 1000
+
+# Keystore encryptor strategy: <env_master_key|kms_encrypted_master_key|vault_master_key|kms_per_client
+
+keystore_encryption_type: env_master_key
+
+# KMS credentials JSON file path
+
+kms_credentials_path:
+
+# KMS type for using: <aws>
+
+kms_type:
+
+# Log to stderr if true
+
+log_to_console: true
+
+# Log to file if pass not empty value
+
+log_to_file:
+
+# Logging format: plaintext, json or CEF
+
+logging_format: plaintext
+
+# Handle MySQL connections
+
+mysql_enable: false
+
+# Escape format for Postgresql bytea data (deprecated, ignored)
+
+pgsql_escape_bytea: false
+
+# Hex format for Postgresql bytea data (deprecated, ignored)
+
+pgsql_hex_bytea: false
+
+# Turn on poison record detection, if server shutdown is disabled, AcraServer logs the poison record detection and returns decrypted data
+
+poison_detect_enable: false
+
+# On detecting poison record: log about poison record detection, execute script, return decrypted data
+
+poison_run_script_file:
+
+# On detecting poison record: log about poison record detection, stop and shutdown
+
+poison_shutdown_enable: false
+
+# Handle Postgresql connections (default true)
+
+postgresql_enable: false
+
+# Number of Redis database for keys
+
+redis_db_keys: -1
+
+# Number of Redis database for tokens
+
+redis_db_tokens: -1
+
+# <host>:<port> used to connect to Redis
+
+redis_host_port:
+
+# Password to Redis database
+
+redis_password:
+
+# Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is -1 which means NotSpecified and will be used value from tls_auth.
+
+redis_tls_client_auth: -1
+
+# Path to root certificate which will be used with system root certificates to validate peer's certificate. Uses --tls_ca value if not specified.
+
+redis_tls_client_ca:
+
+# Path to certificate. Uses --tls_cert value if not specified.
+
+redis_tls_client_cert:
+
+# Path to private key that will be used for TLS connections. Uses --tls_key value if not specified.
+
+redis_tls_client_key:
+
+# Expected Server Name (SNI) from the service's side.
+
+redis_tls_client_sni:
+
+# How many CRLs to cache in memory (use 0 to disable caching)
+
+redis_tls_crl_client_cache_size: 16
+
+# How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: 300 s)
+
+redis_tls_crl_client_cache_time: 0
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using CRL
+
+redis_tls_crl_client_check_only_leaf_certificate: false
+
+# How to treat CRL URL described in certificate itself: <use|trust|prefer|ignore>
+
+redis_tls_crl_client_from_cert: prefer
+
+# URL of the Certificate Revocation List (CRL) to use
+
+redis_tls_crl_client_url:
+
+# Use TLS to connect to Redis
+
+redis_tls_enable: false
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using OCSP
+
+redis_tls_ocsp_client_check_only_leaf_certificate: false
+
+# How to treat OCSP server described in certificate itself: <use|trust|prefer|ignore>
+
+redis_tls_ocsp_client_from_cert: prefer
+
+# How to treat certificates unknown to OCSP: <denyUnknown|allowUnknown|requireGood>
+
+redis_tls_ocsp_client_required: denyUnknown
+
+# OCSP service URL
+
+redis_tls_ocsp_client_url:
+
+# Stop AcraServer execution in case of SQL query parse error. Default is false
+
+sql_parse_on_error_exit_enable: false
+
+# Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert
+
+tls_auth: 4
+
+# Path to root certificate which will be used with system root certificates to validate peer's certificate
+
+tls_ca:
+
+# Path to certificate
+
+tls_cert:
+
+# Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is -1 which means NotSpecified and will be used value from tls_auth.
+
+tls_client_auth: -1
+
+# Path to root certificate which will be used with system root certificates to validate peer's certificate. Uses --tls_ca value if not specified.
+
+tls_client_ca:
+
+# Path to certificate. Uses --tls_cert value if not specified.
+
+tls_client_cert:
+
+# Extract clientID from TLS certificate from application connection. Can't be used with --tls_client_auth=0 or --tls_auth=0
+
+tls_client_id_from_cert: true
+
+# Path to private key that will be used for TLS connections. Uses --tls_key value if not specified.
+
+tls_client_key:
+
+# How many CRLs to cache in memory (use 0 to disable caching)
+
+tls_crl_cache_size: 16
+
+# How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: 300 s)
+
+tls_crl_cache_time: 0
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using CRL
+
+tls_crl_check_only_leaf_certificate: false
+
+# How many CRLs to cache in memory (use 0 to disable caching)
+
+tls_crl_client_cache_size: 16
+
+# How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: 300 s)
+
+tls_crl_client_cache_time: 0
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using CRL
+
+tls_crl_client_check_only_leaf_certificate: false
+
+# How to treat CRL URL described in certificate itself: <use|trust|prefer|ignore>
+
+tls_crl_client_from_cert: prefer
+
+# URL of the Certificate Revocation List (CRL) to use
+
+tls_crl_client_url:
+
+# How many CRLs to cache in memory (use 0 to disable caching)
+
+tls_crl_database_cache_size: 16
+
+# How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: 300 s)
+
+tls_crl_database_cache_time: 0
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using CRL
+
+tls_crl_database_check_only_leaf_certificate: false
+
+# How to treat CRL URL described in certificate itself: <use|trust|prefer|ignore>
+
+tls_crl_database_from_cert: prefer
+
+# URL of the Certificate Revocation List (CRL) to use
+
+tls_crl_database_url:
+
+# How to treat CRL URL described in certificate itself: <use|trust|prefer|ignore>
+
+tls_crl_from_cert: prefer
+
+# URL of the Certificate Revocation List (CRL) to use
+
+tls_crl_url:
+
+# Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is -1 which means NotSpecified and will be used value from tls_auth.
+
+tls_database_auth: -1
+
+# Path to root certificate which will be used with system root certificates to validate peer's certificate. Uses --tls_ca value if not specified.
+
+tls_database_ca:
+
+# Path to certificate. Uses --tls_cert value if not specified.
+
+tls_database_cert:
+
+# Path to private key that will be used for TLS connections. Uses --tls_key value if not specified.
+
+tls_database_key:
+
+# Expected Server Name (SNI) from the service's side.
+
+tls_database_sni:
+
+# Decide which field of TLS certificate to use as ClientID (distinguished_name|serial_number). Default is distinguished_name.
+
+tls_identifier_extractor_type: distinguished_name
+
+# Path to private key that will be used for TLS connections
+
+tls_key:
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using OCSP
+
+tls_ocsp_check_only_leaf_certificate: false
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using OCSP
+
+tls_ocsp_client_check_only_leaf_certificate: false
+
+# How to treat OCSP server described in certificate itself: <use|trust|prefer|ignore>
+
+tls_ocsp_client_from_cert: prefer
+
+# How to treat certificates unknown to OCSP: <denyUnknown|allowUnknown|requireGood>
+
+tls_ocsp_client_required: denyUnknown
+
+# OCSP service URL
+
+tls_ocsp_client_url:
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using OCSP
+
+tls_ocsp_database_check_only_leaf_certificate: false
+
+# How to treat OCSP server described in certificate itself: <use|trust|prefer|ignore>
+
+tls_ocsp_database_from_cert: prefer
+
+# How to treat certificates unknown to OCSP: <denyUnknown|allowUnknown|requireGood>
+
+tls_ocsp_database_required: denyUnknown
+
+# OCSP service URL
+
+tls_ocsp_database_url:
+
+# How to treat OCSP server described in certificate itself: <use|trust|prefer|ignore>
+
+tls_ocsp_from_cert: prefer
+
+# How to treat certificates unknown to OCSP: <denyUnknown|allowUnknown|requireGood>
+
+tls_ocsp_required: denyUnknown
+
+# OCSP service URL
+
+tls_ocsp_url:
+
+# Path to BoltDB database file to store tokens
+
+token_db:
+
+# Export trace data to jaeger
+
+tracing_jaeger_enable: false
+
+# Export trace data to log
+
+tracing_log_enable: false
+
+# Log to stderr all INFO, WARNING and ERROR logs
+
+v: false
+
+# Connection string (http://x.x.x.x:yyyy) for loading ACRA_MASTER_KEY from HashiCorp Vault
+
+vault_connection_api_string:
+
+# KV Secret Path (secret/) for reading ACRA_MASTER_KEY from HashiCorp Vault
+
+vault_secrets_path: secret/
+
+# Path to CA certificate for HashiCorp Vault certificate validation (deprecated since 0.94.0, use `vault_tls_client_ca`)
+
+vault_tls_ca_path:
+
+# Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is -1 which means NotSpecified and will be used value from tls_auth.
+
+vault_tls_client_auth: -1
+
+# Path to root certificate which will be used with system root certificates to validate peer's certificate. Uses --tls_ca value if not specified.
+
+vault_tls_client_ca:
+
+# Path to certificate. Uses --tls_cert value if not specified.
+
+vault_tls_client_cert:
+
+# Path to private key that will be used for TLS connections. Uses --tls_key value if not specified.
+
+vault_tls_client_key:
+
+# Expected Server Name (SNI) from the service's side.
+
+vault_tls_client_sni:
+
+# How many CRLs to cache in memory (use 0 to disable caching)
+
+vault_tls_crl_client_cache_size: 16
+
+# How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: 300 s)
+
+vault_tls_crl_client_cache_time: 0
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using CRL
+
+vault_tls_crl_client_check_only_leaf_certificate: false
+
+# How to treat CRL URL described in certificate itself: <use|trust|prefer|ignore>
+
+vault_tls_crl_client_from_cert: prefer
+
+# URL of the Certificate Revocation List (CRL) to use
+
+vault_tls_crl_client_url:
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using OCSP
+
+vault_tls_ocsp_client_check_only_leaf_certificate: false
+
+# How to treat OCSP server described in certificate itself: <use|trust|prefer|ignore>
+
+vault_tls_ocsp_client_from_cert: prefer
+
+# How to treat certificates unknown to OCSP: <denyUnknown|allowUnknown|requireGood>
+
+vault_tls_ocsp_client_required: denyUnknown
+
+# OCSP service URL
+
+vault_tls_ocsp_client_url:
+
+# Use TLS to encrypt transport with HashiCorp Vault
+
+vault_tls_transport_enable: false
+
+|                | CLI_SET      | CLI_NOT_SET     | CONFIG_SET      | CONFIG_NOT_SET |
+|----------------|--------------|-----------------|-----------------|:---------------|
+| CLI_SET        | 1            | 1               | 1 (FROM CLI)    | 1              |
+| CLI_NOT_SET    | 1            | 0               | 1 (FROM CONFIG) | 0              |
+| CONFIG_SET     | 1 (FROM CLI) | 1 (FROM CONFIG) | 1               | 1              |
+| CONFIG_NOT_SET | 1            | 0               | 1               | 0              |

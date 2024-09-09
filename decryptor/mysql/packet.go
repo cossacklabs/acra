@@ -19,11 +19,12 @@ package mysql
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"net"
 	"strconv"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
@@ -35,8 +36,12 @@ const (
 	ClientProtocol41 = 0x00000200
 	// SslRequest - https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_SSL
 	SslRequest = 0x00000800
-	// ClientDeprecateEOF - https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_DEPRECATE_EOF - 0x1000000
+	// ClientDeprecateEOF - https://dev.mysql.com/doc/dev/mysql-server/latest/group__group__cs__capabilities__flags.html#gaad8e6e886899e90e820d6c2e0248469d- 0x1000000
 	ClientDeprecateEOF = 0x01000000
+	// MARIADB_CLIENT_EXTENDED_TYPE_INFO - https://mariadb.com/kb/en/connection/#capabilities-
+	MariaDBClientExtendedTypeInfo = 0x8
+	// MARIADB_CLIENT_CACHE_METADATA - https://mariadb.com/kb/en/connection/#capabilities-
+	MariaDBClientCacheMetadata = 0x10
 )
 
 // MySQL packets significant bytes.
@@ -62,9 +67,6 @@ const (
 	// flag byte which has the highest bit set if the type is unsigned.
 	unsignedBinaryValue = 0b1000_0000
 )
-
-// ErrPacketHasNotExtendedCapabilities if packet has capability flags
-var ErrPacketHasNotExtendedCapabilities = errors.New("packet hasn't extended capabilities")
 
 // Dumper dumps :)
 type Dumper interface {
@@ -116,15 +118,26 @@ func (packet *Packet) GetBindParameters(paramNum int) ([]base.BoundValue, error)
 	// 4 - stmt-id
 	// 1 - flags
 	// 4 - iteration-count
-	pos := 10
+	var pos = 10
+	var newParamsBindFlag bool
+	var nullBitmap []byte
+
 	if paramNum > 0 {
+		// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_binary_resultset.html#sect_protocol_binary_resultset_row
 		// 7 + num-params offset from docs
-		pos = 10 + ((paramNum + 7) >> 3)
+		// For COM_STMT_EXECUTE this offset is 0
+		nullBitMapLength := (paramNum + 7) / 8
+		if nullBitMapLength > 0 {
+			nullBitmap = packet.data[pos : pos+nullBitMapLength]
+		}
+
+		pos = 10 + nullBitMapLength
+		// 	int<1> new_params_bind_flag - Flag if parameters must be re-bound
+		newParamsBindFlag = packet.data[pos] == byte(1)
 	}
 
 	values := make([]base.BoundValue, paramNum)
-	// new-params-bound-flag
-	if packet.data[pos] != 1 {
+	if !newParamsBindFlag {
 		return values, nil
 	}
 	pos += +1
@@ -137,6 +150,13 @@ func (packet *Packet) GetBindParameters(paramNum int) ([]base.BoundValue, error)
 	}
 
 	for i := 0; i < paramNum; i++ {
+		// i / 8 -- calculate byte number in bitmap
+		// i % 8 -- calculate bit number for current field
+		if len(nullBitmap) > 0 && nullBitmap[i/8]&(1<<(i%8)) > 0 {
+			values[i] = &mysqlBoundValue{data: nil, format: base.BinaryFormat, paramType: base_mysql.Type(paramTypes[i])}
+			continue
+		}
+
 		boundValue, n, err := NewMysqlBoundValue(packet.data[pos:], base.BinaryFormat, base_mysql.Type(paramTypes[i]))
 		if err != nil {
 			return nil, err
@@ -306,56 +326,47 @@ func (packet *Packet) IsErr() bool {
 	return packet.data[0] == ErrPacket
 }
 
-func (packet *Packet) getServerCapabilities() int {
+func (packet *Packet) getServerCapabilities() uint32 {
 	// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#idm140437490034448
 	endOfServerVersion := bytes.Index(packet.data[1:], []byte{0}) + 2 // 1 first byte of protocol version and 1 to point to next byte
 	// 4 bytes connection string + 8 bytes of auth plugin + 1 byte filler
 	rawCapabilities := packet.data[endOfServerVersion+13 : endOfServerVersion+13+2]
-	return int(binary.LittleEndian.Uint16(rawCapabilities))
+	return uint32(binary.LittleEndian.Uint16(rawCapabilities))
 }
 
-func (packet *Packet) getServerCapabilitiesExtended() (int, error) {
+// https://mariadb.com/kb/en/connection/#initial-handshake-packet
+func (packet *Packet) getExtendedMariaDBCapabilities() uint32 {
 	// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#idm140437490034448
 	endOfServerVersion := bytes.Index(packet.data[1:], []byte{0}) + 2 // 1 first byte of protocol version and 1 to point to next byte
 	// 4 bytes connection string + 8 bytes of auth plugin + 1 byte filler
 	baseCapabilitiesOffset := endOfServerVersion + 13
-	// 2 bytes of base capabilities + 1 byte character set + 2 bytes of status flags
-	capabilitiesOffset := baseCapabilitiesOffset + 2 + 3
-	if len(packet.data) < capabilitiesOffset+2 {
-		return 0, ErrPacketHasNotExtendedCapabilities
+	// 2 bytes of base capabilities + 1 byte character set + 2 bytes of status flags + 2 bytes sever capabilities (2nd part) + auth plugin 1 byte + filler 6 byte
+	capabilitiesOffset := baseCapabilitiesOffset + 2 + 3 + 2 + 1 + 6
+	if len(packet.data) < capabilitiesOffset+4 {
+		logrus.Debug("packet hasn't DB extended capabilities")
+		return 0
 	}
-	rawCapabilities := packet.data[capabilitiesOffset : capabilitiesOffset+2]
-	return int(binary.LittleEndian.Uint16(rawCapabilities)), nil
+
+	extendedCapabilities := packet.data[capabilitiesOffset : capabilitiesOffset+4]
+	return binary.LittleEndian.Uint32(extendedCapabilities)
 }
 
-// ServerSupportProtocol41 if server supports client_protocol_41
-func (packet *Packet) ServerSupportProtocol41() bool {
-	capabilities := packet.getServerCapabilities()
-	return (capabilities & ClientProtocol41) > 0
+// https://mariadb.com/kb/en/connection/#handshake-response-packet
+func (packet *Packet) getClientExtendedMariaDBCapabilities() uint32 {
+	// client cap 4 bytes + max packet size 4 bytes + client character collation 1 byte + reserver 19 bytes
+	capabilitiesOffset := 4 + 4 + 1 + 19
+	if len(packet.data) < capabilitiesOffset+4 {
+		logrus.Debug("packet hasn't Client extended capabilities")
+		return 0
+	}
+
+	extendedCapabilities := packet.data[capabilitiesOffset : capabilitiesOffset+4]
+	return binary.LittleEndian.Uint32(extendedCapabilities)
 }
 
 func (packet *Packet) getClientCapabilities() uint32 {
 	// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#idm140437489940880
 	return binary.LittleEndian.Uint32(packet.data[:4])
-}
-
-// ClientSupportProtocol41 if client supports client_protocol_41
-func (packet *Packet) ClientSupportProtocol41() bool {
-	capabilities := packet.getClientCapabilities()
-	return (capabilities & ClientProtocol41) > 0
-}
-
-// IsSSLRequest return true if SslRequest flag up
-func (packet *Packet) IsSSLRequest() bool {
-	capabilities := packet.getClientCapabilities()
-	return (capabilities & SslRequest) > 0
-}
-
-// IsClientDeprecateEOF return true if flag set
-// https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_DEPRECATE_EOF
-func (packet *Packet) IsClientDeprecateEOF() bool {
-	capabilities := packet.getClientCapabilities()
-	return (capabilities & ClientDeprecateEOF) > 0
 }
 
 // ReadPacket from connection and return Packet struct with data or error

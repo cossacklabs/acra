@@ -13,7 +13,9 @@ import (
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // ImportKeysParams are parameters of "acra-keys import" subcommand.
@@ -28,7 +30,9 @@ type ImportKeysSubcommand struct {
 	CommonKeyStoreParameters
 	CommonExportImportParameters
 	CommonKeyListingParameters
-	FlagSet  *flag.FlagSet
+	FlagSet   *flag.FlagSet
+	extractor *args.ServiceExtractor
+
 	importer keystore.Importer
 }
 
@@ -47,12 +51,18 @@ func (p *ImportKeysSubcommand) GetFlagSet() *flag.FlagSet {
 	return p.FlagSet
 }
 
+// GetExtractor return ServiceParamsExtractor
+func (p *ImportKeysSubcommand) GetExtractor() *args.ServiceExtractor {
+	return p.extractor
+}
+
 // RegisterFlags registers command-line flags of "acra-keys import".
 func (p *ImportKeysSubcommand) RegisterFlags() {
 	p.FlagSet = flag.NewFlagSet(CmdImportKeys, flag.ContinueOnError)
 	p.CommonKeyStoreParameters.Register(p.FlagSet)
 	p.CommonExportImportParameters.Register(p.FlagSet, "input")
 	p.CommonKeyListingParameters.Register(p.FlagSet)
+	network.RegisterTLSBaseArgs(p.FlagSet)
 	p.FlagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": import keys into the keystore\n", CmdImportKeys)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] --key_bundle_file <file> --key_bundle_secret <file>\n", os.Args[0], CmdImportKeys)
@@ -63,10 +73,17 @@ func (p *ImportKeysSubcommand) RegisterFlags() {
 
 // Parse command-line parameters of the subcommand.
 func (p *ImportKeysSubcommand) Parse(arguments []string) error {
-	err := cmd.ParseFlagsWithConfig(p.FlagSet, arguments, DefaultConfigPath, ServiceName)
+	err := cmd.ParseFlags(p.FlagSet, arguments)
 	if err != nil {
 		return err
 	}
+
+	serviceConfig, err := cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		return err
+	}
+	p.extractor = args.NewServiceExtractor(p.FlagSet, serviceConfig)
+
 	err = p.CommonExportImportParameters.validate()
 	if err != nil {
 		return err
@@ -90,7 +107,7 @@ func (p *ImportKeysSubcommand) Execute() {
 		p.importer = backuper
 	} else {
 		var storage filesystem.Storage
-		if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
+		if redis := cmd.ParseRedisCLIParameters(p.GetExtractor()); redis.KeysConfigured() {
 			storage, err = filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
 			if err != nil {
 				log.WithError(err).Errorln("Can't initialize redis storage")
@@ -100,7 +117,7 @@ func (p *ImportKeysSubcommand) Execute() {
 			storage = &filesystem.DummyStorage{}
 		}
 
-		keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(p.FlagSet, "")
+		keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(p.GetExtractor(), "")
 		if err != nil {
 			log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 			os.Exit(1)

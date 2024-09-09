@@ -7,7 +7,6 @@ import shutil
 import signal
 import subprocess
 import tempfile
-import time
 import unittest
 from base64 import b64encode
 from distutils.dir_util import copy_tree
@@ -21,6 +20,7 @@ import pymysql
 import redis
 import requests
 import sqlalchemy as sa
+import time
 
 import api_pb2
 import api_pb2_grpc
@@ -42,13 +42,16 @@ class ExecutorMixin:
     RAW_EXECUTOR = True
     FORMAT = ''
 
+    def get_acra_host(self):
+        return 'localhost'
+
     def setUp(self):
         super().setUp()
         acra_port = self.ACRASERVER_PORT
         self.executor1 = self.executor_with_ssl(
-            base.TEST_TLS_CLIENT_KEY, base.TEST_TLS_CLIENT_CERT, acra_port, 'localhost')
+            base.TEST_TLS_CLIENT_KEY, base.TEST_TLS_CLIENT_CERT, acra_port, self.get_acra_host())
         self.executor2 = self.executor_with_ssl(
-            base.TEST_TLS_CLIENT_2_KEY, base.TEST_TLS_CLIENT_2_CERT, acra_port, 'localhost')
+            base.TEST_TLS_CLIENT_2_KEY, base.TEST_TLS_CLIENT_2_CERT, acra_port, self.get_acra_host())
         self.raw_executor = self.executor_with_ssl(
             base.TEST_TLS_CLIENT_KEY, base.TEST_TLS_CLIENT_CERT, base.DB_PORT, base.DB_HOST)
 
@@ -77,6 +80,20 @@ class AsyncpgExecutorMixin(ExecutorMixin):
 
 class MysqlExecutorMixin(ExecutorMixin):
     executor_cls = base.MysqlExecutor
+
+
+class MariaDBExecutorMixin(ExecutorMixin):
+    def checkSkip(self):
+        if not base.TEST_MARIADB:
+            self.skipTest("run test only for MariaDB")
+        elif not base.TEST_WITH_TLS:
+            self.skipTest("running tests only with TLS")
+
+    # MariaDB used socket auth by default and in case of localhost trying to connect to unix socket
+    def get_acra_host(self):
+        return '127.0.0.1'
+
+    executor_cls = base.MariaDBExecutor
 
 
 class KeyMakerTest(unittest.TestCase):
@@ -319,6 +336,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             # restart on every breakpoint stop to pull updated parameters and reset keys from memory cache
             base.dump_yaml_config(args, '/tmp/config.yml')
             return base.ProcessStub()
+
         process = base.fork(lambda: subprocess.Popen([self.get_acraserver_bin_path()] + cli_args,
                                                      **popen_kwargs))
         try:
@@ -622,7 +640,7 @@ class RedisMixin:
         super().tearDown()
 
 
-class BaseBinaryPostgreSQLTestCase(AsyncpgExecutorMixin, BaseTestCase):
+class BaseBinaryPostgreSQLMixin(AsyncpgExecutorMixin):
     """Setup test fixture for testing PostgreSQL extended protocol."""
 
     def checkSkip(self):
@@ -716,13 +734,7 @@ class BaseBinaryPostgreSQLTestCase(AsyncpgExecutorMixin, BaseTestCase):
         return query, tuple(values)
 
 
-class BaseBinaryMySQLTestCase(MysqlExecutorMixin, BaseTestCase):
-    """Setup test fixture for testing MySQL extended protocol."""
-
-    def checkSkip(self):
-        super().checkSkip()
-        if not base.TEST_MYSQL:
-            self.skipTest("test only MySQL")
+class BaseMySQLCompileQueryMixin:
 
     def compileInsertQuery(self, query, parameters={}, literal_binds=False):
         """
@@ -782,6 +794,7 @@ class BaseBinaryMySQLTestCase(MysqlExecutorMixin, BaseTestCase):
         compile_kwargs = {"literal_binds": literal_binds}
         query = str(query.compile(compile_kwargs=compile_kwargs))
         values = []
+        columns_order = []
         # parse all parameters like `:id` in the query
         pattern_string = r'(:\w+)'
         res = re.findall(pattern_string, query, re.IGNORECASE | re.DOTALL)
@@ -796,8 +809,27 @@ class BaseBinaryMySQLTestCase(MysqlExecutorMixin, BaseTestCase):
                         key = key.rstrip(index_suffix)
                         param_counter += 1
                 values.append(parameters[key])
+                columns_order.append(key)
                 query = query.replace(placeholder, '?')
-        return query, tuple(values)
+        return query, tuple(values), columns_order
+
+
+class BaseBinaryMySQLTestCase(MysqlExecutorMixin, BaseMySQLCompileQueryMixin, BaseTestCase):
+    """Setup test fixture for testing MySQL extended protocol."""
+
+    def checkSkip(self):
+        super().checkSkip()
+        if not base.TEST_MYSQL:
+            self.skipTest("test only MySQL")
+
+
+class BaseBinaryMariaDBTestCase(MariaDBExecutorMixin, BaseMySQLCompileQueryMixin, BaseTestCase):
+    """Setup test fixture for testing MySQL extended protocol."""
+
+    def checkSkip(self):
+        super().checkSkip()
+        if not base.TEST_MARIADB:
+            self.skipTest("test only MariaDB")
 
 
 class BasePoisonRecordTest(AcraCatchLogsMixin, AcraTranslatorMixin, BaseTestCase):

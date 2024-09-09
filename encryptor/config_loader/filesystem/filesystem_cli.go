@@ -1,6 +1,10 @@
 package filesystem
 
-import "flag"
+import (
+	"flag"
+
+	"github.com/cossacklabs/acra/utils/args"
+)
 
 // CLIOptions keep command-line options related to Consul encryptor config loader.
 type CLIOptions struct {
@@ -15,12 +19,8 @@ func RegisterCLIParametersWithFlagSet(flags *flag.FlagSet, prefix, description s
 }
 
 // ParseCLIParametersFromFlags VaultCLIOptions from provided FlagSet
-func ParseCLIParametersFromFlags(flags *flag.FlagSet, prefix string) *CLIOptions {
-	options := CLIOptions{}
-
-	if f := flags.Lookup(prefix + "encryptor_config_file"); f != nil {
-		options.EncryptorConfigFile = f.Value.String()
+func ParseCLIParametersFromFlags(extractor *args.ServiceExtractor, prefix string) *CLIOptions {
+	return &CLIOptions{
+		EncryptorConfigFile: extractor.GetString(prefix+"encryptor_config_file", ""),
 	}
-
-	return &options
 }

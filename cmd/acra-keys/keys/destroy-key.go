@@ -26,6 +26,8 @@ import (
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // SupportedDestroyKeyKinds is a list of keys supported by `destroy-key` subcommand.
@@ -44,11 +46,17 @@ type DestroyKeyParams interface {
 // DestroyKeySubcommand is the "acra-keys destroy" subcommand.
 type DestroyKeySubcommand struct {
 	CommonKeyStoreParameters
-	FlagSet *flag.FlagSet
+	FlagSet   *flag.FlagSet
+	extractor *args.ServiceExtractor
 
 	index          int
 	destroyKeyKind string
 	contextID      []byte
+}
+
+// GetExtractor ServiceParamsExtractor.
+func (p *DestroyKeySubcommand) GetExtractor() *args.ServiceExtractor {
+	return p.extractor
 }
 
 // Name returns the same of this subcommand.
@@ -65,6 +73,7 @@ func (p *DestroyKeySubcommand) GetFlagSet() *flag.FlagSet {
 func (p *DestroyKeySubcommand) RegisterFlags() {
 	p.FlagSet = flag.NewFlagSet(CmdReadKey, flag.ContinueOnError)
 	p.CommonKeyStoreParameters.Register(p.FlagSet)
+	network.RegisterTLSBaseArgs(p.FlagSet)
 	p.FlagSet.IntVar(&p.index, "index", 1, "Index of key to destroy (1 - represents current key, 2..n - rotated key)")
 	p.FlagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": destroy key material\n", CmdDestroyKey)
@@ -76,10 +85,18 @@ func (p *DestroyKeySubcommand) RegisterFlags() {
 
 // Parse command-line parameters of the subcommand.
 func (p *DestroyKeySubcommand) Parse(arguments []string) error {
-	err := cmd.ParseFlagsWithConfig(p.FlagSet, arguments, DefaultConfigPath, ServiceName)
+	err := cmd.ParseFlags(p.FlagSet, arguments)
 	if err != nil {
 		return err
 	}
+
+	serviceConfig, err := cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		return err
+	}
+
+	p.extractor = args.NewServiceExtractor(p.FlagSet, serviceConfig)
+
 	args := p.FlagSet.Args()
 	if len(args) < 1 {
 		log.Errorf("\"%s\" command requires key kind", CmdDestroyKey)

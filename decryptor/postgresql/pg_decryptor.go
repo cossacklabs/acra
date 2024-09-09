@@ -30,15 +30,16 @@ import (
 	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/encryptor/config"
 
+	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
+	"go.opencensus.io/trace"
+
 	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/sqlparser"
-	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
-	"go.opencensus.io/trace"
 )
 
 // ReadyForQuery - 'Z' ReadyForQuery, 0 0 0 5 length, 'I' idle status
@@ -888,7 +889,13 @@ func (proxy *PgProxy) handleParameterDescription(ctx context.Context, packet *Pa
 	if changed {
 		// 5 is MessageType[1] + PacketLength[4] + PacketPayload
 		newParameterDescription := make([]byte, 0, 5+packet.descriptionBuf.Len())
-		newParameterDescription = parameterDescription.Encode(newParameterDescription)
+		newParameterDescription, err = parameterDescription.Encode(newParameterDescription)
+		if err != nil {
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDBProtocolError).
+				WithError(err).
+				Errorln("Can't encode ParameterDescription packet")
+			return nil
+		}
 		packet.descriptionBuf.Reset()
 		packet.descriptionBuf.Write(newParameterDescription[5:])
 	}
@@ -934,7 +941,13 @@ func (proxy *PgProxy) handleRowDescription(ctx context.Context, packet *PacketHa
 	if changed {
 		// 5 is MessageType[1] + PacketLength[4] + PacketPayload
 		newRowDescription := make([]byte, 0, 5+packet.descriptionBuf.Len())
-		newRowDescription = rowDescription.Encode(newRowDescription)
+		newRowDescription, err = rowDescription.Encode(newRowDescription)
+		if err != nil {
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDBProtocolError).
+				WithError(err).
+				Errorln("Can't encode ParameterDescription packet")
+			return nil
+		}
 		packet.descriptionBuf.Reset()
 		packet.descriptionBuf.Write(newRowDescription[5:])
 	}
@@ -949,6 +962,13 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 	if err != nil {
 		return err
 	}
+
+	if pendingPacket == nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
+			Warnln("nil pendingPacket in handleQueryDataPacket: potential Multi-Statement query not supported by Acra")
+		return nil
+	}
+
 	var bindPacket *BindPacket
 	if pendingPacket.(queryPacket).executePacket != nil {
 		bindPacket = pendingPacket.(queryPacket).bindPacket
@@ -969,7 +989,32 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 		return nil
 	}
 	sqlQuery := pendingPacket.(queryPacket).GetSQLQuery()
-	encryptionSettings, err := proxy.settingExtractor.GetEncryptorSettingsForQuery(base.NewOnQueryObjectFromQuery(sqlQuery, proxy.parser))
+
+	sqlOnQuery := base.NewOnQueryObjectFromQuery(sqlQuery, proxy.parser)
+	sqlStmt, err := proxy.parser.Parse(sqlQuery)
+	if err != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
+			WithError(err).Errorln("Failed to parse SQL query")
+		return err
+	}
+
+	// if the sqlStmt represent Execute, it means that previously Acra processed SQL prepared statement, e.q:
+	// prepare some_name (params...) as insert into some_table(id, ...) values($1,...)
+	// so we need to read prepared statement from registry and use its inner query (insert into some_table(id, ...) values($1,...))
+	// for processing in `onColumnDecryption`
+	if executeStmt, ok := sqlStmt.(*sqlparser.Execute); ok {
+		preparedStatementRegistry := proxy.session.PreparedStatementRegistry()
+
+		storedStatement, err := preparedStatementRegistry.StatementByName(executeStmt.PreparedStatementName.String())
+		if err != nil {
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
+				WithError(err).Errorln("No prepared statement in registry on execute query")
+			return err
+		}
+		sqlOnQuery = base.NewOnQueryObjectFromQuery(storedStatement.QueryText(), proxy.parser)
+	}
+
+	encryptionSettings, err := proxy.settingExtractor.GetEncryptorSettingsForQuery(sqlOnQuery)
 	if err != nil {
 		logger.WithError(err).Warningln("Can't extract encryption settings from the query")
 		encryptionSettings = nil
@@ -993,7 +1038,7 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 			format = int(boundFormat)
 		}
 		var encryptionSetting config.ColumnEncryptionSetting = nil
-		if encryptionSettings != nil && i <= len(encryptionSettings) && encryptionSettings[i] != nil {
+		if encryptionSettings != nil && i < len(encryptionSettings) && encryptionSettings[i] != nil {
 			encryptionSetting = encryptionSettings[i].Setting()
 		}
 		logger.WithField("data_length", len(column.GetData())).WithField("column_index", i).Debugln("Process columns data")

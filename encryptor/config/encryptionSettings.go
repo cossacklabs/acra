@@ -20,11 +20,12 @@ import (
 	"errors"
 	"fmt"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
 	"github.com/cossacklabs/acra/encryptor/config/common"
 	maskingCommon "github.com/cossacklabs/acra/masking/common"
 	tokenizationCommon "github.com/cossacklabs/acra/pseudonymization/common"
-	log "github.com/sirupsen/logrus"
 )
 
 // SettingMask bitmask used to store info about encryptor configuration
@@ -98,6 +99,9 @@ var validSettings = map[SettingMask]struct{}{
 
 	SettingSearchFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
 	SettingSearchFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
+
+	SettingSearchFlag | SettingClientIDFlag | SettingOnFailFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
+	SettingSearchFlag | SettingClientIDFlag | SettingOnFailFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
 
 	SettingSearchFlag | SettingClientIDFlag | SettingDataTypeIDFlag | SettingOnFailFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
 	SettingSearchFlag | SettingClientIDFlag | SettingDataTypeIDFlag | SettingOnFailFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},

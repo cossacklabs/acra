@@ -44,18 +44,19 @@ type HashQuery struct {
 	coder                 queryEncryptor.DBDataCoder
 	decryptor             base.ExtendedDataProcessor
 	parser                *sqlparser.Parser
+	schemaStore           config.TableSchemaStore
 }
 
 // NewPostgresqlHashQuery return HashQuery with coder for postgresql
 func NewPostgresqlHashQuery(keystore HashDecryptStore, schemaStore config.TableSchemaStore, processor base.ExtendedDataProcessor) *HashQuery {
 	searchableQueryFilter := queryEncryptor.NewSearchableQueryFilter(schemaStore, queryEncryptor.QueryFilterModeSearchableEncryption)
-	return &HashQuery{keystore: keystore, coder: &queryEncryptor.PostgresqlDBDataCoder{}, searchableQueryFilter: searchableQueryFilter, decryptor: processor}
+	return &HashQuery{keystore: keystore, coder: &queryEncryptor.PostgresqlDBDataCoder{}, searchableQueryFilter: searchableQueryFilter, decryptor: processor, schemaStore: schemaStore}
 }
 
 // NewMysqlHashQuery return HashQuery with coder for mysql
 func NewMysqlHashQuery(keystore HashDecryptStore, schemaStore config.TableSchemaStore, processor base.ExtendedDataProcessor) *HashQuery {
 	searchableQueryFilter := queryEncryptor.NewSearchableQueryFilter(schemaStore, queryEncryptor.QueryFilterModeSearchableEncryption)
-	return &HashQuery{keystore: keystore, coder: &queryEncryptor.MysqlDBDataCoder{}, searchableQueryFilter: searchableQueryFilter, decryptor: processor}
+	return &HashQuery{keystore: keystore, coder: &queryEncryptor.MysqlDBDataCoder{}, searchableQueryFilter: searchableQueryFilter, decryptor: processor, schemaStore: schemaStore}
 }
 
 // ID returns name of this QueryObserver.
@@ -137,7 +138,7 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query base.OnQueryObjec
 
 		// substring(column, 1, <HMAC_size>) = 'value' ===> substring(column, 1, <HMAC_size>) = <HMAC('value')>
 		// substring(column, 1, <HMAC_size>) = $1      ===> no changes
-		err := queryEncryptor.UpdateExpressionValue(ctx, item.Expr.Right, encryptor.coder, encryptor.calculateHmac)
+		err := queryEncryptor.UpdateExpressionValue(ctx, item.Expr.Right, encryptor.coder, item.Setting, encryptor.calculateHmac)
 		if err != nil {
 			logrus.WithError(err).Debugln("Failed to update expression")
 			return query, false, err
@@ -183,6 +184,10 @@ func (encryptor *HashQuery) OnBind(ctx context.Context, statement sqlparser.Stat
 	// and map them onto values that we need to update.
 	indexes := make([]int, 0, len(values))
 	for _, item := range items {
+		if !item.Setting.IsSearchable() {
+			continue
+		}
+
 		switch value := item.Expr.Right.(type) {
 		case *sqlparser.SQLVal:
 			var err error
@@ -198,11 +203,17 @@ func (encryptor *HashQuery) OnBind(ctx context.Context, statement sqlparser.Stat
 			indexes = append(indexes, index)
 		}
 	}
+
+	bindData := queryEncryptor.ParseSearchQueryPlaceholdersSettings(statement, encryptor.schemaStore)
+	if len(bindData) > len(indexes) {
+		return values, false, nil
+	}
+
 	// Finally, once we know which values to replace with HMACs, do this replacement.
-	return encryptor.replaceValuesWithHMACs(ctx, values, indexes)
+	return encryptor.replaceValuesWithHMACs(ctx, values, indexes, bindData)
 }
 
-func (encryptor *HashQuery) replaceValuesWithHMACs(ctx context.Context, values []base.BoundValue, placeholders []int) ([]base.BoundValue, bool, error) {
+func (encryptor *HashQuery) replaceValuesWithHMACs(ctx context.Context, values []base.BoundValue, placeholders []int, bindData map[int]config.ColumnEncryptionSetting) ([]base.BoundValue, bool, error) {
 	// If there are no interesting placholder positions then we don't have to process anything.
 	if len(placeholders) == 0 {
 		return values, false, nil
@@ -210,8 +221,6 @@ func (encryptor *HashQuery) replaceValuesWithHMACs(ctx context.Context, values [
 	// Otherwise, decrypt values at positions indicated by placeholders and replace them with their HMACs.
 	newValues := make([]base.BoundValue, len(values))
 	copy(newValues, values)
-	clientSession := base.ClientSessionFromContext(ctx)
-	bindData := queryEncryptor.PlaceholderSettingsFromClientSession(clientSession)
 
 	for _, valueIndex := range placeholders {
 		var encryptionSetting config.ColumnEncryptionSetting = nil

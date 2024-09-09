@@ -2,10 +2,11 @@ package tests
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"strconv"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // DatabaseConfig stores configuration for test database

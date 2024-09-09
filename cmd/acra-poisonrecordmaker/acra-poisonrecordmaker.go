@@ -40,8 +40,10 @@ import (
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/utils/args"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -59,33 +61,55 @@ const (
 	RecordTypeAcraBlock  = "acrablock"
 )
 
-func main() {
-	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
-	dataLength := flag.Int("data_length", poison.UseDefaultDataLength, fmt.Sprintf("Length of random data for data block in acrastruct. -1 is random in range 1..%v", poison.DefaultDataLength))
-	recordType := flag.String("type", RecordTypeAcraStruct, fmt.Sprintf("Type of poison record: \"%s\" | \"%s\"\n", RecordTypeAcraStruct, RecordTypeAcraBlock))
+func registerFlags(flagSet *flag.FlagSet) {
+	flagSet.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
+	flagSet.Int("data_length", poison.UseDefaultDataLength, fmt.Sprintf("Length of random data for data block in acrastruct. -1 is random in range 1..%v", poison.DefaultDataLength))
+	flagSet.String("type", RecordTypeAcraStruct, fmt.Sprintf("Type of poison record: \"%s\" | \"%s\"\n", RecordTypeAcraStruct, RecordTypeAcraBlock))
 
+	network.RegisterTLSBaseArgs(flagSet)
 	keyloader.RegisterKeyStoreStrategyParameters()
-	logging.SetLogLevel(logging.LogDiscard)
+}
 
-	err := cmd.Parse(defaultConfigPath, serviceName)
-	if err != nil {
+func main() {
+	logging.SetLogLevel(logging.LogDiscard)
+	registerFlags(flag.CommandLine)
+
+	if err := cmd.ParseFlags(flag.CommandLine, os.Args[1:]); err != nil {
+		if err == cmd.ErrDumpRequested {
+			cmd.DumpConfig(defaultConfigPath, serviceName, true)
+			os.Exit(0)
+		}
+
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
-			Errorln("can't parse args")
+			Errorln("Can't parse args")
 		os.Exit(1)
 	}
 
+	serviceConfig, err := cmd.ParseConfig(defaultConfigPath, serviceName)
+	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
+			Errorln("Can't parse config")
+		os.Exit(1)
+	}
+
+	paramsExtractor := args.NewServiceExtractor(flag.CommandLine, serviceConfig)
+
+	keysDir := paramsExtractor.GetString("keys_dir", "")
+	dataLength := paramsExtractor.GetInt("data_length", "")
+	recordType := paramsExtractor.GetString("type", "")
+
 	var store keystore.PoisonKeyStorageAndGenerator
-	if filesystemV2.IsKeyDirectory(*keysDir) {
-		store = openKeyStoreV2(*keysDir)
+	if filesystemV2.IsKeyDirectory(keysDir, paramsExtractor) {
+		store = openKeyStoreV2(keysDir, paramsExtractor)
 	} else {
-		store = openKeyStoreV1(*keysDir)
+		store = openKeyStoreV1(keysDir, paramsExtractor)
 	}
 	var poisonRecord []byte
-	switch *recordType {
+	switch recordType {
 	case RecordTypeAcraStruct:
-		poisonRecord, err = poison.CreatePoisonRecord(store, *dataLength)
+		poisonRecord, err = poison.CreatePoisonRecord(store, dataLength)
 	case RecordTypeAcraBlock:
-		poisonRecord, err = poison.CreateSymmetricPoisonRecord(store, *dataLength)
+		poisonRecord, err = poison.CreateSymmetricPoisonRecord(store, dataLength)
 	default:
 		log.Errorf("Incorrect type of record. Should be used \"%s\" or \"%s\"\n", RecordTypeAcraStruct, RecordTypeAcraBlock)
 		os.Exit(1)
@@ -97,10 +121,10 @@ func main() {
 	fmt.Println(base64.StdEncoding.EncodeToString(poisonRecord))
 }
 
-func openKeyStoreV1(output string) keystore.PoisonKeyStorageAndGenerator {
+func openKeyStoreV1(output string, extractor *args.ServiceExtractor) keystore.PoisonKeyStorageAndGenerator {
 	var keyStoreEncryptor keystore.KeyEncryptor
 
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(flag.CommandLine, "")
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		os.Exit(1)
@@ -109,8 +133,8 @@ func openKeyStoreV1(output string) keystore.PoisonKeyStorageAndGenerator {
 	keyStoreBuilder := filesystem.NewCustomFilesystemKeyStore()
 	keyStoreBuilder.KeyDirectory(output)
 	keyStoreBuilder.Encryptor(keyStoreEncryptor)
-	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
-		redisOptions, err := redis.KeysOptions(flag.CommandLine)
+	if redis := cmd.ParseRedisCLIParameters(extractor); redis.KeysConfigured() {
+		redisOptions, err := redis.KeysOptions(extractor)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 				Errorln("Can't get Redis options")
@@ -130,22 +154,22 @@ func openKeyStoreV1(output string) keystore.PoisonKeyStorageAndGenerator {
 		os.Exit(1)
 	}
 
-	if keyLoaderParams := keyloader.ParseCLIOptions(); keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
-		keyManager, _ := kms.NewKeyManager(kms.ParseCLIParameters())
+	if keyLoaderParams := keyloader.ParseCLIOptions(extractor); keyLoaderParams.KeystoreEncryptorType == keyloader.KeystoreStrategyKMSPerClient {
+		keyManager, _ := kms.NewKeyManager(kms.ParseCLIParameters(extractor))
 		return base.NewKeyMakingWrapper(keyStoreV1, keyManager, kms.NewKMSPerClientKeyMapper())
 	}
 	return keyStoreV1
 }
 
-func openKeyStoreV2(keyDirPath string) keystore.PoisonKeyStorageAndGenerator {
-	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(flag.CommandLine, "")
+func openKeyStoreV2(keyDirPath string, extractor *args.ServiceExtractor) keystore.PoisonKeyStorageAndGenerator {
+	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")
 		os.Exit(1)
 	}
 	var backend filesystemBackendV2.Backend
-	if redis := cmd.ParseRedisCLIParameters(); redis.KeysConfigured() {
-		redisOptions, err := redis.KeysOptions(flag.CommandLine)
+	if redis := cmd.ParseRedisCLIParameters(extractor); redis.KeysConfigured() {
+		redisOptions, err := redis.KeysOptions(extractor)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize Redis options")
 			os.Exit(1)

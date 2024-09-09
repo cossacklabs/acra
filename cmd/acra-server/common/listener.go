@@ -30,12 +30,13 @@ import (
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/utils"
 
-	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/network"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
+
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/network"
 )
 
 type closer func()
@@ -74,6 +75,8 @@ type SServer struct {
 	stopListenersSignal   chan bool
 	errCh                 chan error
 	lock                  sync.RWMutex
+	stopOnce              sync.Once
+	exitOnce              sync.Once
 }
 
 // ErrWaitTimeout error indicates that server was shutdown and waited N seconds while shutting down all connections.
@@ -393,27 +396,29 @@ func stopAcceptConnections(listener network.DeadlineListener) (err error) {
 
 // StopListeners stops accepts new connections, and stops existing listeners with deadline.
 func (server *SServer) StopListeners() {
-	// Use this channel for signaling of closed listeners according to
-	// https://stackoverflow.com/questions/13417095/how-do-i-stop-a-listening-server-in-go
-	close(server.stopListenersSignal)
+	server.stopOnce.Do(func() {
+		// Use this channel for signaling of closed listeners according to
+		// https://stackoverflow.com/questions/13417095/how-do-i-stop-a-listening-server-in-go
+		close(server.stopListenersSignal)
 
-	var err error
-	var deadlineListener network.DeadlineListener
-	log.Debugln("Stopping listeners")
-	server.lock.RLock()
-	for _, listener := range server.listeners {
+		var err error
+		var deadlineListener network.DeadlineListener
+		log.Debugln("Stopping listeners")
+		server.lock.RLock()
+		for _, listener := range server.listeners {
 
-		deadlineListener, err = network.CastListenerToDeadline(listener)
-		if err != nil {
-			log.WithError(err).Warningln("Listener doesn't support deadlines")
-			continue
+			deadlineListener, err = network.CastListenerToDeadline(listener)
+			if err != nil {
+				log.WithError(err).Warningln("Listener doesn't support deadlines")
+				continue
+			}
+
+			if err = stopAcceptConnections(deadlineListener); err != nil {
+				log.WithError(err).Warningln("Can't set deadline for listener")
+			}
 		}
-
-		if err = stopAcceptConnections(deadlineListener); err != nil {
-			log.WithError(err).Warningln("Can't set deadline for listener")
-		}
-	}
-	server.lock.RUnlock()
+		server.lock.RUnlock()
+	})
 }
 
 // WaitConnections waits until connection complete or stops them after duration time.

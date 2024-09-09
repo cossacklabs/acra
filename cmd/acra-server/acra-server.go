@@ -70,6 +70,7 @@ import (
 	"github.com/cossacklabs/acra/pseudonymization/storage"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 var restartSignalsChannel chan os.Signal
@@ -113,78 +114,119 @@ func main() {
 	}
 }
 
-func realMain() error {
-	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
-	dbHost := flag.String("db_host", "", "Host to db")
-	dbPort := flag.Int("db_port", 5432, "Port to db")
+func registerFlags(flagSet *flag.FlagSet) {
+	flagSet.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
+	flagSet.String("db_host", "", "Host to db")
+	flagSet.Int("db_port", 5432, "Port to db")
+	flagSet.String("incoming_connection_prometheus_metrics_string", "", "URL (tcp://host:port) which will be used to expose Prometheus metrics (<URL>/metrics address to pull metrics)")
+	flagSet.String("incoming_connection_host", cmd.DefaultAcraServerHost, "Host for AcraServer")
+	flagSet.Int("incoming_connection_port", cmd.DefaultAcraServerPort, "Port for AcraServer")
+	flagSet.Int("incoming_connection_api_port", cmd.DefaultAcraServerAPIPort, "Port for AcraServer for HTTP API")
+	flagSet.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
+	flagSet.Bool("keystore_cache_on_start_enable", true, "Load all keys to cache on start")
+	flagSet.Int("keystore_cache_size", keystore.DefaultCacheSize, fmt.Sprintf("Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache. Default is %d", keystore.DefaultCacheSize))
+	flagSet.Bool("pgsql_hex_bytea", false, "Hex format for Postgresql bytea data (deprecated, ignored)")
+	flagSet.Bool("pgsql_escape_bytea", false, "Escape format for Postgresql bytea data (deprecated, ignored)")
+	flagSet.Bool("acrastruct_wholecell_enable", false, "Acrastruct will stored in whole data cell (deprecated, ignored)")
+	flagSet.Bool("acrastruct_injectedcell_enable", false, "Acrastruct may be injected into any place of data cell (deprecated, ignored)")
+	flagSet.Bool("ds", false, "Turn on HTTP debug server")
+	flagSet.Int("incoming_connection_close_timeout", DefaultAcraServerWaitTimeout, "Time that AcraServer will wait (in seconds) on restart before closing all connections")
+	flagSet.Bool("poison_detect_enable", false, "Turn on poison record detection, if server shutdown is disabled, AcraServer logs the poison record detection and returns decrypted data")
+	flagSet.Bool("poison_shutdown_enable", false, "On detecting poison record: log about poison record detection, stop and shutdown")
+	flagSet.String("poison_run_script_file", "", "On detecting poison record: log about poison record detection, execute script, return decrypted data")
+	flagSet.Bool("http_api_enable", false, "Enable HTTP API. Use together with --http_api_tls_transport_enable whenever possible.")
+	flagSet.Bool("http_api_tls_transport_enable", false, "Enable HTTPS support for the API. Use together with the --http_api_enable. TLS configuration is the same as in the Acra Proxy. Starting from 0.96.0 the flag value will be true by default.")
+	flagSet.Bool("tls_client_id_from_cert", true, "Extract clientID from TLS certificate from application connection. Can't be used with --tls_client_auth=0 or --tls_auth=0")
+	flagSet.String("tls_identifier_extractor_type", network.DefaultIdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
+	flagSet.String("client_id", "", "Static ClientID used by AcraServer for data protection operations")
+	flagSet.String("incoming_connection_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerPort, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	flagSet.String("incoming_connection_api_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerAPIPort, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	flagSet.Bool("sql_parse_on_error_exit_enable", false, "Stop AcraServer execution in case of SQL query parse error. Default is false")
+	flagSet.Bool("mysql_enable", false, "Handle MySQL connections")
+	flagSet.Bool("postgresql_enable", false, "Handle Postgresql connections (default true)")
+	flagSet.String("acracensor_config_file", "", "Path to AcraCensor configuration file")
+	flagSet.String("token_db", "", "Path to BoltDB database file to store tokens")
+	flagSet.String("encryptor_config_storage_type", config_loader.EncryptoConfigStorageTypeFilesystem, fmt.Sprintf("Encryptor configuration file storage types: <%s", strings.Join(config_loader.SupportedEncryptorConfigStorages, "|")))
+	flagSet.Bool("audit_log_enable", false, "Enable audit log functionality")
+	flagSet.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
+	flagSet.Bool("d", false, "Log everything to stderr")
+	flagSet.Bool("log_to_console", true, "Log to stderr if true")
+	flagSet.String("log_to_file", "", "Log to file if pass not empty value")
 
-	prometheusAddress := flag.String("incoming_connection_prometheus_metrics_string", "", "URL (tcp://host:port) which will be used to expose Prometheus metrics (<URL>/metrics address to pull metrics)")
-
-	host := flag.String("incoming_connection_host", cmd.DefaultAcraServerHost, "Host for AcraServer")
-	port := flag.Int("incoming_connection_port", cmd.DefaultAcraServerPort, "Port for AcraServer")
-	apiPort := flag.Int("incoming_connection_api_port", cmd.DefaultAcraServerAPIPort, "Port for AcraServer for HTTP API")
-
-	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
-	cacheKeystoreOnStart := flag.Bool("keystore_cache_on_start_enable", true, "Load all keys to cache on start")
-	keysCacheSize := flag.Int("keystore_cache_size", keystore.DefaultCacheSize, fmt.Sprintf("Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache. Default is %d", keystore.DefaultCacheSize))
-
-	_ = flag.Bool("pgsql_hex_bytea", false, "Hex format for Postgresql bytea data (deprecated, ignored)")
-	flag.Bool("pgsql_escape_bytea", false, "Escape format for Postgresql bytea data (deprecated, ignored)")
-
-	flag.Bool("acrastruct_wholecell_enable", false, "Acrastruct will stored in whole data cell (deprecated, ignored)")
-	flag.Bool("acrastruct_injectedcell_enable", false, "Acrastruct may be injected into any place of data cell (deprecated, ignored)")
-
-	debugServer := flag.Bool("ds", false, "Turn on HTTP debug server")
-	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DefaultAcraServerWaitTimeout, "Time that AcraServer will wait (in seconds) on restart before closing all connections")
-
-	detectPoisonRecords := flag.Bool("poison_detect_enable", false, "Turn on poison record detection, if server shutdown is disabled, AcraServer logs the poison record detection and returns decrypted data")
-	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "On detecting poison record: log about poison record detection, stop and shutdown")
-	scriptOnPoison := flag.String("poison_run_script_file", "", "On detecting poison record: log about poison record detection, execute script, return decrypted data")
-
-	enableHTTPAPI := flag.Bool("http_api_enable", false, "Enable HTTP API. Use together with --http_api_tls_transport_enable whenever possible.")
-	httpAPIUseTLS := flag.Bool("http_api_tls_transport_enable", false, "Enable HTTPS support for the API. Use together with the --http_api_enable. TLS configuration is the same as in the Acra Proxy. Starting from 0.96.0 the flag value will be true by default.")
-
-	network.RegisterTLSBaseArgs(flag.CommandLine)
-	network.RegisterTLSArgsForService(flag.CommandLine, false, "", network.ClientNameConstructorFunc())
-	network.RegisterTLSArgsForService(flag.CommandLine, true, "", network.DatabaseNameConstructorFunc())
-	tlsUseClientIDFromCertificate := flag.Bool("tls_client_id_from_cert", true, "Extract clientID from TLS certificate from application connection. Can't be used with --tls_client_auth=0 or --tls_auth=0")
-	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.DefaultIdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
-	clientID := flag.String("client_id", "", "Static ClientID used by AcraServer for data protection operations")
-	acraConnectionString := flag.String("incoming_connection_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerPort, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
-	acraAPIConnectionString := flag.String("incoming_connection_api_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerAPIPort, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
-	sqlParseErrorExitEnable := flag.Bool("sql_parse_on_error_exit_enable", false, "Stop AcraServer execution in case of SQL query parse error. Default is false")
-
-	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
-	usePostgresql := flag.Bool("postgresql_enable", false, "Handle Postgresql connections (default true)")
-	censorConfig := flag.String("acracensor_config_file", "", "Path to AcraCensor configuration file")
-	boltTokebDB := flag.String("token_db", "", "Path to BoltDB database file to store tokens")
-
-	encryptorConfigStorageType := flag.String("encryptor_config_storage_type", config_loader.EncryptoConfigStorageTypeFilesystem, fmt.Sprintf("Encryptor configuration file storage types: <%s", strings.Join(config_loader.SupportedEncryptorConfigStorages, "|")))
-
-	enableAuditLog := flag.Bool("audit_log_enable", false, "Enable audit log functionality")
+	network.RegisterTLSBaseArgs(flagSet)
+	network.RegisterTLSArgsForService(flagSet, false, "", network.ClientNameConstructorFunc())
+	network.RegisterTLSArgsForService(flagSet, true, "", network.DatabaseNameConstructorFunc())
 	cmd.RegisterRedisKeystoreParameters()
 	cmd.RegisterRedisTokenStoreParameters()
 	keyloader.RegisterKeyStoreStrategyParameters()
 	config_loader.RegisterEncryptorConfigLoaderParameters()
 	cmd.RegisterTracingCmdParameters()
 	cmd.RegisterJaegerCmdParameters()
-	logging.RegisterCLIArgs()
+}
 
-	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
-	debug := flag.Bool("d", false, "Log everything to stderr")
+func realMain() error {
+	registerFlags(flag.CommandLine)
 
-	err := cmd.Parse(DefaultConfigPath, ServiceName)
-	if err != nil {
+	if err := cmd.ParseFlags(flag.CommandLine, os.Args[1:]); err != nil {
+		if err == cmd.ErrDumpRequested {
+			cmd.DumpConfig(DefaultConfigPath, ServiceName, true)
+			os.Exit(0)
+		}
+
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse args")
 		return err
 	}
 
+	serviceConfig, err := cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
+			Errorln("Can't parse config")
+		return err
+	}
+
+	argsExtractor := args.NewServiceExtractor(flag.CommandLine, serviceConfig)
+
+	loggingFormat := argsExtractor.GetString("logging_format", "")
+	dbHost := argsExtractor.GetString("db_host", "")
+	dbPort := argsExtractor.GetInt("db_port", "")
+	prometheusAddress := argsExtractor.GetString("incoming_connection_prometheus_metrics_string", "")
+	host := argsExtractor.GetString("incoming_connection_host", "")
+	port := argsExtractor.GetInt("incoming_connection_port", "")
+	apiPort := argsExtractor.GetInt("incoming_connection_api_port", "")
+	keysDir := argsExtractor.GetString("keys_dir", "")
+	cacheKeystoreOnStart := argsExtractor.GetBool("keystore_cache_on_start_enable", "")
+	keysCacheSize := argsExtractor.GetInt("keystore_cache_size", "")
+	debugServer := argsExtractor.GetBool("ds", "")
+	closeConnectionTimeout := argsExtractor.GetInt("incoming_connection_close_timeout", "")
+	detectPoisonRecords := argsExtractor.GetBool("poison_detect_enable", "")
+	stopOnPoison := argsExtractor.GetBool("poison_shutdown_enable", "")
+	scriptOnPoison := argsExtractor.GetString("poison_run_script_file", "")
+	enableHTTPAPI := argsExtractor.GetBool("http_api_enable", "")
+	httpAPIUseTLS := argsExtractor.GetBool("http_api_tls_transport_enable", "")
+	tlsUseClientIDFromCertificate := argsExtractor.GetBool("tls_client_id_from_cert", "")
+	tlsIdentifierExtractorType := argsExtractor.GetString("tls_identifier_extractor_type", "")
+	clientID := argsExtractor.GetString("client_id", "")
+	acraConnectionString := argsExtractor.GetString("incoming_connection_string", "")
+	acraAPIConnectionString := argsExtractor.GetString("incoming_connection_api_string", "")
+	sqlParseErrorExitEnable := argsExtractor.GetBool("sql_parse_on_error_exit_enable", "")
+	useMysql := argsExtractor.GetBool("mysql_enable", "")
+	usePostgresql := argsExtractor.GetBool("postgresql_enable", "")
+	censorConfig := argsExtractor.GetString("acracensor_config_file", "")
+	boltTokebDB := argsExtractor.GetString("token_db", "")
+	encryptorConfigStorageType := argsExtractor.GetString("encryptor_config_storage_type", "")
+	enableAuditLog := argsExtractor.GetBool("audit_log_enable", "")
+	verbose := argsExtractor.GetBool("v", "")
+	debug := argsExtractor.GetBool("d", "")
+	logToConsole := argsExtractor.GetBool("log_to_console", "")
+	logToFile := argsExtractor.GetString("log_to_file", "")
+	network.SetTLSBaseArgs(argsExtractor)
+
 	if os.Getenv(GracefulRestartEnv) == "true" {
 		// if process is forked, here we are blocked on reading signal from parent process (via pipe). When signal is read,
 		// it means that parent process will not log any messages and now forked process is allowed to start logging. We should
 		// wait a bit longer than parent process while closing connections, since there is minimal time-delta on exiting from parent process
-		err := waitReadPipe(time.Duration(*closeConnectionTimeout+1) * time.Second)
+		err := waitReadPipe(time.Duration(closeConnectionTimeout+1) * time.Second)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantForkProcess).
 				Errorln("Error occurred while reading signal from pipe")
@@ -193,12 +235,12 @@ func realMain() error {
 	}
 
 	// Start customizing logs here (directly after command line arguments parsing)
-	formatter := logging.CreateCryptoFormatter(*loggingFormat)
+	formatter := logging.CreateCryptoFormatter(loggingFormat)
 	// Set formatter early in order to have consistent format for further logs
 	formatter.SetServiceName(ServiceName)
 	log.SetFormatter(formatter)
 
-	writer, logFinalize, err := logging.NewWriter()
+	writer, logFinalize, err := logging.NewWriter(logToConsole, logToFile)
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialise output writer for logging customization")
 		return err
@@ -225,64 +267,66 @@ func realMain() error {
 
 	log.Infof("Validating service configuration...")
 
-	serverConfig.SetAcraConnectionString(*acraConnectionString)
-	if *host != cmd.DefaultAcraServerHost || *port != cmd.DefaultAcraServerPort {
-		serverConfig.SetAcraConnectionString(network.BuildConnectionString("tcp", *host, *port, ""))
+	serverConfig.SetAcraConnectionString(acraConnectionString)
+	if host != cmd.DefaultAcraServerHost || port != cmd.DefaultAcraServerPort {
+		serverConfig.SetAcraConnectionString(network.BuildConnectionString("tcp", host, port, ""))
 	}
-	serverConfig.SetAcraAPIConnectionString(*acraAPIConnectionString)
-	if *apiPort != cmd.DefaultAcraServerAPIPort {
-		serverConfig.SetAcraAPIConnectionString(network.BuildConnectionString("tcp", *host, *apiPort, ""))
+	serverConfig.SetAcraAPIConnectionString(acraAPIConnectionString)
+	if apiPort != cmd.DefaultAcraServerAPIPort {
+		serverConfig.SetAcraAPIConnectionString(network.BuildConnectionString("tcp", host, apiPort, ""))
 	}
 
-	if *dbHost == "" {
+	if dbHost == "" {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
 			Errorln("db_host is empty: you must specify db_host")
 		flag.Usage()
 		return err
 	}
-	serverConfig.SetDBConnectionSettings(*dbHost, *dbPort)
+	serverConfig.SetDBConnectionSettings(dbHost, dbPort)
 
-	if err := serverConfig.SetDatabaseType(*useMysql, *usePostgresql); err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-			Errorln("Can't configure database type")
-		return err
-	}
-
-	if config_loader.IsEncryptorConfigLoaderCLIConfigured() {
-		if err := serverConfig.LoadMapTableSchemaConfig(*encryptorConfigStorageType, *useMysql); err != nil {
+	if config_loader.IsEncryptorConfigLoaderCLIConfigured(argsExtractor) {
+		if err := serverConfig.LoadMapTableSchemaConfig(argsExtractor, encryptorConfigStorageType, useMysql); err != nil {
 			log.WithError(err).Errorln("Can't load encryptor config")
 			return err
 		}
 		log.Infoln("Encryptor configuration loaded")
 	}
 
-	if err := serverConfig.SetCensor(*censorConfig); err != nil {
+	if err := serverConfig.SetDatabaseType(useMysql, usePostgresql); err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+			Errorln("Can't configure database type")
+		return err
+	}
+
+	sqlparser.SetDefaultDialect(serverConfig.GetSQLDialect())
+
+	if err := serverConfig.SetCensor(censorConfig); err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSetupError).
 			Errorln("Can't setup censor")
 		return err
 	}
 
 	// now it's stub as default values
-	serverConfig.SetDetectPoisonRecords(*detectPoisonRecords)
-	serverConfig.SetEnableHTTPAPI(*enableHTTPAPI)
-	serverConfig.SetDebug(*debug)
+	serverConfig.SetDetectPoisonRecords(detectPoisonRecords)
+	serverConfig.SetEnableHTTPAPI(enableHTTPAPI)
+	serverConfig.SetDebug(debug)
 	serverConfig.SetServiceName(ServiceName)
 	serverConfig.SetConfigPath(cmd.ConfigPath(DefaultConfigPath))
 
 	log.Infof("Initialising keystore...")
 	var keyStore keystore.ServerKeyStore
-	if filesystemV2.IsKeyDirectory(*keysDir) {
-		keyStore, err = openKeyStoreV2(*keysDir, *keysCacheSize)
+	if filesystemV2.IsKeyDirectory(keysDir, argsExtractor) {
+		keyStore, err = openKeyStoreV2(keysDir, keysCacheSize, argsExtractor)
 	} else {
-		keyStore, err = openKeyStoreV1(*keysDir, *keysCacheSize)
+		keyStore, err = openKeyStoreV1(keysDir, keysCacheSize, argsExtractor)
 	}
 	if err != nil {
 		log.WithError(err).Errorln("Can't open keyStore")
 		return err
 	}
 
-	if *cacheKeystoreOnStart {
-		if *keysCacheSize == keystore.WithoutCache {
+	if cacheKeystoreOnStart {
+		if keysCacheSize == keystore.WithoutCache {
 			log.Errorln("Can't cache on start with disabled cache")
 			os.Exit(1)
 		}
@@ -294,7 +338,7 @@ func realMain() error {
 	}
 
 	serverConfig.SetKeyStore(keyStore)
-	log.WithField("path", *keysDir).Infof("Keystore init OK")
+	log.WithField("path", keysDir).Infof("Keystore init OK")
 
 	if err := crypto.InitRegistry(keyStore); err != nil {
 		log.WithError(err).Errorln("Can't initialize crypto registry")
@@ -302,14 +346,14 @@ func realMain() error {
 	}
 
 	var auditLogHandler *logging.AuditLogHandler
-	if *enableAuditLog {
+	if enableAuditLog {
 		auditLogKey, err := keyStore.GetLogSecretKey()
 		if err != nil {
 			log.WithError(err).Errorln("Can't load logging key")
 			return err
 		}
 
-		hooks, err := logging.NewHooks(auditLogKey, *loggingFormat)
+		hooks, err := logging.NewHooks(auditLogKey, loggingFormat)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialise necessary hooks for logging customization")
 			return err
@@ -329,26 +373,26 @@ func realMain() error {
 	}
 
 	log.Infof("Configuring transport...")
-	serverConfig.SetUseClientIDFromCertificate(*tlsUseClientIDFromCertificate)
-	if err := serverConfig.SetStaticClientID([]byte(*clientID)); err != nil {
+	serverConfig.SetUseClientIDFromCertificate(tlsUseClientIDFromCertificate)
+	if err := serverConfig.SetStaticClientID([]byte(clientID)); err != nil {
 		log.WithError(err).Errorln("Cannot be configured static clientID")
 		os.Exit(1)
 	}
 
-	appSideTLSConfig, err := network.NewTLSConfigByName(flag.CommandLine, "", "", network.ClientNameConstructorFunc())
+	appSideTLSConfig, err := network.NewTLSConfigByName(argsExtractor, "", "", network.ClientNameConstructorFunc())
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 			Errorln("Configuration error: can't create application TLS config")
 		os.Exit(1)
 	}
 
-	dbTLSConfig, err := network.NewTLSConfigByName(flag.CommandLine, "", *dbHost, network.DatabaseNameConstructorFunc())
+	dbTLSConfig, err := network.NewTLSConfigByName(argsExtractor, "", dbHost, network.DatabaseNameConstructorFunc())
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 			Errorln("Configuration error: can't create database TLS config")
 		os.Exit(1)
 	}
-	if *tlsUseClientIDFromCertificate && appSideTLSConfig.ClientAuth == tls.NoClientCert {
+	if tlsUseClientIDFromCertificate && appSideTLSConfig.ClientAuth == tls.NoClientCert {
 		log.Errorln("Cannot be used --tls_client_id_from_cert together with " +
 			"--tls_auth=0 or --tls_client_auth=0 due to unnecessary of client's certificate in TLS handshake")
 		os.Exit(1)
@@ -358,9 +402,9 @@ func realMain() error {
 		log.WithError(err).Errorln("Can't initialize identifier converter")
 		os.Exit(1)
 	}
-	identifierExtractor, err := network.NewIdentifierExtractorByType(*tlsIdentifierExtractorType)
+	identifierExtractor, err := network.NewIdentifierExtractorByType(tlsIdentifierExtractorType)
 	if err != nil {
-		log.WithField("type", *tlsIdentifierExtractorType).WithError(err).Errorln("Can't initialize identifier extractor")
+		log.WithField("type", tlsIdentifierExtractorType).WithError(err).Errorln("Can't initialize identifier extractor")
 		os.Exit(1)
 	}
 	clientIDExtractor, err := network.NewTLSClientIDExtractor(identifierExtractor, idConverter)
@@ -371,7 +415,7 @@ func realMain() error {
 	serverConfig.SetTLSClientIDExtractor(clientIDExtractor)
 	// configured TLS wrapper which may be used for communication with app or database
 	tlsWrapper, err := network.NewTLSAuthenticationConnectionWrapper(
-		*tlsUseClientIDFromCertificate, dbTLSConfig, appSideTLSConfig, clientIDExtractor)
+		tlsUseClientIDFromCertificate, dbTLSConfig, appSideTLSConfig, clientIDExtractor)
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize TLS connection wrapper")
 		os.Exit(1)
@@ -380,15 +424,15 @@ func realMain() error {
 	{
 		var httpAPIConnWrapper network.HTTPServerConnectionWrapper
 		var err error
-		if *httpAPIUseTLS {
-			if !*enableHTTPAPI {
+		if httpAPIUseTLS {
+			if !enableHTTPAPI {
 				log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).
 					Warningln("--http_api_tls_transport_enable is provided, but the HTTP API server is not configured. Use --http_api_enable to enable it.")
 				os.Exit(1)
 			}
-			httpAPIConnWrapper, err = common.BuildHTTPAPIConnectionWrapper(tlsWrapper, *tlsUseClientIDFromCertificate, serverConfig.GetStaticClientID())
+			httpAPIConnWrapper, err = common.BuildHTTPAPIConnectionWrapper(tlsWrapper, tlsUseClientIDFromCertificate, serverConfig.GetStaticClientID())
 		} else {
-			if *enableHTTPAPI {
+			if enableHTTPAPI {
 				log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).
 					Warningln("HTTP API server is used without TLS. Consider using TLS whenever possible.")
 				if len(serverConfig.GetStaticClientID()) == 0 {
@@ -396,7 +440,7 @@ func realMain() error {
 						Warning("HTTP API server is configured without TLS, which requires non-empty clientID. Either configure TLS for the HTTP API server, use --client_id option.")
 				}
 			}
-			httpAPIConnWrapper, err = common.BuildHTTPAPIConnectionWrapper(nil, *tlsUseClientIDFromCertificate, serverConfig.GetStaticClientID())
+			httpAPIConnWrapper, err = common.BuildHTTPAPIConnectionWrapper(nil, tlsUseClientIDFromCertificate, serverConfig.GetStaticClientID())
 		}
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
@@ -406,13 +450,13 @@ func realMain() error {
 		serverConfig.HTTPAPIConnectionWrapper = httpAPIConnWrapper
 	}
 
-	proxyTLSWrapper := base.NewTLSConnectionWrapper(*tlsUseClientIDFromCertificate, tlsWrapper)
-	log.WithField("tls_client_id_from_cert", *tlsUseClientIDFromCertificate).Infoln("Loaded TLS configuration")
+	proxyTLSWrapper := base.NewTLSConnectionWrapper(tlsUseClientIDFromCertificate, tlsWrapper)
+	log.WithField("tls_client_id_from_cert", tlsUseClientIDFromCertificate).Infoln("Loaded TLS configuration")
 
 	// here ConnectionWrapper used to establish connection with app via pure net.Conn with known static clientID on server side
 	// which ClientID will be used in next steps depends on --tls_client_id_from_cert parameter. If --tls_client_id_from_cert=false
 	// then will be used static --client_id otherwise will be extracted from TLS certificate and override static variant
-	if (len(serverConfig.GetStaticClientID()) == 0) && !*tlsUseClientIDFromCertificate {
+	if (len(serverConfig.GetStaticClientID()) == 0) && !tlsUseClientIDFromCertificate {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 			Errorln("Configuration error: without encryption you must set <client_id> which will be used to connect to AcraServer")
 		return err
@@ -459,28 +503,28 @@ func realMain() error {
 	}()
 
 	poisonCallbacks := poison.NewCallbackStorage()
-	if *detectPoisonRecords {
+	if detectPoisonRecords {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodePoisonRecordDetectionMessage).Infoln("Turned on poison record detection")
 		// used to turn off poison record detection which rely on HasCallbacks
 		poisonCallbacks.AddCallback(poison.EmptyCallback{})
-		if *scriptOnPoison != "" {
-			poisonCallbacks.AddCallback(poison.NewExecuteScriptCallback(*scriptOnPoison))
-			serverConfig.SetScriptOnPoison(*scriptOnPoison)
-			log.WithField("poison_run_script_file", *scriptOnPoison).Infoln("Turned on script execution for on detected poison record")
+		if scriptOnPoison != "" {
+			poisonCallbacks.AddCallback(poison.NewExecuteScriptCallback(scriptOnPoison))
+			serverConfig.SetScriptOnPoison(scriptOnPoison)
+			log.WithField("poison_run_script_file", scriptOnPoison).Infoln("Turned on script execution for on detected poison record")
 		}
 		// should setup "stopOnPoison" as last poison record callback"
-		if *stopOnPoison {
+		if stopOnPoison {
 			poisonCallbacks.AddCallback(&poison.StopCallback{})
-			serverConfig.SetStopOnPoison(*stopOnPoison)
+			serverConfig.SetStopOnPoison(stopOnPoison)
 			log.Infoln("Turned on poison record callback that stops acra-server after poison record detection")
 		}
 	}
 
 	var tokenStorage pseudonymizationCommon.TokenStorage
-	redis := cmd.ParseRedisCLIParametersFromFlags(flag.CommandLine, "")
-	if *boltTokebDB != "" {
+	redis := cmd.ParseRedisCLIParametersFromFlags(argsExtractor, "")
+	if boltTokebDB != "" {
 		log.Infoln("Initialize bolt db storage for tokens")
-		db, err := bolt.Open(*boltTokebDB, 0600, nil)
+		db, err := bolt.Open(boltTokebDB, 0600, nil)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize boltdb token storage")
 			return err
@@ -493,7 +537,7 @@ func realMain() error {
 		// if redisTLSConfig = nil then will not be used TLS for Redis
 		var redisTLSConfig *tls.Config
 		if redis.TLSEnable {
-			redisTLSConfig, err = network.NewTLSConfigByName(flag.CommandLine, "redis", redis.HostPort, network.ClientNameConstructorFunc())
+			redisTLSConfig, err = network.NewTLSConfigByName(argsExtractor, "redis", redis.HostPort, network.ClientNameConstructorFunc())
 			if err != nil {
 				log.WithError(err).Errorln("Can't initialize tls config for redis client")
 				return err
@@ -522,7 +566,7 @@ func realMain() error {
 
 	var sqlParser *sqlparser.Parser
 
-	if *sqlParseErrorExitEnable {
+	if sqlParseErrorExitEnable {
 		sqlParser = sqlparser.New(sqlparser.ModeStrict)
 	} else {
 		sqlParser = sqlparser.New(sqlparser.ModeDefault)
@@ -543,7 +587,7 @@ func realMain() error {
 
 	var proxyFactory base.ProxyFactory
 	proxySetting := base.NewProxySetting(sqlParser, serverConfig.GetTableSchema(), keyStore, proxyTLSWrapper, serverConfig.GetCensor(), poisonCallbacks)
-	if *useMysql {
+	if useMysql {
 		proxyFactory, err = mysql.NewProxyFactory(proxySetting, keyStore, tokenizer)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize proxy for connections")
@@ -557,8 +601,6 @@ func realMain() error {
 		}
 	}
 
-	sqlparser.SetDefaultDialect(serverConfig.GetSQLDialect())
-
 	server, err := common.NewEEAcraServerMainComponent(serverConfig, proxyFactory, errorSignalChannel, restartSignalsChannel)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartService).
@@ -570,7 +612,7 @@ func realMain() error {
 		log.Debugf("Will be using %s if configured from WebUI", GracefulRestartEnv)
 	}
 
-	if *debugServer {
+	if debugServer {
 		//start http server for pprof
 		debugServerAddress := "127.0.0.1:6060"
 		log.Debugf("Starting Debug server on %s", debugServerAddress)
@@ -592,13 +634,13 @@ func realMain() error {
 		}()
 	}
 
-	if *prometheusAddress != "" {
+	if prometheusAddress != "" {
 		version, err := utils.GetParsedVersion()
 		if err != nil {
 			log.WithError(err).Fatal("Invalid version string")
 		}
 		common.RegisterMetrics(ServiceName, version, utils.EnterpriseEdition)
-		_, prometheusHTTPServer, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
+		_, prometheusHTTPServer, err := cmd.RunPrometheusHTTPHandler(prometheusAddress)
 		if err != nil {
 			panic(err)
 		}
@@ -613,7 +655,7 @@ func realMain() error {
 		sigHandlerSIGTERM.AddCallback(stopPrometheusServer)
 	}
 
-	if *enableAuditLog {
+	if enableAuditLog {
 		// handle SIGUSR1 signal (we use it for force refreshing of audit log chain)
 		sigHandlerSIGUSR1 := make(chan os.Signal, 1)
 
@@ -651,9 +693,9 @@ func realMain() error {
 
 	// SIGTERM should be handled only once but potentially it may be invoked twice
 	// if HTTP API is running simultaneously with SQL queries handler (Start and StartCommands)
-	var once sync.Once
+	var onceSIGTERM sync.Once
 	sigHandlerSIGTERM.AddCallback(func() {
-		once.Do(func() {
+		onceSIGTERM.Do(func() {
 			log.Infof("Received incoming SIGTERM or SIGINT signal")
 			server.StopListeners()
 			server.Close()
@@ -666,89 +708,91 @@ func realMain() error {
 
 	// we initialize pipeWrite only in SIGHUP handler
 	var pipeWrite *os.File
+	var onceSIGHUP sync.Once
 	sigHandlerSIGHUP.AddCallback(func() {
-		shutdownCurrentInstance := func(err error) {
-			server.Close()
-			cancel()
-			server.Exit(err)
-		}
+		onceSIGHUP.Do(func() {
+			shutdownCurrentInstance := func(err error) {
+				server.Close()
+				cancel()
+				server.Exit(err)
+			}
 
-		log.Infof("Received incoming SIGHUP signal")
-		log.Debugf("Stop accepting new connections, waiting until current connections close")
+			log.Infof("Received incoming SIGHUP signal")
+			log.Debugf("Stop accepting new connections, waiting until current connections close")
 
-		// Stop accepting requests
-		server.StopListeners()
+			// Stop accepting requests
+			server.StopListeners()
 
-		// Get socket file descriptor to pass it to fork
-		var fdACRA, fdAPI uintptr
-		fdACRA, err = network.ListenerFileDescriptor(server.ListenerAcra())
-		if err != nil {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetFileDescriptor).
-				Errorln("System error: failed to get acra-socket file descriptor:", err)
-			shutdownCurrentInstance(err)
-			return
-		}
-		if *enableHTTPAPI {
-			fdAPI, err = network.ListenerFileDescriptor(server.ListenerAPI())
+			// Get socket file descriptor to pass it to fork
+			var fdACRA, fdAPI uintptr
+			fdACRA, err = network.ListenerFileDescriptor(server.ListenerAcra())
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetFileDescriptor).
-					Errorln("System error: failed to get api-socket file descriptor:", err)
+					Errorln("System error: failed to get acra-socket file descriptor:", err)
 				shutdownCurrentInstance(err)
 				return
 			}
-		}
+			if enableHTTPAPI {
+				fdAPI, err = network.ListenerFileDescriptor(server.ListenerAPI())
+				if err != nil {
+					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetFileDescriptor).
+						Errorln("System error: failed to get api-socket file descriptor:", err)
+					shutdownCurrentInstance(err)
+					return
+				}
+			}
 
-		// Set env flag for forked process
-		if err := os.Setenv(GracefulRestartEnv, "true"); err != nil {
-			log.WithError(err).Errorf("Unexpected error on os.Setenv, graceful restart won't work. Please check env variables, especially %s", GracefulRestartEnv)
-			shutdownCurrentInstance(err)
-			return
-		}
+			// Set env flag for forked process
+			if err := os.Setenv(GracefulRestartEnv, "true"); err != nil {
+				log.WithError(err).Errorf("Unexpected error on os.Setenv, graceful restart won't work. Please check env variables, especially %s", GracefulRestartEnv)
+				shutdownCurrentInstance(err)
+				return
+			}
 
-		// We use inter-process pipe for synchronizing parent process and child forked process.
-		// When forked process starts, it blocks on reading signal from pipe that parent process
-		// finished with graceful shutdown. This is important for audit log mechanism that requires
-		// consistency of log stream
-		var pipeRead *os.File
-		pipeRead, pipeWrite, err = os.Pipe()
-		if err != nil {
-			log.WithError(err).Errorln("Can't create inter-process pipe")
-			shutdownCurrentInstance(err)
-			return
-		}
+			// We use inter-process pipe for synchronizing parent process and child forked process.
+			// When forked process starts, it blocks on reading signal from pipe that parent process
+			// finished with graceful shutdown. This is important for audit log mechanism that requires
+			// consistency of log stream
+			var pipeRead *os.File
+			pipeRead, pipeWrite, err = os.Pipe()
+			if err != nil {
+				log.WithError(err).Errorln("Can't create inter-process pipe")
+				shutdownCurrentInstance(err)
+				return
+			}
 
-		execSpec := &syscall.ProcAttr{
-			Env:   os.Environ(),
-			Files: []uintptr{os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd(), fdACRA, fdAPI, pipeRead.Fd()},
-		}
+			execSpec := &syscall.ProcAttr{
+				Env:   os.Environ(),
+				Files: []uintptr{os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd(), fdACRA, fdAPI, pipeRead.Fd()},
+			}
 
-		log.Debugf("Forking new process of %s", ServiceName)
-		executable, err := os.Executable()
-		if err != nil {
-			log.WithError(err).Errorln("Can't find full binary path")
-			shutdownCurrentInstance(err)
-			return
-		}
-		// Fork new process
-		fork, err := syscall.ForkExec(executable, os.Args, execSpec)
-		if err != nil {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantForkProcess).
-				WithField("executable", executable).
-				Errorln("System error: failed to fork new process", err)
-			shutdownCurrentInstance(err)
-			return
-		}
-		log.Infof("%s process forked to PID: %v", ServiceName, fork)
+			log.Debugf("Forking new process of %s", ServiceName)
+			executable, err := os.Executable()
+			if err != nil {
+				log.WithError(err).Errorln("Can't find full binary path")
+				shutdownCurrentInstance(err)
+				return
+			}
+			// Fork new process
+			fork, err := syscall.ForkExec(executable, os.Args, execSpec)
+			if err != nil {
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantForkProcess).
+					WithField("executable", executable).
+					Errorln("System error: failed to fork new process", err)
+				shutdownCurrentInstance(err)
+				return
+			}
+			log.Infof("%s process forked to PID: %v", ServiceName, fork)
 
-		// Wait a maximum of N seconds for existing connections to finish
-		err = server.WaitWithTimeout(time.Duration(*closeConnectionTimeout) * time.Second)
-		if err == common.ErrWaitTimeout {
-			log.Warningf("Server shutdown Timeout: %d active connections will be cut", server.ConnectionsCounter())
-		}
-		log.Infof("Server graceful restart completed, bye PID: %v", os.Getpid())
-		// Stop the old server, all the connections have been closed and the new one is running
-		shutdownCurrentInstance(nil)
-		return
+			// Wait a maximum of N seconds for existing connections to finish
+			err = server.WaitWithTimeout(time.Duration(closeConnectionTimeout) * time.Second)
+			if err == common.ErrWaitTimeout {
+				log.Warningf("Server shutdown Timeout: %d active connections will be cut", server.ConnectionsCounter())
+			}
+			log.Infof("Server graceful restart completed, bye PID: %v", os.Getpid())
+			// Stop the old server, all the connections have been closed and the new one is running
+			shutdownCurrentInstance(nil)
+		})
 	})
 
 	log.Infof("Start listening to connections. Current PID: %v", os.Getpid())
@@ -756,12 +800,12 @@ func realMain() error {
 	// by default should be false
 	sqlparser.SetTokenizerVerbosity(false)
 	sqlparser.SetSQLParserErrorVerboseLevel(false)
-	if *debug {
+	if debug {
 		log.Infof("Enabling DEBUG log level")
 		logging.SetLogLevel(logging.LogDebug)
 		sqlparser.SetSQLParserErrorVerboseLevel(true)
 		sqlparser.SetTokenizerVerbosity(true)
-	} else if *verbose {
+	} else if verbose {
 		log.Infof("Enabling VERBOSE log level")
 		logging.SetLogLevel(logging.LogVerbose)
 	} else {
@@ -770,9 +814,9 @@ func realMain() error {
 	}
 
 	if os.Getenv(GracefulRestartEnv) == "true" {
-		err = server.StartServerFromFileDescriptor(mainContext, &wg, *enableHTTPAPI, DescriptorAcra, DescriptorAPI)
+		err = server.StartServerFromFileDescriptor(mainContext, &wg, enableHTTPAPI, DescriptorAcra, DescriptorAPI)
 	} else {
-		err = server.StartServer(mainContext, &wg, *enableHTTPAPI)
+		err = server.StartServer(mainContext, &wg, enableHTTPAPI)
 	}
 
 	if utils.WaitWithTimeout(&wg, utils.DefaultWaitGroupTimeoutDuration) {
@@ -823,10 +867,10 @@ func waitReadPipe(timeoutDuration time.Duration) error {
 	return nil
 }
 
-func openKeyStoreV1(output string, cacheSize int) (keystore.ServerKeyStore, error) {
+func openKeyStoreV1(output string, cacheSize int, extractor *args.ServiceExtractor) (keystore.ServerKeyStore, error) {
 	var keyStoreEncryptor keystore.KeyEncryptor
 
-	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(flag.CommandLine, "")
+	keyStoreEncryptor, err := keyloader.CreateKeyEncryptor(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore KeyEncryptor")
 		return nil, err
@@ -837,11 +881,11 @@ func openKeyStoreV1(output string, cacheSize int) (keystore.ServerKeyStore, erro
 	keyStore.CacheSize(cacheSize)
 	keyStore.Encryptor(keyStoreEncryptor)
 
-	redis := cmd.ParseRedisCLIParameters()
+	redis := cmd.ParseRedisCLIParameters(extractor)
 	cmd.ValidateRedisCLIOptions(redis)
 
 	if redis.KeysConfigured() {
-		redisOptions, err := redis.KeysOptions(flag.CommandLine)
+		redisOptions, err := redis.KeysOptions(extractor)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 				Errorln("Can't get Redis options")
@@ -863,12 +907,12 @@ func openKeyStoreV1(output string, cacheSize int) (keystore.ServerKeyStore, erro
 	return keyStoreV1, nil
 }
 
-func openKeyStoreV2(keyDirPath string, cacheSize int) (keystore.ServerKeyStore, error) {
+func openKeyStoreV2(keyDirPath string, cacheSize int, extractor *args.ServiceExtractor) (keystore.ServerKeyStore, error) {
 	if cacheSize != keystore.WithoutCache {
 		return nil, keystore.ErrCacheIsNotSupportedV2
 	}
 
-	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(flag.CommandLine, "")
+	keyStoreSuite, err := keyloader.CreateKeyEncryptorSuite(extractor, "")
 	if err != nil {
 		log.WithError(err).Errorln("Can't init keystore keyStoreSuite")
 		return nil, err
@@ -876,11 +920,11 @@ func openKeyStoreV2(keyDirPath string, cacheSize int) (keystore.ServerKeyStore, 
 
 	var backend filesystemBackendV2.Backend
 
-	redis := cmd.ParseRedisCLIParameters()
+	redis := cmd.ParseRedisCLIParameters(extractor)
 	cmd.ValidateRedisCLIOptions(redis)
 
 	if redis.KeysConfigured() {
-		redisOptions, err := redis.KeysOptions(flag.CommandLine)
+		redisOptions, err := redis.KeysOptions(extractor)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize Redis options")
 			os.Exit(1)

@@ -33,8 +33,10 @@ func NewEEAcraServerMainComponent(config *Config, proxyFactory base.ProxyFactory
 // Exit exits SServer by sending the input error to the internal channel
 // that is listened in Start function
 func (server *SServer) Exit(err error) {
-	server.errCh <- err
-	close(server.errCh)
+	server.exitOnce.Do(func() {
+		server.errCh <- err
+		close(server.errCh)
+	})
 }
 
 // StartServer starts SServer

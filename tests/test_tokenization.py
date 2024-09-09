@@ -91,19 +91,102 @@ class BaseTokenizationWithBinaryBindMySQL(BaseTokenization, test_common.BaseBina
         return self.executor1.execute_prepared_statement_no_result(query, parameters)
 
     def execute_via_1(self, query, values):
-        query, parameters = self.compileQuery(query, values)
+        query, parameters, _ = self.compileQuery(query, values)
         self.executor1.execute_prepared_statement_no_result(query, parameters)
 
     def fetch_from_1(self, query, parameters={}, literal_binds=True):
-        query, parameters = self.compileQuery(query, parameters=parameters, literal_binds=literal_binds)
+        query, parameters, _ = self.compileQuery(query, parameters=parameters, literal_binds=literal_binds)
         return self.executor1.execute_prepared_statement(query, parameters)
 
     def fetch_from_2(self, query, parameters={}, literal_binds=True):
-        query, parameters = self.compileQuery(query, parameters=parameters, literal_binds=literal_binds)
+        query, parameters, _ = self.compileQuery(query, parameters=parameters, literal_binds=literal_binds)
         return self.executor2.execute_prepared_statement(query, parameters)
 
+    def compile_execute_prepare(self, prepared_name, data={}):
+        if len(data) == 0:
+            prepare_query_sql = "execute {}".format(prepared_name)
+        else:
+            values_str = ''
+            for x in data.values():
+                if isinstance(x, int):
+                    values_str += '{}, '.format(str(x))
+                if x is None:
+                    values_str += 'null'
+                if isinstance(x, str):
+                    values_str += '\'{}\', '.format(str(sa.text(x)))
+                if isinstance(x, bytes):
+                    if len(x) == 0:
+                        values_str += '\'\', '
+                    else:
+                        values_str += '\'\\x{}\', '.format(x.hex())
 
-class BaseTokenizationWithBinaryPostgreSQL(BaseTokenization, test_common.BaseBinaryPostgreSQLTestCase):
+            prepare_query_sql = "execute {} ({})".format(prepared_name, base.remove_suffix(values_str, ', '))
+        return prepare_query_sql
+
+    def compile_prepare(self, prepared_name, query, data_types={}, literal_binds=True):
+        query, _, columns_order = self.compileQuery(query, parameters=data_types, literal_binds=literal_binds)
+
+        prepare_query_sql = "prepare {} from '{}'".format(prepared_name, query)
+        return prepare_query_sql, columns_order
+
+    def prepare(self, prepared_name, query, engine, data_types={}, literal_binds=True):
+        prepare_query_sql, columns_order = self.compile_prepare(prepared_name, query, data_types, literal_binds)
+        return engine.execute(sa.text(prepare_query_sql).execution_options(autocommit=True)), columns_order
+
+    def prepare_with_literal_binds(self, prepared_name, query, engine):
+        str_query = str(query.compile(compile_kwargs={"literal_binds": True}))
+        str_query = str_query.replace('\'', '\\\'')
+        prepare_query_sql = "prepare {} from '{}'".format(prepared_name, str_query)
+        return engine.execute(sa.text(prepare_query_sql).execution_options(autocommit=True))
+
+    def prepare_from_arg(self, prepared_name, query, engine, data_types={}, literal_binds=True):
+        query, _, columns_order = self.compileQuery(query, parameters=data_types, literal_binds=literal_binds)
+
+        prepared_arg_name = '{}_arg_query'.format(prepared_name)
+        self.set_arg(arg_name=prepared_arg_name, engine=engine, value=query)
+
+        prepare_query_sql = "prepare {} from @{}".format(prepared_name, prepared_arg_name)
+        return engine.execute(sa.text(prepare_query_sql).execution_options(autocommit=True)), columns_order
+
+    def set_arg(self, arg_name, value, engine):
+        data_str = ''
+        if isinstance(value, int):
+            data_str += '{}'.format(str(value))
+        if value is None:
+            data_str += 'null'
+        if isinstance(value, str):
+            data_str += '\'{}\''.format(str(sa.text(value)))
+        if isinstance(value, bytes):
+            if len(value) == 0:
+                data_str += '\'\''
+            else:
+                data_str += 'x\'{}\''.format(value.hex())
+        set_arg_sql = "set @{} = {}".format(arg_name, data_str)
+        return engine.execute(sa.text(set_arg_sql).execution_options(autocommit=True))
+
+    def execute_prepared(self, prepared_name, engine, args=[]):
+        using_str = ''
+        for x in args:
+            using_str += '@{}, '.format(str(x))
+        execute_sql = "execute {} using {}".format(prepared_name, base.remove_suffix(using_str, ', '))
+        return engine.execute(sa.text(execute_sql).execution_options(autocommit=True))
+
+    def execute_prepared_fetch(self, prepared_name, engine, args=[]):
+        using_str = ''
+        for x in args:
+            using_str += '@{}, '.format(str(x))
+        if len(args) > 0:
+            execute_sql = "execute {} using {}".format(prepared_name, base.remove_suffix(using_str, ', '))
+        else:
+            execute_sql = "execute {}".format(prepared_name)
+        return engine.execute(sa.text(execute_sql).execution_options(autocommit=True)).fetchall()
+
+    def deallocate(self, prepared_name, engine):
+        prepare_query_sql = "deallocate prepare {} ".format(prepared_name)
+        return engine.execute(sa.text(prepare_query_sql).execution_options(autocommit=True))
+
+
+class BaseTokenizationWithBinaryPostgreSQL(test_common.BaseBinaryPostgreSQLMixin, BaseTokenization):
     """Verify tokenization with PostgreSQL extended protocol (binary format)."""
     FORMAT = base.AsyncpgExecutor.BinaryFormat
 
@@ -133,6 +216,52 @@ class BaseTokenizationWithBinaryPostgreSQL(BaseTokenization, test_common.BaseBin
         query, parameters = self.compileQuery(query, parameters=parameters, literal_binds=literal_binds)
         return self.executor2.execute_prepared_statement(query, parameters)
 
+    def compile_execute_prepare(self, prepared_name, data={}):
+        if len(data) == 0:
+            prepare_query_sql = "execute {}".format(prepared_name)
+        else:
+            values_str = ''
+            for x in data.values():
+                if isinstance(x, int):
+                    values_str += '{}, '.format(str(x))
+                if x is None:
+                    values_str += 'null, '
+                if isinstance(x, str):
+                    values_str += '\'{}\', '.format(str(sa.text(x)))
+                if isinstance(x, bytes):
+                    if len(x) == 0:
+                        values_str += '\'\', '
+                    else:
+                        values_str += '\'\\x{}\', '.format(x.hex())
+
+            prepare_query_sql = "execute {} ({})".format(prepared_name, base.remove_suffix(values_str, ', '))
+        return prepare_query_sql
+
+    def compile_prepare(self, prepared_name, query, data_types={}, literal_binds=True):
+        query, _ = self.compileQuery(query, parameters=data_types, literal_binds=literal_binds)
+
+        if len(data_types) != 0:
+            prepare_query_sql = "prepare {} ({}) as {}".format(prepared_name, ", ".join(data_types.values()), query)
+        else:
+            prepare_query_sql = "prepare {} as {}".format(prepared_name, query)
+        return prepare_query_sql
+
+    def prepare(self, prepared_name, query, engine, data_types={}, literal_binds=True):
+        prepare_query_sql = self.compile_prepare(prepared_name, query, data_types, literal_binds)
+        return engine.execute(sa.text(prepare_query_sql).execution_options(autocommit=True))
+
+    def execute_prepared(self, prepared_name, engine, data={}):
+        prepare_query_sql = self.compile_execute_prepare(prepared_name, data)
+        return engine.execute(sa.text(prepare_query_sql).execution_options(autocommit=True))
+
+    def execute_prepared_fetch(self, prepared_name, engine, data={}):
+        prepare_query_sql = self.compile_execute_prepare(prepared_name, data)
+        return engine.execute(sa.text(prepare_query_sql).execution_options(autocommit=True)).fetchall()
+
+    def deallocate(self, prepared_name, engine):
+        prepare_query_sql = "deallocate {} ".format(prepared_name)
+        return engine.execute(sa.text(prepare_query_sql).execution_options(autocommit=True))
+
 
 class BaseTokenizationWithTextPostgreSQL(BaseTokenizationWithBinaryPostgreSQL):
     """Verify tokenization with PostgreSQL extended protocol (text format)."""
@@ -144,7 +273,9 @@ class BaseTokenizationWithTextPostgreSQL(BaseTokenizationWithBinaryPostgreSQL):
     # overrides checkSkip(). When parent's override is removed, this one
     # becomes unnecessary and should be removed too.
     def checkSkip(self):
-        test_common.BaseBinaryPostgreSQLTestCase.checkSkip(self)
+        super().checkSkip()
+        if not base.TEST_POSTGRESQL:
+            self.skipTest("test only PostgreSQL")
 
 
 class BaseTokenizationWithBinaryMySQL(BaseTokenization):
@@ -231,7 +362,7 @@ class BaseMasking(BaseTokenization):
         os.remove('token1.db')
 
 
-class BaseMaskingBinaryPostgreSQLMixin(test_common.BaseBinaryPostgreSQLTestCase, test_common.BaseTestCase):
+class BaseMaskingBinaryPostgreSQLMixin(test_common.BaseBinaryPostgreSQLMixin):
     def executeInsert(self, query, values):
         """Execute a Insert query with list of values via AcraServer for "TEST_TLS_CLIENT_CERT"."""
         query, parameters = self.compileInsertQuery(query, values)

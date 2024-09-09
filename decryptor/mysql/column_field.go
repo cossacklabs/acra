@@ -20,28 +20,56 @@ import (
 	"encoding/binary"
 	"errors"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/decryptor/mysql/base"
 	"github.com/cossacklabs/acra/logging"
-	log "github.com/sirupsen/logrus"
 )
+
+// https://dev.mysql.com/doc/dev/mysql-server/latest/group__group__cs__column__definition__flags.html#details
+const (
+	BlobFlag           = 1 << 4
+	NoDefaultValueFlag = 1 << 12
+)
+
+// Flags represent protocol ColumnDefinitionFlags
+// https://dev.mysql.com/doc/dev/mysql-server/latest/group__group__cs__column__definition__flags.html
+type Flags uint16
+
+// ContainsFlag check if specific flag contains in flagset
+func (f *Flags) ContainsFlag(flag int) bool {
+	if f == nil {
+		return false
+	}
+	return int(*f)&flag == flag
+}
+
+// RemoveFlag remove flag from flag set
+func (f *Flags) RemoveFlag(flag int) {
+	mask := ^flag
+	new := int(*f) & mask
+	*f = Flags(new)
+}
 
 // ColumnDescription https://dev.mysql.com/doc/internals/en/com-query-response.html#packet-Protocol::ColumnDefinition41
 type ColumnDescription struct {
-	changed    bool
-	originType base.Type
+	changed                 bool
+	originType              base.Type
+	mariaDBExtendedTypeInfo bool
 	// field as byte slice
-	data         []byte
-	header       []byte
-	Schema       []byte
-	Table        []byte
-	OrgTable     []byte
-	Name         []byte
-	OrgName      []byte
-	Charset      uint16
-	ColumnLength uint32
-	Type         base.Type
-	Flag         uint16
-	Decimal      uint8
+	data             []byte
+	header           []byte
+	Schema           []byte
+	Table            []byte
+	OrgTable         []byte
+	Name             []byte
+	OrgName          []byte
+	ExtendedTypeInfo []byte
+	Charset          uint16
+	ColumnLength     uint32
+	Type             base.Type
+	Flag             Flags
+	Decimal          uint8
 
 	DefaultValueLength uint64
 	DefaultValue       []byte
@@ -104,18 +132,17 @@ func ParsePrepareStatementResponse(data []byte) (*PrepareStatementResponse, erro
 }
 
 // ParseResultField parses binary field and returns ColumnDescription
-func ParseResultField(packet *Packet) (*ColumnDescription, error) {
+func ParseResultField(packet *Packet, mariaDBExtendedTypeInfo bool) (*ColumnDescription, error) {
 	field := &ColumnDescription{}
 	field.data = packet.data
 	field.header = packet.header
-
+	field.mariaDBExtendedTypeInfo = mariaDBExtendedTypeInfo
 	var n int
 	var err error
 	//skip catalog, always def
 	pos := 0
 	n, err = base.SkipLengthEncodedString(packet.data)
 	if err != nil {
-
 		return nil, err
 	}
 	pos += n
@@ -155,6 +182,29 @@ func ParseResultField(packet *Packet) (*ColumnDescription, error) {
 	}
 	pos += n
 
+	// MariaDB from 10.2 and later add additional data to packet
+	// https://mariadb.com/kb/en/result-set-packets/#column-definition-packet
+	// which represent the extended metadata info about the Column type
+	// int<lenenc> length extended info
+	//    loop
+	//       int<1> data type: 0x00:type, 0x01: format
+	//       string<lenenc> value
+	if mariaDBExtendedTypeInfo {
+		if packet.data[pos] == 0 {
+			// skip length byte
+			pos++
+		} else {
+			num, _, _, err := base.LengthEncodedInt(packet.data[pos:])
+			if err != nil {
+				return nil, err
+			}
+			// currently we dont need to take a look on extended info, so just grab it as is
+			offset := int(num + 1)
+			field.ExtendedTypeInfo = packet.data[pos : pos+offset]
+			pos += offset
+		}
+	}
+
 	//skip 0x0C constant field
 	pos++
 
@@ -171,10 +221,14 @@ func ParseResultField(packet *Packet) (*ColumnDescription, error) {
 	pos++
 
 	//flag
-	field.Flag = binary.LittleEndian.Uint16(packet.data[pos:])
+	field.Flag = Flags(binary.LittleEndian.Uint16(packet.data[pos:]))
 	pos += 2
 
-	//decimals 1
+	//decimals 1 byte
+	// max shown decimal digits:
+	//  0x00 for integers and static strings
+	//  0x1f for dynamic strings, double, float
+	//  0x00 to 0x51 for decimals
 	field.Decimal = packet.data[pos]
 	pos++
 
@@ -230,6 +284,13 @@ func (field *ColumnDescription) Dump() []byte {
 	data = append(data, base.PutLengthEncodedString(field.Name)...)
 	data = append(data, base.PutLengthEncodedString(field.OrgName)...)
 
+	if field.mariaDBExtendedTypeInfo {
+		if len(field.ExtendedTypeInfo) > 0 {
+			data = append(data, field.ExtendedTypeInfo...)
+		} else {
+			data = append(data, 0)
+		}
+	}
 	// length of fixed-length fields
 	// https://dev.mysql.com/doc/internals/en/com-query-response.html#column-definition
 	data = append(data, 0x0c)
@@ -237,7 +298,7 @@ func (field *ColumnDescription) Dump() []byte {
 	data = append(data, base.Uint16ToBytes(field.Charset)...)
 	data = append(data, base.Uint32ToBytes(field.ColumnLength)...)
 	data = append(data, byte(field.Type))
-	data = append(data, base.Uint16ToBytes(field.Flag)...)
+	data = append(data, base.Uint16ToBytes(uint16(field.Flag))...)
 	data = append(data, field.Decimal)
 	// filler
 	data = append(data, 0, 0)

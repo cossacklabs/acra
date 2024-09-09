@@ -19,10 +19,11 @@ package base
 import (
 	"context"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
-	"github.com/sirupsen/logrus"
 )
 
 // OnQueryObject interface for result of OnQuery call

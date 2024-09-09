@@ -35,6 +35,7 @@ import (
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/pseudonymization/storage"
+	"github.com/cossacklabs/acra/utils/args"
 	"github.com/cossacklabs/acra/utils/tests"
 )
 
@@ -83,7 +84,9 @@ func prepareTLSRedisConfigForFlagSet(flagset *flag.FlagSet, t *testing.T) *cmd.R
 	if err := flagset.Lookup("redis_tls_enable").Value.Set("true"); err != nil {
 		t.Fatal(err)
 	}
-	options := cmd.ParseRedisCLIParametersFromFlags(flagset, "")
+
+	extractor := args.NewServiceExtractor(flagset, map[string]string{})
+	options := cmd.ParseRedisCLIParametersFromFlags(extractor, "")
 	return options
 }
 
@@ -126,12 +129,15 @@ func TestReadCMD_TLSRedis_V2(t *testing.T) {
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
+	extractor := args.NewServiceExtractor(flagSet, map[string]string{})
+
 	t.Run("read storage-public key", func(t *testing.T) {
 		readCmd := &ReadKeySubcommand{
 			contextID:   clientID,
 			readKeyKind: keystore.KeyStoragePublic,
 			FlagSet:     flagSet,
 			outWriter:   io.Discard,
+			extractor:   extractor,
 		}
 
 		store, err := openKeyStoreV2(readCmd)
@@ -153,6 +159,7 @@ func TestReadCMD_TLSRedis_V2(t *testing.T) {
 			contextID:   clientID,
 			readKeyKind: keystore.KeySymmetric,
 			outWriter:   io.Discard,
+			extractor:   extractor,
 		}
 
 		store, err := openKeyStoreV2(readCmd)
@@ -208,6 +215,8 @@ func TestReadCMD_TLSRedis_V1(t *testing.T) {
 
 	t.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
+	extractor := args.NewServiceExtractor(flagSet, map[string]string{})
+
 	dirName := t.TempDir()
 
 	t.Run("read storage-public key", func(t *testing.T) {
@@ -219,6 +228,7 @@ func TestReadCMD_TLSRedis_V1(t *testing.T) {
 			contextID:   clientID,
 			readKeyKind: keystore.KeyStoragePublic,
 			outWriter:   io.Discard,
+			extractor:   extractor,
 		}
 
 		store, err := openKeyStoreV1(readCmd)
@@ -243,6 +253,7 @@ func TestReadCMD_TLSRedis_V1(t *testing.T) {
 			contextID:   clientID,
 			readKeyKind: keystore.KeySymmetric,
 			outWriter:   io.Discard,
+			extractor:   extractor,
 		}
 
 		store, err := openKeyStoreV1(readCmd)

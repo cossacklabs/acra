@@ -20,9 +20,11 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
+	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sirupsen/logrus"
 	"strconv"
 	"unicode/utf8"
@@ -34,8 +36,8 @@ var hexNumPrefix = []byte{48, 120}
 
 // DBDataCoder encode/decode binary data to correct string form for specific db
 type DBDataCoder interface {
-	Decode(sqlparser.Expr) ([]byte, error)
-	Encode(sqlparser.Expr, []byte) ([]byte, error)
+	Decode(sqlparser.Expr, config.ColumnEncryptionSetting) ([]byte, error)
+	Encode(sqlparser.Expr, []byte, config.ColumnEncryptionSetting) ([]byte, error)
 }
 
 // errUnsupportedExpression unsupported type of literal to binary encode/decode
@@ -45,7 +47,7 @@ var errUnsupportedExpression = errors.New("unsupported expression")
 type MysqlDBDataCoder struct{}
 
 // Decode decode literals from string to byte slice
-func (*MysqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
+func (*MysqlDBDataCoder) Decode(expr sqlparser.Expr, _ config.ColumnEncryptionSetting) ([]byte, error) {
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
 		switch val.Type {
@@ -76,7 +78,7 @@ func (*MysqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 }
 
 // Encode data to correct literal from binary data for this expression
-func (*MysqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, error) {
+func (*MysqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte, _ config.ColumnEncryptionSetting) ([]byte, error) {
 	encodeDataToHex := func(val *sqlparser.SQLVal, data []byte) ([]byte, error) {
 		output := make([]byte, hex.EncodedLen(len(data)))
 		hex.Encode(output, data)
@@ -140,7 +142,7 @@ type PostgresqlDBDataCoder struct{}
 // Decode hex/escaped literals to raw binary values for encryption/decryption. String values left as is because it
 // doesn't need any decoding. Historically Int values had support only for tokenization and operated over string SQL
 // literals.
-func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
+func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr, setting config.ColumnEncryptionSetting) ([]byte, error) {
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
 		switch val.Type {
@@ -154,7 +156,30 @@ func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 				return nil, err
 			}
 			return binValue, err
-		case sqlparser.PgEscapeString, sqlparser.StrVal:
+		case sqlparser.PgEscapeString:
+			// try to decode hex/octal encoding
+			binValue, err := utils.DecodeEscaped(val.Val)
+			if err != nil && err != utils.ErrDecodeOctalString {
+				// return error on hex decode
+				if _, ok := err.(hex.InvalidByteError); err == hex.ErrLength || ok {
+					return nil, err
+				} else if err == utils.ErrDecodeOctalString {
+					return nil, err
+				}
+
+				logrus.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeSQLValue).Warningln("Can't decode value, process as unescaped string")
+				// return value as is because it may be string with printable characters that wasn't encoded on client
+				return val.Val, nil
+			}
+			return binValue, nil
+		case sqlparser.StrVal:
+			// simple strings should be handled as is
+			typeID := setting.GetDBDataTypeID()
+			if typeID != 0 && typeID != pgtype.ByteaOID {
+				return val.Val, nil
+			}
+			// bytea strings are escaped with \x hex value or with octal encoding
+
 			// try to decode hex/octal encoding
 			binValue, err := utils.DecodeEscaped(val.Val)
 			if err != nil && err != utils.ErrDecodeOctalString {
@@ -176,7 +201,7 @@ func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 }
 
 // Encode data to correct literal from binary data for this expression
-func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, error) {
+func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
 		switch val.Type {
@@ -197,24 +222,25 @@ func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, 
 			// otherwise change type and pass it below for hex encoding
 			val.Type = sqlparser.PgEscapeString
 			fallthrough
-		case sqlparser.StrVal:
-			binValue, err := utils.DecodeEscaped(data)
-			// Check is encryption/tokenization operation returned string in "binary string" format instead of UTF8 string.
-			// If we can decode it as binary value and get another value, then escape it as hex binary value.
-			if err != nil || !bytes.Equal(binValue, data) {
-				return PgEncodeToHexString(data), nil
-			}
-			// If the binValue the same to data means data is Printable, return as is
-			if bytes.Equal(binValue, data) {
-				return data, nil
-			}
-			val.Type = sqlparser.PgEscapeString
-			fallthrough
 		case sqlparser.PgEscapeString:
-			// valid strings we pass as is without extra encoding
-			if utils.IsPrintablePostgresqlString(data) {
-				return data, nil
+			// if type is not byte array, then it probably string or int and we pass printable strings
+			if setting.GetDBDataTypeID() != 0 && setting.GetDBDataTypeID() != pgtype.ByteaOID {
+				// valid strings we pass as is without extra encoding
+				if utils.IsPrintablePostgresqlString(data) {
+					return data, nil
+				}
 			}
+			// valid string can contain escaped symbols, or tokenizer may generate string with symbols that should be escaped
+			return utils.EncodeToOctal(data), nil
+		case sqlparser.StrVal:
+			// if type is not byte array, then it probably string or int and we pass printable strings
+			if setting.GetDBDataTypeID() != 0 && setting.GetDBDataTypeID() != pgtype.ByteaOID {
+				// valid strings we pass as is without extra encoding
+				if utils.IsPrintablePostgresqlString(data) {
+					return data, nil
+				}
+			}
+			// byte array can be valid hex/octal encoded value, eventually we should encode it as binary data
 			return PgEncodeToHexString(data), nil
 		}
 	}

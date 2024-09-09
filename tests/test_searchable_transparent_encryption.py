@@ -176,6 +176,7 @@ class TestTransparentEncryption(BaseTransparentEncryption):
 
 class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
     ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/ee_acrablock_config.yaml')
+
     def get_encryptor_table(self):
         encryptor_table = sa.Table(
             'test_transparent_acrablock_encryption', self.get_metadata(),
@@ -195,7 +196,7 @@ class TestTransparentAcraBlockEncryption(TestTransparentEncryption):
                       default=b''),
             sa.Column('masked_prefix', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False,
                       default=b''),
-            )
+        )
         return encryptor_table
 
     def testAcraStructReEncryption(self):
@@ -305,7 +306,7 @@ class TestTransparentEncryptionWithNoEncryptionKey(TransparentEncryptionNoKeyMix
     pass
 
 
-class TestPostgresqlBinaryPreparedTransparentEncryption(test_common.BaseBinaryPostgreSQLTestCase,
+class TestPostgresqlBinaryPreparedTransparentEncryption(test_common.BaseBinaryPostgreSQLMixin,
                                                         TestTransparentEncryption):
     """Testing transparent encryption of prepared statements in PostgreSQL (binary format)."""
     FORMAT = base.AsyncpgExecutor.BinaryFormat
@@ -462,8 +463,7 @@ class BaseSearchableTransparentEncryption(TestTransparentEncryption):
         return self.engine2.execute(query.values(values))
 
 
-class BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin(test_common.BaseBinaryPostgreSQLTestCase,
-                                                               test_common.BaseTestCase):
+class BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin(test_common.BaseBinaryPostgreSQLMixin):
     def executeSelect2(self, query, parameters):
         query, parameters = self.compileQuery(query, parameters)
         return self.executor2.execute_prepared_statement(query, parameters)
@@ -481,11 +481,27 @@ class BaseSearchableTransparentEncryptionBinaryPostgreSQLMixin(test_common.BaseB
 class BaseSearchableTransparentEncryptionBinaryMySQLMixin(test_common.BaseBinaryMySQLTestCase,
                                                           test_common.BaseTestCase):
     def executeSelect2(self, query, parameters):
-        query, parameters = self.compileQuery(query, parameters)
+        query, parameters, _ = self.compileQuery(query, parameters)
         return self.executor2.execute_prepared_statement(query, parameters)
 
     def execute_via_2(self, query, parameters):
-        query, parameters = self.compileQuery(query, parameters)
+        query, parameters, _ = self.compileQuery(query, parameters)
+        return self.executor2.execute_prepared_statement_no_result(query, parameters)
+
+    def executeBulkInsert(self, query, values):
+        """Execute a Bulk Insert query with list of values via AcraServer for "TEST_TLS_CLIENT_2_CERT"."""
+        query, parameters = self.compileBulkInsertQuery(query.values(values), values)
+        return self.executor2.execute_prepared_statement_no_result(query, parameters)
+
+
+class BaseSearchableTransparentEncryptionBinaryMariaDBMixin(test_common.BaseBinaryMariaDBTestCase,
+                                                            test_common.BaseTestCase):
+    def executeSelect2(self, query, parameters):
+        query, parameters, _ = self.compileQuery(query, parameters)
+        return self.executor2.execute_prepared_statement(query, parameters)
+
+    def execute_via_2(self, query, parameters):
+        query, parameters, _ = self.compileQuery(query, parameters)
         return self.executor2.execute_prepared_statement_no_result(query, parameters)
 
     def executeBulkInsert(self, query, values):
@@ -517,6 +533,23 @@ class TestSearchableTransparentEncryption(BaseSearchableTransparentEncryption):
             sa.select([self.encryptor_table])
             .where(self.encryptor_table.c.searchable == sa.bindparam('searchable')),
             {'searchable': search_term},
+        )
+
+        self.assertEqual(self.get_result_len(rows), 1)
+
+        self.checkDefaultIdEncryption(**context)
+        self.assertEqual(rows[0]['searchable'], search_term)
+
+        # check with null value
+        rows = self.executeSelect2(
+            sa.select([self.encryptor_table])
+            .where(sa.or_(
+                self.encryptor_table.c.searchable == sa.bindparam('searchable'),
+                self.encryptor_table.c.token_i64 == sa.bindparam('token_i64'))),
+            {
+                'searchable': search_term,
+                'token_i64': None
+            },
         )
         self.assertEqual(self.get_result_len(rows), 1)
 
@@ -1297,6 +1330,11 @@ class TestSearchableTransparentEncryptionBinaryPostgreSQL(BaseSearchableTranspar
 
 class TestSearchableTransparentEncryptionBinaryMySQL(BaseSearchableTransparentEncryptionBinaryMySQLMixin,
                                                      TestSearchableTransparentEncryption):
+    pass
+
+
+class TestSearchableTransparentEncryptionBinaryMariaDB(BaseSearchableTransparentEncryptionBinaryMariaDBMixin,
+                                                       TestSearchableTransparentEncryption):
     pass
 
 

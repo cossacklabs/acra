@@ -18,9 +18,11 @@ package encryptor
 
 import (
 	"errors"
+
+	"github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
-	"github.com/sirupsen/logrus"
 )
 
 // ErrUnsupportedQueryType represent error related unsupported Query type
@@ -57,14 +59,14 @@ func NewSearchableQueryFilter(schemaStore config.TableSchemaStore, mode Searchab
 
 // FilterSearchableComparisons filter search comparisons from statement
 func (filter *SearchableQueryFilter) FilterSearchableComparisons(statement sqlparser.Statement) []SearchableExprItem {
-	tableExps, err := filter.filterTableExpressions(statement)
+	tableExps, err := filterTableExpressions(statement)
 	if err != nil {
 		logrus.Debugln("Unsupported search query")
 		return nil
 	}
 
 	// Walk through WHERE clauses of a SELECT statements...
-	whereExprs, err := getWhereStatements(statement)
+	whereExprs, err := GetWhereStatements(statement)
 	if err != nil {
 		logrus.WithError(err).Debugln("Failed to extract WHERE clauses")
 		return nil
@@ -93,7 +95,7 @@ func (filter *SearchableQueryFilter) ChangeSearchableOperator(expr *sqlparser.Co
 	}
 }
 
-func (filter *SearchableQueryFilter) filterTableExpressions(statement sqlparser.Statement) (sqlparser.TableExprs, error) {
+func filterTableExpressions(statement sqlparser.Statement) (sqlparser.TableExprs, error) {
 	switch query := statement.(type) {
 	case *sqlparser.Select:
 		return query.From, nil
@@ -110,33 +112,6 @@ func (filter *SearchableQueryFilter) filterTableExpressions(statement sqlparser.
 	default:
 		return nil, ErrUnsupportedQueryType
 	}
-}
-
-func (filter *SearchableQueryFilter) getColumnSetting(column *sqlparser.ColName, columnInfo columnInfo) config.ColumnEncryptionSetting {
-	schema := filter.schemaStore.GetTableSchema(columnInfo.Table)
-	if schema == nil {
-		return nil
-	}
-	// Also leave out those columns which are not searchable.
-	columnName := column.Name.ValueForConfig()
-	return schema.GetColumnEncryptionSettings(columnName)
-}
-
-func getWhereStatements(stmt sqlparser.Statement) ([]*sqlparser.Where, error) {
-	var whereStatements []*sqlparser.Where
-	err := sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
-		switch nodeType := node.(type) {
-		case *sqlparser.Where:
-			whereStatements = append(whereStatements, nodeType)
-		case sqlparser.JoinCondition:
-			whereStatements = append(whereStatements, &sqlparser.Where{
-				Type: "on",
-				Expr: nodeType.On,
-			})
-		}
-		return true, nil
-	}, stmt)
-	return whereStatements, err
 }
 
 func isSupportedSQLVal(val *sqlparser.SQLVal) bool {
@@ -171,12 +146,12 @@ func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(stmt sqlpa
 			}
 		}
 
-		columnInfo, err := findColumnInfo(tableExpr, lColumn, filter.schemaStore)
+		columnInfo, err := FindColumnInfo(tableExpr, lColumn, filter.schemaStore)
 		if err != nil {
 			return true, nil
 		}
 
-		lColumnSetting := filter.getColumnSetting(lColumn, columnInfo)
+		lColumnSetting := GetColumnSetting(lColumn, columnInfo.Table, filter.schemaStore)
 		if lColumnSetting == nil {
 			return true, nil
 		}
@@ -192,12 +167,12 @@ func (filter *SearchableQueryFilter) filterColumnEqualComparisonExprs(stmt sqlpa
 		if rColumn, ok := comparisonExpr.Right.(*sqlparser.ColName); ok {
 			// get right columnSetting to check weather it is searchable too
 
-			columnInfo, err := findColumnInfo(tableExpr, rColumn, filter.schemaStore)
+			columnInfo, err := FindColumnInfo(tableExpr, rColumn, filter.schemaStore)
 			if err != nil {
 				return true, nil
 			}
 
-			rColumnSetting := filter.getColumnSetting(rColumn, columnInfo)
+			rColumnSetting := GetColumnSetting(rColumn, columnInfo.Table, filter.schemaStore)
 			if rColumnSetting != nil {
 				if rColumnSetting.IsSearchable() {
 					exprs = append(exprs, SearchableExprItem{

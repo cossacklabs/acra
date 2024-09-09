@@ -1,12 +1,47 @@
 package mysql
 
 import (
+	"github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
 	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/encryptor/config/common"
 )
+
+// TypeConfiguration represent configurations details of specific type
+type TypeConfiguration struct {
+	// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_character_set.html
+	Charset      uint16
+	ColumnLength uint32
+	// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_query_response_text_resultset_column_definition.html
+	Decimal uint8
+}
+
+// TypeConfigurations contains specific info for used in TA types
+// supported charset - https://mariadb.com/kb/en/supported-character-sets-and-collations/
+// SELECT id, collation_name FROM information_schema.collations ORDER BY id;
+var TypeConfigurations = map[base_mysql.Type]TypeConfiguration{
+	base_mysql.TypeString: {
+		Charset:      8,
+		ColumnLength: 255,
+	},
+	base_mysql.TypeLong: {
+		Charset:      63,
+		ColumnLength: 9,
+	},
+	base_mysql.TypeLongLong: {
+		Charset:      63,
+		ColumnLength: 20,
+	},
+	base_mysql.TypeBlob: {
+		Charset:      63,
+		ColumnLength: 65535,
+	},
+}
+
+var specificTypes = []base_mysql.Type{base_mysql.TypeString, base_mysql.TypeLong, base_mysql.TypeLongLong}
 
 // DataTypeFormat implementation of type_awareness.DataTypeFormat for PostgreSQL
 type DataTypeFormat struct {
@@ -62,9 +97,30 @@ func updateFieldEncodedType(field *ColumnDescription, schemaStore config.TableSc
 	if setting := tableSchema.GetColumnEncryptionSettings(string(field.Name)); setting != nil {
 		newFieldType, ok := mapEncryptedTypeToField(setting.GetDBDataTypeID())
 		if ok {
+			fieldConfig, fieldConfigExist := TypeConfigurations[base_mysql.Type(newFieldType)]
+			if !fieldConfigExist {
+				logrus.WithField("field-type", base_mysql.Type(newFieldType)).Debug("No appropriate type configuration")
+				return
+			}
+
 			field.originType = field.Type
 			field.Type = base_mysql.Type(newFieldType)
 			field.changed = true
+
+			field.Charset = fieldConfig.Charset
+			field.ColumnLength = fieldConfig.ColumnLength
+			field.Decimal = fieldConfig.Decimal
+
+			if field.Flag.ContainsFlag(BlobFlag) {
+				// during the TypeAwareness type transformation we need to remove the BlobFlag if the type was change to
+				// some specific types: TypeLong, TypeLongLong, TypeString
+				for _, fieldType := range specificTypes {
+					if uint16(fieldType) == uint16(newFieldType) {
+						field.Flag.RemoveFlag(BlobFlag)
+						return
+					}
+				}
+			}
 		}
 	}
 }

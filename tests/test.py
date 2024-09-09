@@ -15,6 +15,7 @@
 import collections.abc
 import os.path
 import stat
+import time
 from tempfile import NamedTemporaryFile
 from urllib.request import urlopen
 
@@ -22,6 +23,7 @@ import asyncpg.exceptions
 import mysql.connector
 import psycopg2.errors
 import psycopg2.extras
+import threading
 from ddt import ddt, data
 from prometheus_client.parser import text_string_to_metric_families
 from sqlalchemy.exc import DatabaseError, OperationalError
@@ -110,7 +112,11 @@ class CensorBlacklistTest(BaseCensorTest):
 
 
 class CensorWhitelistTest(BaseCensorTest):
-    CENSOR_CONFIG_FILE = abs_path('tests/acra-censor_configs/acra-censor_whitelist.yaml')
+    if TEST_MYSQL:
+        CENSOR_CONFIG_FILE = abs_path('tests/acra-censor_configs/acra-censor_whitelist_mysql.yaml')
+
+    if TEST_POSTGRESQL:
+        CENSOR_CONFIG_FILE = abs_path('tests/acra-censor_configs/acra-censor_whitelist_pgsql.yaml')
 
     def testWhitelist(self):
         connection_args = ConnectionArgs(host='localhost', port=self.ACRASERVER_PORT,
@@ -121,7 +127,7 @@ class CensorWhitelistTest(BaseCensorTest):
         if TEST_MYSQL:
             expectedException = (pymysql.err.OperationalError,
                                  mysql.connector.errors.DatabaseError)
-            expectedExceptionInPreparedStatement = mysql.connector.errors.DatabaseError
+            expectedExceptionInPreparedStatement = (pymysql.err.OperationalError, mysql.connector.errors.DatabaseError)
             executors = [PyMysqlExecutor(connection_args),
                          MysqlExecutor(connection_args)]
         if TEST_POSTGRESQL:
@@ -145,7 +151,7 @@ class CensorWhitelistTest(BaseCensorTest):
                 try:
                     executor.execute_prepared_statement(testQuery)
                 except psycopg2.ProgrammingError as e:
-                    self.assertTrue(str(e) == "no results to fetch")
+                    self.assertIn("AcraCensor blocked this query", str(e))
                 except expectedExceptionInPreparedStatement:
                     return
 
@@ -666,6 +672,236 @@ class TestKeyStorageClearing(BaseTestCase):
             self.assertEqual(response.status, 200)
 
 
+class TestServiceArgsExtractor(AcraCatchLogsMixin, BaseTestCase):
+    def setUp(self):
+        self.checkSkip()
+
+    def checkSkip(self):
+        if not base.TEST_WITH_TLS:
+            self.skipTest("running tests with TLS")
+
+    def init_key_stores(self):
+        self.server_keystore = tempfile.TemporaryDirectory()
+        self.server_keys_dir = os.path.join(self.server_keystore.name, '.acrakeys')
+
+        create_client_keypair_from_certificate(tls_cert=TEST_TLS_CLIENT_CERT, keys_dir=self.server_keys_dir,
+                                               only_storage=True)
+
+    def stop_acra(self):
+        for engine in getattr(self, 'engines', []):
+            engine.dispose()
+
+        processes = []
+        if not self.EXTERNAL_ACRA and hasattr(self, 'acra'):
+            processes.append(self.acra)
+
+        stop_process(processes)
+        send_signal_by_process_name('acra-server', signal.SIGKILL)
+        self.server_keystore.cleanup()
+
+    def get_acra_cli_args(self, acra_kwargs):
+        connection_string = self.get_acraserver_connection_string(
+            acra_kwargs.get('incoming_connection_port', self.ACRASERVER_PORT))
+        api_connection_string = self.get_acraserver_api_connection_string(
+            acra_kwargs.get('incoming_connection_api_port')
+        )
+        args = {
+            'db_host': base.DB_HOST,
+            'db_port': base.DB_PORT,
+            'logging_format': 'cef',
+            # we doesn't need in tests waiting closing connections
+            'incoming_connection_close_timeout': 0,
+            self.ACRA_BYTEA: 'true',
+            'incoming_connection_string': connection_string,
+            'incoming_connection_api_string': api_connection_string,
+            'acrastruct_wholecell_enable': 'true' if self.WHOLECELL_MODE else 'false',
+            'acrastruct_injectedcell_enable': 'false' if self.WHOLECELL_MODE else 'true',
+            'd': 'true' if self.DEBUG_LOG else 'false',
+            'http_api_enable': 'true',
+            'http_api_tls_transport_enable': 'true',
+            'keystore_cache_on_start_enable': 'false',
+            'keys_dir': base.KEYS_FOLDER.name,
+        }
+        # keystore v2 doest not support caching, disable it for now
+        if base.KEYSTORE_VERSION == 'v2':
+            args['keystore_cache_size'] = -1
+        if base.TEST_WITH_TRACING:
+            args['tracing_log_enable'] = 'true'
+            if base.TEST_TRACE_TO_JAEGER:
+                args['tracing_jaeger_enable'] = 'true'
+        if self.LOG_METRICS:
+            args['incoming_connection_prometheus_metrics_string'] = self.get_prometheus_address(
+                self.ACRASERVER_PROMETHEUS_PORT)
+        if self.with_tls():
+            args['tls_key'] = base.TEST_TLS_SERVER_KEY
+            args['tls_cert'] = base.TEST_TLS_SERVER_CERT
+            args['tls_ca'] = base.TEST_TLS_CA
+            args['tls_auth'] = base.ACRA_TLS_AUTH
+        else:
+            # Explicitly disable certificate validation by default since otherwise we may end up
+            # in a situation when some certificate contains OCSP or CRL URI while corresponding
+            # services were not started by this script (because TLS testing was disabled)
+            args['tls_ocsp_from_cert'] = 'ignore'
+            args['tls_crl_from_cert'] = 'ignore'
+        if base.TEST_MYSQL:
+            args['mysql_enable'] = 'true'
+            args['postgresql_enable'] = 'false'
+        args.update(acra_kwargs)
+        return args
+
+    def testArgsExtractionOrder(self):
+        # parsing args priority:
+        # Specific param CLI -> Specific CLI Config -> General CLI -> General CLI Config
+        test_cases = [
+            {
+                # 1. case if specific_cli specified - use it, ignore all others;
+                'specific_cli': {
+                    'tls_ocsp_client_from_cert': 'ignore',
+                    'tls_crl_client_from_cert': 'ignore',
+                    'tls_ocsp_database_from_cert': 'ignore',
+                    'tls_crl_database_from_cert': 'ignore',
+                },
+                'config_values': {
+                    'tls_ocsp_client_from_cert': 'prefer',
+                    'tls_crl_client_from_cert': 'prefer',
+                    'tls_ocsp_database_from_cert': 'prefer',
+                    'tls_crl_database_from_cert': 'prefer',
+                },
+                'generic_cli': {
+                    'tls_ocsp_from_cert': 'prefer',
+                    'tls_crl_from_cert': 'prefer',
+                },
+                'not_expected_message': ['OCSP: Verifying', 'CRL: Verifying']
+            },
+            {
+                # 2. case if specific_cli is not specified - use config_specific_cli;
+                'specific_cli': {},
+                'config_values': {
+                    'tls_ocsp_client_from_cert': 'ignore',
+                    'tls_crl_client_from_cert': 'ignore',
+                    'tls_ocsp_database_from_cert': 'ignore',
+                    'tls_crl_database_from_cert': 'ignore',
+                },
+                'generic_cli': {
+                    'tls_ocsp_from_cert': 'prefer',
+                    'tls_crl_from_cert': 'prefer',
+                },
+                'not_expected_message': ['OCSP: Verifying', 'CRL: Verifying']
+            },
+            {
+                # 3. case if specific_cli/config_specific_cli is not specified - use generic_cli;
+                'specific_cli': {},
+                'config_values': {
+                    'tls_ocsp_client_from_cert': 'null',
+                    'tls_crl_client_from_cert': 'null',
+                    'tls_ocsp_database_from_cert': 'null',
+                    'tls_crl_database_from_cert': 'null',
+                },
+                'generic_cli': {
+                    'tls_ocsp_from_cert': 'ignore',
+                    'tls_crl_from_cert': 'ignore',
+                },
+                'not_expected_message': ['OCSP: Verifying', 'CRL: Verifying']
+            },
+            {
+                # 4. case if specific_cli/config_specific_cli is not specified - use generic_cli;
+                'specific_cli': {},
+                'config_values': {
+                    'tls_ocsp_client_from_cert': 'null',
+                    'tls_crl_client_from_cert': 'null',
+                    'tls_ocsp_database_from_cert': 'null',
+                    'tls_crl_database_from_cert': 'null',
+                    # specify generic_cli in config
+                    'tls_ocsp_from_cert': 'ignore',
+                    'tls_crl_from_cert': 'ignore',
+                },
+                'generic_cli': {},
+                'not_expected_message': ['OCSP: Verifying', 'CRL: Verifying']
+            },
+            {
+                # 5. if nothing were specified the Specified CLI default values should be used - OCSP/CRL should be enabled \
+                # as the default value is prefer
+                'specific_cli': {},
+                'config_values': {
+                    'tls_ocsp_client_from_cert': 'null',
+                    'tls_crl_client_from_cert': 'null',
+                    'tls_ocsp_database_from_cert': 'null',
+                    'tls_crl_database_from_cert': 'null',
+                    'tls_ocsp_from_cert': 'null',
+                    'tls_crl_from_cert': 'null',
+                },
+                'generic_cli': {},
+                'expected_message': ['OCSP: Verifying', 'CRL: Verifying']
+            },
+        ]
+
+        for case in test_cases:
+            self.assertTrue(any([case.get("expected_message"), case.get("not_expected_message")]))
+            try:
+                cli_args = {}
+                self.init_key_stores()
+                if not self.EXTERNAL_ACRA:
+                    config = load_yaml_config('configs/acra-server.yaml')
+                    temp_config = tempfile.NamedTemporaryFile()
+
+                    if len(case['config_values']) > 0:
+                        for key, value in case['config_values'].items():
+                            if value == 'null':
+                                del config[key]
+                            else:
+                                config[key] = value
+
+                    dump_yaml_config(config, temp_config.name)
+
+                    cli_args['config_file'] = temp_config.name
+                    cli_args['keys_dir'] = self.server_keys_dir
+
+                    if len(case['specific_cli']) > 0:
+                        cli_args.update(case['specific_cli'])
+
+                    if len(case['generic_cli']) > 0:
+                        cli_args.update(case['generic_cli'])
+
+                    self.acra = self.fork_acra(**cli_args)
+
+                args = get_connect_args(port=self.ACRASERVER_PORT, sslmode='require')
+                args.update(get_tls_connection_args(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT))
+                self.engine1 = sa.create_engine(
+                    get_engine_connection_string(
+                        self.get_acraserver_connection_string(),
+                        DB_NAME),
+                    connect_args=args)
+
+                self.engine_raw = sa.create_engine(
+                    '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
+                    connect_args=connect_args)
+
+                self.engines = [self.engine1, self.engine_raw]
+
+                metadata.create_all(self.engine_raw)
+                self.engine_raw.execute('delete from test;')
+            except:
+                self.stop_acra()
+                self.tearDown()
+                raise
+
+            result = self.engine1.execute(sa.select([1]).limit(1))
+            result.fetchone()
+            acra_logs = self.read_log(self.acra)
+
+            if case.get('expected_message'):
+                for msg in case.get('expected_message'):
+                    self.assertIn(msg, acra_logs)
+
+            if case.get("not_expected_message"):
+                for msg in case.get('not_expected_message'):
+                    self.assertNotIn(msg, acra_logs)
+
+            self.stop_acra()
+            # explicitly clear log file
+            open(self.log_files[self.acra].name, 'w').close()
+
+
 class TestKeyStoreMigration(BaseTestCase):
     """Test "acra-keys migrate" utility."""
 
@@ -853,12 +1089,12 @@ class TestKeyStoreMigration(BaseTestCase):
 
             # Check that we're able to put and get data via AcraServer.
             selected = self.select_as_client(row_id_1)
-            self.assertEquals(selected['data'], data_1.encode('ascii'))
-            self.assertEquals(selected['raw_data'], data_1)
+            self.assertEqual(selected['data'], data_1.encode('ascii'))
+            self.assertEqual(selected['raw_data'], data_1)
 
             # Get encrypted data. It should really be encrypted.
             encrypted_1 = self.select_directly(row_id_1)
-            self.assertNotEquals(encrypted_1['data'], data_1.encode('ascii'))
+            self.assertNotEqual(encrypted_1['data'], data_1.encode('ascii'))
 
         self.migrate_key_store('v2')
 
@@ -866,19 +1102,19 @@ class TestKeyStoreMigration(BaseTestCase):
         with self.running_services():
             # Old data should still be there, accessible via AcraServer.
             selected = self.select_as_client(row_id_1)
-            self.assertEquals(selected['data'], data_1.encode('ascii'))
-            self.assertEquals(selected['raw_data'], data_1)
+            self.assertEqual(selected['data'], data_1.encode('ascii'))
+            self.assertEqual(selected['raw_data'], data_1)
 
             # Key migration does not change encrypted data.
             encrypted_1_migrated = self.select_directly(row_id_1)
-            self.assertEquals(encrypted_1_migrated['data'],
+            self.assertEqual(encrypted_1_migrated['data'],
                               encrypted_1['data'])
 
             # We're able to put some new data into the table and get it back.
             row_id_2 = self.insert_as_client(data_2)
             selected = self.select_as_client(row_id_2)
-            self.assertEquals(selected['data'], data_2.encode('ascii'))
-            self.assertEquals(selected['raw_data'], data_2)
+            self.assertEqual(selected['data'], data_2.encode('ascii'))
+            self.assertEqual(selected['raw_data'], data_2)
 
     def test_moved_key_store(self):
         """Verify that keystore can be moved to a different absolute path."""
@@ -889,7 +1125,7 @@ class TestKeyStoreMigration(BaseTestCase):
         with self.running_services():
             row_id = self.insert_as_client(data)
             selected = self.select_as_client(row_id)
-            self.assertEquals(selected['data'], data.encode('ascii'))
+            self.assertEqual(selected['data'], data.encode('ascii'))
 
         # Move the keystore to a different (still temporary) location.
         self.change_key_store_path()
@@ -899,7 +1135,7 @@ class TestKeyStoreMigration(BaseTestCase):
         # but located at different path.
         with self.running_services():
             selected = self.select_as_client(row_id)
-            self.assertEquals(selected['data'], data.encode('ascii'))
+            self.assertEqual(selected['data'], data.encode('ascii'))
 
 
 class TestAcraKeysWithRotatedKeys(unittest.TestCase):
@@ -1849,6 +2085,25 @@ class TestMysqlBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
         ).execute_prepared_statement(query, args=args)
 
 
+class TestMariaDBBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
+    def checkSkip(self):
+        if not TEST_MARIADB:
+            self.skipTest("run test only for MariaDB")
+        elif not TEST_WITH_TLS:
+            self.skipTest("running tests only with TLS")
+
+    def executePreparedStatement(self, query, args=None):
+        # MariaDB used socket auth by default and in case of localhost trying to connect to unix socket
+        return MariaDBExecutor(
+            ConnectionArgs(host='127.0.0.1', port=self.ACRASERVER_PORT,
+                           user=DB_USER, password=DB_USER_PASSWORD,
+                           dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
+                           ssl_key=TEST_TLS_CLIENT_KEY,
+                           raw=True,
+                           ssl_cert=TEST_TLS_CLIENT_CERT)
+        ).execute_prepared_statement(query, args=args)
+
+
 class TestMysqlConnectorCBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
     def checkSkip(self):
         if not TEST_MYSQL:
@@ -1892,7 +2147,7 @@ class TestPostgresqlTextPreparedStatementWholeCell(TestPostgresqlTextPreparedSta
     WHOLECELL_MODE = True
 
 
-class TestPostgresqlBinaryPreparedStatement(BaseBinaryPostgreSQLTestCase, BasePrepareStatementMixin):
+class TestPostgresqlBinaryPreparedStatement(BaseBinaryPostgreSQLMixin, BasePrepareStatementMixin):
 
     def executePreparedStatement(self, query):
         return self.executor1.execute_prepared_statement(query)
@@ -2580,7 +2835,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
                 args = [os.path.join(BINARY_OUTPUT_FOLDER, service), config_param] + default_args.get(service, [])
                 stderr = self.getOutputFromProcess(args)
-                self.assertRegexpMatches(stderr,
+                self.assertRegex(stderr,
                                          r'code=508 error="config version \\"0.0.0\\" is not supported, expects \\"[\d.]+\\" version')
 
     def testStartupWithDifferentConfigsPatchVersion(self):
@@ -4078,6 +4333,22 @@ class TestDifferentCaseTableIdentifiersMySQL(BaseTransparentEncryption):
         self.runTestCase("UPPERCASE_TABLE", NOT_QUOTED, "data", NOT_QUOTED, SHOULD_MATCH)
 
 
+class TestSigTERMHandler(BaseTestCase):
+    def testAcraServerTerminate(self):
+        def send_signals_in_background():
+            time.sleep(1)
+            self.acra.send_signal(signal.SIGTERM)
+            self.acra.send_signal(signal.SIGTERM)
+
+        signals_thread = threading.Thread(target=send_signals_in_background)
+        signals_thread.start()
+
+        # wait for child acra process to finish with exit(0)
+        pid, status = os.waitpid(self.acra.pid, 0)
+        exit_code = os.WEXITSTATUS(status)
+        self.assertEqual(exit_code, 0)
+
+
 class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
     def setUp(self):
         pass
@@ -4142,9 +4413,34 @@ class TestSigHUPHandler(AcraTranslatorMixin, BaseTestCase):
             connection_string = self.get_acraserver_connection_string(test_port)
             config['incoming_connection_string'] = connection_string
             dump_yaml_config(config, temp_config.name)
+
             acra.send_signal(signal.SIGHUP)
+            # signal again, Acra should handle it safely
+            acra.send_signal(signal.SIGHUP)
+
             # close current connections
             test_engine.dispose()
+
+            def wait_forked_pid(count=100, sleep=0.1):
+                """
+                Wait for the process with the specified PID to become active.
+                """
+                while count:
+                    pid = self.find_forked_pid(config['log_to_file'])
+                    if pid:
+                        return
+                    count -= 1
+                    time.sleep(sleep)
+
+                raise Exception("Forked process did not become active in the expected time.")
+
+            # explicitly wait for the forked PID to become active. Without this wait,
+            # the next connection might be handled by the parent process instead of
+            # the forked process, which could cause the connection to drop and the test to fail.
+            wait_forked_pid(count=10, sleep=0.2)
+
+            # signal SIGTERM after SIGHUP, Acra should handle it safely
+            acra.send_signal(signal.SIGTERM)
 
             connect_str = get_engine_connection_string(
                 self.get_acraserver_connection_string(self.ACRASERVER_PORT), DB_NAME)
@@ -4514,8 +4810,9 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
                             self.assertNotIn('ReadyForQueryPacket', new_line)
                             if 'ignoring error of non parsed sql statement' in new_line:
                                 if TEST_POSTGRESQL:
-                                    self.assertIn("PostgreSQL dialect doesn't allow 'LIMIT offset, limit' syntax of LIMIT "
-                                                  "statements", new_line)
+                                    self.assertIn(
+                                        "PostgreSQL dialect doesn't allow 'LIMIT offset, limit' syntax of LIMIT "
+                                        "statements", new_line)
                                 elif TEST_MYSQL:
                                     self.assertIn("MySQL dialect doesn't allow 'LIMIT ALL' syntax of LIMIT statements",
                                                   new_line)
@@ -4700,7 +4997,7 @@ class TestEncryptorSettingReset(SeparateMetadataMixin, AcraCatchLogsMixin, BaseT
         self.test_table = sa.Table(
             'test_tokenization_default_client_id', self.get_metadata(),
             sa.Column('id', sa.Integer, primary_key=True),
-            sa.Column('nullable', sa.Text, nullable=True),
+            sa.Column('nullable_column', sa.Text, nullable=True),
             sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
             sa.Column('token_i32', sa.Integer()),
             sa.Column('token_i64', sa.BigInteger()),
@@ -4720,7 +5017,8 @@ class TestEncryptorSettingReset(SeparateMetadataMixin, AcraCatchLogsMixin, BaseT
     def test_select(self):
         """verify that after valid SELECT query over transparently encrypted data same config will not be applied
         for the next query and will be cleared"""
-        encrypted_row = {'nullable': None, 'empty': b'', 'token_i32': random_int32(), 'token_i64': random_int64(),
+        encrypted_row = {'nullable_column': None, 'empty': b'', 'token_i32': random_int32(),
+                         'token_i64': random_int64(),
                          'token_str': random_str(), 'token_bytes': random_bytes(), 'token_email': random_email()}
         with self.engine1.begin() as connection:
             connection.execute(self.test_table.insert(encrypted_row))
@@ -4750,7 +5048,8 @@ class TestEncryptorSettingReset(SeparateMetadataMixin, AcraCatchLogsMixin, BaseT
         if not (base.TEST_POSTGRESQL or TEST_MARIADB):
             self.skipTest("MySQL doesn't support returning statement for insert")
 
-        encrypted_row = {'nullable': None, 'empty': b'', 'token_i32': random_int32(), 'token_i64': random_int64(),
+        encrypted_row = {'nullable_column': None, 'empty': b'', 'token_i32': random_int32(),
+                         'token_i64': random_int64(),
                          'token_str': random_str(), 'token_bytes': random_bytes(), 'token_email': random_email()}
         with self.engine1.begin() as connection:
             if TEST_POSTGRESQL:
@@ -4759,10 +5058,10 @@ class TestEncryptorSettingReset(SeparateMetadataMixin, AcraCatchLogsMixin, BaseT
             elif TEST_MARIADB:
                 # use raw sql due to only sqlalchemy 2.x supports returning for mariadb
                 # TODO use sqlalchemy core after upgrading from 1.x to 2.x version
-                columns = ','.join(['nullable', 'empty', 'token_i32', 'token_i64', 'token_str',
+                columns = ','.join(['nullable_column', 'empty', 'token_i32', 'token_i64', 'token_str',
                                     'token_bytes', 'token_email'])
                 result = connection.execute(sa.text(
-                    "insert into {} ({}) values ( :nullable, :empty, :token_i32, :token_i64, :token_str, :token_bytes, :token_email) returning {};".format(
+                    "insert into {} ({}) values ( :nullable_column, :empty, :token_i32, :token_i64, :token_str, :token_bytes, :token_email) returning {};".format(
                         self.test_table.name, columns, columns)), encrypted_row
                 ).fetchall()
             else:
@@ -4783,6 +5082,723 @@ class TestEncryptorSettingReset(SeparateMetadataMixin, AcraCatchLogsMixin, BaseT
                 if not v:
                     continue
                 self.assertNotEqual(row[k], v)
+
+
+class TestSQLPreparedStatements(AcraCatchLogsMixin):
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/ee_prepared_statements_sql.yaml')
+
+    prepared_sql_statements_table_data_types = {
+        'id': 'int',
+        'default_client_id': 'bytea',
+        'number': 'int',
+        'specified_client_id': 'bytea',
+        'raw_data': 'bytea',
+        'searchable': 'bytea',
+        'empty': 'bytea',
+        'nullable': 'text',
+        'masking': 'bytea',
+        'token_bytes': 'bytea',
+        'token_email': 'text',
+        'token_str': 'text',
+        'token_i32': 'int4',
+        'token_i64': 'int8',
+    }
+
+    test_prepared_sql_statements_table = sa.Table(
+        'test_prepared_sql_statements', base.metadata,
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('specified_client_id',
+                  sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+        sa.Column('default_client_id',
+                  sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+
+        sa.Column('number', sa.Integer),
+        sa.Column('raw_data', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+        sa.Column('nullable', sa.Text, nullable=True),
+        sa.Column('searchable', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+        sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('token_i32', sa.Integer(), nullable=False, default=1),
+        sa.Column('token_i64', sa.BigInteger(), nullable=False, default=1),
+        sa.Column('token_str', sa.Text, nullable=False, default=''),
+        sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('token_email', sa.Text, nullable=False, default=''),
+        sa.Column('masking', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+    )
+
+    default_client_id_table = sa.Table(
+        'test_tokenization_default_client_id', base.metadata,
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('nullable_column', sa.Text, nullable=True),
+        sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('token_i32', sa.Integer()),
+        sa.Column('token_i64', sa.BigInteger()),
+        sa.Column('token_str', sa.Text),
+        sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('token_email', sa.Text),
+        extend_existing=True,
+    )
+
+    def tearDown(self):
+        self.engine_raw.execute(self.test_prepared_sql_statements_table.delete())
+        base.metadata.remove(self.test_prepared_sql_statements_table)
+
+        self.engine_raw.execute(self.default_client_id_table.delete())
+        base.metadata.remove(self.default_client_id_table)
+
+        super(TestSQLPreparedStatements, self).tearDown()
+
+    def get_test_prepared_sql_statements_table_context(self):
+        return {
+            'id': base.get_random_id(),
+            'default_client_id': base.get_pregenerated_random_data().encode('ascii'),
+            'number': base.get_random_id(),
+            'specified_client_id': base.get_pregenerated_random_data().encode('ascii'),
+            'raw_data': base.get_pregenerated_random_data().encode('ascii'),
+            'searchable': base.get_pregenerated_random_data().encode('ascii'),
+            'empty': b'',
+            'nullable': None,
+            'masking': base.get_pregenerated_random_data().encode('ascii'),
+            'token_bytes': base.get_pregenerated_random_data().encode('ascii'),
+            'token_email': base.get_pregenerated_random_data(),
+            'token_str': base.get_pregenerated_random_data(),
+            'token_i32': base.random.randint(0, 2 ** 16),
+            'token_i64': base.random.randint(0, 2 ** 32),
+        }
+
+    def get_specified_client_id(self):
+        return base.TLS_CERT_CLIENT_ID_1
+
+    def testSearchableTokenizationDefaultClientID(self):
+        base.metadata.create_all(self.engine_raw, [self.default_client_id_table])
+        self.engine1.execute(self.default_client_id_table.delete())
+
+        row_id = 1
+        data = {
+            'id': row_id,
+            'nullable_column': None,
+            'empty': b'',
+            'token_i32': random_int32(),
+            'token_i64': random_int64(),
+            'token_str': random_str(),
+            'token_bytes': random_bytes(),
+            'token_email': random_email(),
+        }
+        data_types = {
+            'id': 'int',
+            'nullable_column': 'text',
+            'empty': 'bytea',
+            'token_i32': 'int4',
+            'token_i64': 'int8',
+            'token_str': 'text',
+            'token_bytes': 'bytea',
+            'token_email': 'text',
+        }
+
+        # create SQL prepared statements in DB with name `insert_data` with engine1
+        self.prepare(prepared_name='insert_data', engine=self.engine1, query=self.default_client_id_table.insert(),
+                     data_types=data_types)
+
+        # expect fail on the prepare query with the same name
+        try:
+            self.prepare(prepared_name='insert_data', engine=self.engine1, query=self.default_client_id_table.insert(),
+                         data_types=data_types)
+        except Exception:
+            self.assertIn("PreparedStatement already stored in registry", self.read_log(self.acra))
+            pass
+
+        self.execute_prepared(prepared_name='insert_data', engine=self.engine1, data=data)
+
+        # create SQL prepared statements in DB with name `select_all_data` with engine1
+        self.prepare(prepared_name='select_all_data', engine=self.engine1, query=self.default_client_id_table.select())
+        rows = self.execute_prepared_fetch(prepared_name='select_all_data', engine=self.engine1)
+        self.assertEqual(len(rows), 1)
+
+        for k in ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email'):
+            if isinstance(rows[0][k], memoryview) and isinstance(data[k], bytes):
+                self.assertEqual(bytes(rows[0][k]), data[k])
+            else:
+                self.assertEqual(rows[0][k], data[k])
+
+        columns = {
+            'token_i32': self.default_client_id_table.c.token_i32,
+            'token_i64': self.default_client_id_table.c.token_i64,
+            'token_str': self.default_client_id_table.c.token_str,
+            'token_bytes': self.default_client_id_table.c.token_bytes,
+            'token_email': self.default_client_id_table.c.token_email,
+        }
+
+        query = sa.select(self.default_client_id_table).where(columns['token_i64'] == data['token_i64'])
+
+        self.prepare(prepared_name='select_data_by_field', query=query, engine=self.engine1, data_types={
+            'token_i64': 'int8'
+        }, literal_binds=False)
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine1, data={
+            'token_i64': data['token_i64']
+        })
+        self.assertEqual(len(rows), 1)
+
+        for k in ('token_i32', 'token_i64', 'token_str', 'token_bytes', 'token_email'):
+            if isinstance(rows[0][k], memoryview) and isinstance(data[k], bytes):
+                self.assertEqual(bytes(rows[0][k]), data[k])
+            else:
+                self.assertEqual(rows[0][k], data[k])
+
+    # currently Acra fully doesn`t support multi-statement queries for PostgreSQL
+    # https://www.postgresql.org/docs/15/protocol-flow.html#PROTOCOL-FLOW-MULTI-STATEMENT
+    # but still it should be able to proxy such queries w/o failures
+    def testMultiStatementQuery(self):
+        # expected query to be run successfully
+        self.engine1.execute('prepare t1 as (select 1); execute t1;')
+        self.assertIn(
+            "nil pendingPacket in handleQueryDataPacket: potential Multi-Statement query not supported by Acra",
+            self.read_log(self.acra))
+
+    def testSearchableEncryption(self):
+        base.metadata.create_all(self.engine_raw, [self.test_prepared_sql_statements_table])
+        self.engine1.execute(self.test_prepared_sql_statements_table.delete())
+
+        context = self.get_test_prepared_sql_statements_table_context()
+
+        search_term = context['searchable']
+
+        # Insert searchable data and some additional different rows
+        self.prepare(prepared_name='insert_data', engine=self.engine2,
+                     query=self.test_prepared_sql_statements_table.insert(),
+                     data_types=self.prepared_sql_statements_table_data_types)
+        self.execute_prepared(prepared_name='insert_data', engine=self.engine2, data=context)
+
+        extra_rows_count = 5
+        temp_context = context.copy()
+        while extra_rows_count != 0:
+            new_data = base.get_pregenerated_random_data().encode('utf-8')
+            if new_data != search_term:
+                temp_context['searchable'] = new_data
+                temp_context['id'] = context['id'] + extra_rows_count
+                self.execute_prepared(prepared_name='insert_data', engine=self.engine2, data=temp_context)
+                extra_rows_count -= 1
+
+        query = sa.select(self.test_prepared_sql_statements_table).where(
+            self.test_prepared_sql_statements_table.c.searchable == search_term)
+
+        self.prepare(prepared_name='select_data_by_field', engine=self.engine2, query=query, data_types={
+            'searchable': 'bytea'
+        }, literal_binds=False)
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, data={
+            'searchable': search_term
+        })
+        self.assertEqual(len(rows), 1)
+
+        # should be decrypted
+        self.assertEqual(bytes(rows[0]['default_client_id']), context['default_client_id'])
+        # should be as is
+        self.assertEqual(rows[0]['number'], context['number'])
+        self.assertEqual(bytes(rows[0]['raw_data']), context['raw_data'])
+        # expected data to be detokenized
+        self.assertEqual(rows[0]['token_i32'], context['token_i32'])
+        self.assertEqual(rows[0]['token_i64'], context['token_i64'])
+        # other data should be encrypted
+        self.assertNotEqual(bytes(rows[0]['specified_client_id']), context['specified_client_id'])
+
+        # read raw data via engine1 to check data is encrypted
+        query = sa.select(self.test_prepared_sql_statements_table).where(
+            self.test_prepared_sql_statements_table.c.id == context['id'])
+
+        self.prepare(prepared_name='select_data_by_id', engine=self.engine1, query=query, data_types={
+            'id': 'int'
+        }, literal_binds=False)
+        row = self.execute_prepared_fetch(prepared_name='select_data_by_id', engine=self.engine1, data={
+            'id': context['id']
+        })[0]
+
+        # expected data to tokenized
+        self.assertNotEqual(row['token_i32'], context['token_i32'])
+        self.assertNotEqual(row['token_i64'], context['token_i64'])
+        self.assertNotEqual(row['default_client_id'], context['default_client_id'])
+        # expect data is decrypted
+        self.assertEqual(bytes(row['specified_client_id']), context['specified_client_id'])
+
+        query = sa.delete(self.test_prepared_sql_statements_table).where(
+            self.test_prepared_sql_statements_table.c.searchable == search_term)
+
+        # delete search record with prepared
+        self.prepare(prepared_name='delete_data_by_field', engine=self.engine2, query=query, data_types={
+            'searchable': 'bytea'
+        }, literal_binds=False)
+        self.execute_prepared(prepared_name='delete_data_by_field', engine=self.engine2, data={
+            'searchable': search_term
+        })
+
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, data={
+            'searchable': search_term
+        })
+        self.assertEqual(len(rows), 0)
+
+    def testSearchableEncryptionWithDeallocate(self):
+        base.metadata.create_all(self.engine_raw, [self.test_prepared_sql_statements_table])
+        self.engine1.execute(self.test_prepared_sql_statements_table.delete())
+
+        context = self.get_test_prepared_sql_statements_table_context()
+
+        search_term = context['searchable']
+
+        # Insert searchable data and some additional different rows
+        self.prepare(prepared_name='insert_data', engine=self.engine2,
+                     query=self.test_prepared_sql_statements_table.insert(),
+                     data_types=self.prepared_sql_statements_table_data_types)
+        self.execute_prepared(prepared_name='insert_data', engine=self.engine2, data=context)
+
+        extra_rows_count = 5
+        temp_context = context.copy()
+        while extra_rows_count != 0:
+            new_data = base.get_pregenerated_random_data().encode('utf-8')
+            if new_data != search_term:
+                temp_context['searchable'] = new_data
+                temp_context['id'] = context['id'] + extra_rows_count
+                self.execute_prepared(prepared_name='insert_data', engine=self.engine2, data=temp_context)
+                extra_rows_count -= 1
+
+        query = sa.select(self.test_prepared_sql_statements_table).where(
+            self.test_prepared_sql_statements_table.c.searchable == search_term)
+
+        self.prepare(prepared_name='select_data_by_field', engine=self.engine2, query=query, data_types={
+            'searchable': 'bytea'
+        }, literal_binds=False)
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, data={
+            'searchable': search_term
+        })
+        self.assertEqual(len(rows), 1)
+
+        # deallocate prepared statement from DB and delete statement from session registry
+        self.deallocate(prepared_name='select_data_by_field', engine=self.engine2)
+
+        # expect fail on the deallocated prepared statement
+        try:
+            self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2,
+                                        data={'searchable': search_term})
+        except Exception:
+            self.assertIn("no prepared statement with given name", self.read_log(self.acra))
+            pass
+
+        new_token_int = base.random.randint(0, 2 ** 16)
+
+        update_query = sa.update(self.test_prepared_sql_statements_table). \
+            where(self.test_prepared_sql_statements_table.c.searchable == search_term).values(
+            token_i32=new_token_int)
+
+        # update search record with prepared
+        self.prepare(prepared_name='update_data_by_field', engine=self.engine2, query=update_query, data_types={
+            'searchable': 'bytea',
+            'token_i32': 'int'
+        }, literal_binds=False)
+        self.execute_prepared(prepared_name='update_data_by_field', engine=self.engine2, data={
+            'searchable': search_term,
+            'token_i32': new_token_int
+        })
+
+        self.prepare(prepared_name='select_data_by_field', engine=self.engine2, query=query, data_types={
+            'searchable': 'bytea'
+        }, literal_binds=False)
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, data={
+            'searchable': search_term
+        })
+        self.assertEqual(len(rows), 1)
+
+        # should be decrypted
+        self.assertEqual(bytes(rows[0]['default_client_id']), context['default_client_id'])
+        # should be as is
+        self.assertEqual(rows[0]['number'], context['number'])
+        self.assertEqual(bytes(rows[0]['raw_data']), context['raw_data'])
+        self.assertEqual(rows[0]['token_i32'], new_token_int)
+        # other data should be encrypted
+        self.assertNotEqual(bytes(rows[0]['specified_client_id']), context['specified_client_id'])
+
+
+class TestPostgresSQLPreparedStatements(TestSQLPreparedStatements, BaseTokenizationWithBinaryPostgreSQL):
+    pass
+
+
+class BaseTestMySQLPreparedStatementsFromSQL(AcraCatchLogsMixin):
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/ee_prepared_statements_sql.yaml')
+
+    prepared_sql_statements_table_data_types = {
+        'id': 'int',
+        'default_client_id': 'bytea',
+        'number': 'int',
+        'specified_client_id': 'bytea',
+        'raw_data': 'bytea',
+        'searchable': 'bytea',
+        'empty': 'bytea',
+        'nullable': 'text',
+        'masking': 'bytea',
+        'token_bytes': 'bytea',
+        'token_email': 'text',
+        'token_str': 'text',
+        'token_i32': 'int4',
+        'token_i64': 'int8',
+    }
+
+    test_prepared_sql_statements_table = sa.Table(
+        'test_prepared_sql_statements', base.metadata,
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('specified_client_id',
+                  sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+        sa.Column('default_client_id',
+                  sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+
+        sa.Column('number', sa.Integer),
+        sa.Column('raw_data', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+        sa.Column('nullable', sa.Text, nullable=True),
+        sa.Column('searchable', sa.LargeBinary(length=base.COLUMN_DATA_SIZE)),
+        sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('token_i32', sa.Integer(), nullable=False, default=1),
+        sa.Column('token_i64', sa.BigInteger(), nullable=False, default=1),
+        sa.Column('token_str', sa.Text, nullable=False, default=''),
+        sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('token_email', sa.Text, nullable=False, default=''),
+        sa.Column('masking', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+        extend_existing=True,
+    )
+
+    default_client_id_table = sa.Table(
+        'test_tokenization_default_client_id', base.metadata,
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('nullable_column', sa.Text, nullable=True),
+        sa.Column('empty', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('token_i32', sa.Integer()),
+        sa.Column('token_i64', sa.BigInteger()),
+        sa.Column('token_str', sa.Text),
+        sa.Column('token_bytes', sa.LargeBinary(length=base.COLUMN_DATA_SIZE), nullable=False, default=b''),
+        sa.Column('token_email', sa.Text),
+        extend_existing=True,
+    )
+
+    def tearDown(self):
+        self.engine_raw.execute(self.test_prepared_sql_statements_table.delete())
+        base.metadata.remove(self.test_prepared_sql_statements_table)
+
+        self.engine_raw.execute(self.default_client_id_table.delete())
+        base.metadata.remove(self.default_client_id_table)
+
+        super(BaseTestMySQLPreparedStatementsFromSQL, self).tearDown()
+
+    def get_test_prepared_sql_statements_table_context(self):
+        return {
+            'id': base.get_random_id(),
+            'default_client_id': base.get_pregenerated_random_data().encode('ascii'),
+            'number': base.get_random_id(),
+            'specified_client_id': base.get_pregenerated_random_data().encode('ascii'),
+            'raw_data': base.get_pregenerated_random_data().encode('ascii'),
+            'searchable': base.get_pregenerated_random_data().encode('ascii'),
+            'empty': b'',
+            'nullable': None,
+            'masking': base.get_pregenerated_random_data().encode('ascii'),
+            'token_bytes': base.get_pregenerated_random_data().encode('ascii'),
+            'token_email': base.get_pregenerated_random_data(),
+            'token_str': base.get_pregenerated_random_data(),
+            'token_i32': base.random.randint(0, 2 ** 16),
+            'token_i64': base.random.randint(0, 2 ** 32),
+        }
+
+    def get_specified_client_id(self):
+        return base.TLS_CERT_CLIENT_ID_1
+
+    def testSearchableEncryptionWithQueriesFromArg(self):
+        base.metadata.create_all(self.engine_raw, [self.test_prepared_sql_statements_table])
+        self.engine1.execute(self.test_prepared_sql_statements_table.delete())
+
+        context = self.get_test_prepared_sql_statements_table_context()
+        search_term = context['searchable']
+
+        # Insert searchable data and some additional different rows
+        _, columns_order = self.prepare_from_arg(prepared_name='insert_data', engine=self.engine2,
+                                                 query=self.test_prepared_sql_statements_table.insert(),
+                                                 data_types=self.prepared_sql_statements_table_data_types)
+
+        args = []
+        for key in columns_order:
+            arg = 'test_prepared_sql_statements__{}'.format(key)
+            args.append(arg)
+            self.set_arg(arg_name=arg, engine=self.engine2, value=context[key])
+
+        self.execute_prepared(prepared_name='insert_data', engine=self.engine2, args=args)
+
+        extra_rows_count = 5
+        while extra_rows_count != 0:
+            new_data = base.get_pregenerated_random_data().encode('utf-8')
+            if new_data != search_term:
+                new_id = context['id'] + extra_rows_count
+                self.set_arg(arg_name='test_prepared_sql_statements__searchable', engine=self.engine2, value=new_data)
+                self.set_arg(arg_name='test_prepared_sql_statements__id', engine=self.engine2, value=new_id)
+                self.execute_prepared(prepared_name='insert_data', engine=self.engine2, args=args)
+                extra_rows_count -= 1
+
+        query = sa.select(self.test_prepared_sql_statements_table).where(
+            self.test_prepared_sql_statements_table.c.searchable == search_term)
+
+        self.prepare_from_arg(prepared_name='select_data_by_field', engine=self.engine2, query=query, data_types={
+            'searchable': 'bytea'
+        }, literal_binds=False)
+
+        args = []
+        arg = 'test_prepared_sql_statements__searchable'
+        args.append(arg)
+        self.set_arg(arg_name=arg, engine=self.engine2, value=search_term)
+
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, args=args)
+        self.assertEqual(len(rows), 1)
+        #
+        # should be decrypted
+        self.assertEqual(bytes(rows[0]['default_client_id']), context['default_client_id'])
+        # should be as is
+        self.assertEqual(rows[0]['number'], context['number'])
+        self.assertEqual(bytes(rows[0]['raw_data']), context['raw_data'])
+        # expected data to be detokenized
+        self.assertEqual(rows[0]['token_i32'], context['token_i32'])
+        self.assertEqual(rows[0]['token_i64'], context['token_i64'])
+        # other data should be encrypted
+        self.assertNotEqual(bytes(rows[0]['specified_client_id']), context['specified_client_id'])
+
+        # read raw data via engine1 to check data is encrypted
+        query = sa.select(self.test_prepared_sql_statements_table).where(
+            self.test_prepared_sql_statements_table.c.id == context['id'])
+
+        self.prepare_from_arg(prepared_name='select_data_by_id', engine=self.engine1, query=query, data_types={
+            'id': 'int'
+        }, literal_binds=False)
+
+        args = []
+        arg = 'test_prepared_sql_statements__id'
+        args.append(arg)
+        self.set_arg(arg_name=arg, engine=self.engine1, value=context['id'])
+
+        row = self.execute_prepared_fetch(prepared_name='select_data_by_id', engine=self.engine1, args=args)[0]
+
+        # expected data to tokenized
+        self.assertNotEqual(row['token_i32'], context['token_i32'])
+        self.assertNotEqual(row['token_i64'], context['token_i64'])
+        self.assertNotEqual(row['default_client_id'], context['default_client_id'])
+        # expect data is decrypted
+        self.assertEqual(bytes(row['specified_client_id']), context['specified_client_id'])
+
+        query = sa.delete(self.test_prepared_sql_statements_table).where(
+            self.test_prepared_sql_statements_table.c.searchable == search_term)
+
+        # delete search record with prepared
+        self.prepare_from_arg(prepared_name='delete_data_by_field', engine=self.engine2, query=query, data_types={
+            'searchable': 'bytea'
+        }, literal_binds=False)
+
+        args = []
+        arg = 'test_prepared_sql_statements__searchable'
+        args.append(arg)
+        self.set_arg(arg_name=arg, engine=self.engine2, value=search_term)
+
+        self.execute_prepared(prepared_name='delete_data_by_field', engine=self.engine2, args=args)
+
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, args=args)
+        self.assertEqual(len(rows), 0)
+
+    def testSearchableEncryption(self):
+        base.metadata.create_all(self.engine_raw, [self.test_prepared_sql_statements_table])
+        self.engine1.execute(self.test_prepared_sql_statements_table.delete())
+
+        context = self.get_test_prepared_sql_statements_table_context()
+        search_term = context['searchable']
+
+        # Insert searchable data and some additional different rows
+        _, columns_order = self.prepare(prepared_name='insert_data', engine=self.engine2,
+                                        query=self.test_prepared_sql_statements_table.insert(),
+                                        data_types=self.prepared_sql_statements_table_data_types)
+
+        args = []
+        for key in columns_order:
+            arg = 'test_prepared_sql_statements__{}'.format(key)
+            args.append(arg)
+            self.set_arg(arg_name=arg, engine=self.engine2, value=context[key])
+
+        self.execute_prepared(prepared_name='insert_data', engine=self.engine2, args=args)
+
+        extra_rows_count = 5
+        while extra_rows_count != 0:
+            new_data = base.get_pregenerated_random_data().encode('utf-8')
+            if new_data != search_term:
+                new_id = context['id'] + extra_rows_count
+                self.set_arg(arg_name='test_prepared_sql_statements__searchable', engine=self.engine2, value=new_data)
+                self.set_arg(arg_name='test_prepared_sql_statements__id', engine=self.engine2, value=new_id)
+                self.execute_prepared(prepared_name='insert_data', engine=self.engine2, args=args)
+                extra_rows_count -= 1
+
+        query = sa.select(self.test_prepared_sql_statements_table).where(
+            self.test_prepared_sql_statements_table.c.searchable == search_term)
+
+        self.prepare(prepared_name='select_data_by_field', engine=self.engine2, query=query, data_types={
+            'searchable': 'bytea'
+        }, literal_binds=False)
+
+        args = []
+        arg = 'test_prepared_sql_statements__searchable'
+        args.append(arg)
+        self.set_arg(arg_name=arg, engine=self.engine2, value=search_term)
+
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, args=args)
+        self.assertEqual(len(rows), 1)
+
+        # should be decrypted
+        self.assertEqual(bytes(rows[0]['default_client_id']), context['default_client_id'])
+        # should be as is
+        self.assertEqual(rows[0]['number'], context['number'])
+        self.assertEqual(bytes(rows[0]['raw_data']), context['raw_data'])
+        # expected data to be detokenized
+        self.assertEqual(rows[0]['token_i32'], context['token_i32'])
+        self.assertEqual(rows[0]['token_i64'], context['token_i64'])
+        # other data should be encrypted
+        self.assertNotEqual(bytes(rows[0]['specified_client_id']), context['specified_client_id'])
+
+        # check prepare with replace on search hash, e.g:
+        # prepare name from 'select * from table where search = \'value\''
+        self.prepare_with_literal_binds(prepared_name='select_data_by_field_value', engine=self.engine2, query=query)
+
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field_value', engine=self.engine2, args=[])
+        self.assertEqual(len(rows), 1)
+
+        # read raw data via engine1 to check data is encrypted
+        query = sa.select(self.test_prepared_sql_statements_table).where(
+            self.test_prepared_sql_statements_table.c.id == context['id'])
+
+        self.prepare(prepared_name='select_data_by_id', engine=self.engine1, query=query, data_types={
+            'id': 'int'
+        }, literal_binds=False)
+
+        args = []
+        arg = 'test_prepared_sql_statements__id'
+        args.append(arg)
+        self.set_arg(arg_name=arg, engine=self.engine1, value=context['id'])
+
+        row = self.execute_prepared_fetch(prepared_name='select_data_by_id', engine=self.engine1, args=args)[0]
+
+        # expected data to tokenized
+        self.assertNotEqual(row['token_i32'], context['token_i32'])
+        self.assertNotEqual(row['token_i64'], context['token_i64'])
+        self.assertNotEqual(row['default_client_id'], context['default_client_id'])
+        # expect data is decrypted
+        self.assertEqual(bytes(row['specified_client_id']), context['specified_client_id'])
+
+        query = sa.delete(self.test_prepared_sql_statements_table).where(
+            self.test_prepared_sql_statements_table.c.searchable == search_term)
+
+        # delete search record with prepared
+        self.prepare(prepared_name='delete_data_by_field', engine=self.engine2, query=query, data_types={
+            'searchable': 'bytea'
+        }, literal_binds=False)
+
+        args = []
+        arg = 'test_prepared_sql_statements__searchable'
+        args.append(arg)
+        self.set_arg(arg_name=arg, engine=self.engine2, value=search_term)
+
+        self.execute_prepared(prepared_name='delete_data_by_field', engine=self.engine2, args=args)
+
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, args=args)
+        self.assertEqual(len(rows), 0)
+
+    def testSearchableEncryptionWithDeallocate(self):
+        base.metadata.create_all(self.engine_raw, [self.test_prepared_sql_statements_table])
+        self.engine1.execute(self.test_prepared_sql_statements_table.delete())
+
+        context = self.get_test_prepared_sql_statements_table_context()
+        search_term = context['searchable']
+
+        # Insert searchable data and some additional different rows
+        _, columns_order = self.prepare(prepared_name='insert_data', engine=self.engine2,
+                                        query=self.test_prepared_sql_statements_table.insert(),
+                                        data_types=self.prepared_sql_statements_table_data_types)
+
+        args = []
+        for key in columns_order:
+            arg = 'test_prepared_sql_statements__{}'.format(key)
+            args.append(arg)
+            self.set_arg(arg_name=arg, engine=self.engine2, value=context[key])
+
+        self.execute_prepared(prepared_name='insert_data', engine=self.engine2, args=args)
+
+        extra_rows_count = 5
+        while extra_rows_count != 0:
+            new_data = base.get_pregenerated_random_data().encode('utf-8')
+            if new_data != search_term:
+                new_id = context['id'] + extra_rows_count
+                self.set_arg(arg_name='test_prepared_sql_statements__searchable', engine=self.engine2, value=new_data)
+                self.set_arg(arg_name='test_prepared_sql_statements__id', engine=self.engine2, value=new_id)
+                self.execute_prepared(prepared_name='insert_data', engine=self.engine2, args=args)
+                extra_rows_count -= 1
+
+        query = sa.select(self.test_prepared_sql_statements_table).where(
+            self.test_prepared_sql_statements_table.c.searchable == search_term)
+
+        self.prepare(prepared_name='select_data_by_field', engine=self.engine2, query=query, data_types={
+            'searchable': 'bytea'
+        }, literal_binds=False)
+
+        args = []
+        arg = 'test_prepared_sql_statements__searchable'
+        args.append(arg)
+        self.set_arg(arg_name=arg, engine=self.engine2, value=search_term)
+
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, args=args)
+        self.assertEqual(len(rows), 1)
+
+        # deallocate prepared statement from DB and delete statement from session registry
+        self.deallocate(prepared_name='select_data_by_field', engine=self.engine2)
+
+        # expect fail on the deallocated prepared statement
+        try:
+            self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, args=args)
+        except Exception:
+            self.assertIn("prepared statement not present in registry", self.read_log(self.acra))
+            pass
+
+        new_token_int = base.random.randint(0, 2 ** 16)
+
+        update_query = sa.update(self.test_prepared_sql_statements_table). \
+            where(self.test_prepared_sql_statements_table.c.searchable == search_term).values(
+            token_i32=new_token_int)
+
+        # update search record with prepared
+        self.prepare(prepared_name='update_data_by_field', engine=self.engine2, query=update_query, data_types={
+            'searchable': 'bytea',
+            'token_i32': 'int'
+        }, literal_binds=False)
+
+        args = []
+        arg = 'test_prepared_sql_statements__token_i32'
+        args.append(arg)
+        self.set_arg(arg_name=arg, engine=self.engine2, value=new_token_int)
+
+        arg = 'test_prepared_sql_statements__searchable'
+        args.append(arg)
+        self.set_arg(arg_name=arg, engine=self.engine2, value=search_term)
+
+        self.execute_prepared(prepared_name='update_data_by_field', engine=self.engine2, args=args)
+
+        self.prepare(prepared_name='select_data_by_field', engine=self.engine2, query=query, data_types={
+            'searchable': 'bytea'
+        }, literal_binds=False)
+
+        args = ['test_prepared_sql_statements__searchable']
+        rows = self.execute_prepared_fetch(prepared_name='select_data_by_field', engine=self.engine2, args=args)
+        self.assertEqual(len(rows), 1)
+
+        # should be decrypted
+        self.assertEqual(bytes(rows[0]['default_client_id']), context['default_client_id'])
+        # should be as is
+        self.assertEqual(rows[0]['number'], context['number'])
+        self.assertEqual(bytes(rows[0]['raw_data']), context['raw_data'])
+        self.assertEqual(rows[0]['token_i32'], new_token_int)
+        # other data should be encrypted
+        self.assertNotEqual(bytes(rows[0]['specified_client_id']), context['specified_client_id'])
+
+
+class TestMySQLPreparedStatementsFromSQL(BaseTestMySQLPreparedStatementsFromSQL, BaseTokenizationWithBinaryBindMySQL):
+    pass
 
 
 if __name__ == '__main__':

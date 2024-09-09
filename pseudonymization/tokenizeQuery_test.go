@@ -83,10 +83,14 @@ schemas:
 	randomRead(randomBytes)
 
 	type testcase struct {
-		Value     []byte
-		Type      common.TokenType
-		TokenType string
-		Query     string
+		Value      []byte
+		Type       common.TokenType
+		TokenType  string
+		Query      string
+		OnlyDBType *bool
+	}
+	getBoolReference := func(v bool) *bool {
+		return &v
 	}
 
 	testcases := []testcase{
@@ -99,83 +103,97 @@ schemas:
 		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "UPDATE test_table SET kind = 'Dramatic' WHERE data1='somedata';"},
 		{Value: []byte("4444"), Type: common.TokenType_Int32, TokenType: "int32", Query: "UPDATE test_table SET kind = 'Dramatic' WHERE data1=4444 and data_ignored='ignoreddata';"},
 		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "DELETE FROM test_table WHERE data1='somedata';"},
-		{Value: randomBytes, Type: common.TokenType_Bytes, TokenType: "bytes", Query: fmt.Sprintf("DELETE FROM test_table where data1='%s' or data_ignored='ignoreddata'", encryptor2.PgEncodeToHexString(randomBytes))},
+		{Value: randomBytes, Type: common.TokenType_Bytes, TokenType: "bytes", Query: fmt.Sprintf("DELETE FROM test_table where data1='%s' or data_ignored='ignoreddata'", encryptor2.PgEncodeToHexString(randomBytes)), OnlyDBType: getBoolReference(config.UsePostgreSQL)},
 		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "select data1 from test_table where data1='somedata'"},
 		{Value: []byte("somedata"), Type: common.TokenType_String, TokenType: "str", Query: "select data1 from test_table where data1='somedata' and data_ignored='ignoreddata'"},
 		{Value: []byte("333"), Type: common.TokenType_Int32, TokenType: "int32", Query: "select data1 from test_table where data1=333"},
 		{Value: []byte("33333333333333333"), Type: common.TokenType_Int64, TokenType: "int64", Query: "select data1 from test_table where data1=33333333333333333"},
 		{Value: []byte("test@gmail.com"), Type: common.TokenType_Email, TokenType: "email", Query: "select data1 from test_table where data1='test@gmail.com'"},
-		{Value: randomBytes, Type: common.TokenType_Bytes, TokenType: "bytes", Query: fmt.Sprintf("select data1 from test_table where data1='%s'", encryptor2.PgEncodeToHexString(randomBytes))},
+		{Value: randomBytes, Type: common.TokenType_Bytes, TokenType: "bytes", Query: fmt.Sprintf("select data1 from test_table where data1='%s'", encryptor2.PgEncodeToHexString(randomBytes)), OnlyDBType: getBoolReference(config.UsePostgreSQL)},
 	}
 
-	for _, tcase := range testcases {
-		schema, err := config.MapTableSchemaStoreFromConfig([]byte(fmt.Sprintf(schemaConfigTemplate, tcase.TokenType, tcase.TokenType, tcase.TokenType)), config.UseMySQL)
-		assert.NoError(t, err)
-
-		encryptor := NewPostgresqlTokenizeQuery(schema, tokenEncryptor)
-
-		consistentTokenization := true
-		setting := config.BasicColumnEncryptionSetting{
-			TokenType:              tcase.TokenType,
-			ConsistentTokenization: &consistentTokenization,
-		}
-		anonymized, err := tokenizer.Tokenize(tcase.Value, common.TokenContext{ClientID: clientID}, &setting)
-		assert.NoError(t, err)
-
-		newQuery, ok, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(tcase.Query, parser))
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		stmt, err := newQuery.Statement()
-		assert.NoError(t, err)
-
-		var whereExps = make([]*sqlparser.Where, 0)
-		err = sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
-			switch nodeType := node.(type) {
-			case *sqlparser.Where:
-				whereExps = append(whereExps, nodeType)
-			case sqlparser.JoinCondition:
-				whereExps = append(whereExps, &sqlparser.Where{
-					Type: "on",
-					Expr: nodeType.On,
-				})
-			}
-			return true, nil
-		}, stmt)
-
-		for _, whereExp := range whereExps {
-			if whereExp == nil {
+	for i, tcase := range testcases {
+		for _, dbType := range []bool{config.UseMySQL, config.UsePostgreSQL} {
+			// skip tests targeted to another db type
+			if tcase.OnlyDBType != nil && *tcase.OnlyDBType != dbType {
+				t.Logf("Test case %d only for UseMysql=%t, but now test UseMysql=%t\n", i, *tcase.OnlyDBType, dbType)
 				continue
 			}
-
-			var lRightExpr *sqlparser.SQLVal
-			switch expr := whereExp.Expr.(type) {
-			case *sqlparser.ComparisonExpr:
-				lRightExpr = expr.Right.(*sqlparser.SQLVal)
-			case *sqlparser.AndExpr:
-				lRightExpr = expr.Left.(*sqlparser.ComparisonExpr).Right.(*sqlparser.SQLVal)
-
-				rRightExpr := expr.Right.(*sqlparser.ComparisonExpr).Right
-				if sqlVal, ok := rRightExpr.(*sqlparser.SQLVal); ok {
-					assert.Equal(t, sqlVal.Val, []byte("ignoreddata"))
-				}
-
-			case *sqlparser.OrExpr:
-				lRightExpr = expr.Left.(*sqlparser.ComparisonExpr).Right.(*sqlparser.SQLVal)
-				assert.Equal(t, expr.Right.(*sqlparser.ComparisonExpr).Right.(*sqlparser.SQLVal).Val, []byte("ignoreddata"))
+			schema, err := config.MapTableSchemaStoreFromConfig([]byte(fmt.Sprintf(schemaConfigTemplate, tcase.TokenType, tcase.TokenType, tcase.TokenType)), dbType)
+			assert.NoError(t, err)
+			var encryptor *TokenizeQuery
+			switch dbType {
+			case config.UseMySQL:
+				encryptor = NewMySQLTokenizeQuery(schema, tokenEncryptor)
+			case config.UsePostgreSQL:
+				encryptor = NewPostgresqlTokenizeQuery(schema, tokenEncryptor)
+			default:
+				t.Fatal("Unexpected db type")
 			}
 
-			if tcase.Type == common.TokenType_Bytes {
-				var binAnonymized = anonymized
-				if bytes.HasPrefix(lRightExpr.Val, []byte{'\\', 'x'}) {
-					binAnonymized = encryptor2.PgEncodeToHexString(anonymized)
+			consistentTokenization := true
+			setting := config.BasicColumnEncryptionSetting{
+				TokenType:              tcase.TokenType,
+				ConsistentTokenization: &consistentTokenization,
+			}
+			anonymized, err := tokenizer.Tokenize(tcase.Value, common.TokenContext{ClientID: clientID}, &setting)
+			assert.NoError(t, err)
+
+			newQuery, ok, err := encryptor.OnQuery(ctx, base.NewOnQueryObjectFromQuery(tcase.Query, parser))
+			assert.NoError(t, err)
+			assert.True(t, ok)
+
+			stmt, err := newQuery.Statement()
+			assert.NoError(t, err)
+
+			var whereExps = make([]*sqlparser.Where, 0)
+			err = sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
+				switch nodeType := node.(type) {
+				case *sqlparser.Where:
+					whereExps = append(whereExps, nodeType)
+				case sqlparser.JoinCondition:
+					whereExps = append(whereExps, &sqlparser.Where{
+						Type: "on",
+						Expr: nodeType.On,
+					})
+				}
+				return true, nil
+			}, stmt)
+
+			for _, whereExp := range whereExps {
+				if whereExp == nil {
+					continue
 				}
 
-				assert.Equal(t, lRightExpr.Val, binAnonymized)
-				continue
-			}
+				var lRightExpr *sqlparser.SQLVal
+				switch expr := whereExp.Expr.(type) {
+				case *sqlparser.ComparisonExpr:
+					lRightExpr = expr.Right.(*sqlparser.SQLVal)
+				case *sqlparser.AndExpr:
+					lRightExpr = expr.Left.(*sqlparser.ComparisonExpr).Right.(*sqlparser.SQLVal)
 
-			assert.Equal(t, lRightExpr.Val, anonymized)
+					rRightExpr := expr.Right.(*sqlparser.ComparisonExpr).Right
+					if sqlVal, ok := rRightExpr.(*sqlparser.SQLVal); ok {
+						assert.Equal(t, sqlVal.Val, []byte("ignoreddata"))
+					}
+
+				case *sqlparser.OrExpr:
+					lRightExpr = expr.Left.(*sqlparser.ComparisonExpr).Right.(*sqlparser.SQLVal)
+					assert.Equal(t, expr.Right.(*sqlparser.ComparisonExpr).Right.(*sqlparser.SQLVal).Val, []byte("ignoreddata"))
+				}
+
+				if tcase.Type == common.TokenType_Bytes {
+					var binAnonymized = anonymized
+					if bytes.HasPrefix(lRightExpr.Val, []byte{'\\', 'x'}) {
+						binAnonymized = encryptor2.PgEncodeToHexString(anonymized)
+					}
+
+					assert.Equal(t, lRightExpr.Val, binAnonymized, fmt.Sprintf("Iteration %d", i))
+					continue
+				}
+
+				assert.Equal(t, lRightExpr.Val, anonymized)
+			}
 		}
 	}
 }
@@ -387,8 +405,9 @@ schemas:
 		{shouldHaveHexEncoding: true, Value: []byte("q{r."), TokenType: "bytes", Query: fmt.Sprintf("INSERT INTO table2 SELECT * FROM test_table WHERE data1='%s';", []byte("q{r."))},
 	}
 
-	for _, tcase := range testcases {
-		schema, err := config.MapTableSchemaStoreFromConfig([]byte(fmt.Sprintf(schemaConfigTemplate, tcase.TokenType, tcase.TokenType)), config.UseMySQL)
+	for i, tcase := range testcases {
+		_ = i
+		schema, err := config.MapTableSchemaStoreFromConfig([]byte(fmt.Sprintf(schemaConfigTemplate, tcase.TokenType, tcase.TokenType)), config.UsePostgreSQL)
 		assert.NoError(t, err)
 
 		encryptor := NewPostgresqlTokenizeQuery(schema, tokenEncryptor)
@@ -416,6 +435,6 @@ schemas:
 			expectedValue = encryptor2.PgEncodeToHexString(anonymized)
 		}
 
-		assert.Equal(t, rightExpr.Val, expectedValue)
+		assert.Equal(t, rightExpr.Val, expectedValue, fmt.Sprintf("Fail in %d iteration\n", i))
 	}
 }

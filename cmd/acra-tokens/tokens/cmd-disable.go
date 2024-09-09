@@ -21,16 +21,20 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cossacklabs/acra/cmd"
-	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/network"
+	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // DisableSubcommand is the "acra-tokens disable" subcommand.
 type DisableSubcommand struct {
-	flagSet *flag.FlagSet
-	storage CommonTokenStorageParameters
-	limits  CommonDateParameters
+	flagSet   *flag.FlagSet
+	extractor *args.ServiceExtractor
+	storage   CommonTokenStorageParameters
+	limits    CommonDateParameters
 }
 
 // CmdTokenDisable is the name of "acra-tokens disable" subcommand.
@@ -51,6 +55,7 @@ func (s *DisableSubcommand) RegisterFlags() {
 	s.flagSet = flag.NewFlagSet(CmdTokenDisable, flag.ContinueOnError)
 	s.storage.Register(s.flagSet)
 	s.limits.Register(s.flagSet)
+	network.RegisterTLSBaseArgs(s.flagSet)
 	cmd.RegisterRedisTokenStoreParametersWithPrefix(s.flagSet, "", "")
 	s.flagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": disable tokens, preventing their use\n", CmdTokenDisable)
@@ -62,11 +67,18 @@ func (s *DisableSubcommand) RegisterFlags() {
 
 // Parse command-line parameters of the subcommand.
 func (s *DisableSubcommand) Parse(arguments []string) error {
-	err := cmd.ParseFlagsWithConfig(s.flagSet, arguments, DefaultConfigPath, ServiceName)
+	err := cmd.ParseFlags(s.flagSet, arguments)
 	if err != nil {
 		return err
 	}
-	err = s.storage.Validate(s.flagSet)
+
+	serviceConfig, err := cmd.ParseConfig(DefaultConfigPath, ServiceName)
+	if err != nil {
+		return err
+	}
+	s.extractor = args.NewServiceExtractor(s.flagSet, serviceConfig)
+
+	err = s.storage.Validate(s.extractor)
 	if err != nil {
 		return err
 	}
@@ -79,7 +91,7 @@ func (s *DisableSubcommand) Parse(arguments []string) error {
 
 // Execute this subcommand.
 func (s *DisableSubcommand) Execute() {
-	tokens, err := s.storage.Open(s.flagSet)
+	tokens, err := s.storage.Open(s.extractor)
 	if err != nil {
 		log.WithError(err).Fatal("Cannot open token storage")
 	}

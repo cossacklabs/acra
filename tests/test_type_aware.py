@@ -233,7 +233,7 @@ class TestMySQLTextFormatTypeAwareDecryptionWithDefaultsWithConsulEncryptorConfi
 
 
 class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults(
-    test_common.BaseBinaryPostgreSQLTestCase, TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults):
+    test_common.BaseBinaryPostgreSQLMixin, TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults):
     def testClientIDRead(self):
         """test decrypting with correct clientID and not decrypting with
         incorrect clientID or using direct connection to db
@@ -332,10 +332,10 @@ class TestMySQLBinaryFormatTypeAwareDecryptionWithDefaults(TestMySQLTextFormatTy
 
         self.schema_table.create(bind=self.engine_raw, checkfirst=True)
         columns = ('value_str', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32', 'value_empty_str')
-        query, args = self.compileQuery(self.test_table.insert(), data)
+        query, args, _ = self.compileQuery(self.test_table.insert(), data)
         self.executor1.execute_prepared_statement_no_result(query, args)
 
-        query, args = self.compileQuery(
+        query, args, _ = self.compileQuery(
             sa.select([self.test_table])
             .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
         row = self.executor1.execute_prepared_statement(query, args)[0]
@@ -994,10 +994,10 @@ class TestMySQLBinaryTypeAwareDecryptionWithoutDefaults(TestMySQLTextTypeAwareDe
         ######
         columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
                    'value_empty_str')
-        query, args = self.compileQuery(self.test_table.insert(), data)
+        query, args, _ = self.compileQuery(self.test_table.insert(), data)
         self.executor1.execute_prepared_statement_no_result(query, args)
 
-        query, args = self.compileQuery(
+        query, args, _ = self.compileQuery(
             sa.select([self.test_table])
             .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
 
@@ -1103,6 +1103,99 @@ class TestMySQLTextTypeAwareDecryptionWithCiphertext(test_common.BaseBinaryMySQL
             self.assertNotEqual(data[column], value, column)
 
 
+class TestMariaDBTextTypeAwareDecryptionWithCiphertext(test_common.AcraCatchLogsMixin, test_common.BaseBinaryMariaDBTestCase,
+                                                       test_searchable_transparent_encryption.BaseTransparentEncryption):
+    # test table used for queries and data mapping into python types
+    test_table = sa.Table(
+        # use new object of metadata to avoid name conflict
+        'test_type_aware_decryption_with_ciphertext', sa.MetaData(),
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.Text),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.Integer),
+        sa.Column('value_int64', sa.BigInteger),
+        sa.Column('value_null_str', sa.Text, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.Integer, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.Text, nullable=False, default=''),
+        extend_existing=True
+    )
+    # schema table used to generate table in the database with binary column types
+    schema_table = sa.Table(
+
+        'test_type_aware_decryption_with_ciphertext', base.metadata,
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('value_str', sa.LargeBinary),
+        sa.Column('value_bytes', sa.LargeBinary),
+        sa.Column('value_int32', sa.LargeBinary),
+        sa.Column('value_int64', sa.LargeBinary),
+        sa.Column('value_null_str', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_null_int32', sa.LargeBinary, nullable=True, default=None),
+        sa.Column('value_empty_str', sa.LargeBinary, nullable=False, default=b''),
+        extend_existing=True
+    )
+    ENCRYPTOR_CONFIG = base.get_encryptor_config('tests/encryptor_configs/transparent_type_aware_decryption.yaml')
+
+    # switch off raw mode to be able to convert result rows to python types
+    RAW_EXECUTOR = False
+
+    def checkSkip(self):
+        if not (base.TEST_MARIADB and base.TEST_WITH_TLS):
+            self.skipTest("Test only for MariaDB with TLS")
+
+    def testClientIDRead(self):
+        """test decrypting with correct clientID and not decrypting with
+        incorrect clientID or using direct connection to db
+        All result data should be valid for application. Not decrypted data should be returned as is and DB driver
+        should cause error
+
+        MySQL decoder should roll back FieldType as well.
+        """
+        data = {
+            'id': base.get_random_id(),
+            'value_str': random_str(),
+            'value_bytes': random_bytes(),
+            'value_int32': random_int32(),
+            'value_int64': random_int64(),
+            'value_null_str': None,
+            'value_null_int32': None,
+            'value_empty_str': ''
+        }
+        self.schema_table.create(bind=self.engine_raw, checkfirst=True)
+        self.engine1.execute(self.test_table.insert(), data)
+        columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_empty_str', 'value_null_str',
+                   'value_null_int32')
+
+        compile_kwargs = {"literal_binds": True}
+        query = sa.select([self.test_table]).where(self.test_table.c.id == data['id'])
+        query = str(query.compile(compile_kwargs=compile_kwargs))
+
+        row = self.executor1.execute(query)[0]
+        for column in columns:
+            self.assertEqual(data[column], row[column])
+            self.assertIsInstance(row[column], type(data[column]))
+
+        try:
+            # field types should be rollbacked in case of invalid encoding
+            self.executor2.execute(query)[0]
+        except Exception as ex:
+            log = self.read_log(self.acra)
+            self.assertIn('Failed to change data type - rollback field type', log)
+
+        # direct connection should receive binary data according to real scheme
+        result = self.engine_raw.execute(
+            sa.select([self.test_table])
+            .where(self.test_table.c.id == data['id']))
+        row = result.fetchone()
+        for column in columns:
+            if 'null' in column or 'empty' in column:
+                # asyncpg decodes None values as empty str/bytes value
+                self.assertFalse(row[column])
+                continue
+            value = base.memoryview_to_bytes(row[column])
+            self.assertIsInstance(value, bytes, column)
+            self.assertNotEqual(data[column], value, column)
+
+
 class TestMySQLTextTypeAwareDecryptionWithCiphertextWithDataTypeIDs(TestMySQLTextTypeAwareDecryptionWithCiphertext):
     ENCRYPTOR_CONFIG = base.get_encryptor_config(
         'tests/encryptor_configs/transparent_type_aware_decryption_mysql_with_data_type_id.yaml')
@@ -1136,10 +1229,10 @@ class TestMySQLBinaryTypeAwareDecryptionWithCiphertext(TestMySQLTextTypeAwareDec
         ######
         columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
                    'value_empty_str')
-        query, args = self.compileQuery(self.test_table.insert(), data)
+        query, args, _ = self.compileQuery(self.test_table.insert(), data)
         self.executor1.execute_prepared_statement_no_result(query, args)
 
-        query, args = self.compileQuery(
+        query, args, _ = self.compileQuery(
             sa.select([self.test_table])
             .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
 
@@ -1273,10 +1366,10 @@ class TestMySQLBinaryTypeAwareDecryptionWithError(TestMySQLTextTypeAwareDecrypti
         ######
         columns = ('value_str', 'value_bytes', 'value_int32', 'value_int64', 'value_null_str', 'value_null_int32',
                    'value_empty_str')
-        query, args = self.compileQuery(self.test_table.insert(), data)
+        query, args, _ = self.compileQuery(self.test_table.insert(), data)
         self.executor1.execute_prepared_statement_no_result(query, args)
 
-        query, args = self.compileQuery(
+        query, args, _ = self.compileQuery(
             sa.select([self.test_table])
             .where(self.test_table.c.id == sa.bindparam('id')), {'id': data['id']})
 

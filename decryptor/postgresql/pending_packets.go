@@ -19,13 +19,16 @@ package postgresql
 import (
 	"container/list"
 	"errors"
+	"reflect"
+	"sync"
+
 	"github.com/jackc/pgx/v5/pgproto3"
 	log "github.com/sirupsen/logrus"
-	"reflect"
 )
 
 // pendingPacketsList stores objects per their type and provides API similar to queue
 type pendingPacketsList struct {
+	mutex sync.RWMutex
 	lists map[reflect.Type]*list.List
 }
 
@@ -41,6 +44,9 @@ var ErrRemoveFromEmptyPendingList = errors.New("removing from empty pending list
 
 // Add packet to pending list of packets of this type
 func (packets *pendingPacketsList) Add(packet interface{}) error {
+	packets.mutex.Lock()
+	defer packets.mutex.Unlock()
+
 	switch packet.(type) {
 	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription, queryPacket:
 		packetType := reflect.TypeOf(packet)
@@ -58,6 +64,9 @@ func (packets *pendingPacketsList) Add(packet interface{}) error {
 
 // RemoveNextPendingPacket removes first in the list pending packet
 func (packets *pendingPacketsList) RemoveNextPendingPacket(packet interface{}) error {
+	packets.mutex.Lock()
+	defer packets.mutex.Unlock()
+
 	switch packet.(type) {
 	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription, queryPacket:
 		packetType := reflect.TypeOf(packet)
@@ -78,6 +87,9 @@ func (packets *pendingPacketsList) RemoveNextPendingPacket(packet interface{}) e
 
 // RemoveAll pending packets of packet's type
 func (packets *pendingPacketsList) RemoveAll(packet interface{}) error {
+	packets.mutex.Lock()
+	defer packets.mutex.Unlock()
+
 	switch packet.(type) {
 	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription, queryPacket:
 		packetList, ok := packets.lists[reflect.TypeOf(packet)]
@@ -93,6 +105,9 @@ func (packets *pendingPacketsList) RemoveAll(packet interface{}) error {
 
 // GetPendingPacket returns next pending packet
 func (packets *pendingPacketsList) GetPendingPacket(packet interface{}) (interface{}, error) {
+	packets.mutex.RLock()
+	defer packets.mutex.RUnlock()
+
 	switch packet.(type) {
 	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription, queryPacket:
 		packetType := reflect.TypeOf(packet)
@@ -112,6 +127,9 @@ func (packets *pendingPacketsList) GetPendingPacket(packet interface{}) (interfa
 
 // GetLastPending return last added pending packet
 func (packets *pendingPacketsList) GetLastPending(packet interface{}) (interface{}, error) {
+	packets.mutex.RLock()
+	defer packets.mutex.RUnlock()
+
 	switch packet.(type) {
 	case *ParsePacket, *BindPacket, *ExecutePacket, *pgproto3.RowDescription, *pgproto3.ParameterDescription, queryPacket:
 		packetType := reflect.TypeOf(packet)

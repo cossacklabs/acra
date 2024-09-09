@@ -18,8 +18,10 @@ package common
 
 import (
 	"errors"
-	"flag"
 	"io/ioutil"
+
+	log "github.com/sirupsen/logrus"
+	"go.opencensus.io/trace"
 
 	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/encryptor"
@@ -31,8 +33,7 @@ import (
 	"github.com/cossacklabs/acra/sqlparser/dialect"
 	mysqlDialect "github.com/cossacklabs/acra/sqlparser/dialect/mysql"
 	pgDialect "github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
-	log "github.com/sirupsen/logrus"
-	"go.opencensus.io/trace"
+	"github.com/cossacklabs/acra/utils/args"
 )
 
 // Config describes AcraServer configuration
@@ -83,8 +84,8 @@ func (config *Config) SetDBConnectionSettings(host string, port int) {
 }
 
 // LoadMapTableSchemaConfig load table schemas from config file
-func (config *Config) LoadMapTableSchemaConfig(storageType string, useMySQL bool) error {
-	encryptorConfigLoader, err := config_loader.NewConfigLoader(storageType, flag.CommandLine, "")
+func (config *Config) LoadMapTableSchemaConfig(extractor *args.ServiceExtractor, storageType string, useMySQL bool) error {
+	encryptorConfigLoader, err := config_loader.NewConfigLoader(storageType, extractor, "")
 	if err != nil {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).WithError(err).Errorln("Can't init encryptor config loader")
 		return err
