@@ -1,3 +1,6 @@
+# 0.96.0 - 2024-09-09
+- Updated encryptor configuration to support `response_on_fail` with `searchable: true` option, without requiring `data_type`.
+
 # 0.96.0 - 2024-06-21
 - Use QueryResponseHandler by default after Prepare response to mitigate flaky behaviour with MariaDB and -1
   statement_id in Execute packet.
