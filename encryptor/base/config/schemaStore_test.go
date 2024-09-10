@@ -124,6 +124,20 @@ schemas:
         response_on_fail: ciphertext
         searchable: true
 `,
+		`
+defaults:
+  crypto_envelope: "acrablock"
+schemas:
+  - table: mytable
+    columns:
+      - id
+      - email
+      - name
+    encrypted:
+      - column: email
+        response_on_fail: error
+        searchable: true
+`,
 	}
 
 	for _, testConfig := range testConfigs {

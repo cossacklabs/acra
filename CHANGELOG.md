@@ -1,5 +1,27 @@
 # Acra ChangeLog
 
+## [0.96.0](https://github.com/cossacklabs/acra/releases/tag/0.96.0), September 9th 2024
+
+_Core_:
+
+- **AcraServer**:
+  - Fixed panic with simultaneous signals handling [#707](https://github.com/cossacklabs/acra/pull/707)
+  - Improved encryptor config parsing logic [#676](https://github.com/cossacklabs/acra/pull/676), [#715](https://github.com/cossacklabs/acra/pull/665)
+  - Added support of Prepared Statements through text protocol in MySQL [#665](https://github.com/cossacklabs/acra/pull/665)
+  - Improved unicode characters support for PostgreSQL [#663](https://github.com/cossacklabs/acra/pull/663)
+  - Improved MariaDB protocol handling [#662](https://github.com/cossacklabs/acra/pull/662)
+  - Fixed panic with handling multi-statement queries: Acra still doesn`t support MS queries, but will log a warning about potential usage of it [#661](https://github.com/cossacklabs/acra/pull/661)
+  - Fixed bug with processing null values for `MySQL` PreparedStatements [#658](https://github.com/cossacklabs/acra/pull/658)
+
+- **AcraBackup**:
+  - Marked `acra-backup` tool as deprecated in favour of `acra-keys` tool, in the **0.97.0** `acra-backup` will be removed [#674](https://github.com/cossacklabs/acra/pull/674)
+
+- **AcraKeyMaker, AcraKeys, AcraPoisonRecordMaker, AcraTokens**:
+  -  Added base TLS flags for tools [#678](https://github.com/cossacklabs/acra/pull/678)
+
+- **AcraServer, AcraTranslator, AcraKeymaker, AcraKeys, AcraRotate, AcraPoisonRecordMaker, AcraTokens, AcraRollback**:
+  -  Change tools arguments parsing approach in the appropriate priority: `CLI`-> `Config`-> `General CLI` -> `General Config` -> `CLI Default`  [#678](https://github.com/cossacklabs/acra/pull/678)
+
 ## [0.95.0](https://github.com/cossacklabs/acra/releases/tag/0.95.0), March 3rd 2023
 
 _Core_:

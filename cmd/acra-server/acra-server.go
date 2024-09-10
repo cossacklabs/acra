@@ -693,9 +693,9 @@ func realMain() error {
 
 	// SIGTERM should be handled only once but potentially it may be invoked twice
 	// if HTTP API is running simultaneously with SQL queries handler (Start and StartCommands)
-	var once sync.Once
+	var onceSIGTERM sync.Once
 	sigHandlerSIGTERM.AddCallback(func() {
-		once.Do(func() {
+		onceSIGTERM.Do(func() {
 			log.Infof("Received incoming SIGTERM or SIGINT signal")
 			server.StopListeners()
 			server.Close()
@@ -708,89 +708,91 @@ func realMain() error {
 
 	// we initialize pipeWrite only in SIGHUP handler
 	var pipeWrite *os.File
+	var onceSIGHUP sync.Once
 	sigHandlerSIGHUP.AddCallback(func() {
-		shutdownCurrentInstance := func(err error) {
-			server.Close()
-			cancel()
-			server.Exit(err)
-		}
+		onceSIGHUP.Do(func() {
+			shutdownCurrentInstance := func(err error) {
+				server.Close()
+				cancel()
+				server.Exit(err)
+			}
 
-		log.Infof("Received incoming SIGHUP signal")
-		log.Debugf("Stop accepting new connections, waiting until current connections close")
+			log.Infof("Received incoming SIGHUP signal")
+			log.Debugf("Stop accepting new connections, waiting until current connections close")
 
-		// Stop accepting requests
-		server.StopListeners()
+			// Stop accepting requests
+			server.StopListeners()
 
-		// Get socket file descriptor to pass it to fork
-		var fdACRA, fdAPI uintptr
-		fdACRA, err = network.ListenerFileDescriptor(server.ListenerAcra())
-		if err != nil {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetFileDescriptor).
-				Errorln("System error: failed to get acra-socket file descriptor:", err)
-			shutdownCurrentInstance(err)
-			return
-		}
-		if enableHTTPAPI {
-			fdAPI, err = network.ListenerFileDescriptor(server.ListenerAPI())
+			// Get socket file descriptor to pass it to fork
+			var fdACRA, fdAPI uintptr
+			fdACRA, err = network.ListenerFileDescriptor(server.ListenerAcra())
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetFileDescriptor).
-					Errorln("System error: failed to get api-socket file descriptor:", err)
+					Errorln("System error: failed to get acra-socket file descriptor:", err)
 				shutdownCurrentInstance(err)
 				return
 			}
-		}
+			if enableHTTPAPI {
+				fdAPI, err = network.ListenerFileDescriptor(server.ListenerAPI())
+				if err != nil {
+					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetFileDescriptor).
+						Errorln("System error: failed to get api-socket file descriptor:", err)
+					shutdownCurrentInstance(err)
+					return
+				}
+			}
 
-		// Set env flag for forked process
-		if err := os.Setenv(GracefulRestartEnv, "true"); err != nil {
-			log.WithError(err).Errorf("Unexpected error on os.Setenv, graceful restart won't work. Please check env variables, especially %s", GracefulRestartEnv)
-			shutdownCurrentInstance(err)
-			return
-		}
+			// Set env flag for forked process
+			if err := os.Setenv(GracefulRestartEnv, "true"); err != nil {
+				log.WithError(err).Errorf("Unexpected error on os.Setenv, graceful restart won't work. Please check env variables, especially %s", GracefulRestartEnv)
+				shutdownCurrentInstance(err)
+				return
+			}
 
-		// We use inter-process pipe for synchronizing parent process and child forked process.
-		// When forked process starts, it blocks on reading signal from pipe that parent process
-		// finished with graceful shutdown. This is important for audit log mechanism that requires
-		// consistency of log stream
-		var pipeRead *os.File
-		pipeRead, pipeWrite, err = os.Pipe()
-		if err != nil {
-			log.WithError(err).Errorln("Can't create inter-process pipe")
-			shutdownCurrentInstance(err)
-			return
-		}
+			// We use inter-process pipe for synchronizing parent process and child forked process.
+			// When forked process starts, it blocks on reading signal from pipe that parent process
+			// finished with graceful shutdown. This is important for audit log mechanism that requires
+			// consistency of log stream
+			var pipeRead *os.File
+			pipeRead, pipeWrite, err = os.Pipe()
+			if err != nil {
+				log.WithError(err).Errorln("Can't create inter-process pipe")
+				shutdownCurrentInstance(err)
+				return
+			}
 
-		execSpec := &syscall.ProcAttr{
-			Env:   os.Environ(),
-			Files: []uintptr{os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd(), fdACRA, fdAPI, pipeRead.Fd()},
-		}
+			execSpec := &syscall.ProcAttr{
+				Env:   os.Environ(),
+				Files: []uintptr{os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd(), fdACRA, fdAPI, pipeRead.Fd()},
+			}
 
-		log.Debugf("Forking new process of %s", ServiceName)
-		executable, err := os.Executable()
-		if err != nil {
-			log.WithError(err).Errorln("Can't find full binary path")
-			shutdownCurrentInstance(err)
-			return
-		}
-		// Fork new process
-		fork, err := syscall.ForkExec(executable, os.Args, execSpec)
-		if err != nil {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantForkProcess).
-				WithField("executable", executable).
-				Errorln("System error: failed to fork new process", err)
-			shutdownCurrentInstance(err)
-			return
-		}
-		log.Infof("%s process forked to PID: %v", ServiceName, fork)
+			log.Debugf("Forking new process of %s", ServiceName)
+			executable, err := os.Executable()
+			if err != nil {
+				log.WithError(err).Errorln("Can't find full binary path")
+				shutdownCurrentInstance(err)
+				return
+			}
+			// Fork new process
+			fork, err := syscall.ForkExec(executable, os.Args, execSpec)
+			if err != nil {
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantForkProcess).
+					WithField("executable", executable).
+					Errorln("System error: failed to fork new process", err)
+				shutdownCurrentInstance(err)
+				return
+			}
+			log.Infof("%s process forked to PID: %v", ServiceName, fork)
 
-		// Wait a maximum of N seconds for existing connections to finish
-		err = server.WaitWithTimeout(time.Duration(closeConnectionTimeout) * time.Second)
-		if err == common.ErrWaitTimeout {
-			log.Warningf("Server shutdown Timeout: %d active connections will be cut", server.ConnectionsCounter())
-		}
-		log.Infof("Server graceful restart completed, bye PID: %v", os.Getpid())
-		// Stop the old server, all the connections have been closed and the new one is running
-		shutdownCurrentInstance(nil)
-		return
+			// Wait a maximum of N seconds for existing connections to finish
+			err = server.WaitWithTimeout(time.Duration(closeConnectionTimeout) * time.Second)
+			if err == common.ErrWaitTimeout {
+				log.Warningf("Server shutdown Timeout: %d active connections will be cut", server.ConnectionsCounter())
+			}
+			log.Infof("Server graceful restart completed, bye PID: %v", os.Getpid())
+			// Stop the old server, all the connections have been closed and the new one is running
+			shutdownCurrentInstance(nil)
+		})
 	})
 
 	log.Infof("Start listening to connections. Current PID: %v", os.Getpid())

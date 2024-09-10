@@ -899,7 +899,13 @@ func (proxy *PgProxy) handleParameterDescription(ctx context.Context, packet *Pa
 	if changed {
 		// 5 is MessageType[1] + PacketLength[4] + PacketPayload
 		newParameterDescription := make([]byte, 0, 5+packet.descriptionBuf.Len())
-		newParameterDescription = parameterDescription.Encode(newParameterDescription)
+		newParameterDescription, err = parameterDescription.Encode(newParameterDescription)
+		if err != nil {
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDBProtocolError).
+				WithError(err).
+				Errorln("Can't encode ParameterDescription packet")
+			return nil
+		}
 		packet.descriptionBuf.Reset()
 		packet.descriptionBuf.Write(newParameterDescription[5:])
 	}
@@ -945,7 +951,13 @@ func (proxy *PgProxy) handleRowDescription(ctx context.Context, packet *PacketHa
 	if changed {
 		// 5 is MessageType[1] + PacketLength[4] + PacketPayload
 		newRowDescription := make([]byte, 0, 5+packet.descriptionBuf.Len())
-		newRowDescription = rowDescription.Encode(newRowDescription)
+		newRowDescription, err = rowDescription.Encode(newRowDescription)
+		if err != nil {
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDBProtocolError).
+				WithError(err).
+				Errorln("Can't encode ParameterDescription packet")
+			return nil
+		}
 		packet.descriptionBuf.Reset()
 		packet.descriptionBuf.Write(newRowDescription[5:])
 	}

@@ -100,6 +100,9 @@ var validSettings = map[SettingMask]struct{}{
 	SettingSearchFlag | SettingClientIDFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
 	SettingSearchFlag | SettingClientIDFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
 
+	SettingSearchFlag | SettingClientIDFlag | SettingOnFailFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
+	SettingSearchFlag | SettingClientIDFlag | SettingOnFailFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
+
 	SettingSearchFlag | SettingClientIDFlag | SettingDataTypeIDFlag | SettingOnFailFlag | SettingAcraStructEncryptionFlag | SettingReEncryptionFlag: {},
 	SettingSearchFlag | SettingClientIDFlag | SettingDataTypeIDFlag | SettingOnFailFlag | SettingAcraBlockEncryptionFlag | SettingReEncryptionFlag:  {},
 

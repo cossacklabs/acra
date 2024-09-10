@@ -233,7 +233,7 @@ class TestMySQLTextFormatTypeAwareDecryptionWithDefaultsWithConsulEncryptorConfi
 
 
 class TestPostgresqlBinaryFormatTypeAwareDecryptionWithDefaults(
-    test_common.BaseBinaryPostgreSQLTestCase, TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults):
+    test_common.BaseBinaryPostgreSQLMixin, TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults):
     def testClientIDRead(self):
         """test decrypting with correct clientID and not decrypting with
         incorrect clientID or using direct connection to db

@@ -19,6 +19,7 @@ package common
 import (
 	"context"
 	"net"
+	"sync"
 	"sync/atomic"
 
 	log "github.com/sirupsen/logrus"
@@ -36,6 +37,7 @@ type ClientSession struct {
 	ctx            context.Context
 	logger         *log.Entry
 	protocolState  interface{}
+	mutex          sync.RWMutex
 	data           map[string]interface{}
 }
 
@@ -59,22 +61,34 @@ func NewClientSession(ctx context.Context, config *Config, connection net.Conn) 
 
 // SetData save session related data by key
 func (clientSession *ClientSession) SetData(key string, data interface{}) {
+	clientSession.mutex.Lock()
+	defer clientSession.mutex.Unlock()
+
 	clientSession.data[key] = data
 }
 
 // GetData return session related data by key and true otherwise nil, false
 func (clientSession *ClientSession) GetData(key string) (interface{}, bool) {
+	clientSession.mutex.RLock()
+	defer clientSession.mutex.RUnlock()
+
 	value, ok := clientSession.data[key]
 	return value, ok
 }
 
 // DeleteData delete session related data by key
 func (clientSession *ClientSession) DeleteData(key string) {
+	clientSession.mutex.Lock()
+	defer clientSession.mutex.Unlock()
+
 	delete(clientSession.data, key)
 }
 
 // HasData return true if session has data by key
 func (clientSession *ClientSession) HasData(key string) bool {
+	clientSession.mutex.RLock()
+	defer clientSession.mutex.RUnlock()
+
 	_, ok := clientSession.data[key]
 	return ok
 }

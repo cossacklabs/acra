@@ -186,7 +186,7 @@ class BaseTokenizationWithBinaryBindMySQL(BaseTokenization, test_common.BaseBina
         return engine.execute(sa.text(prepare_query_sql).execution_options(autocommit=True))
 
 
-class BaseTokenizationWithBinaryPostgreSQL(BaseTokenization, test_common.BaseBinaryPostgreSQLTestCase):
+class BaseTokenizationWithBinaryPostgreSQL(test_common.BaseBinaryPostgreSQLMixin, BaseTokenization):
     """Verify tokenization with PostgreSQL extended protocol (binary format)."""
     FORMAT = base.AsyncpgExecutor.BinaryFormat
 
@@ -273,7 +273,9 @@ class BaseTokenizationWithTextPostgreSQL(BaseTokenizationWithBinaryPostgreSQL):
     # overrides checkSkip(). When parent's override is removed, this one
     # becomes unnecessary and should be removed too.
     def checkSkip(self):
-        test_common.BaseBinaryPostgreSQLTestCase.checkSkip(self)
+        super().checkSkip()
+        if not base.TEST_POSTGRESQL:
+            self.skipTest("test only PostgreSQL")
 
 
 class BaseTokenizationWithBinaryMySQL(BaseTokenization):
@@ -360,7 +362,7 @@ class BaseMasking(BaseTokenization):
         os.remove('token1.db')
 
 
-class BaseMaskingBinaryPostgreSQLMixin(test_common.BaseBinaryPostgreSQLTestCase, test_common.BaseTestCase):
+class BaseMaskingBinaryPostgreSQLMixin(test_common.BaseBinaryPostgreSQLMixin):
     def executeInsert(self, query, values):
         """Execute a Insert query with list of values via AcraServer for "TEST_TLS_CLIENT_CERT"."""
         query, parameters = self.compileInsertQuery(query, values)
