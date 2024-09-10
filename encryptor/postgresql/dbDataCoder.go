@@ -20,7 +20,7 @@ import (
 	"encoding/hex"
 	"strconv"
 
-	pg_query "github.com/Zhaars/pg_query_go/v4"
+	pg_query "github.com/cossacklabs/pg_query_go/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sirupsen/logrus"
 

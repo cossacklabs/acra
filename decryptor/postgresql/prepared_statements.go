@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"strconv"
 
-	pg_query "github.com/Zhaars/pg_query_go/v4"
+	pg_query "github.com/cossacklabs/pg_query_go/v5"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor/base/config"

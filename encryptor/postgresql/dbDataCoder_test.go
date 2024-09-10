@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"testing"
 
-	pg_query "github.com/Zhaars/pg_query_go/v4"
+	pg_query "github.com/cossacklabs/pg_query_go/v5"
 
 	"github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/utils"

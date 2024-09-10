@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	pg_query "github.com/Zhaars/pg_query_go/v4"
+	pg_query "github.com/cossacklabs/pg_query_go/v5"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 

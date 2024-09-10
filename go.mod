@@ -8,6 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.15.12
 	github.com/aws/aws-sdk-go-v2/credentials v1.12.7
 	github.com/aws/aws-sdk-go-v2/service/kms v1.17.4
+	github.com/cossacklabs/pg_query_go/v5 v5.1.0
 	github.com/cossacklabs/themis/gothemis v0.14.0
 	github.com/gin-gonic/gin v1.9.1
 	github.com/go-redis/redis/v7 v7.0.1
@@ -122,8 +123,6 @@ require (
 	gopkg.in/square/go-jose.v2 v2.5.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-require github.com/Zhaars/pg_query_go/v4 v4.2.7
 
 require (
 	github.com/bytedance/sonic v1.9.1 // indirect
