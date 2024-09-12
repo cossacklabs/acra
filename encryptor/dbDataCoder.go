@@ -173,11 +173,11 @@ func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr, setting config.ColumnE
 			}
 			return binValue, nil
 		case sqlparser.StrVal:
-			// simple strings should be handled as is
-			typeID := setting.GetDBDataTypeID()
-			if typeID != 0 && typeID != pgtype.ByteaOID {
-				return val.Val, nil
-			}
+			//// simple strings should be handled as is
+			//typeID := setting.GetDBDataTypeID()
+			//if typeID != 0 && typeID != pgtype.ByteaOID {
+			//	return val.Val, nil
+			//}
 			// bytea strings are escaped with \x hex value or with octal encoding
 
 			// try to decode hex/octal encoding
