@@ -116,6 +116,25 @@ class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(
                 # length of data should be greater than source data due to encryption overhead
                 self.assertTrue(len(base.memoryview_to_bytes(row[column])) > len(data[column]))
 
+        # check that Acra will save data in the format it passed
+        data['id'] = base.get_random_id()
+        # pass it as bytes, so the sqlalchemy will pass it as hexadecimal string and Acra saves it correspondingly
+        data['value_int32'] = str(random_int32()).encode('ascii')
+
+        self.engine1.execute(self.test_table.insert(), data)
+        result = self.engine1.execute(
+            sa.select([self.test_table])
+            .where(self.test_table.c.id == data['id']))
+
+        # expect fail on sqlalchemy as the data was read in incorrect format to be casted
+        try:
+            result.fetchone()
+        except ValueError as e:
+            if "invalid literal for int() with base 10" in str(e):
+                print(f"ValueError caught: {e}")
+            else:
+                raise  # Re-raise the exception if it's not the expected error
+
 
 class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaultsAndDataTypeIDs(
     TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults):

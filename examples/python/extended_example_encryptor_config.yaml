@@ -1,0 +1,46 @@
+defaults:
+  crypto_envelope: acrablock
+
+schemas:
+  - table: test
+    columns:
+      - id
+      - data_str
+      - masking
+      - token_i32
+      - data_i32
+      - token_i64
+      - data_i64
+      - token_str
+      - token_bytes
+      - token_email
+    encrypted:
+      - column: data_str
+      - column: masking
+        masking: "xxxx"
+        plaintext_length: 3
+        plaintext_side: "left"
+      - column: token_i32
+        token_type: int32
+        tokenized: true
+      - column: data_i32
+      - column: token_i64
+        token_type: int64
+        tokenized: true
+      - column: data_i64
+      - column: token_bytes
+        token_type: bytes
+        tokenized: true
+      - column: token_str
+        token_type: str
+        tokenized: true
+      - column: token_email
+        token_type: email
+        tokenized: true
+
+  - table: users
+    columns:
+      - id
+      - email
+    encrypted:
+      - column: email

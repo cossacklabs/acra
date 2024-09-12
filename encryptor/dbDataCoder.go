@@ -173,7 +173,11 @@ func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr, setting config.ColumnE
 			}
 			return binValue, nil
 		case sqlparser.StrVal:
-			// simple strings should be handled as is
+			// this behavior depends on the user's choice in encryptor config
+			// if the user selects something other than ByteaOID, Aсra will process the data as-is,
+			// this means the user is responsible for providing the correct data type
+			// for example, if user selects "str", he should provide a string data, not a byte array (like a hex string in forma /x33...).
+			// otherwise, Acra will use the data as it is, and converting it to the corresponded type may fail during the read from DB
 			typeID := setting.GetDBDataTypeID()
 			if typeID != 0 && typeID != pgtype.ByteaOID {
 				return val.Val, nil
