@@ -1,4 +1,4 @@
-# Copyright 2016, Cossack Labs Limited
+# Copyright 2024, Cossack Labs Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -49,15 +49,8 @@ _schema_test_table = Table(
     Column('token_email', Text, nullable=True),
 )
 
-rotation_test_table = Table(
-    'users', metadata,
-    Column('id', Integer, primary_key=True, nullable=False),
-    Column('email', LargeBinary, nullable=True),
-)
-
 table_map = {
     test_table.name: test_table,
-    rotation_test_table.name: rotation_test_table,
 }
 
 
@@ -107,8 +100,9 @@ def write_data(data, connection, table=test_table):
     if isinstance(data, dict):
         rows = [data]
     for row in rows:
-        # explicitly encode bytes data to bytes so alchemy send it as hexadecimal string in insert query
-        row['token_bytes'] = row['token_bytes'].encode('ascii')
+        if 'token_bytes' in row:
+            # explicitly encode bytes data to bytes so alchemy send it as hexadecimal string in insert query
+            row['token_bytes'] = row['token_bytes'].encode('ascii')
         connection.execute(
             table.insert(), row)
 

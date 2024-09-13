@@ -49,6 +49,27 @@ class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(
         if not (base.TEST_POSTGRESQL and base.TEST_WITH_TLS):
             self.skipTest("Test only for PostgreSQL with TLS")
 
+    def testClientIDReadWithInvalidData(self):
+        # pass `value_int32` as bytes, so the sqlalchemy will pass it as hexadecimal string and Acra saves it correspondingly
+        data = {'id': base.get_random_id(), 'value_str': random_str(), 'value_bytes': random_bytes(),
+                'value_int32': str(random_int32()).encode('ascii'), 'value_int64': random_int64(),
+                'value_null_str': None, 'value_null_int32': None, 'value_empty_str': '',
+                'value_searchable': random_str()}
+
+        self.engine1.execute(self.test_table.insert(), data)
+        result = self.engine1.execute(
+            sa.select([self.test_table])
+            .where(self.test_table.c.id == data['id']))
+
+        # expect fail on sqlalchemy as the data was read in incorrect format to be casted
+        try:
+            result.fetchone()
+        except ValueError as e:
+            if "invalid literal for int() with base 10" in str(e):
+                print(f"ValueError caught: {e}")
+            else:
+                raise  # Re-raise the exception if it's not the expected error
+
     def testClientIDRead(self):
         """test decrypting with correct clientID and not decrypting with
         incorrect clientID or using direct connection to db
@@ -115,25 +136,6 @@ class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaults(
             if column in ('value_str', 'value_bytes'):
                 # length of data should be greater than source data due to encryption overhead
                 self.assertTrue(len(base.memoryview_to_bytes(row[column])) > len(data[column]))
-
-        # check that Acra will save data in the format it passed
-        data['id'] = base.get_random_id()
-        # pass it as bytes, so the sqlalchemy will pass it as hexadecimal string and Acra saves it correspondingly
-        data['value_int32'] = str(random_int32()).encode('ascii')
-
-        self.engine1.execute(self.test_table.insert(), data)
-        result = self.engine1.execute(
-            sa.select([self.test_table])
-            .where(self.test_table.c.id == data['id']))
-
-        # expect fail on sqlalchemy as the data was read in incorrect format to be casted
-        try:
-            result.fetchone()
-        except ValueError as e:
-            if "invalid literal for int() with base 10" in str(e):
-                print(f"ValueError caught: {e}")
-            else:
-                raise  # Re-raise the exception if it's not the expected error
 
 
 class TestPostgresqlTextFormatTypeAwareDecryptionWithDefaultsAndDataTypeIDs(
@@ -1122,7 +1124,8 @@ class TestMySQLTextTypeAwareDecryptionWithCiphertext(test_common.BaseBinaryMySQL
             self.assertNotEqual(data[column], value, column)
 
 
-class TestMariaDBTextTypeAwareDecryptionWithCiphertext(test_common.AcraCatchLogsMixin, test_common.BaseBinaryMariaDBTestCase,
+class TestMariaDBTextTypeAwareDecryptionWithCiphertext(test_common.AcraCatchLogsMixin,
+                                                       test_common.BaseBinaryMariaDBTestCase,
                                                        test_searchable_transparent_encryption.BaseTransparentEncryption):
     # test table used for queries and data mapping into python types
     test_table = sa.Table(

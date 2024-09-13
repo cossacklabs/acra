@@ -41,10 +41,3 @@ schemas:
       - column: token_email
         token_type: email
         tokenized: true
-
-  - table: users
-    columns:
-      - id
-      - email
-    encrypted:
-      - column: email
