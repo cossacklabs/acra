@@ -22,6 +22,20 @@ from common import get_engine, get_default, register_common_cli_params
 
 metadata = MetaData()
 test_table = Table(
+    'test', MetaData(),
+    Column('id', Integer, primary_key=True, nullable=False),
+    Column('data_str', Text, nullable=True),
+    Column('masking', Text, nullable=True),
+    Column('token_i32', Integer, nullable=True),
+    Column('data_i32', Integer, nullable=True),
+    Column('token_i64', BigInteger, nullable=True),
+    Column('data_i64', BigInteger, nullable=True),
+    Column('token_str', Text, nullable=True),
+    Column('token_bytes', LargeBinary, nullable=True),
+    Column('token_email', Text, nullable=True),
+)
+# _schema_test_table used to generate table in the database with binary column types
+_schema_test_table = Table(
     'test', metadata,
     Column('id', Integer, primary_key=True, nullable=False),
     Column('data_str', LargeBinary, nullable=True),
@@ -35,15 +49,8 @@ test_table = Table(
     Column('token_email', Text, nullable=True),
 )
 
-rotation_test_table = Table(
-    'users', metadata,
-    Column('id', Integer, primary_key=True, nullable=False),
-    Column('email', LargeBinary, nullable=True),
-)
-
 table_map = {
     test_table.name: test_table,
-    rotation_test_table.name: rotation_test_table,
 }
 
 
@@ -93,9 +100,9 @@ def write_data(data, connection, table=test_table):
     if isinstance(data, dict):
         rows = [data]
     for row in rows:
-        for k in ('data_str', 'data_i64', 'data_i32', 'email', 'token_bytes', 'masking'):
-            if k in row:
-                row[k] = row[k].encode('ascii')
+        if 'token_bytes' in row:
+            # explicitly encode bytes data to bytes so alchemy send it as hexadecimal string in insert query
+            row['token_bytes'] = row['token_bytes'].encode('ascii')
         connection.execute(
             table.insert(), row)
 

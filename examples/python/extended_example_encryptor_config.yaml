@@ -16,22 +16,18 @@ schemas:
       - token_email
     encrypted:
       - column: data_str
-        data_type: "str"
       - column: masking
         masking: "xxxx"
         plaintext_length: 3
         plaintext_side: "left"
-        data_type: "str"
       - column: token_i32
         token_type: int32
         tokenized: true
       - column: data_i32
-        data_type: "int32"
       - column: token_i64
         token_type: int64
         tokenized: true
       - column: data_i64
-        data_type: "int64"
       - column: token_bytes
         token_type: bytes
         tokenized: true
