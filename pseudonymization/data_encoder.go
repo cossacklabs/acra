@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/encryptor"
+	encryptor "github.com/cossacklabs/acra/encryptor/base"
 	"github.com/cossacklabs/acra/pseudonymization/common"
 )
 

@@ -1,7 +1,7 @@
 package crypto
 
 import (
-	"github.com/cossacklabs/acra/encryptor/config"
+	"github.com/cossacklabs/acra/encryptor/base/config"
 )
 
 // EncryptHandler wraps RegistryHandler as standalone CryptoEnvelope encryptor

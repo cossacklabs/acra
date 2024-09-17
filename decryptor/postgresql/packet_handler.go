@@ -7,11 +7,12 @@ import (
 	"errors"
 	"io"
 
-	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/logging"
 	"github.com/jackc/pgx/v5/pgproto3"
 	"github.com/sirupsen/logrus"
+
+	"github.com/cossacklabs/acra/decryptor/base"
+	encryptor "github.com/cossacklabs/acra/encryptor/base"
+	"github.com/cossacklabs/acra/logging"
 )
 
 // PacketHandler hold state of postgresql packet and process data rows

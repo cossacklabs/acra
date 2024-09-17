@@ -10,10 +10,6 @@ type ClientSession interface {
 	Context() context.Context
 	ClientConnection() net.Conn
 	DatabaseConnection() net.Conn
-
-	PreparedStatementRegistry() PreparedStatementRegistry
-	SetPreparedStatementRegistry(registry PreparedStatementRegistry)
-
 	ProtocolState() interface{}
 	SetProtocolState(state interface{})
 	GetData(string) (interface{}, bool)

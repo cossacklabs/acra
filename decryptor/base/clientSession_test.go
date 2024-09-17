@@ -21,14 +21,6 @@ func (s sessionStub) DatabaseConnection() net.Conn {
 	panic("implement me")
 }
 
-func (s sessionStub) PreparedStatementRegistry() PreparedStatementRegistry {
-	panic("implement me")
-}
-
-func (s sessionStub) SetPreparedStatementRegistry(registry PreparedStatementRegistry) {
-	panic("implement me")
-}
-
 func (s sessionStub) ProtocolState() interface{} {
 	panic("implement me")
 }

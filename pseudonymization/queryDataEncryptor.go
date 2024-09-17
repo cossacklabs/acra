@@ -18,7 +18,7 @@ package pseudonymization
 
 import (
 	"github.com/cossacklabs/acra/decryptor/base"
-	configCE "github.com/cossacklabs/acra/encryptor/config"
+	configCE "github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/pseudonymization/common"
 )
 

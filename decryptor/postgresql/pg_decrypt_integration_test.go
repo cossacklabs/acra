@@ -22,7 +22,7 @@ import (
 	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/postgresql/testutils"
-	encryptorConfig "github.com/cossacklabs/acra/encryptor/config"
+	encryptorConfig "github.com/cossacklabs/acra/encryptor/base/config"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/acra/pseudonymization"

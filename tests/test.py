@@ -4808,18 +4808,19 @@ class LimitOffsetQueryTest(BaseTransparentEncryption):
                             if not new_line:
                                 break
                             self.assertNotIn('ReadyForQueryPacket', new_line)
-                            if 'ignoring error of non parsed sql statement' in new_line:
-                                if TEST_POSTGRESQL:
-                                    self.assertIn(
-                                        "PostgreSQL dialect doesn't allow 'LIMIT offset, limit' syntax of LIMIT "
-                                        "statements", new_line)
-                                elif TEST_MYSQL:
+                            if TEST_MYSQL:
+                                if 'ignoring error of non parsed sql statement' in new_line:
                                     self.assertIn("MySQL dialect doesn't allow 'LIMIT ALL' syntax of LIMIT statements",
                                                   new_line)
-                                else:
-                                    self.fail('Unexpected test environment')
-                                success = True
-                                break
+                                    success = True
+                                    break
+                            elif TEST_POSTGRESQL:
+                                if 'Can\'t parse SQL statement' in new_line:
+                                    self.assertIn("LIMIT #,# syntax is not supported", new_line)
+                                    success = True
+                                    break
+                            else:
+                                self.fail('Unexpected test environment')
                         break
             if not success:
                 self.fail('Not found expected log entry in the acra-server\'s log output')

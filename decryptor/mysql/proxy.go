@@ -16,10 +16,11 @@ package mysql
 import (
 	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/encryptor/config"
+	encryptor "github.com/cossacklabs/acra/encryptor/base"
+	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/encryptor/mysql"
 	"github.com/cossacklabs/acra/hmac"
-	hashDecryptor "github.com/cossacklabs/acra/hmac/decryptor"
+	decryptor "github.com/cossacklabs/acra/hmac/decryptor/mysql"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/masking"
 	"github.com/cossacklabs/acra/pseudonymization"
@@ -68,7 +69,7 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 		// register Query processor first before other processors because it match SELECT queries for ColumnEncryptorConfig structs
 		// and store it in AccessContext for next decryptions/encryptions and all other processors rely on that
 		// use nil dataEncryptor to avoid extra computations
-		queryEncryptor, err := encryptor.NewMysqlQueryEncryptor(factory.setting.TableSchemaStore(), sqlParser, nil)
+		queryEncryptor, err := mysql.NewQueryEncryptor(factory.setting.TableSchemaStore(), sqlParser, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -125,7 +126,7 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 			return nil, err
 		}
 		chainEncryptors = append(chainEncryptors, searchableAcrawriterEncryptor)
-		acraBlockStructHashEncryptor := hashDecryptor.NewMysqlHashQuery(factory.keystore, schemaStore, registryHandler)
+		acraBlockStructHashEncryptor := decryptor.NewHashQuery(factory.keystore, schemaStore, registryHandler)
 		proxy.AddQueryObserver(acraBlockStructHashEncryptor)
 	}
 
@@ -156,7 +157,7 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 
 	// register query processors/encryptors only if have some
 	queryDataEncryptor := encryptor.NewChainDataEncryptor(chainEncryptors...)
-	queryEncryptor, err := encryptor.NewMysqlQueryEncryptor(factory.setting.TableSchemaStore(), sqlParser, queryDataEncryptor)
+	queryEncryptor, err := mysql.NewQueryEncryptor(factory.setting.TableSchemaStore(), sqlParser, queryDataEncryptor)
 	if err != nil {
 		return nil, err
 	}

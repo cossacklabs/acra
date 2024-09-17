@@ -11,8 +11,10 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/encryptor/config"
+	encryptor "github.com/cossacklabs/acra/encryptor/base"
+	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/encryptor/mysql"
+
 	"github.com/cossacklabs/acra/hmac"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
@@ -39,7 +41,7 @@ func NewMySQLPreparedStatementsQuery(proxyHandler *Handler, parser *sqlparser.Pa
 		parser,
 		nil,
 		schemaStore,
-		&encryptor.MysqlDBDataCoder{},
+		&mysql.DBDataCoder{},
 		nil,
 	}
 }
@@ -71,7 +73,7 @@ func (e *PreparedStatementsQuery) OnColumn(ctx context.Context, data []byte) (co
 }
 
 // OnQuery processes query text before database sees it.
-func (e *PreparedStatementsQuery) OnQuery(ctx context.Context, query base.OnQueryObject) (base.OnQueryObject, bool, error) {
+func (e *PreparedStatementsQuery) OnQuery(ctx context.Context, query mysql.OnQueryObject) (mysql.OnQueryObject, bool, error) {
 	logrus.Debugln("PreparedStatementsQuery.OnQuery")
 	e.querySelectSettings = nil
 
@@ -95,7 +97,7 @@ func (e *PreparedStatementsQuery) OnQuery(ctx context.Context, query base.OnQuer
 	}
 }
 
-func (e *PreparedStatementsQuery) onPrepare(ctx context.Context, prepareQuery *sqlparser.Prepare) (base.OnQueryObject, bool, error) {
+func (e *PreparedStatementsQuery) onPrepare(ctx context.Context, prepareQuery *sqlparser.Prepare) (mysql.OnQueryObject, bool, error) {
 	logrus.Debugln("PreparedStatementsQuery.Prepare")
 	var preparedStatementName = prepareQuery.PreparedStatementName.ValueForConfig()
 
@@ -135,7 +137,7 @@ func (e *PreparedStatementsQuery) onPrepare(ctx context.Context, prepareQuery *s
 		return nil, false, nil
 	}
 
-	changedObject, changed, err := e.onQuery(ctx, preparedStatementName, base.NewOnQueryObjectFromStatement(stmt, e.parser))
+	changedObject, changed, err := e.onQuery(ctx, preparedStatementName, mysql.NewOnQueryObjectFromStatement(stmt, e.parser))
 	if err != nil {
 		return nil, false, err
 	}
@@ -157,10 +159,10 @@ func (e *PreparedStatementsQuery) onPrepare(ctx context.Context, prepareQuery *s
 	}
 
 	logrus.WithField("prepared_name", preparedStatementName).Debug("Registered new prepared statement")
-	return base.NewOnQueryObjectFromStatement(prepareQuery, e.parser), changed, nil
+	return mysql.NewOnQueryObjectFromStatement(prepareQuery, e.parser), changed, nil
 }
 
-func (e *PreparedStatementsQuery) onSet(ctx context.Context, setQuery *sqlparser.Set) (base.OnQueryObject, bool, error) {
+func (e *PreparedStatementsQuery) onSet(ctx context.Context, setQuery *sqlparser.Set) (mysql.OnQueryObject, bool, error) {
 	logrus.Debugln("PreparedStatementsQuery.Set Query")
 	var changedRes bool
 
@@ -196,7 +198,7 @@ func (e *PreparedStatementsQuery) onSet(ctx context.Context, setQuery *sqlparser
 		}
 	}
 
-	return base.NewOnQueryObjectFromStatement(setQuery, e.parser), changedRes, nil
+	return mysql.NewOnQueryObjectFromStatement(setQuery, e.parser), changedRes, nil
 }
 
 func (e *PreparedStatementsQuery) handleColumnFromSetArg(ctx context.Context, sqlVal *sqlparser.SQLVal, argName string) ([]byte, error) {
@@ -259,7 +261,7 @@ func (e *PreparedStatementsQuery) handleQueryFromSetArg(ctx context.Context, sql
 		return false, nil
 	}
 
-	queryObj := base.NewOnQueryObjectFromStatement(prepareQuery.(sqlparser.Statement), e.parser)
+	queryObj := mysql.NewOnQueryObjectFromStatement(prepareQuery.(sqlparser.Statement), e.parser)
 	changedObject, changed, err := e.onQuery(ctx, argName, queryObj)
 	if err != nil {
 		return false, err
@@ -275,7 +277,7 @@ func (e *PreparedStatementsQuery) handleQueryFromSetArg(ctx context.Context, sql
 	return changed, nil
 }
 
-func (e *PreparedStatementsQuery) onExecute(ctx context.Context, executeQuery *sqlparser.Execute) (base.OnQueryObject, bool, error) {
+func (e *PreparedStatementsQuery) onExecute(ctx context.Context, executeQuery *sqlparser.Execute) (mysql.OnQueryObject, bool, error) {
 	logrus.Debugln("PreparedStatementsQuery.Execute")
 	var preparedStatementName = executeQuery.PreparedStatementName.ValueForConfig()
 
@@ -289,10 +291,10 @@ func (e *PreparedStatementsQuery) onExecute(ctx context.Context, executeQuery *s
 	logrus.Debugln("Set query settings from registry")
 	e.querySelectSettings = stmtItem.QuerySettings()
 
-	return base.NewOnQueryObjectFromStatement(executeQuery, e.parser), true, nil
+	return mysql.NewOnQueryObjectFromStatement(executeQuery, e.parser), true, nil
 }
 
-func (e *PreparedStatementsQuery) onDeallocate(ctx context.Context, deallocateQuery *sqlparser.DeallocatePrepare) (base.OnQueryObject, bool, error) {
+func (e *PreparedStatementsQuery) onDeallocate(ctx context.Context, deallocateQuery *sqlparser.DeallocatePrepare) (mysql.OnQueryObject, bool, error) {
 	logrus.Debugln("PreparedStatementsQuery.Deallocate")
 
 	var preparedStatementName = deallocateQuery.PreparedStatementName.String()
@@ -308,7 +310,7 @@ func (e *PreparedStatementsQuery) onDeallocate(ctx context.Context, deallocateQu
 	return nil, false, nil
 }
 
-func (e *PreparedStatementsQuery) onQuery(ctx context.Context, preparedStatementName string, queryObj base.OnQueryObject) (base.OnQueryObject, bool, error) {
+func (e *PreparedStatementsQuery) onQuery(ctx context.Context, preparedStatementName string, queryObj mysql.OnQueryObject) (mysql.OnQueryObject, bool, error) {
 	stmt, err := queryObj.Statement()
 	if err != nil {
 		return nil, false, err
@@ -326,7 +328,7 @@ func (e *PreparedStatementsQuery) onQuery(ctx context.Context, preparedStatement
 	var querySetting []*encryptor.QueryDataItem
 	switch query := stmt.(type) {
 	case *sqlparser.Select:
-		querySetting, err = encryptor.ParseQuerySettings(ctx, query, e.schemaStore)
+		querySetting, err = mysql.ParseQuerySettings(ctx, query, e.schemaStore)
 		if err != nil {
 			logrus.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptQueryData).Errorln("Failed to parse querySettings for select in Prepare")
 			return nil, false, err
@@ -342,7 +344,7 @@ func (e *PreparedStatementsQuery) OnBind(ctx context.Context, statement sqlparse
 	logrus.Debugln("PreparedStatementsQuery.OnBind")
 	return values, false, nil
 }
-func (e *PreparedStatementsQuery) updateChangedQuery(changedObject base.OnQueryObject) error {
+func (e *PreparedStatementsQuery) updateChangedQuery(changedObject mysql.OnQueryObject) error {
 	changedStatement, err := changedObject.Statement()
 	if err != nil {
 		return err
@@ -374,21 +376,21 @@ func (e *PreparedStatementsQuery) updateChangedQuery(changedObject base.OnQueryO
 	return nil
 }
 
-func (e *PreparedStatementsQuery) filterSearchableComparisons(statement sqlparser.Statement) []encryptor.SearchableExprItem {
-	tableExps, err := encryptor.FilterTableExpressions(statement)
+func (e *PreparedStatementsQuery) filterSearchableComparisons(statement sqlparser.Statement) []mysql.SearchableExprItem {
+	tableExps, err := mysql.FilterTableExpressions(statement)
 	if err != nil {
 		logrus.Debugln("Unsupported search query")
 		return nil
 	}
 
 	// Walk through WHERE clauses of a SELECT statements...
-	whereExprs, err := encryptor.GetWhereStatements(statement)
+	whereExprs, err := mysql.GetWhereStatements(statement)
 	if err != nil {
 		logrus.WithError(err).Debugln("Failed to extract WHERE clauses")
 		return nil
 	}
 
-	var searchableExprs []encryptor.SearchableExprItem
+	var searchableExprs []mysql.SearchableExprItem
 	for _, whereExpr := range whereExprs {
 		comparisonExprs, err := e.filterColumnEqualComparisonExprs(whereExpr, tableExps)
 		if err != nil {
@@ -402,8 +404,8 @@ func (e *PreparedStatementsQuery) filterSearchableComparisons(statement sqlparse
 }
 
 // filterColumnEqualComparisonExprs return only <ColName> = <VALUE> or <ColName> != <VALUE> or <ColName> <=> <VALUE> expressions
-func (e *PreparedStatementsQuery) filterColumnEqualComparisonExprs(stmt sqlparser.SQLNode, tableExpr sqlparser.TableExprs) ([]encryptor.SearchableExprItem, error) {
-	var exprs []encryptor.SearchableExprItem
+func (e *PreparedStatementsQuery) filterColumnEqualComparisonExprs(stmt sqlparser.SQLNode, tableExpr sqlparser.TableExprs) ([]mysql.SearchableExprItem, error) {
+	var exprs []mysql.SearchableExprItem
 
 	err := sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
 		comparisonExpr, ok := node.(*sqlparser.ComparisonExpr)
@@ -425,12 +427,12 @@ func (e *PreparedStatementsQuery) filterColumnEqualComparisonExprs(stmt sqlparse
 			return true, nil
 		}
 
-		columnInfo, err := encryptor.FindColumnInfo(tableExpr, lColumn.Name, e.schemaStore)
+		columnInfo, err := mysql.FindColumnInfo(tableExpr, lColumn.Name, e.schemaStore)
 		if err != nil {
 			return true, nil
 		}
 
-		lColumnSetting := encryptor.GetColumnSetting(lColumn.Name, columnInfo.Table, e.schemaStore)
+		lColumnSetting := mysql.GetColumnSetting(lColumn.Name, columnInfo.Table, e.schemaStore)
 		if lColumnSetting == nil {
 			return true, nil
 		}
@@ -439,7 +441,7 @@ func (e *PreparedStatementsQuery) filterColumnEqualComparisonExprs(stmt sqlparse
 			return true, nil
 		}
 
-		exprs = append(exprs, encryptor.SearchableExprItem{
+		exprs = append(exprs, mysql.SearchableExprItem{
 			Expr:    comparisonExpr,
 			Setting: lColumnSetting,
 		})

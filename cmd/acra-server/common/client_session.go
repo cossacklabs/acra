@@ -22,10 +22,11 @@ import (
 	"sync"
 	"sync/atomic"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
-	log "github.com/sirupsen/logrus"
 )
 
 // ClientSession handles connection between database and AcraServer.
@@ -35,7 +36,6 @@ type ClientSession struct {
 	connectionToDb net.Conn
 	ctx            context.Context
 	logger         *log.Entry
-	statements     base.PreparedStatementRegistry
 	protocolState  interface{}
 	mutex          sync.RWMutex
 	data           map[string]interface{}
@@ -112,17 +112,6 @@ func (clientSession *ClientSession) ClientConnection() net.Conn {
 // It must be established first by ConnectToDb().
 func (clientSession *ClientSession) DatabaseConnection() net.Conn {
 	return clientSession.connectionToDb
-}
-
-// PreparedStatementRegistry returns prepared statement registry of this session.
-// The session does not have a registry by default, it must be set with SetPreparedStatementRegistry.
-func (clientSession *ClientSession) PreparedStatementRegistry() base.PreparedStatementRegistry {
-	return clientSession.statements
-}
-
-// SetPreparedStatementRegistry sets prepared statement registry for this session.
-func (clientSession *ClientSession) SetPreparedStatementRegistry(registry base.PreparedStatementRegistry) {
-	clientSession.statements = registry
 }
 
 // ProtocolState returns private protocol state of this session.

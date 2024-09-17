@@ -16,10 +16,11 @@ package postgresql
 import (
 	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/encryptor/config"
+	encryptor "github.com/cossacklabs/acra/encryptor/base"
+	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/encryptor/postgresql"
 	"github.com/cossacklabs/acra/hmac"
-	hashDecryptor "github.com/cossacklabs/acra/hmac/decryptor"
+	postgresql_decryptor "github.com/cossacklabs/acra/hmac/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/masking"
 	"github.com/cossacklabs/acra/pseudonymization"
@@ -85,7 +86,7 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 		envelopeDetector.AddCallback(poisonDetector)
 	}
 
-	observerManager, err := base.NewArrayQueryObservableManager(proxy.session.Context())
+	observerManager, err := postgresql.NewArrayQueryObservableManager(proxy.session.Context())
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +124,7 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 			return nil, err
 		}
 		chainEncryptors = append(chainEncryptors, searchableAcrawriterEncryptor)
-		acraBlockStructHashEncryptor := hashDecryptor.NewPostgresqlHashQuery(factory.keystore, schemaStore, registryHandler)
+		acraBlockStructHashEncryptor := postgresql_decryptor.NewHashQuery(factory.keystore, schemaStore, registryHandler)
 		observerManager.AddQueryObserver(acraBlockStructHashEncryptor)
 	}
 
@@ -155,13 +156,13 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 
 	// register query processors/encryptors only if have some
 	queryDataEncryptor := encryptor.NewChainDataEncryptor(chainEncryptors...)
-	queryEncryptor, err := encryptor.NewPostgresqlQueryEncryptor(factory.setting.TableSchemaStore(), sqlParser, queryDataEncryptor)
+	queryEncryptor, err := postgresql.NewQueryEncryptor(factory.setting.TableSchemaStore(), queryDataEncryptor)
 	if err != nil {
 		return nil, err
 	}
 
 	observerManager.AddQueryObserver(queryEncryptor)
-	preparedStatementsEncryptor := NewPostgresqlPreparedStatementsQuery(proxy.session, proxy.parser, observerManager)
+	preparedStatementsEncryptor := NewPostgresqlPreparedStatementsQuery(proxy.registry, observerManager)
 
 	proxy.AddQueryObserver(preparedStatementsEncryptor)
 	proxy.AddQueryObserver(observerManager)
@@ -169,6 +170,5 @@ func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSessi
 	// register last to encode all data into correct format according to client/database requested formats
 	// and ColumnEncryptionSetting
 	proxy.SubscribeOnAllColumnsDecryption(encoderProcessor)
-
 	return proxy, nil
 }

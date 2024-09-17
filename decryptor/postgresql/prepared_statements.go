@@ -22,12 +22,13 @@ import (
 	"fmt"
 	"strconv"
 
+	pg_query "github.com/cossacklabs/pg_query_go/v5"
+
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/encryptor"
-	"github.com/cossacklabs/acra/encryptor/config"
-	"github.com/cossacklabs/acra/encryptor/config/common"
+	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/encryptor/base/config/common"
+	"github.com/cossacklabs/acra/encryptor/postgresql"
 	tokens "github.com/cossacklabs/acra/pseudonymization/common"
-	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
 )
 
@@ -37,22 +38,38 @@ var (
 	ErrCursorNotFound    = errors.New("no cursor with given name")
 )
 
+// PreparedStatement is a prepared statement, ready to be executed.
+// It can be either a textual SQL statement from "PREPARE", or a database protocol equivalent.
+type PreparedStatement interface {
+	Name() string
+	Query() *pg_query.ParseResult
+	QueryText() string
+	ParamsNum() int
+}
+
+// Cursor is used to iterate over a prepared statement.
+// It can be either a textual SQL statement from "DEFINE CURSOR", or a database protocol equivalent.
+type Cursor interface {
+	Name() string
+	PreparedStatement() PreparedStatement
+}
+
 // PgPreparedStatementRegistry is a PostgreSQL PreparedStatementRegistry.
 type PgPreparedStatementRegistry struct {
-	statements map[string]base.PreparedStatement
-	cursors    map[string]base.Cursor
+	statements map[string]PreparedStatement
+	cursors    map[string]Cursor
 }
 
 // NewPreparedStatementRegistry makes a new empty prepared statement registry.
 func NewPreparedStatementRegistry() *PgPreparedStatementRegistry {
 	return &PgPreparedStatementRegistry{
-		statements: make(map[string]base.PreparedStatement),
-		cursors:    make(map[string]base.Cursor),
+		statements: make(map[string]PreparedStatement),
+		cursors:    make(map[string]Cursor),
 	}
 }
 
 // StatementByName returns a prepared statement from the registry by its name, if it exists.
-func (r *PgPreparedStatementRegistry) StatementByName(name string) (base.PreparedStatement, error) {
+func (r *PgPreparedStatementRegistry) StatementByName(name string) (PreparedStatement, error) {
 	s, ok := r.statements[name]
 	if ok {
 		return s, nil
@@ -61,7 +78,7 @@ func (r *PgPreparedStatementRegistry) StatementByName(name string) (base.Prepare
 }
 
 // CursorByName returns a cursor from the registry by its name, if it exists.
-func (r *PgPreparedStatementRegistry) CursorByName(name string) (base.Cursor, error) {
+func (r *PgPreparedStatementRegistry) CursorByName(name string) (Cursor, error) {
 	s, ok := r.cursors[name]
 	if ok {
 		return s, nil
@@ -71,7 +88,7 @@ func (r *PgPreparedStatementRegistry) CursorByName(name string) (base.Cursor, er
 
 // AddStatement adds a prepared statement to the registry.
 // If an existing statement with the same name exists, it is replaced with the new one.
-func (r *PgPreparedStatementRegistry) AddStatement(statement base.PreparedStatement) error {
+func (r *PgPreparedStatementRegistry) AddStatement(statement PreparedStatement) error {
 	// TODO(ilammy, 2020-10-02): allow updates only for unnamed statements
 	// PostgreSQL protocol allows repeated Parse messages (without matching Close)
 	// only for unnamed prepared statements. SQL PREPARE cannot be repeated too.
@@ -88,7 +105,7 @@ func (r *PgPreparedStatementRegistry) AddStatement(statement base.PreparedStatem
 
 // AddCursor adds a cursor to the registry.
 // If an existing cursor with the same name exists, it is replaced with the new one.
-func (r *PgPreparedStatementRegistry) AddCursor(cursor base.Cursor) error {
+func (r *PgPreparedStatementRegistry) AddCursor(cursor Cursor) error {
 	// TODO(ilammy, 2020-10-02): allow updates only for unnamed cursors
 	// PostgreSQL protocol allows repeated Bind messages (without matching Close)
 	// only for unnamed cursors. SQL DECLARE CURSOR cannot be repeated too.
@@ -130,7 +147,7 @@ func (r *PgPreparedStatementRegistry) DeleteStatement(name string) error {
 		delete(r.cursors, cursorName)
 	}
 	// Then drop the cursor list of the statement.
-	prepared.cursors = make(map[string]base.Cursor)
+	prepared.cursors = make(map[string]Cursor)
 	prepared.text = ""
 	// TODO: lagovas (10.02.2023) zeroize sql prepared.statement with recursive walking through SQLNodes
 	// and overwriting bytes
@@ -159,18 +176,18 @@ func (r *PgPreparedStatementRegistry) DeleteCursor(name string) error {
 type PgPreparedStatement struct {
 	name string
 	text string
-	sql  sqlparser.Statement
+	stmt *pg_query.ParseResult
 
-	cursors map[string]base.Cursor
+	cursors map[string]Cursor
 }
 
 // NewPreparedStatement makes a new prepared statement.
-func NewPreparedStatement(name string, text string, sql sqlparser.Statement) *PgPreparedStatement {
+func NewPreparedStatement(name string, text string, stmt *pg_query.ParseResult) *PgPreparedStatement {
 	return &PgPreparedStatement{
 		name:    name,
 		text:    text,
-		sql:     sql,
-		cursors: make(map[string]base.Cursor),
+		stmt:    stmt,
+		cursors: make(map[string]Cursor),
 	}
 }
 
@@ -180,8 +197,8 @@ func (s *PgPreparedStatement) Name() string {
 }
 
 // Query returns the prepared query, in its parsed form.
-func (s *PgPreparedStatement) Query() sqlparser.Statement {
-	return s.sql
+func (s *PgPreparedStatement) Query() *pg_query.ParseResult {
+	return s.stmt
 }
 
 // QueryText returns text of the prepared query, as provided by the client.
@@ -198,11 +215,11 @@ func (s *PgPreparedStatement) ParamsNum() int {
 // Cursors are called "portals" in PostgreSQL protocol specs.
 type PgPortal struct {
 	bind      *BindPacket
-	statement base.PreparedStatement
+	statement PreparedStatement
 }
 
 // NewPortal makes a new portal.
-func NewPortal(bind *BindPacket, statement base.PreparedStatement) *PgPortal {
+func NewPortal(bind *BindPacket, statement PreparedStatement) *PgPortal {
 	return &PgPortal{bind, statement}
 }
 
@@ -212,7 +229,7 @@ func (p *PgPortal) Name() string {
 }
 
 // PreparedStatement returns the prepared statement this cursor is associated with.
-func (p *PgPortal) PreparedStatement() base.PreparedStatement {
+func (p *PgPortal) PreparedStatement() PreparedStatement {
 	return p.statement
 }
 
@@ -271,7 +288,7 @@ func (p *pgBoundValue) setTokenizedData(newData []byte, setting config.ColumnEnc
 		if utils.IsPrintablePostgresqlString(newData) {
 			p.data = newData
 		} else {
-			p.data = encryptor.PgEncodeToHexString(newData)
+			p.data = postgresql.PgEncodeToHexString(newData)
 		}
 		return nil
 	case base.BinaryFormat:
@@ -306,7 +323,7 @@ func (p *pgBoundValue) setEncryptedData(newData []byte, setting config.ColumnEnc
 		if utils.IsPrintablePostgresqlString(newData) {
 			p.data = newData
 		} else {
-			p.data = encryptor.PgEncodeToHexString(newData)
+			p.data = postgresql.PgEncodeToHexString(newData)
 		}
 		return nil
 	case base.BinaryFormat:

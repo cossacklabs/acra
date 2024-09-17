@@ -33,6 +33,7 @@ import (
 	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/decryptor/base"
 	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
+	"github.com/cossacklabs/acra/encryptor/mysql"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
@@ -175,7 +176,7 @@ type Handler struct {
 	dbConnection            net.Conn
 	logger                  *logrus.Entry
 	ctx                     context.Context
-	queryObserverManager    base.QueryObserverManager
+	queryObserverManager    mysql.QueryObserverManager
 	decryptionObserver      base.ColumnDecryptionObserver
 	setting                 base.ProxySetting
 	clientIDObserverManager base.ClientIDObservableManager
@@ -186,7 +187,7 @@ type Handler struct {
 
 // NewMysqlProxy returns new Handler
 func NewMysqlProxy(session base.ClientSession, parser *sqlparser.Parser, setting base.ProxySetting) (*Handler, error) {
-	observerManager, err := base.NewArrayQueryObservableManager(session.Context())
+	observerManager, err := mysql.NewArrayQueryObservableManager(session.Context())
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +231,7 @@ func (handler *Handler) onColumnDecryption(parentCtx context.Context, column int
 }
 
 // AddQueryObserver implement QueryObservable interface and proxy call to ObserverManager
-func (handler *Handler) AddQueryObserver(obs base.QueryObserver) {
+func (handler *Handler) AddQueryObserver(obs mysql.QueryObserver) {
 	handler.queryObserverManager.AddQueryObserver(obs)
 }
 
@@ -408,7 +409,7 @@ func (handler *Handler) ProxyClientConnection(ctx context.Context, errCh chan<- 
 				continue
 			}
 
-			queryObj := base.NewOnQueryObjectFromQuery(query, handler.parser)
+			queryObj := mysql.NewOnQueryObjectFromQuery(query, handler.parser)
 			newQuery, changed, err := handler.queryObserverManager.OnQuery(ctx, queryObj)
 			if err != nil {
 				if filesystem.IsKeyReadError(err) {

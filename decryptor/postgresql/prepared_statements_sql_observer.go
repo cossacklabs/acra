@@ -3,13 +3,14 @@ package postgresql
 import (
 	"context"
 	"errors"
+	"strconv"
 
+	pg_query "github.com/cossacklabs/pg_query_go/v5"
 	"github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/decryptor/base"
-	queryEncryptor "github.com/cossacklabs/acra/encryptor"
+	"github.com/cossacklabs/acra/encryptor/postgresql"
 	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/sqlparser"
 )
 
 // ErrStatementAlreadyInRegistry represent an error that prepared statement already exist in session registry
@@ -20,16 +21,14 @@ var (
 
 // PreparedStatementsQuery QueryDataEncryptor process PostgreSQL SQL PreparedStatement
 type PreparedStatementsQuery struct {
-	session       base.ClientSession
-	queryObserver base.QueryObserver
-	parser        *sqlparser.Parser
-	coder         queryEncryptor.DBDataCoder
+	registry      *PgPreparedStatementRegistry
+	queryObserver postgresql.QueryObserver
 }
 
 // NewPostgresqlPreparedStatementsQuery create new QueryDataEncryptor to handle SQL PreparedStatement in the following format
 // `prepare {prepare_statement_name} (params...) as the sql-query` and `execute  (values...) {prepare_statement_name}`
-func NewPostgresqlPreparedStatementsQuery(session base.ClientSession, parser *sqlparser.Parser, queryObserver base.QueryObserver) *PreparedStatementsQuery {
-	return &PreparedStatementsQuery{parser: parser, session: session, queryObserver: queryObserver, coder: &queryEncryptor.PostgresqlDBDataCoder{}}
+func NewPostgresqlPreparedStatementsQuery(registry *PgPreparedStatementRegistry, queryObserver postgresql.QueryObserver) *PreparedStatementsQuery {
+	return &PreparedStatementsQuery{registry: registry, queryObserver: queryObserver}
 }
 
 // ID returns name of this QueryObserver.
@@ -38,50 +37,66 @@ func (encryptor *PreparedStatementsQuery) ID() string {
 }
 
 // OnQuery processes query text before database sees it.
-func (encryptor *PreparedStatementsQuery) OnQuery(ctx context.Context, query base.OnQueryObject) (base.OnQueryObject, bool, error) {
+func (encryptor *PreparedStatementsQuery) OnQuery(ctx context.Context, query postgresql.OnQueryObject) (postgresql.OnQueryObject, bool, error) {
 	logrus.Debugln("PreparedStatementsQuery.OnQuery")
-	parsedQuery, err := query.Statement()
+	parseResult, err := query.Statement()
 	if err != nil {
 		logrus.WithError(err).Debugln("Can't parse SQL statement")
 		return query, false, nil
 	}
 
-	switch processQuery := parsedQuery.(type) {
-	case *sqlparser.Prepare:
-		return encryptor.onPrepare(ctx, processQuery)
-	case *sqlparser.Execute:
-		return encryptor.onExecute(ctx, processQuery)
-	case *sqlparser.DeallocatePrepare:
-		return encryptor.onDeallocate(ctx, processQuery)
+	if len(parseResult.Stmts) == 0 {
+		return nil, false, err
+	}
+
+	switch {
+	case parseResult.Stmts[0].Stmt.GetPrepareStmt() != nil:
+		return encryptor.onPrepare(ctx, parseResult)
+	case parseResult.Stmts[0].Stmt.GetExecuteStmt() != nil:
+		return encryptor.onExecute(ctx, parseResult)
+	case parseResult.Stmts[0].Stmt.GetDeallocateStmt() != nil:
+		return encryptor.onDeallocate(ctx, parseResult)
 	default:
 		return query, false, nil
 	}
 }
 
-func (encryptor *PreparedStatementsQuery) onPrepare(ctx context.Context, prepareQuery *sqlparser.Prepare) (base.OnQueryObject, bool, error) {
+func (encryptor *PreparedStatementsQuery) onPrepare(ctx context.Context, parseResult *pg_query.ParseResult) (postgresql.OnQueryObject, bool, error) {
 	logrus.Debugln("PreparedStatementsQuery.Prepare")
 
-	var preparedStatementName = prepareQuery.PreparedStatementName.ValueForConfig()
-	var registry = encryptor.session.PreparedStatementRegistry()
+	var prepareQuery = parseResult.Stmts[0].Stmt.GetPrepareStmt()
+	var preparedStatementName = prepareQuery.GetName()
 
 	// PostgreSQL allows create statement only once during the session
-	if _, err := registry.StatementByName(preparedStatementName); err == nil {
+	if _, err := encryptor.registry.StatementByName(preparedStatementName); err == nil {
 		logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 			WithError(err).Errorln("PreparedStatement already stored in registry")
 		return nil, false, ErrStatementAlreadyInRegistry
 	}
 
-	var stmt = prepareQuery.PreparedStatementQuery.(sqlparser.Statement)
-	var preparedStatement = NewPreparedStatement(preparedStatementName, sqlparser.String(stmt), stmt)
+	var stmt = prepareQuery.GetQuery()
+	var prepareParseResult = &pg_query.ParseResult{
+		Stmts: []*pg_query.RawStmt{{
+			Stmt: stmt,
+		}},
+	}
+	stmtText, err := pg_query.Deparse(prepareParseResult)
+	if err != nil {
+		logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+			WithError(err).Errorln("Failed to deparse in Prepare statement")
+		return nil, false, err
+	}
 
-	if err := registry.AddStatement(preparedStatement); err != nil {
+	var preparedStatement = NewPreparedStatement(preparedStatementName, stmtText, prepareParseResult)
+
+	if err := encryptor.registry.AddStatement(preparedStatement); err != nil {
 		logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 			WithError(err).Errorln("Failed to add prepared statement")
 		return nil, false, err
 	}
 
 	// run OnQuery with inner query of prepared statement
-	changedObject, changed, err := encryptor.queryObserver.OnQuery(ctx, base.NewOnQueryObjectFromStatement(stmt, encryptor.parser))
+	changedObject, changed, err := encryptor.queryObserver.OnQuery(ctx, postgresql.NewOnQueryObjectFromStatement(prepareParseResult))
 	if err != nil {
 		return nil, false, err
 	}
@@ -92,27 +107,20 @@ func (encryptor *PreparedStatementsQuery) onPrepare(ctx context.Context, prepare
 		if err != nil {
 			return nil, false, err
 		}
-
-		changedPreparedQuery, ok := changedStatement.(sqlparser.PreparedQuery)
-		if !ok {
-			logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
-				WithError(err).Errorln("Failed to cast changedStatement to PreparedQuery")
-			return nil, false, err
-		}
-		prepareQuery.PreparedStatementQuery = changedPreparedQuery
+		prepareQuery.Query = changedStatement.Stmts[0].Stmt
 	}
 
 	logrus.WithField("prepared_name", preparedStatementName).Debug("Registered new prepared statement")
-	return base.NewOnQueryObjectFromStatement(prepareQuery, encryptor.parser), changed, nil
+	return postgresql.NewOnQueryObjectFromStatement(parseResult), changed, nil
 }
 
-func (encryptor *PreparedStatementsQuery) onExecute(ctx context.Context, executeQuery *sqlparser.Execute) (base.OnQueryObject, bool, error) {
+func (encryptor *PreparedStatementsQuery) onExecute(ctx context.Context, parseResult *pg_query.ParseResult) (postgresql.OnQueryObject, bool, error) {
 	logrus.Debugln("PreparedStatementsQuery.Execute")
 
-	var preparedStatementName = executeQuery.PreparedStatementName.String()
-	var registry = encryptor.session.PreparedStatementRegistry()
+	var executeQuery = parseResult.Stmts[0].Stmt.GetExecuteStmt()
+	var preparedStatementName = executeQuery.GetName()
 
-	preparedStatement, err := registry.StatementByName(preparedStatementName)
+	preparedStatement, err := encryptor.registry.StatementByName(preparedStatementName)
 	if err != nil {
 		logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 			WithError(err).Errorln("PreparedStatement not present in registry")
@@ -120,12 +128,24 @@ func (encryptor *PreparedStatementsQuery) onExecute(ctx context.Context, execute
 	}
 
 	// collect all BoundValues
-	values := make([]base.BoundValue, 0, len(executeQuery.Values))
-	for _, value := range executeQuery.Values {
-		switch val := value.(type) {
-		case *sqlparser.SQLVal:
-			values = append(values, NewPgBoundValue(val.Val, bindFormatText))
-		case *sqlparser.NullVal:
+	values := make([]base.BoundValue, 0, len(executeQuery.GetParams()))
+	for _, param := range executeQuery.GetParams() {
+		if param.GetAConst() == nil {
+			continue
+		}
+
+		switch {
+		// Sval - represents all strings values on the parser level: string, hex values etc;
+		case param.GetAConst().GetSval() != nil:
+			values = append(values, NewPgBoundValue([]byte(param.GetAConst().GetSval().GetSval()), bindFormatText))
+			// Ival - represents integer values on the parser level but only as int32
+		case param.GetAConst().GetIval() != nil:
+			val := param.GetAConst().GetIval().GetIval()
+			values = append(values, NewPgBoundValue([]byte(strconv.Itoa(int(val))), bindFormatText))
+			// Fval - represents floating values on the parser level, also used for representing big numbers as int64
+		case param.GetAConst().GetFval() != nil:
+			values = append(values, NewPgBoundValue([]byte(param.GetAConst().GetFval().GetFval()), bindFormatText))
+		case param.GetAConst().GetIsnull():
 			values = append(values, NewPgBoundValue(nil, bindFormatText))
 		default:
 			logrus.WithError(err).Debugln("Unexpected Execute query Values format")
@@ -138,37 +158,57 @@ func (encryptor *PreparedStatementsQuery) onExecute(ctx context.Context, execute
 	}
 
 	if changed {
-		for i, value := range executeQuery.Values {
-			sqlVal, ok := value.(*sqlparser.SQLVal)
-			if ok {
-				newValueData, err := newValues[i].GetData(nil)
-				if err != nil {
-					return nil, false, err
-				}
+		for i, param := range executeQuery.GetParams() {
+			if param.GetAConst().GetIsnull() {
+				continue
+			}
 
-				sqlVal.Val = newValueData
+			newValueData, err := newValues[i].GetData(nil)
+			if err != nil {
+				return nil, false, err
+			}
+
+			switch {
+			case param.GetAConst().GetSval() != nil:
+				param.GetAConst().GetSval().Sval = string(newValueData)
+			case param.GetAConst().GetIval() != nil:
+				if iVal, err := strconv.ParseInt(string(newValueData), 10, 32); err == nil {
+					param.GetAConst().GetIval().Ival = int32(iVal)
+					continue
+				}
+				// during tokenization data can come as int32 but with token_type: int64 and after tokenization we should switch the AConst type
+				if _, err := strconv.ParseInt(string(newValueData), 10, 64); err == nil {
+					*param.GetAConst() = pg_query.A_Const{
+						Val: &pg_query.A_Const_Fval{
+							Fval: &pg_query.Float{
+								Fval: string(newValueData),
+							},
+						},
+					}
+				}
+			case param.GetAConst().GetFval() != nil:
+				param.GetAConst().GetFval().Fval = string(newValueData)
 			}
 		}
 	}
 
-	return base.NewOnQueryObjectFromStatement(executeQuery, encryptor.parser), true, nil
+	return postgresql.NewOnQueryObjectFromStatement(parseResult), true, nil
 }
 
-func (encryptor *PreparedStatementsQuery) onDeallocate(ctx context.Context, deallocateQuery *sqlparser.DeallocatePrepare) (base.OnQueryObject, bool, error) {
-	var registry = encryptor.session.PreparedStatementRegistry()
-	var preparedStatementName = deallocateQuery.PreparedStatementName.String()
+func (encryptor *PreparedStatementsQuery) onDeallocate(ctx context.Context, parseResult *pg_query.ParseResult) (postgresql.OnQueryObject, bool, error) {
+	var preparedStatementName = parseResult.Stmts[0].Stmt.GetDeallocateStmt().GetName()
 
-	if _, err := registry.StatementByName(deallocateQuery.PreparedStatementName.String()); err != nil {
+	if _, err := encryptor.registry.StatementByName(preparedStatementName); err != nil {
 		logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 			WithError(err).Errorln("PreparedStatement not present in registry")
 		return nil, false, ErrStatementNotPresentInRegistry
 	}
 
-	return nil, false, registry.DeleteStatement(preparedStatementName)
+	return nil, false, encryptor.registry.DeleteStatement(preparedStatementName)
 }
 
 // OnBind just a stub method of QueryObserver of  PreparedStatementsQuery
-func (encryptor *PreparedStatementsQuery) OnBind(ctx context.Context, statement sqlparser.Statement, values []base.BoundValue) ([]base.BoundValue, bool, error) {
+func (encryptor *PreparedStatementsQuery) OnBind(ctx context.Context, statement *pg_query.ParseResult, values []base.BoundValue) ([]base.BoundValue, bool, error) {
 	logrus.Debugln("PreparedStatementsQuery.OnBind")
 	return values, false, nil
 }

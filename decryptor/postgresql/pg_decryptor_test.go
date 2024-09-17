@@ -11,12 +11,14 @@ import (
 	"testing"
 	"time"
 
+	pg_query "github.com/cossacklabs/pg_query_go/v5"
 	"github.com/sirupsen/logrus"
 
 	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/cmd/acra-server/common"
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/encryptor/config"
+	"github.com/cossacklabs/acra/encryptor/base/config"
+	"github.com/cossacklabs/acra/encryptor/postgresql"
 	"github.com/cossacklabs/acra/sqlparser"
 )
 
@@ -97,14 +99,16 @@ func (t *testOnBindHandler) ID() string {
 	panic("implement me")
 }
 
-func (t *testOnBindHandler) OnQuery(ctx context.Context, data base.OnQueryObject) (base.OnQueryObject, bool, error) {
-	t.query = data.Query()
-	return data, false, nil
+func (t *testOnBindHandler) OnQuery(ctx context.Context, data postgresql.OnQueryObject) (postgresql.OnQueryObject, bool, error) {
+	var err error
+	t.query, err = data.Query()
+	return data, false, err
 }
 
-func (t *testOnBindHandler) OnBind(ctx context.Context, statement sqlparser.Statement, values []base.BoundValue) ([]base.BoundValue, bool, error) {
-	t.bind = sqlparser.String(statement)
-	return values, false, nil
+func (t *testOnBindHandler) OnBind(ctx context.Context, statement *pg_query.ParseResult, values []base.BoundValue) ([]base.BoundValue, bool, error) {
+	var err error
+	t.bind, err = pg_query.Deparse(statement)
+	return values, false, err
 }
 
 func TestPreparedStatementRegistering(t *testing.T) {
@@ -112,7 +116,7 @@ func TestPreparedStatementRegistering(t *testing.T) {
 	ctx := context.Background()
 	// this query encoded in parsePacket below
 	parseQuery := "SELECT t.*, CTID\nFROM public.bla t\nLIMIT 501"
-	parseQueryStatement, err := parser.Parse(parseQuery)
+	parseQueryStatement, err := pg_query.Parse(parseQuery)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,11 +138,7 @@ func TestPreparedStatementRegistering(t *testing.T) {
 	}
 	queryObserver := &testOnBindHandler{}
 	proxy.AddQueryObserver(queryObserver)
-	pgRegistry, ok := proxy.session.PreparedStatementRegistry().(*PgPreparedStatementRegistry)
-	if !ok {
-		t.Fatal("Unexpected type of registry")
-	}
-	if len(pgRegistry.statements) != 0 {
+	if len(proxy.registry.statements) != 0 {
 		t.Fatal("Invalid length of registered statements")
 	}
 	logger := logrus.NewEntry(logrus.New())
@@ -155,7 +155,7 @@ func TestPreparedStatementRegistering(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	statement, err := proxy.session.PreparedStatementRegistry().StatementByName("")
+	statement, err := proxy.registry.StatementByName("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +166,7 @@ func TestPreparedStatementRegistering(t *testing.T) {
 		t.Fatalf("'%s' != '%s'\n", parseQuery, statement.QueryText())
 	}
 	// check that after ParsePacket without ParseComplete query already registered
-	if len(pgRegistry.statements) != 1 {
+	if len(proxy.registry.statements) != 1 {
 		t.Fatal("Invalid length of registered statements")
 	}
 
@@ -178,7 +178,13 @@ func TestPreparedStatementRegistering(t *testing.T) {
 		t.Fatal(err)
 	}
 	// check that same statement was passed as onbind query
-	if queryObserver.bind != sqlparser.String(parseQueryStatement) {
+
+	resultQuery, err := pg_query.Deparse(parseQueryStatement)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if queryObserver.bind != resultQuery {
 		t.Fatalf("'%s' != '%s'\n", parseQuery, statement.QueryText())
 	}
 }
@@ -221,7 +227,7 @@ func TestCorrectColumnToSettingMapping(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	settingExtractor, err := NewEncryptionSettingExtractor(ctx, &config.MapTableSchemaStore{}, parser)
+	settingExtractor, err := NewEncryptionSettingExtractor(ctx, &config.MapTableSchemaStore{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -325,14 +331,12 @@ func TestMultiplePrepareAtOnce(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-
-	registry := proxy.session.PreparedStatementRegistry()
-	beginStmt, err := registry.StatementByName(beginName)
+	beginStmt, err := proxy.registry.StatementByName(beginName)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	selectStmt, err := registry.StatementByName(selectName)
+	selectStmt, err := proxy.registry.StatementByName(selectName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -421,7 +425,13 @@ func TestMultiplePrepareAtOnceWithError(t *testing.T) {
 		}
 		_, err = proxy.handleClientPacket(ctx, clientPacketHandler, logger)
 		if err != nil {
-			t.Fatal(err)
+			pendingParse, err := clientPacketHandler.GetParseData()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if pendingParse.Name() != failName {
+				t.Fatal(err)
+			}
 		}
 	}
 
@@ -440,22 +450,20 @@ func TestMultiplePrepareAtOnceWithError(t *testing.T) {
 		}
 	}
 
-	registry := proxy.session.PreparedStatementRegistry()
-	beginStmt, err := registry.StatementByName(beginName)
+	beginStmt, err := proxy.registry.StatementByName(beginName)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	selectStmt, err := registry.StatementByName(selectName)
+	selectStmt, err := proxy.registry.StatementByName(selectName)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// TODO: uncomment when handling of error packets is fixed
-	// _, err = registry.StatementByName(failName)
-	// if err == nil {
-	// 	t.Fatalf("%q exists but shouldn't", failName)
-	// }
+	_, err = proxy.registry.StatementByName(failName)
+	if err == nil {
+		t.Fatalf("%q exists but shouldn't", failName)
+	}
 
 	if beginSQL != beginStmt.QueryText() {
 		t.Fatalf("%q != %q\n", beginSQL, beginStmt.QueryText())

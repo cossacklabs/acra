@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"strconv"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/base/type_awareness"
 	base_mysql "github.com/cossacklabs/acra/decryptor/mysql/base"
-	"github.com/cossacklabs/acra/encryptor/config/common"
+	"github.com/cossacklabs/acra/encryptor/base/config/common"
 	"github.com/cossacklabs/acra/utils"
-	log "github.com/sirupsen/logrus"
 )
 
 // LongDataTypeEncoder is encoder of TypeLong in MySQL
