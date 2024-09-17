@@ -564,7 +564,7 @@ jobs:
       - checkout
       # https://circleci.com/docs/2.0/building-docker-images/#docker-version
       - setup_remote_docker:
-          version: 18.09.3
+          version: docker24
       - run:
           name: Install Docker client
           command: |
