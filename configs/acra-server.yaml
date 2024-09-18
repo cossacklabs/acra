@@ -152,7 +152,7 @@ kms_type:
 # Log to stderr if true
 log_to_console: true
 
-# Log to file if pass not empty value
+# Log to file if path not empty value
 log_to_file: 
 
 # Logging format: plaintext, json or CEF
