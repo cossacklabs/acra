@@ -151,7 +151,7 @@ func registerFlags(flagSet *flag.FlagSet) {
 	flagSet.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 	flagSet.Bool("d", false, "Log everything to stderr")
 	flagSet.Bool("log_to_console", true, "Log to stderr if true")
-	flagSet.String("log_to_file", "", "Log to file if pass not empty value")
+	flagSet.String("log_to_file", "", "Log to file if path not empty value")
 
 	network.RegisterTLSBaseArgs(flagSet)
 	network.RegisterTLSArgsForService(flagSet, false, "", network.ClientNameConstructorFunc())
