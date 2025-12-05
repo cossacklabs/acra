@@ -23,7 +23,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/onsi/ginkgo v1.10.2 // indirect
 	github.com/prometheus/client_golang v1.11.1
-	github.com/sirupsen/logrus v1.6.0
+	github.com/sirupsen/logrus v1.8.3
 	github.com/stretchr/testify v1.8.3
 	github.com/swaggo/files v0.0.0-20190704085106-630677cd5c14
 	github.com/swaggo/gin-swagger v1.3.0
@@ -86,7 +86,6 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/konsorten/go-windows-terminal-sequences v1.0.3 // indirect
 	github.com/leodido/go-urn v1.2.4 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
