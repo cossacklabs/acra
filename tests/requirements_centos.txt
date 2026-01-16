@@ -13,7 +13,7 @@ cryptography==40.0.2
 pythemis
 psycopg2==2.9.7
 SQLAlchemy==1.4.15
-PyMySQL==1.0.2
+PyMySQL==1.1.1
 ddt==1.4.2
 semver==2.13.0
 # driver with binary prepared statements support
