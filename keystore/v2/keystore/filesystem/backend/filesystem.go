@@ -47,9 +47,10 @@ var (
 
 // DirectoryBackend keeps data in filesystem directory hierarchy.
 type DirectoryBackend struct {
-	root string
-	log  *log.Entry
-	lock *fileLock
+	root       string
+	rootPrefix string
+	log        *log.Entry
+	lock       *fileLock
 }
 
 const (
@@ -103,9 +104,10 @@ func CreateDirectoryBackend(root string) (*DirectoryBackend, error) {
 		return nil, err
 	}
 	return &DirectoryBackend{
-		root: root,
-		log:  newLog,
-		lock: lock,
+		root:       root,
+		rootPrefix: filepath.Clean(root) + string(os.PathSeparator),
+		log:        newLog,
+		lock:       lock,
 	}, nil
 }
 
@@ -147,9 +149,10 @@ func OpenDirectoryBackend(root string) (*DirectoryBackend, error) {
 		return nil, err
 	}
 	return &DirectoryBackend{
-		root: root,
-		log:  newLog,
-		lock: lock,
+		root:       root,
+		rootPrefix: filepath.Clean(root) + string(os.PathSeparator),
+		log:        newLog,
+		lock:       lock,
 	}, nil
 }
 
@@ -232,8 +235,7 @@ func (b *DirectoryBackend) osPath(path string) (string, error) {
 	// filepath.Join already calls filepath.Clean internally, so comparing
 	// fullPath with filepath.Clean(fullPath) is always equal and does not
 	// catch path traversal. Use HasPrefix to enforce the boundary.
-	rootPrefix := filepath.Clean(b.root) + string(os.PathSeparator)
-	if !strings.HasPrefix(fullPath, rootPrefix) {
+	if !strings.HasPrefix(fullPath, b.rootPrefix) {
 		b.log.WithField("path", path).Warn("invalid key path used")
 		return "", api.ErrInvalidPath
 	}
