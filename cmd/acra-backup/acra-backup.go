@@ -152,13 +152,16 @@ func main() {
 			log.WithError(err).Errorln("Can't generate backup")
 			os.Exit(1)
 		}
-		base64MasterKey := base64.StdEncoding.EncodeToString(backup.Keys)
-		utils.ZeroizeSymmetricKey(backup.Keys)
-		if err := os.WriteFile(file, backup.Keys, filesystem.PrivateFileMode); err != nil {
+		if err := os.WriteFile(file, backup.Data, filesystem.PrivateFileMode); err != nil {
 			log.WithError(err).Errorf("Can't write backup to file %s", file)
 			os.Exit(1)
 		}
-		log.Infof("Backup master key: %s\n Backup saved to file: %s", base64MasterKey, file)
+		encodedKey := []byte(base64.StdEncoding.EncodeToString(backup.Keys))
+		utils.ZeroizeSymmetricKey(backup.Keys)
+		fmt.Fprintf(os.Stderr, "Export master key (required for import):\nexport %s=%s\n",
+			BackupMasterKeyVarName, encodedKey)
+		utils.ZeroizeBytes(encodedKey)
+		log.Infof("Backup saved to file: %s", file)
 	default:
 		log.Errorln("Invalid value for --action parameter")
 		os.Exit(1)
