@@ -103,7 +103,7 @@ func CreateDirectoryBackend(root string) (*DirectoryBackend, error) {
 		return nil, err
 	}
 	return &DirectoryBackend{
-		root: root,
+		root: filepath.Clean(root),
 		log:  newLog,
 		lock: lock,
 	}, nil
@@ -147,7 +147,7 @@ func OpenDirectoryBackend(root string) (*DirectoryBackend, error) {
 		return nil, err
 	}
 	return &DirectoryBackend{
-		root: root,
+		root: filepath.Clean(root),
 		log:  newLog,
 		lock: lock,
 	}, nil
@@ -228,9 +228,13 @@ var pathSeparators = strings.NewReplacer(
 // Converts "key path" into "OS path" relative to the root directory.
 func (b *DirectoryBackend) osPath(path string) (string, error) {
 	fullPath := filepath.Join(b.root, pathSeparators.Replace(path))
-	// This is conservative check that "fullPath" is child of "b.root",
-	// catching any funny "../../../.." that we might accidentally get.
-	if fullPath != filepath.Clean(fullPath) {
+	// Verify that the resulting path is still under the root directory.
+	// filepath.Join already calls filepath.Clean internally, so comparing
+	// fullPath with filepath.Clean(fullPath) is always equal and does not
+	// catch path traversal. Use HasPrefix with the root + separator to
+	// enforce the boundary and prevent partial prefix matches (e.g.
+	// "/keys" should not match "/keys-backup").
+	if !strings.HasPrefix(fullPath, b.root+string(os.PathSeparator)) {
 		b.log.WithField("path", path).Warn("invalid key path used")
 		return "", api.ErrInvalidPath
 	}
