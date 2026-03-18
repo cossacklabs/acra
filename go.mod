@@ -1,6 +1,6 @@
 module github.com/cossacklabs/acra
 
-go 1.23.0
+go 1.24.0
 
 require (
 	contrib.go.opencensus.io/exporter/jaeger v0.2.1
@@ -15,7 +15,7 @@ require (
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/go-test/deep v1.0.4 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
-	github.com/golang/protobuf v1.5.3
+	github.com/golang/protobuf v1.5.4
 	github.com/hashicorp/consul/api v1.18.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/vault/api v1.3.0
@@ -31,10 +31,10 @@ require (
 	github.com/tinylib/msgp v1.1.6
 	go.etcd.io/bbolt v1.3.6
 	go.opencensus.io v0.24.0
-	golang.org/x/crypto v0.36.0
-	golang.org/x/net v0.38.0
-	google.golang.org/grpc v1.56.3
-	google.golang.org/protobuf v1.33.0
+	golang.org/x/crypto v0.46.0
+	golang.org/x/net v0.48.0
+	google.golang.org/grpc v1.79.3
+	google.golang.org/protobuf v1.36.10
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -52,7 +52,7 @@ require (
 	github.com/aws/smithy-go v1.12.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v3 v3.0.0 // indirect
-	github.com/cespare/xxhash/v2 v2.2.0 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fatih/color v1.16.0 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
@@ -112,11 +112,11 @@ require (
 	github.com/uber/jaeger-client-go v2.25.0+incompatible // indirect
 	github.com/ugorji/go/codec v1.2.11 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
-	golang.org/x/sync v0.12.0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/text v0.32.0 // indirect
 	golang.org/x/time v0.1.0 // indirect
-	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
+	golang.org/x/tools v0.39.0 // indirect
 	google.golang.org/api v0.107.0 // indirect
 	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
 	gopkg.in/square/go-jose.v2 v2.5.1 // indirect
