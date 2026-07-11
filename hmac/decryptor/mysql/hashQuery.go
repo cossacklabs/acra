@@ -81,13 +81,17 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query mysql.OnQueryObje
 	// The list might be empty for non-SELECT queries or for non-eligible SELECTs.
 	// In that case we don't have any more work to do here.
 	items := encryptor.searchableQueryFilter.FilterSearchableComparisons(stmt)
-	if len(items) == 0 {
-		return query, false, nil
-	}
-	clientSession := base.ClientSessionFromContext(ctx)
-	bindSettings := encryptor_base.PlaceholderSettingsFromClientSession(clientSession)
 	// Now that we have condition expressions, perform rewriting in them.
 	hashSize := []byte(fmt.Sprintf("%d", hmac.GetDefaultHashSize()))
+	changed := len(items) > 0
+	// clientSession/bindSettings are only needed to track WHERE-comparison placeholders, so fetch
+	// them lazily: this keeps the non-searchable and GROUP-BY-only paths allocation-free and avoids
+	// dereferencing a nil session.
+	var bindSettings map[int]config.ColumnEncryptionSetting
+	if len(items) > 0 {
+		clientSession := base.ClientSessionFromContext(ctx)
+		bindSettings = encryptor_base.PlaceholderSettingsFromClientSession(clientSession)
+	}
 	for _, item := range items {
 		if !item.Setting.IsSearchable() {
 			continue
@@ -148,8 +152,129 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query mysql.OnQueryObje
 		}
 		bindSettings[placeholderIndex] = item.Setting
 	}
+
+	// Searchable columns are stored as <HMAC prefix>||<ciphertext>, where the HMAC prefix is
+	// DETERMINISTIC (equal plaintext -> equal prefix) but the ciphertext is randomized per row.
+	// So GROUP BY on the raw column groups by the random ciphertext and never collapses equal
+	// plaintexts, silently breaking aggregation. (SELECT DISTINCT on a searchable column shares the
+	// same root cause and is a tracked follow-up; only GROUP BY is rewritten here.) Rewrite GROUP BY
+	// on a searchable column to
+	// group by its hash prefix instead:
+	//
+	//	GROUP BY column   ===>   GROUP BY substring(column, 1, <HMAC_size>)
+	//
+	// and wrap bare references to the grouped column in the SELECT list / ORDER BY in ANY_VALUE()
+	// so the query stays valid under ONLY_FULL_GROUP_BY (every row in a group shares the same
+	// plaintext, so any representative decrypts to the correct value).
+	if sel, ok := stmt.(*sqlparser.Select); ok {
+		if encryptor.rewriteSearchableGroupBy(sel, hashSize) {
+			changed = true
+		}
+	}
+
+	if !changed {
+		return query, false, nil
+	}
+
 	logrus.Debugln("HashQuery.OnQuery changed query")
 	return mysql.NewOnQueryObjectFromStatement(stmt, encryptor.parser), true, nil
+}
+
+// rewriteSearchableGroupBy rewrites GROUP BY on searchable columns to group by their deterministic
+// HMAC prefix (substring(col, 1, hashSize)) and wraps bare references to those columns in the
+// SELECT list and ORDER BY with ANY_VALUE() to satisfy ONLY_FULL_GROUP_BY. It returns true when the
+// statement was modified. ORDER BY on a searchable column is made valid but is ordered by the hash
+// (not the plaintext), since searchable encryption is not order-preserving.
+func (encryptor *HashQuery) rewriteSearchableGroupBy(sel *sqlparser.Select, hashSize []byte) bool {
+	if len(sel.GroupBy) == 0 {
+		return false
+	}
+
+	type columnKey struct{ table, name string }
+	grouped := make(map[columnKey]bool)
+
+	// resolve returns the (table, column) key for a ColName when it maps to a searchable column.
+	resolve := func(col *sqlparser.ColName) (columnKey, bool) {
+		info, err := mysql.FindColumnInfo(sel.From, col, encryptor.schemaStore)
+		if err != nil {
+			return columnKey{}, false
+		}
+		setting := mysql.GetColumnSetting(col, info.Table, encryptor.schemaStore)
+		if setting == nil || !setting.IsSearchable() {
+			return columnKey{}, false
+		}
+		return columnKey{table: info.Table, name: info.Name}, true
+	}
+
+	substr := func(col *sqlparser.ColName) *sqlparser.SubstrExpr {
+		return &sqlparser.SubstrExpr{
+			Name: col,
+			From: sqlparser.NewIntVal([]byte("1")),
+			To:   sqlparser.NewIntVal(hashSize),
+		}
+	}
+
+	changed := false
+	for i, expr := range sel.GroupBy {
+		col, ok := expr.(*sqlparser.ColName)
+		if !ok {
+			continue
+		}
+		key, ok := resolve(col)
+		if !ok {
+			continue
+		}
+		grouped[key] = true
+		sel.GroupBy[i] = substr(col)
+		changed = true
+	}
+	if !changed {
+		return false
+	}
+
+	// anyValue wraps a reference to a grouped searchable column in ANY_VALUE(col) so it is not a
+	// bare non-aggregated column under ONLY_FULL_GROUP_BY. Returns (wrapped, true) only for a
+	// grouped searchable column.
+	anyValue := func(col *sqlparser.ColName) (sqlparser.Expr, bool) {
+		key, ok := resolve(col)
+		if !ok || !grouped[key] {
+			return nil, false
+		}
+		return &sqlparser.FuncExpr{
+			Name:  sqlparser.NewColIdent("ANY_VALUE"),
+			Exprs: sqlparser.SelectExprs{&sqlparser.AliasedExpr{Expr: col}},
+		}, true
+	}
+
+	for _, se := range sel.SelectExprs {
+		aliased, ok := se.(*sqlparser.AliasedExpr)
+		if !ok {
+			continue
+		}
+		col, ok := aliased.Expr.(*sqlparser.ColName)
+		if !ok {
+			continue
+		}
+		if wrapped, ok := anyValue(col); ok {
+			// preserve the client-visible column name (default to the column name when unaliased)
+			if aliased.As.IsEmpty() {
+				aliased.As = col.Name
+			}
+			aliased.Expr = wrapped
+		}
+	}
+
+	for _, order := range sel.OrderBy {
+		col, ok := order.Expr.(*sqlparser.ColName)
+		if !ok {
+			continue
+		}
+		if wrapped, ok := anyValue(col); ok {
+			order.Expr = wrapped
+		}
+	}
+
+	return true
 }
 
 // OnBind processes bound values for prepared statements.

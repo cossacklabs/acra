@@ -332,3 +332,109 @@ func TestSearchableWithTextFormat(t *testing.T) {
 		assert.Equal(t, len(rightVal.Val), len(newData))
 	}
 }
+
+// TestSearchableGroupByRewrite verifies that GROUP BY / ORDER BY on a searchable column is
+// rewritten to operate on the deterministic HMAC prefix (substr(col, 1, 33)) so that grouping and
+// aggregation collapse equal plaintexts, and that bare references to the grouped column in the
+// SELECT list / ORDER BY are wrapped in ANY_VALUE() to remain valid under ONLY_FULL_GROUP_BY.
+// Regression for cossacklabs/acra#729.
+func TestSearchableGroupByRewrite(t *testing.T) {
+	clientSession := &mocks.ClientSession{}
+	sessionData := make(map[string]interface{}, 2)
+	clientSession.On("GetData", mock.Anything).Return(func(key string) interface{} {
+		return sessionData[key]
+	}, func(key string) bool {
+		_, ok := sessionData[key]
+		return ok
+	})
+	clientSession.On("DeleteData", mock.Anything).Run(func(args mock.Arguments) {
+		delete(sessionData, args[0].(string))
+	})
+	clientSession.On("SetData", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		sessionData[args[0].(string)] = args[1]
+	})
+
+	// data1 is searchable, data2 is plaintext.
+	schemaConfig := `schemas:
+  - table: test_table
+    columns:
+      - data1
+      - data2
+    encrypted:
+      - column: data1
+        searchable: true`
+	schema, err := config.MapTableSchemaStoreFromConfig([]byte(schemaConfig), config.UseMySQL)
+	assert.NoError(t, err)
+
+	ctx := base.SetClientSessionToContext(context.Background(), clientSession)
+	parser := sqlparser.New(sqlparser.ModeDefault)
+	keyStore := &mocks2.ServerKeyStore{}
+	keyStore.On("GetHMACSecretKey", mock.Anything).Return([]byte(`some key`), nil)
+	registryHandler := crypto.NewRegistryHandler(nil)
+	encryptor := NewHashQuery(keyStore, schema, registryHandler)
+
+	getSelect := func(obj mysql.OnQueryObject) *sqlparser.Select {
+		stmt, err := obj.Statement()
+		assert.NoError(t, err)
+		sel, ok := stmt.(*sqlparser.Select)
+		assert.True(t, ok)
+		return sel
+	}
+
+	t.Run("GROUP BY searchable rewrites to substr and wraps projection in ANY_VALUE", func(t *testing.T) {
+		obj := mysql.NewOnQueryObjectFromQuery("SELECT data1, count(*) FROM test_table GROUP BY data1", parser)
+		obj, changed, err := encryptor.OnQuery(ctx, obj)
+		assert.NoError(t, err)
+		assert.True(t, changed)
+		sel := getSelect(obj)
+
+		substr, ok := sel.GroupBy[0].(*sqlparser.SubstrExpr)
+		assert.True(t, ok, "GROUP BY must be rewritten to substr(...)")
+		assert.Equal(t, "data1", substr.Name.Name.String())
+		assert.Equal(t, "33", string(substr.To.(*sqlparser.SQLVal).Val))
+
+		aliased, ok := sel.SelectExprs[0].(*sqlparser.AliasedExpr)
+		assert.True(t, ok)
+		fn, ok := aliased.Expr.(*sqlparser.FuncExpr)
+		assert.True(t, ok, "projected searchable column must be wrapped in ANY_VALUE()")
+		assert.Equal(t, "any_value", fn.Name.Lowered())
+		assert.Equal(t, "data1", aliased.As.String(), "client-visible column name must be preserved")
+	})
+
+	t.Run("ORDER BY searchable wrapped in ANY_VALUE", func(t *testing.T) {
+		obj := mysql.NewOnQueryObjectFromQuery("SELECT data1, sum(data2) FROM test_table GROUP BY data1 ORDER BY data1 ASC", parser)
+		obj, changed, err := encryptor.OnQuery(ctx, obj)
+		assert.NoError(t, err)
+		assert.True(t, changed)
+		sel := getSelect(obj)
+		_, ok := sel.GroupBy[0].(*sqlparser.SubstrExpr)
+		assert.True(t, ok)
+		fn, ok := sel.OrderBy[0].Expr.(*sqlparser.FuncExpr)
+		assert.True(t, ok, "ORDER BY searchable column must be wrapped in ANY_VALUE()")
+		assert.Equal(t, "any_value", fn.Name.Lowered())
+	})
+
+	t.Run("WHERE and GROUP BY on searchable both rewritten", func(t *testing.T) {
+		obj := mysql.NewOnQueryObjectFromQuery("SELECT data1, count(*) FROM test_table WHERE data1='x' GROUP BY data1", parser)
+		obj, changed, err := encryptor.OnQuery(ctx, obj)
+		assert.NoError(t, err)
+		assert.True(t, changed)
+		sel := getSelect(obj)
+		_, ok := sel.GroupBy[0].(*sqlparser.SubstrExpr)
+		assert.True(t, ok, "GROUP BY must still be rewritten alongside WHERE")
+	})
+
+	t.Run("GROUP BY on non-searchable column is left unchanged", func(t *testing.T) {
+		obj := mysql.NewOnQueryObjectFromQuery("SELECT data2, count(*) FROM test_table GROUP BY data2", parser)
+		_, changed, err := encryptor.OnQuery(ctx, obj)
+		assert.NoError(t, err)
+		assert.False(t, changed, "non-searchable GROUP BY must not be rewritten")
+	})
+
+	t.Run("query without GROUP BY is left unchanged", func(t *testing.T) {
+		obj := mysql.NewOnQueryObjectFromQuery("SELECT data1 FROM test_table", parser)
+		_, changed, err := encryptor.OnQuery(ctx, obj)
+		assert.NoError(t, err)
+		assert.False(t, changed)
+	})
+}

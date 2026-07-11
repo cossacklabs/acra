@@ -81,11 +81,14 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query postgresql.OnQuer
 	// The list might be empty for non-SELECT queries or for non-eligible SELECTs.
 	// In that case we don't have any more work to do here.
 	items := encryptor.searchableQueryFilter.FilterSearchableComparisons(parseResult)
-	if len(items) == 0 {
-		return query, false, nil
+	changed := len(items) > 0
+	// clientSession/bindSettings are only needed to track WHERE-comparison placeholders; fetch them
+	// lazily so the GROUP-BY-only and non-searchable paths stay allocation-free and nil-safe.
+	var bindSettings map[int]config.ColumnEncryptionSetting
+	if len(items) > 0 {
+		clientSession := base.ClientSessionFromContext(ctx)
+		bindSettings = queryEncryptor.PlaceholderSettingsFromClientSession(clientSession)
 	}
-	clientSession := base.ClientSessionFromContext(ctx)
-	bindSettings := queryEncryptor.PlaceholderSettingsFromClientSession(clientSession)
 	// Now that we have condition expressions, perform rewriting in them.
 	for _, item := range items {
 		if !item.Setting.IsSearchable() {
@@ -120,8 +123,160 @@ func (encryptor *HashQuery) OnQuery(ctx context.Context, query postgresql.OnQuer
 		placeholderIndex := paramRef.GetNumber() - 1
 		bindSettings[int(placeholderIndex)] = item.Setting
 	}
+
+	// Searchable columns are stored as <deterministic HMAC prefix>||<randomized ciphertext>. GROUP
+	// BY on the raw column groups by the random ciphertext and never collapses equal plaintexts,
+	// silently breaking aggregation. Rewrite GROUP BY on a searchable column to group by its hash
+	// prefix (substring(col, 1, <HMAC_size>)) and wrap bare references to it in the target list /
+	// ORDER BY with (array_agg(col))[1] (PostgreSQL requires an aggregate for non-grouped columns and
+	// has no bytea min(); every row in a group shares the plaintext, so the representative decrypts
+	// correctly).
+	if selectStmt := parseResult.Stmts[0].Stmt.GetSelectStmt(); selectStmt != nil {
+		if encryptor.rewriteSearchableGroupBy(selectStmt) {
+			changed = true
+		}
+	}
+
+	if !changed {
+		return query, false, nil
+	}
 	logrus.Debugln("HashQuery.OnQuery changed query")
 	return postgresql.NewOnQueryObjectFromStatement(parseResult), true, nil
+}
+
+// arrayAggFuncName is the PostgreSQL aggregate used by firstOfGroupNode to wrap a grouped searchable
+// column. PostgreSQL has no min()/max() for bytea and any_value() requires PostgreSQL 16+, so
+// (array_agg(col))[1] is used to return a representative row's value portably across supported
+// PostgreSQL versions; every row in a group shares the plaintext, so it decrypts correctly.
+const arrayAggFuncName = "array_agg"
+
+// rewriteSearchableGroupBy rewrites GROUP BY on searchable columns to group by their deterministic
+// HMAC prefix (substr(col, 1, hashSize)) and wraps bare references to those columns in the target
+// list and ORDER BY with (array_agg(col))[1]. Returns true when the statement was modified. ORDER BY
+// on a searchable column becomes valid but is ordered by the hash, not the plaintext, since
+// searchable encryption is not order-preserving. Scope mirrors the MySQL implementation: only the
+// top-level SELECT is handled (not subqueries/CTEs/UNION/INSERT...SELECT), and GROUP BY by ordinal
+// and SELECT DISTINCT are known follow-ups.
+func (encryptor *HashQuery) rewriteSearchableGroupBy(selectStmt *pg_query.SelectStmt) bool {
+	if len(selectStmt.GroupClause) == 0 {
+		return false
+	}
+	fromClause := selectStmt.FromClause
+
+	type columnKey struct{ table, name string }
+	grouped := make(map[columnKey]bool)
+
+	resolve := func(colRef *pg_query.ColumnRef) (columnKey, bool) {
+		info, err := postgresql.FindColumnInfo(fromClause, colRef, encryptor.schemaStore)
+		if err != nil {
+			return columnKey{}, false
+		}
+		setting := postgresql.GetColumnSetting(colRef, info.Table, encryptor.schemaStore)
+		if setting == nil || !setting.IsSearchable() {
+			return columnKey{}, false
+		}
+		return columnKey{table: info.Table, name: info.Name}, true
+	}
+
+	changed := false
+	for i, node := range selectStmt.GroupClause {
+		colRef := node.GetColumnRef()
+		if colRef == nil {
+			continue
+		}
+		key, ok := resolve(colRef)
+		if !ok {
+			continue
+		}
+		grouped[key] = true
+		selectStmt.GroupClause[i] = getSubstrFuncNode(node)
+		changed = true
+	}
+	if !changed {
+		return false
+	}
+
+	for _, node := range selectStmt.TargetList {
+		resTarget := node.GetResTarget()
+		if resTarget == nil {
+			continue
+		}
+		colRef := resTarget.GetVal().GetColumnRef()
+		if colRef == nil {
+			continue
+		}
+		key, ok := resolve(colRef)
+		if !ok || !grouped[key] {
+			continue
+		}
+		if resTarget.Name == "" {
+			// preserve the client-visible column name (the wrapped expr would otherwise be unnamed)
+			resTarget.Name = columnRefName(colRef)
+		}
+		resTarget.Val = firstOfGroupNode(resTarget.Val)
+	}
+
+	for _, node := range selectStmt.SortClause {
+		sortBy := node.GetSortBy()
+		if sortBy == nil {
+			continue
+		}
+		colRef := sortBy.GetNode().GetColumnRef()
+		if colRef == nil {
+			continue
+		}
+		key, ok := resolve(colRef)
+		if !ok || !grouped[key] {
+			continue
+		}
+		sortBy.Node = firstOfGroupNode(sortBy.Node)
+	}
+
+	return true
+}
+
+// aggFuncNode builds a function-call node `name(arg)`.
+func aggFuncNode(name string, arg *pg_query.Node) *pg_query.Node {
+	return &pg_query.Node{
+		Node: &pg_query.Node_FuncCall{
+			FuncCall: &pg_query.FuncCall{
+				Funcname: []*pg_query.Node{
+					{Node: &pg_query.Node_String_{String_: &pg_query.String{Sval: name}}},
+				},
+				Args:       []*pg_query.Node{arg},
+				Funcformat: pg_query.CoercionForm_COERCE_EXPLICIT_CALL,
+			},
+		},
+	}
+}
+
+// firstOfGroupNode builds `(array_agg(arg))[1]` — an aggregate returning one representative value
+// from the group. Used to wrap a grouped searchable (bytea) column, for which PostgreSQL has no
+// min()/max() aggregate.
+func firstOfGroupNode(arg *pg_query.Node) *pg_query.Node {
+	return &pg_query.Node{
+		Node: &pg_query.Node_AIndirection{
+			AIndirection: &pg_query.A_Indirection{
+				Arg: aggFuncNode(arrayAggFuncName, arg),
+				Indirection: []*pg_query.Node{
+					{Node: &pg_query.Node_AIndices{AIndices: &pg_query.A_Indices{
+						Uidx: &pg_query.Node{Node: &pg_query.Node_AConst{AConst: &pg_query.A_Const{
+							Val: &pg_query.A_Const_Ival{Ival: &pg_query.Integer{Ival: 1}},
+						}}},
+					}}},
+				},
+			},
+		},
+	}
+}
+
+// columnRefName returns the unqualified column name from a ColumnRef.
+func columnRefName(colRef *pg_query.ColumnRef) string {
+	fields := colRef.GetFields()
+	if len(fields) == 0 {
+		return ""
+	}
+	return fields[len(fields)-1].GetString_().GetSval()
 }
 
 func getSubstrFuncNode(column *pg_query.Node) *pg_query.Node {
