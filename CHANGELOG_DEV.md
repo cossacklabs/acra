@@ -1,3 +1,6 @@
+# 0.98.0 - 2026-07-10
+- MySQL: support `GROUP BY` and `ORDER BY` on searchable-encrypted columns. Such columns are stored as `<deterministic HMAC prefix>||<randomized ciphertext>`, so grouping/ordering on the raw column previously grouped by the random ciphertext and silently produced fragmented (wrong) aggregates. AcraServer now rewrites `GROUP BY col`/`ORDER BY col` on a searchable column to operate on its HMAC prefix (`substring(col, 1, <HMAC_size>)`) and wraps bare projected references in `ANY_VALUE()` so the query stays valid under `ONLY_FULL_GROUP_BY`, consistent with the existing searchable `WHERE` rewrite. Fixes [#729](https://github.com/cossacklabs/acra/issues/729).
+
 # 0.97.0 - 2024-09-13
 - Split python `extended_example.py` into separate type awareness (`example_type_awareness.py`) and default transparent encryption (`extended_example.py`) examples.
 
