@@ -108,3 +108,103 @@ schemas:
 		}
 	}
 }
+
+func TestParseSearchQueryPlaceholdersSettingsSkipsNonColumnComparisons(t *testing.T) {
+	schemaConfig := `
+schemas:
+  - table: test_table
+    columns:
+      - data1
+      - data2
+    encrypted:
+      - column: data1
+        searchable: true
+      - column: data2
+`
+	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(schemaConfig), config.UseMySQL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	parser := sqlparser.New(sqlparser.ModeDefault)
+	testCases := []struct {
+		name        string
+		query       string
+		wantColumns map[int]string
+	}{
+		{
+			name:        "searchable column only",
+			query:       "SELECT data1 FROM test_table WHERE data1=?",
+			wantColumns: map[int]string{0: "data1"},
+		},
+		{
+			name:        "function after searchable column",
+			query:       "SELECT data1 FROM test_table WHERE data1=? AND abs(data2)=?",
+			wantColumns: map[int]string{0: "data1"},
+		},
+		{
+			name:        "function before searchable column",
+			query:       "SELECT data1 FROM test_table WHERE abs(data2)=? AND data1=?",
+			wantColumns: map[int]string{1: "data1"},
+		},
+		{
+			name:        "arithmetic after searchable column",
+			query:       "SELECT data1 FROM test_table WHERE data1=? AND data2+1=?",
+			wantColumns: map[int]string{0: "data1"},
+		},
+		{
+			name:        "arithmetic before searchable column",
+			query:       "SELECT data1 FROM test_table WHERE data1+1=? AND data1=?",
+			wantColumns: map[int]string{1: "data1"},
+		},
+		{
+			name:        "literal before searchable column",
+			query:       "SELECT data1 FROM test_table WHERE 1=? AND data1=?",
+			wantColumns: map[int]string{1: "data1"},
+		},
+		{
+			name:        "literal after searchable column",
+			query:       "SELECT data1 FROM test_table WHERE data1=? AND 'x'=?",
+			wantColumns: map[int]string{0: "data1"},
+		},
+		{
+			name:        "function between two searchable comparisons",
+			query:       "SELECT data1 FROM test_table WHERE data1=? AND abs(data2)=? OR data1=?",
+			wantColumns: map[int]string{0: "data1", 2: "data1"},
+		},
+		{
+			name:        "substr stays supported next to a function",
+			query:       "SELECT data1 FROM test_table WHERE substr(data1, 1, 1)=? AND abs(data2)=?",
+			wantColumns: map[int]string{0: "data1"},
+		},
+		{
+			name:        "unsupported expression only",
+			query:       "SELECT data1 FROM test_table WHERE abs(data2)=?",
+			wantColumns: map[int]string{},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			statement, err := parser.Parse(testCase.query)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			settings := ParseSearchQueryPlaceholdersSettings(statement, schemaStore)
+			if len(settings) != len(testCase.wantColumns) {
+				t.Fatalf("got %d placeholder settings, want %d: %#v", len(settings), len(testCase.wantColumns), settings)
+			}
+			
+			for index, columnName := range testCase.wantColumns {
+				setting, ok := settings[index]
+				if !ok {
+					t.Fatalf("missing placeholder %d", index)
+				}
+				if setting.ColumnName() != columnName {
+					t.Fatalf("placeholder %d column = %s, want %s", index, setting.ColumnName(), columnName)
+				}
+			}
+		})
+	}
+}
