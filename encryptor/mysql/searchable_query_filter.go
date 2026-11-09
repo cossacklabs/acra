@@ -222,6 +222,12 @@ func ParseSearchQueryPlaceholdersSettings(statement sqlparser.Statement, schemaS
 				colName = expr
 			case *sqlparser.SubstrExpr:
 				colName = expr.Name
+			default:
+				// Functions, arithmetic, and literals are not searchable placeholders.
+				return true, nil
+			}
+			if colName == nil {
+				return true, nil
 			}
 
 			columnInfo, err := FindColumnInfo(tableExps, colName, schemaStore)
